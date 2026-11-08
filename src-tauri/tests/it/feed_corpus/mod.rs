@@ -26,6 +26,7 @@ mod firstock;
 mod flattrade;
 mod samco;
 mod shoonya;
+mod zebu;
 mod zerodha;
 
 /// Every broker with cases, and its cases (the folder names).
@@ -37,5 +38,6 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("flattrade", flattrade::CASES),
     ("samco", samco::CASES),
     ("shoonya", shoonya::CASES),
+    ("zebu", zebu::CASES),
     ("zerodha", zerodha::CASES),
 ];

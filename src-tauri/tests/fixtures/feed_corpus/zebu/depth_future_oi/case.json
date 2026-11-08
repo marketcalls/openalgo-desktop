@@ -1,0 +1,120 @@
+{
+  "broker": "zebu",
+  "summary": "A Depth subscription on an NFO future: Zebu's depth snapshot (dk) gives a Depth frame with the quote, OI and the five-level book; a partial (df) moves the best levels and the OI; a book of zeros clears every level; the unsubscribe releases the depth subscription.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "derivative-oi",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "59182",
+      "brsymbol": "NIFTY25NOV26F",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/zebu/streaming/zebu_adapter.py::ZebuWebSocketAdapter._process_market_message",
+      "broker/zebu/streaming/zebu_adapter.py::ZebuWebSocketAdapter._normalize_market_data",
+      "broker/zebu/streaming/zebu_adapter.py::MarketDataCache",
+      "broker/zebu/streaming/zebu_adapter.py::DepthNormalizer"
+    ],
+    "notes": [
+      "Noren sends OI as oi and toi; the desktop takes toi for every member when present (audit FB-07). The web's Zebu adapter sends toi as total_traded_value, and no OI key. The partial carries an oi change without toi to show which one each side reads.",
+      "Circuits, 52-week values and depth_level are web fields the desktop's carrier does not have yet (audit C06)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "52_week_high",
+      "kind": "open",
+      "reason": "The web's Zebu adapter sends 52_week_high in Depth frames; the desktop's common carrier has no place for it yet.",
+      "ref": "audit C06, FB-07; broker/zebu/streaming/zebu_adapter.py DepthNormalizer"
+    },
+    {
+      "key": "52_week_low",
+      "kind": "open",
+      "reason": "The web's Zebu adapter sends 52_week_low in Depth frames; the desktop's common carrier has no place for it yet.",
+      "ref": "audit C06, FB-07; broker/zebu/streaming/zebu_adapter.py DepthNormalizer"
+    },
+    {
+      "key": "depth_level",
+      "kind": "open",
+      "reason": "The web's Zebu adapter sends depth_level in Depth frames; the desktop's common carrier has no place for it yet.",
+      "ref": "audit C06, FB-07; broker/zebu/streaming/zebu_adapter.py DepthNormalizer"
+    },
+    {
+      "key": "last_trade_time",
+      "kind": "open",
+      "reason": "The web's Zebu adapter forwards Noren's trade time ltt (HH:MM:SS, null when the frame has none) as last_trade_time; the desktop's carrier has no place for it.",
+      "ref": "audit FB-07, C06; broker/zebu/streaming/zebu_adapter.py normalisers"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "The web's Zebu adapter sends lower_circuit in Depth frames; the desktop's common carrier has no place for it yet.",
+      "ref": "audit C06, FB-07; broker/zebu/streaming/zebu_adapter.py DepthNormalizer"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "The desktop sends Noren's feed time ft, in ms, as ltt: a packet time, not the trade time. Noren's trade time is its ltt (HH:MM:SS, IST), which the web forwards raw as last_trade_time; the web's Zebu adapter sends no ltt key in any mode, LTP included. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "audit FB-07; brokers/families/noren/streaming.rs NorenFeed::tick (ft * 1000)"
+    },
+    {
+      "key": "mode",
+      "kind": "open",
+      "reason": "The web's Zebu adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full) for every broker. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "feed::source::Mode::data_label; broker/zebu/streaming/zebu_adapter.py Config.MODE_*"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker; the web's Zebu adapter sends no OI key. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "feed::protocol::market_data; broker/zebu/streaming/zebu_adapter.py DepthNormalizer"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker; the web's Zebu adapter labels Noren's toi total_traded_value instead. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "feed::protocol::market_data; broker/zebu/streaming/zebu_adapter.py DepthNormalizer"
+    },
+    {
+      "key": "percent_change",
+      "kind": "open",
+      "reason": "The web's Zebu adapter forwards Noren's pc as percent_change for every instrument; the desktop sends the change fields for indices only.",
+      "ref": "audit C04; feed/bridge.rs quote_fields; broker/zebu/streaming/zebu_adapter.py normalisers"
+    },
+    {
+      "key": "total_traded_value",
+      "kind": "open",
+      "reason": "The web's Zebu adapter sends Noren's toi as total_traded_value; Noren documents toi as the total open interest, which the desktop sends as oi and open_interest. Which reading is right needs a captured frame and the lead's decision before the desktop adds or declines this key.",
+      "ref": "audit FB-07; broker/zebu/streaming/zebu_adapter.py DepthNormalizer"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "The web's Zebu adapter sends upper_circuit in Depth frames; the desktop's common carrier has no place for it yet.",
+      "ref": "audit C06, FB-07; broker/zebu/streaming/zebu_adapter.py DepthNormalizer"
+    },
+    {
+      "key": "zebu_timestamp",
+      "kind": "open",
+      "reason": "The web forwards Noren's feed time ft (epoch seconds) as zebu_timestamp; the desktop drops it.",
+      "ref": "audit FB-07, C06; broker/zebu/streaming/zebu_adapter.py normalisers"
+    }
+  ]
+}

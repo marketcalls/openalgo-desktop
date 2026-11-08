@@ -1,0 +1,23 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "broker": "zebu",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "mode": "quote",
+    "ltp": 25495.6,
+    "ltt": 1794199542000,
+    "timestamp": "<receipt_ms>",
+    "volume": 0,
+    "open": 25380.1,
+    "high": 25510.75,
+    "low": 25340.2,
+    "close": 25362.45,
+    "price_change": 133.15,
+    "price_change_percent": 0.52,
+    "percent_change": 0.52
+  }
+}
