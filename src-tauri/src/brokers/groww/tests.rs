@@ -1453,15 +1453,7 @@ fn subjects_follow_web_topics() {
         subjects(&sub("SENSEX25OCT82000CE", "BFO", "825001", FeedMode::Quote)),
         ["/ld/fo/bse/price.825001"]
     );
-    // NSE index: symbol as token; depth falls back to price.
-    assert_eq!(
-        subjects(&sub("NIFTY", "NSE_INDEX", "NIFTY", FeedMode::Depth)),
-        ["/ld/eq/nse/price.NIFTY"]
-    );
-    assert_eq!(
-        subjects(&sub("SENSEX", "BSE_INDEX", "1", FeedMode::Ltp)),
-        ["/ld/eq/bse/price.1"]
-    );
+    // Indices: `live_exchanges`.
 }
 
 fn ltp_payload(ltp: f64) -> Vec<u8> {
@@ -1510,6 +1502,8 @@ fn msg_frame(sid: u64, payload: &[u8]) -> Message {
     Message::Binary(b)
 }
 
+/// Web openalgo#2341, the Groww part (no web test).
+mod live_exchanges;
 /// Web test/test_groww_quote_feed.py (openalgo#2377).
 mod quote_feed;
 

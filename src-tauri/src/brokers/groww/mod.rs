@@ -543,6 +543,10 @@ impl Broker for GrowwBroker {
         )))
     }
 
+    fn feed_refusal(&self, exchange: &str) -> Option<String> {
+        streaming::refusal(exchange)
+    }
+
     /// The order-book poller (web `PollingOrderUpdateAdapter`, 5 s); it
     /// replaces a running one and stops in `on_logout`.
     fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {

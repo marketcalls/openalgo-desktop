@@ -18,9 +18,12 @@
 //! hold several); protocol replies go back as `FeedEvent::Reply`, and the
 //! manager treats the session as accepted after 2 s without `+OK`.
 //! Subjects: `/ld/{eq|fo}/{nse|bse}/price.{token}` (LTP/quote) and
-//! `.../book.{token}` (depth). NSE indices use the OpenAlgo symbol as the
-//! token, BSE indices the numeric token; depth on an index falls back to
-//! price. Depth subscriptions add a shadow price subscription because the
+//! `.../book.{token}` (depth); indices `/ld/indices/{nse|bse}/price.{token}`
+//! (growwapi `FeedConstants.get_live_index_topic`, web openalgo#2341), NSE
+//! indices with the OpenAlgo symbol as the token, BSE indices the numeric
+//! token; depth on an index falls back to price. Groww publishes no other
+//! exchange: a subscribe on one is refused (`refusal`) and never sent.
+//! Depth subscriptions add a shadow price subscription because the
 //! book carries no LTP/OHLC, and a per-instrument merge cache joins them.
 //! Every tick is published from that cache (web openalgo#2377): Groww
 //! leaves out a value that did not change, so a field keeps its last
@@ -355,9 +358,25 @@ pub fn subjects(sub: &FeedSubscription) -> Vec<String> {
         .collect()
 }
 
+/// Why Groww's live feed refuses `exchange`, when it does (web
+/// openalgo#2341): it publishes NSE and BSE cash, F&O and indices only,
+/// and answers a commodity or currency topic with a NATS "Permissions
+/// Violation".
+pub fn refusal(exchange: &str) -> Option<String> {
+    (!super::mapping::has_market_data(exchange)).then(|| {
+        format!(
+            "Groww does not provide live streaming for {}. Live prices are available for NSE, BSE, NFO, BFO and indices.",
+            exchange
+        )
+    })
+}
+
 fn subjects_with_kind(sub: &FeedSubscription) -> Vec<(String, Kind)> {
     let ex = super::mapping::groww_exchange(&sub.exchange).to_ascii_lowercase();
-    let seg = if matches!(sub.exchange.as_str(), "NFO" | "BFO") {
+    let seg = if is_index(&sub.exchange) {
+        // Indices are not published under `/ld/eq` at all.
+        "indices"
+    } else if matches!(sub.exchange.as_str(), "NFO" | "BFO") {
         "fo"
     } else {
         "eq"
@@ -706,6 +725,10 @@ impl BrokerFeed for GrowwFeed {
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         let mut text = String::new();
         for s in subs {
+            if refusal(&s.exchange).is_some() {
+                tracing::debug!("Groww streams no {} prices; not subscribing", s.exchange);
+                continue;
+            }
             let key = s.instrument_key();
             self.forget(&key);
             let mut sids = Vec::new();

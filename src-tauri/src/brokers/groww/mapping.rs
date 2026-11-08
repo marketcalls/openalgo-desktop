@@ -70,12 +70,19 @@ pub fn groww_segment(exchange: &str) -> &'static str {
     }
 }
 
-/// Exchanges Groww has market data for (web quotes, depth, multiquotes).
-pub fn check_data_exchange(exchange: &str) -> Result<()> {
-    if matches!(
+/// Whether Groww has market data for an exchange: NSE and BSE cash, F&O
+/// and indices, by REST and on the live feed alike (web quotes, depth,
+/// multiquotes, `groww_adapter.py` subscribe).
+pub fn has_market_data(exchange: &str) -> bool {
+    matches!(
         exchange,
         "NSE" | "BSE" | "NFO" | "BFO" | "NSE_INDEX" | "BSE_INDEX"
-    ) {
+    )
+}
+
+/// Exchanges Groww has market data for (web quotes, depth, multiquotes).
+pub fn check_data_exchange(exchange: &str) -> Result<()> {
+    if has_market_data(exchange) {
         return Ok(());
     }
     Err(AppError::Validation(format!(
