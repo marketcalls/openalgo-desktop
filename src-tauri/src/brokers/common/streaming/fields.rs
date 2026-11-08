@@ -32,7 +32,8 @@
 //! * hdfcsecurities, hdfcsky: circuits (CIRC packets), OI in quote packets.
 //! * iiflcapital, nubra, samco: best bid and ask.
 //! * indmoney: best bid and ask, OI change, OI in Quote.
-//! * kotak: OI in Quote (`carried`, market pictures).
+//! * kotak: OI in Quote (`carried`, market pictures); the packet's own
+//!   change (`carried`).
 //! * motilal: volume in LTP packets (`carried`), circuits.
 //! * mstock: exchange time, circuits.
 //! * paytm: 52-week range, OI change.

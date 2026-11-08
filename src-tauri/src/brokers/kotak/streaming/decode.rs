@@ -87,10 +87,15 @@ pub enum Sfeed {
         total_sell: i64,
         volume: i64,
         oi: i64,
+        /// The exchange's change since the previous close, absolute and in
+        /// percent (`net_chg`, `net_chg_percent`).
+        change: f64,
+        change_percent: f64,
         buy: Vec<SfeedRow>,
         sell: Vec<SfeedRow>,
     },
-    /// Mini touch line (level 1): traded price and previous close only.
+    /// Mini touch line (level 1): the traded price, the previous close and
+    /// the change.
     Lite {
         exchange: String,
         token: String,
@@ -98,6 +103,8 @@ pub enum Sfeed {
         close: f64,
         last_trade_time: i64,
         last_trade_qty: i64,
+        change: f64,
+        change_percent: f64,
     },
     Index {
         exchange: String,
@@ -109,6 +116,10 @@ pub enum Sfeed {
         low: f64,
         close: f64,
         last_trade_time: i64,
+        /// `value - close`, as the web's decoder works it out, and the
+        /// packet's change percent.
+        change: f64,
+        change_percent: f64,
     },
     MarketStatus {
         exchange: String,
@@ -212,6 +223,8 @@ fn scrip_packet(
         last_trade_qty: i64le(p, b + 64),
         average_price: price(72),
         oi: i64::from(u32le(p, b + 94)),
+        change: f64::from(i32le(p, b + 106)) / div,
+        change_percent: f64::from(i32le(p, b + 90)) / 100.0,
         buy,
         sell,
     })
@@ -248,16 +261,19 @@ pub fn decode_packet(p: &[u8], dividers: &HashMap<i8, f64>) -> Option<Sfeed> {
                 return None;
             }
             let close = i32le(p, b + 8);
+            let value = i32le(p, b + 20);
             return Some(Sfeed::Index {
                 exchange,
                 token: u32le(p, b).to_string(),
                 name: decode_string(&p[b + 57..b + 78]),
-                value: f64::from(i32le(p, b + 20)) / div,
+                value: f64::from(value) / div,
                 open: f64::from(i32le(p, b + 4)) / div,
                 high: f64::from(i32le(p, b + 12)) / div,
                 low: f64::from(i32le(p, b + 16)) / div,
                 close: f64::from(close) / div,
                 last_trade_time: i64le(p, b + 24),
+                change: (f64::from(value) - f64::from(close)) / div,
+                change_percent: f64::from(i32le(p, b + 40)) / 100.0,
             });
         }
         MSG_MARKET_STATUS => {
@@ -298,6 +314,8 @@ pub fn decode_packet(p: &[u8], dividers: &HashMap<i8, f64>) -> Option<Sfeed> {
                 ltp: f64::from(u32le(p, b + 12)) / div,
                 last_trade_qty: i64le(p, b + 16),
                 close: f64::from(u32le(p, b + 24)) / div,
+                change: f64::from(i32le(p, b + 32)) / div,
+                change_percent: f64::from(i32le(p, b + 28)) / 100.0,
             })
         }
         2 | 4 | 8 | 16 => scrip_packet(p, exchange, level, div, message_length),

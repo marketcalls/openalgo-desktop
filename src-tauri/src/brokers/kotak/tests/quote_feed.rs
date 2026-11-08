@@ -171,6 +171,9 @@ fn a_quote_carries_every_field_the_packet_decoded() {
         "total_buy_quantity": 900,
         "total_sell_quantity": 800,
         "oi": 4_200,
+        // The packet's own change percent (nc 150), not one worked out
+        // from the price and close (1.18).
+        "percent_change": 1.5,
     });
     for (k, v) in expected.as_object().unwrap() {
         assert_eq!(q.get(k), Some(v), "{}: {}", k, q);

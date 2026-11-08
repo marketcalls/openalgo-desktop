@@ -10,7 +10,10 @@
 //! price, the previous close and the last trade; what it lacks stays as the
 //! bridge last knew it, or is left out before the first market picture
 //! (web openalgo#2376). An index packet has no order flow or OI. Nothing
-//! has a trade time before the first trade.
+//! has a trade time before the first trade. Every price packet carries the
+//! exchange's change, which the web publishes as `percent_change` (the
+//! packet's `nc`, `sfeed_websocket._trade_fields`): the tick sends that
+//! figure, not one worked out again from the price.
 
 use super::{Sfeed, SfeedRow, SubInfo};
 use crate::brokers::common::streaming::{
@@ -113,9 +116,12 @@ pub(super) fn packet_tick(sub: &SubInfo, pkt: &Sfeed, now: i64) -> Option<Normal
             total_sell,
             volume,
             oi,
+            change,
+            change_percent,
             ..
         } => {
             t.mode = FeedMode::Quote.code();
+            (t.change, t.change_percent) = (*change, *change_percent);
             t.ltp = *ltp;
             t.open = *open;
             t.high = *high;
@@ -137,9 +143,12 @@ pub(super) fn packet_tick(sub: &SubInfo, pkt: &Sfeed, now: i64) -> Option<Normal
             close,
             last_trade_time,
             last_trade_qty,
+            change,
+            change_percent,
             ..
         } => {
             t.mode = FeedMode::Quote.code();
+            (t.change, t.change_percent) = (*change, *change_percent);
             t.ltp = *ltp;
             t.close = *close;
             t.last_quantity = *last_trade_qty;
@@ -153,10 +162,13 @@ pub(super) fn packet_tick(sub: &SubInfo, pkt: &Sfeed, now: i64) -> Option<Normal
             low,
             close,
             last_trade_time,
+            change,
+            change_percent,
             ..
         } => {
             // An index's packet is all it has: Depth holders read it too.
             t.mode = FeedMode::Depth.code();
+            (t.change, t.change_percent) = (*change, *change_percent);
             t.ltp = *value;
             t.open = *open;
             t.high = *high;
@@ -167,6 +179,7 @@ pub(super) fn packet_tick(sub: &SubInfo, pkt: &Sfeed, now: i64) -> Option<Normal
         }
         Sfeed::MarketStatus { .. } | Sfeed::Cas { .. } => return None,
     };
+    t.mark_carried(QuoteField::Change);
     t.last_trade_time_ms = epoch_ms(traded_at);
     if t.last_trade_time_ms <= 0 {
         t.mark_absent(QuoteField::LastTradeTime);
@@ -176,7 +189,6 @@ pub(super) fn packet_tick(sub: &SubInfo, pkt: &Sfeed, now: i64) -> Option<Normal
         // packet and publishes nothing for this one.
         t.mark_absent(QuoteField::Ltp);
     }
-    t.derive_change();
     Some(t)
 }
 
