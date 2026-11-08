@@ -33,100 +33,58 @@
   ],
   "deviations": [
     {
-      "key": "mode",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Arrow web adapter sends no data.mode. Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::source::Mode::data_label; feed::dialect (per-broker switch, lane wire)"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an index beside the web adapter's own change keys (change, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     },
     {
-      "key": "token",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The Arrow web adapter adds the broker's instrument token as a string to every frame; the desktop's common carrier has no place for it. Whether the desktop carries it is the lead's decision (a broker identifier, not a market field).",
-      "ref": "arrow_adapter.py:200 (_normalize); audit C06 carrier"
-    },
-    {
-      "key": "last_price",
-      "kind": "open",
-      "reason": "The Arrow web adapter repeats ltp as last_price in every frame; the desktop sends no such alias yet.",
-      "ref": "arrow_adapter.py:202; audit C06 per-broker aliases (feed::dialect)"
-    },
-    {
-      "key": "prev_close",
-      "kind": "open",
-      "reason": "The Arrow web adapter repeats the previous close as prev_close wherever it sends close; the desktop sends no such alias yet.",
-      "ref": "arrow_adapter.py:206-208; audit C06 per-broker aliases (feed::dialect)"
-    },
-    {
-      "key": "change",
-      "kind": "open",
-      "reason": "The web sends the change against the previous close for every instrument whose packet carries a close (ltpc, quote, full); the desktop sends it in index Quote and Depth frames only.",
-      "ref": "arrow_adapter.py:209-212; audit C04 (change on all exchanges)"
-    },
-    {
-      "key": "change_percent",
-      "kind": "open",
-      "reason": "The web sends the change against the previous close for every instrument whose packet carries a close (ltpc, quote, full); the desktop sends it in index Quote and Depth frames only.",
-      "ref": "arrow_adapter.py:209-212; audit C04 (change on all exchanges)"
-    },
-    {
-      "key": "close",
-      "kind": "open",
-      "reason": "An LTP subscription streams Arrow's ltpc packet, whose previous close the web puts in the LTP frame (with the change); the desktop's LTP frame carries ltp and the times only. For an index the web's LTP frame also carries the change.",
-      "ref": "arrow_mapping.py:54-68 (LTP -> ltpc for the close); arrow_adapter.py:206-212; audit C03"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an index beside the web adapter's own change keys (change, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: Arrow's quote packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
       "approved": true
     },
     {
       "key": "average_price",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: Arrow's quote packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
       "approved": true
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: Arrow's quote packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
       "approved": true
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: Arrow's quote packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
       "approved": true
     },
     {
       "key": "oi",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no open interest: Arrow's index quote packet fills it with 0, which the web passes on in the Quote frame; the desktop's index frame leaves it out.",
-      "ref": "arrow_adapter.py:223-225",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
       "approved": true
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no open interest: Arrow's index quote packet fills it with 0, which the web passes on in the Quote frame; the desktop's index frame leaves it out.",
-      "ref": "arrow_adapter.py:223-225",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
       "approved": true
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends the change under the canonical names price_change and price_change_percent beside the Arrow (change, change_percent) web names; price_change is not a docs key and the web adapter sends none, so it goes. Names follow each broker's own web adapter, mode by mode (lead ruling 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::dialect (WS-05; per-broker switch, lane wire)"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends the change under the canonical names price_change and price_change_percent beside the Arrow (change, change_percent) web names; price_change is not a docs key and the web adapter sends none, so it goes. Names follow each broker's own web adapter, mode by mode (lead ruling 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::dialect (WS-05; per-broker switch, lane wire)"
     }
   ]
 }

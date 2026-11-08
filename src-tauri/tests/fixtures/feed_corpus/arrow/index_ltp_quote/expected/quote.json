@@ -7,7 +7,6 @@
   "data": {
     "symbol": "NIFTY",
     "exchange": "NSE_INDEX",
-    "mode": "quote",
     "ltp": 24512.35,
     "ltt": 1791000302000,
     "timestamp": 1791000302000,
@@ -18,6 +17,9 @@
     "close": 24400.1,
     "price_change": 112.25,
     "price_change_percent": 0.46,
+    "token": "26000",
+    "last_price": 24512.35,
+    "prev_close": 24400.1,
     "change": 112.25,
     "change_percent": 0.46
   }

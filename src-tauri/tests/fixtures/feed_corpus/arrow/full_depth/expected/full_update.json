@@ -7,7 +7,6 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "full",
     "ltp": 1500.1,
     "ltt": 1791000310000,
     "timestamp": 1791000311000,
@@ -20,6 +19,8 @@
     "high": 1510.2,
     "low": 1485.1,
     "close": 1488.3,
+    "price_change": 11.8,
+    "price_change_percent": 0.79,
     "oi": 0,
     "open_interest": 0,
     "depth": {
@@ -77,6 +78,13 @@
           "orders": 8
         }
       ]
-    }
+    },
+    "token": "2885",
+    "last_price": 1500.1,
+    "prev_close": 1488.3,
+    "change": 11.8,
+    "change_percent": 0.79,
+    "upper_circuit": 1637.2,
+    "lower_circuit": 1339.5
   }
 }

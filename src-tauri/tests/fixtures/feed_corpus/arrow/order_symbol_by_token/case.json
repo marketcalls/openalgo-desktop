@@ -31,13 +31,5 @@
   },
   "upstream_ignore": [
     "PONG"
-  ],
-  "deviations": [
-    {
-      "key": "symbol",
-      "kind": "open",
-      "reason": "The web resolves an order update's OpenAlgo symbol by the instrument token first, then the broker symbol; the desktop looks up the broker symbol only and passes an unknown one on raw, so an update whose trading symbol differs from the master's names a symbol no book or strategy knows.",
-      "ref": "websocket_proxy/order_adapter.py:45-68; arrow_order_adapter.py:101-106; audit remaining brokers matrix (Arrow: no token fallback); BKD-01"
-    }
   ]
 }

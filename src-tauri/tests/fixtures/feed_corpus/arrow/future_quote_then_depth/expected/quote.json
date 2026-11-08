@@ -7,7 +7,6 @@
   "data": {
     "symbol": "NIFTY24NOV26FUT",
     "exchange": "NFO",
-    "mode": "quote",
     "ltp": 24605.5,
     "ltt": 1791000400000,
     "timestamp": 1791000401000,
@@ -19,6 +18,15 @@
     "open": 24550.0,
     "high": 24640.0,
     "low": 24530.5,
-    "close": 24520.0
+    "close": 24520.0,
+    "price_change": 85.5,
+    "price_change_percent": 0.35,
+    "oi": 12345600,
+    "open_interest": 12345600,
+    "token": "52345",
+    "last_price": 24605.5,
+    "prev_close": 24520.0,
+    "change": 85.5,
+    "change_percent": 0.35
   }
 }

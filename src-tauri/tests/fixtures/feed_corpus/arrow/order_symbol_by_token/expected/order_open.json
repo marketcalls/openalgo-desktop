@@ -4,7 +4,7 @@
   "mode": "live",
   "broker": "arrow",
   "orderid": "25110900000105",
-  "symbol": "NIFTY 24 NOV FUT",
+  "symbol": "NIFTY24NOV26FUT",
   "exchange": "NFO",
   "action": "BUY",
   "quantity": 75,

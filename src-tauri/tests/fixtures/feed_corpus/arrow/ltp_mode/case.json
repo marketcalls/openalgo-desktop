@@ -35,46 +35,28 @@
   ],
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Arrow web adapter sends no data.mode. Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::source::Mode::data_label; feed::dialect (per-broker switch, lane wire)"
-    },
-    {
-      "key": "token",
-      "kind": "open",
-      "reason": "The Arrow web adapter adds the broker's instrument token as a string to every frame; the desktop's common carrier has no place for it. Whether the desktop carries it is the lead's decision (a broker identifier, not a market field).",
-      "ref": "arrow_adapter.py:200 (_normalize); audit C06 carrier"
-    },
-    {
-      "key": "last_price",
-      "kind": "open",
-      "reason": "The Arrow web adapter repeats ltp as last_price in every frame; the desktop sends no such alias yet.",
-      "ref": "arrow_adapter.py:202; audit C06 per-broker aliases (feed::dialect)"
+      "key": "close",
+      "kind": "desktop-decision",
+      "reason": "A 13-byte LTP packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the frame carries the close and change the 17-byte packet brought; the web's frame from a 13-byte packet has none (the Arrow adapter keeps no snapshot). Nothing is invented: every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; arrow_websocket.py:556-568 (only the 17-byte packet has a close)"
     },
     {
       "key": "prev_close",
-      "kind": "open",
-      "reason": "The Arrow web adapter repeats the previous close as prev_close wherever it sends close; the desktop sends no such alias yet.",
-      "ref": "arrow_adapter.py:206-208; audit C06 per-broker aliases (feed::dialect)"
+      "kind": "desktop-decision",
+      "reason": "A 13-byte LTP packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the frame carries the close and change the 17-byte packet brought; the web's frame from a 13-byte packet has none (the Arrow adapter keeps no snapshot). Nothing is invented: every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; arrow_websocket.py:556-568 (only the 17-byte packet has a close)"
     },
     {
       "key": "change",
-      "kind": "open",
-      "reason": "The web sends the change against the previous close for every instrument whose packet carries a close (ltpc, quote, full); the desktop sends it in index Quote and Depth frames only.",
-      "ref": "arrow_adapter.py:209-212; audit C04 (change on all exchanges)"
+      "kind": "desktop-decision",
+      "reason": "A 13-byte LTP packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the frame carries the close and change the 17-byte packet brought; the web's frame from a 13-byte packet has none (the Arrow adapter keeps no snapshot). Nothing is invented: every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; arrow_websocket.py:556-568 (only the 17-byte packet has a close)"
     },
     {
       "key": "change_percent",
-      "kind": "open",
-      "reason": "The web sends the change against the previous close for every instrument whose packet carries a close (ltpc, quote, full); the desktop sends it in index Quote and Depth frames only.",
-      "ref": "arrow_adapter.py:209-212; audit C04 (change on all exchanges)"
-    },
-    {
-      "key": "close",
-      "kind": "open",
-      "reason": "An LTP subscription streams Arrow's ltpc packet, whose previous close the web puts in the LTP frame (with the change); the desktop's LTP frame carries ltp and the times only.",
-      "ref": "arrow_mapping.py:54-68 (LTP -> ltpc for the close); arrow_adapter.py:206-212; audit C03"
+      "kind": "desktop-decision",
+      "reason": "A 13-byte LTP packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the frame carries the close and change the 17-byte packet brought; the web's frame from a 13-byte packet has none (the Arrow adapter keeps no snapshot). Nothing is invented: every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; arrow_websocket.py:556-568 (only the 17-byte packet has a close)"
     }
   ]
 }
