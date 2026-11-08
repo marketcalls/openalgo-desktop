@@ -41,14 +41,14 @@
     {
       "key": "upper_circuit",
       "kind": "open",
-      "reason": "The web sends the full packet's upper circuit limit in Depth (mstock_adapter.py:425). The desktop decodes it (brokers/mstock/streaming.rs Packet::upper_circuit) and the renderer has the name for mStock (feed/dialect/names.rs CIRCUITS_IN_DEPTH), but MstockFeed does not fill QuoteExtras::upper_circuit yet; on a Quote frame cut from a full packet the web sends it too (the one-dict fan-out, C08), which lane wire's step 2 brings.",
-      "ref": "audit C06, C08; brokers/common/streaming/fields.rs (mstock: circuits)"
+      "reason": "With Depth open on the instrument the web's Quote topic carries the full packet's dict, its circuit limits included (mstock_adapter.py:186-210, 425-426); the desktop's Depth frame now carries them, its Quote frame cut from the same full packet does not. Lead decision (C08): lower-mode frames of a one-dict broker carry the richer packet's keys as the web sends them; lane wire's step 2 (the one-dict fold) brings it.",
+      "ref": "audit C08; decisions 2026-11-09 02:40"
     },
     {
       "key": "lower_circuit",
       "kind": "open",
-      "reason": "As upper_circuit, for the lower circuit limit (mstock_adapter.py:426; Packet::lower_circuit).",
-      "ref": "audit C06, C08"
+      "reason": "With Depth open on the instrument the web's Quote topic carries the full packet's dict, its circuit limits included (mstock_adapter.py:186-210, 425-426); the desktop's Depth frame now carries them, its Quote frame cut from the same full packet does not. Lead decision (C08): lower-mode frames of a one-dict broker carry the richer packet's keys as the web sends them; lane wire's step 2 (the one-dict fold) brings it.",
+      "ref": "audit C08; decisions 2026-11-09 02:40"
     },
     {
       "key": "depth",

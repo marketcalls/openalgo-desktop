@@ -30,18 +30,5 @@
       "Times from audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md RB-07 (exchange 1791002705000, trade 1791002699000)."
     ]
   },
-  "deviations": [
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web sends the full packet's upper circuit limit in Depth (mstock_adapter.py:425). The desktop decodes it (brokers/mstock/streaming.rs Packet::upper_circuit) and the renderer has the name for mStock (feed/dialect/names.rs CIRCUITS_IN_DEPTH), but MstockFeed does not fill QuoteExtras::upper_circuit yet; on a Quote frame cut from a full packet the web sends it too (the one-dict fan-out, C08), which lane wire's step 2 brings.",
-      "ref": "audit C06, C08; brokers/common/streaming/fields.rs (mstock: circuits)"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "As upper_circuit, for the lower circuit limit (mstock_adapter.py:426; Packet::lower_circuit).",
-      "ref": "audit C06, C08"
-    }
-  ]
+  "deviations": []
 }

@@ -357,6 +357,13 @@ impl MstockFeed {
                 t.oi = i64::try_from(q.oi).unwrap_or(0);
                 t.derive_change();
             }
+            if q.mode == 3 {
+                // Only the full packet has the circuit limits, and the web
+                // sends them from it as they are, 0.0 included
+                // (mstock_adapter.py:425-426).
+                t.extras.upper_circuit = Some(q.upper_circuit);
+                t.extras.lower_circuit = Some(q.lower_circuit);
+            }
             let depth = (q.mode == 3 && !q.bids.is_empty()).then(|| NormalizedDepth {
                 symbol: t.symbol.clone(),
                 exchange: t.exchange.clone(),

@@ -78,6 +78,8 @@
     },
     "prev_close": 1495.0,
     "last_trade_quantity": 25,
-    "exchange_timestamp": 1791002710000
+    "exchange_timestamp": 1791002710000,
+    "upper_circuit": 1650.45,
+    "lower_circuit": 1350.45
   }
 }

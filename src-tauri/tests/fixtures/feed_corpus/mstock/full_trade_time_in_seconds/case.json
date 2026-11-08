@@ -39,18 +39,6 @@
       "reason": "The web's last_trade_time is the packet's own time field as sent: the exchange time in epoch ms for LTP and Quote packets, the last traded timestamp in epoch seconds for a full packet (mstock_adapter.py:351-356), so the same key is off by 1000 between a Quote and a Depth frame of one instrument. The desktop sends it in epoch ms in every mode (feed/dialect/names.rs MSTOCK, Millis), as the web's own LTP and Quote frames do (lead ruling 2026-11-09).",
       "ref": "mstock_adapter.py:355; feed::dialect (mStock last_trade_time in ms, openalgo#2383)",
       "approved": true
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web sends the full packet's upper circuit limit in Depth (mstock_adapter.py:425). The desktop decodes it (brokers/mstock/streaming.rs Packet::upper_circuit) and the renderer has the name for mStock (feed/dialect/names.rs CIRCUITS_IN_DEPTH), but MstockFeed does not fill QuoteExtras::upper_circuit yet; on a Quote frame cut from a full packet the web sends it too (the one-dict fan-out, C08), which lane wire's step 2 brings.",
-      "ref": "audit C06, C08; brokers/common/streaming/fields.rs (mstock: circuits)"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "As upper_circuit, for the lower circuit limit (mstock_adapter.py:426; Packet::lower_circuit).",
-      "ref": "audit C06, C08"
     }
   ]
 }
