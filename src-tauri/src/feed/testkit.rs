@@ -5,8 +5,8 @@
 //! them.
 
 use super::bridge::pairing;
-use super::bridge::snapshot::{self, Snapshot};
-use super::bridge::{depth_update, tick_update};
+use super::bridge::snapshot::{self, LastBook, Snapshot};
+use super::bridge::{depth_update, snapshot_update};
 use super::protocol::{market_data, reaches};
 use super::{InstrumentKey, MarketUpdate, Mode};
 use crate::brokers::common::streaming::FeedEvent;
@@ -46,7 +46,10 @@ impl Frames {
                 let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
                 let merged = snapshot::merge(self.last.get(&key), t, 0);
                 let both = depth_update(key.clone(), d, Some(merged.tick()), merged.book_lacks());
-                self.last.insert(key, merged);
+                self.last.insert(key.clone(), merged);
+                if let Some(book) = LastBook::of(&both) {
+                    snapshot::keep_book(&mut self.last, &key, book, 0);
+                }
                 self.push(&mut out, both_modes(both), mode);
                 continue;
             }
@@ -54,7 +57,7 @@ impl Frames {
                 FeedEvent::Tick(t) => {
                     let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
                     let merged = snapshot::merge(self.last.get(&key), t, 0);
-                    let update = tick_update(key.clone(), merged.tick());
+                    let update = snapshot_update(key.clone(), &merged);
                     self.last.insert(key, merged);
                     match update {
                         Some(u) => u,
@@ -65,7 +68,11 @@ impl Frames {
                     let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
                     let last = self.last.get(&key);
                     let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
-                    depth_update(key, d, last.map(Snapshot::tick), lacks)
+                    let u = depth_update(key.clone(), d, last.map(Snapshot::tick), lacks);
+                    if let Some(book) = LastBook::of(&u) {
+                        snapshot::keep_book(&mut self.last, &key, book, 0);
+                    }
+                    u
                 }
                 _ => continue,
             };

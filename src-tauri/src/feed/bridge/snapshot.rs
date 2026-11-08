@@ -12,9 +12,35 @@
 //! with (a packet with a new price and no trade time drops the old one),
 //! and the change is worked out again from the price and the previous
 //! close when a packet moves either without sending a change.
+//!
+//! The snapshot also keeps the instrument's last book, so a full tick after
+//! it reaches Depth holders with that book (lead decision 2026-11-09, the
+//! Samco ruling: once a book exists a Depth holder hears every tick).
 
 use crate::brokers::common::streaming::{AbsentFields, NormalizedTick, QuoteField};
+use crate::feed::source::{DepthBook, InstrumentKey, MarketUpdate};
+use std::collections::HashMap;
 use std::sync::Arc;
+
+/// An instrument's last book as its frame sent it, with the book's totals.
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::feed) struct LastBook {
+    pub(in crate::feed) book: DepthBook,
+    pub(in crate::feed) total_buy: Option<i64>,
+    pub(in crate::feed) total_sell: Option<i64>,
+}
+
+impl LastBook {
+    /// The book of a depth update, if it carries one.
+    pub(in crate::feed) fn of(update: &MarketUpdate) -> Option<Self> {
+        let q = update.quote.as_ref();
+        Some(Self {
+            book: update.depth.clone()?,
+            total_buy: q.and_then(|q| q.total_buy_quantity),
+            total_sell: q.and_then(|q| q.total_sell_quantity),
+        })
+    }
+}
 
 /// The merged quote of one instrument, and the broker connection it
 /// belongs to.
@@ -29,6 +55,9 @@ pub(in crate::feed) struct Snapshot {
     book_lacks: AbsentFields,
     /// The instrument's broker token, looked up once per snapshot.
     token: Option<Arc<str>>,
+    /// The instrument's last book in this connection (shared: every tick
+    /// makes a new snapshot).
+    book: Option<Arc<LastBook>>,
 }
 
 impl Snapshot {
@@ -54,6 +83,41 @@ impl Snapshot {
     pub(in crate::feed) fn book_lacks(&self) -> AbsentFields {
         self.book_lacks
     }
+
+    pub(in crate::feed) fn book(&self) -> Option<&LastBook> {
+        self.book.as_deref()
+    }
+}
+
+/// Keep `book` as `key`'s last book in connection `epoch`: on its snapshot,
+/// or on a snapshot with no quote yet when the book came first.
+pub(in crate::feed) fn keep_book(
+    snapshots: &mut HashMap<InstrumentKey, Snapshot>,
+    key: &InstrumentKey,
+    book: LastBook,
+    epoch: u64,
+) {
+    let book = Some(Arc::new(book));
+    if let Some(s) = snapshots.get_mut(key).filter(|s| s.of_epoch(epoch)) {
+        s.book = book;
+        return;
+    }
+    let tick = NormalizedTick {
+        symbol: key.symbol.clone(),
+        exchange: key.exchange.clone(),
+        absent: AbsentFields::ALL,
+        ..Default::default()
+    };
+    snapshots.insert(
+        key.clone(),
+        Snapshot {
+            tick,
+            epoch,
+            book_lacks: AbsentFields::default(),
+            token: None,
+            book,
+        },
+    );
 }
 
 const BOOK_TOTALS: AbsentFields =
@@ -65,6 +129,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
     use QuoteField as F;
     let prev = prev.filter(|p| p.of_epoch(epoch));
     let token = prev.and_then(Snapshot::token);
+    let book = prev.and_then(|p| p.book.clone());
     let (mut s, mut known) = match prev {
         Some(p) => (p.tick.clone(), p.tick.known()),
         None => (
@@ -99,6 +164,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
         epoch,
         book_lacks: t.absent.minus(AbsentFields::ALL.minus(BOOK_TOTALS)),
         token,
+        book,
     }
 }
 

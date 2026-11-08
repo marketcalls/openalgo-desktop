@@ -4,6 +4,7 @@
 //! only when the packet (or, through the bridge's snapshot, an earlier one
 //! of the same connection) carried it (audit C03).
 
+use super::snapshot::Snapshot;
 use crate::brokers::common::streaming::{
     AbsentFields, NormalizedDepth, NormalizedTick, QuoteField,
 };
@@ -75,6 +76,26 @@ pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> Option<Mark
         exact_mode: false,
         token: None,
     })
+}
+
+/// A tick on its instrument's snapshot. Once a book has come in this
+/// connection, a full tick carries that book, with the book's totals where
+/// the tick has none, so a Depth holder hears every tick (lead decision
+/// 2026-11-09, the Samco ruling). Before the first book it is a tick
+/// without one (`tick_update`).
+pub(in crate::feed) fn snapshot_update(key: InstrumentKey, s: &Snapshot) -> Option<MarketUpdate> {
+    let mut u = tick_update(key, s.tick())?;
+    if u.mode != Mode::Depth {
+        return Some(u);
+    }
+    if let Some(last) = s.book() {
+        if let Some(q) = u.quote.as_mut() {
+            q.total_buy_quantity = q.total_buy_quantity.or(last.total_buy);
+            q.total_sell_quantity = q.total_sell_quantity.or(last.total_sell);
+        }
+        u.depth = Some(last.book.clone());
+    }
+    Some(u)
 }
 
 /// What a depth frame knows of the quote before its instrument's first
