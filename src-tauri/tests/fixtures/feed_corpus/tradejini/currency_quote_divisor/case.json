@@ -49,22 +49,16 @@
       "ref": "tradejini_adapter.py:881-886 _add_reference_keys; feed::dialect"
     },
     {
-      "key": "change",
-      "kind": "open",
-      "reason": "The desktop rounds Tradejini's change to two decimals (round2 in TradejiniFeed::tick): 0.76 where Tradejini sent 0.7625 for a currency future, whose prices carry four (divisor 1e7). The web passes the change as sent. Phase B: keep the change as Tradejini sends it.",
-      "ref": "nxtradstream.py:79 chng; brokers/tradejini/streaming.rs TradejiniFeed::tick"
-    },
-    {
       "key": "price_change",
       "kind": "open",
-      "reason": "Two causes: the rounding of change (0.76 for Tradejini's 0.7625), and the canonical price_change the web's Tradejini adapter never sends (follows the web adapter once wire's switch covers instruments).",
-      "ref": "brokers/tradejini/streaming.rs TradejiniFeed::tick; feed::protocol::market canonical()"
+      "reason": "The desktop sends a non-index instrument's change under the canonical price_change and price_change_percent as well (feed/dialect/names.rs instrument_change, docs/port/market-data-frames.md 'Change and open interest'); the web's Tradejini adapter sends it only as change, change_percent and percent_change. Follows the web adapter once wire's per-broker switch covers instruments (lead to confirm; ruling 4 named the index).",
+      "ref": "tradejini_adapter.py:829-830, :858-866, :883-884; feed::protocol::market canonical()"
     },
     {
       "key": "price_change_percent",
       "kind": "open",
-      "reason": "The canonical price_change_percent the web's Tradejini adapter never sends (follows the web adapter once wire's switch covers instruments); its value, chngPer 0.09, is Tradejini's.",
-      "ref": "feed::protocol::market canonical()"
+      "reason": "As price_change, for price_change_percent.",
+      "ref": "tradejini_adapter.py:830, :883-884; feed::protocol::market canonical()"
     }
   ]
 }

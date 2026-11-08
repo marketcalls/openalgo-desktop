@@ -31,7 +31,7 @@
 //! each price tick sends its Depth view again (web openalgo#2341).
 
 use crate::brokers::common::streaming::{
-    now_ms, round2, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
     NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
@@ -513,10 +513,11 @@ impl TradejiniFeed {
             absent,
             ..Default::default()
         };
+        // Tradejini's own change goes out as sent, as the web passes it (a
+        // currency's carries four decimals: 0.7625, not 0.76); without one
+        // it is worked out from the previous close (audit C04).
         if q.chng.is_none() {
             t.derive_change();
-        } else {
-            t.change = round2(t.change);
         }
         leave_out_what_was_never_sent(&mut t, q);
         // The price band, which the web's Depth dict carries
