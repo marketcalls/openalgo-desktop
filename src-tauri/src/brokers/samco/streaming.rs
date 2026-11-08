@@ -166,9 +166,10 @@ impl SamcoFeed {
     /// (`samco_adapter._on_data`), a quote frame is a tick for the LTP and
     /// Quote holders and a book (quote2) frame reaches Depth holders only,
     /// so a book that comes before Samco's first quote never shows a Quote
-    /// holder an LTP of 0. A Depth holder's book is also sent again on a
-    /// quote frame, with the new price (an approved difference: the web
-    /// leaves it as it was until the next book).
+    /// holder an LTP of 0. No book is sent before Samco has sent one (the
+    /// web sends a Depth holder nothing until then); after that a quote
+    /// frame sends the book again with the new price (an approved
+    /// difference: the web leaves it as it was until the next book).
     fn event(&mut self, stream: Stream, data: &Map<String, Value>) -> Vec<FeedEvent> {
         let symbol = {
             let k = text(data.get("symbol"));
@@ -187,7 +188,7 @@ impl SamcoFeed {
         if stream == Stream::Quote {
             out.push(FeedEvent::Tick(quote_tick(&sub, &merged, now)));
         }
-        if sub.mode == FeedMode::Depth {
+        if sub.mode == FeedMode::Depth && has_book(&merged) {
             out.push(FeedEvent::Depth(book(&sub, &merged, now)));
         }
         out
@@ -361,10 +362,18 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
     tick
 }
 
-/// The five-level book for a depth subscriber, from the merged ladder.
+/// Whether Samco has sent the instrument's book (a quote2 frame).
+fn has_book(merged: &Map<String, Value>) -> bool {
+    merged.contains_key("bidValues") || merged.contains_key("askValues")
+}
+
+/// The book for a depth subscriber, from the merged ladder: the levels
+/// Samco sent and no others (a cleared side is empty, never five zero
+/// levels), its totals once Samco has sent them, and no price of its own
+/// (quote2 carries none: the frame takes the instrument's last trade).
 fn book(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> NormalizedDepth {
     let levels = |k: &str| -> Vec<DepthLevel> {
-        let mut v: Vec<DepthLevel> = merged
+        merged
             .get(k)
             .and_then(Value::as_array)
             .map(|a| {
@@ -376,21 +385,27 @@ fn book(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> NormalizedDepth 
                     })
                     .collect()
             })
-            .unwrap_or_default();
-        v.truncate(5);
-        v.resize(5, DepthLevel::default());
-        v
+            .unwrap_or_default()
     };
+    let tbq = first_present(merged, &["tbq", "tBQ"]);
+    let tsq = first_present(merged, &["taq", "tSQ"]);
+    let mut absent = AbsentFields::of(&[QuoteField::Ltp]);
+    if tbq.is_none() {
+        absent = absent.with(QuoteField::TotalBuyQuantity);
+    }
+    if tsq.is_none() {
+        absent = absent.with(QuoteField::TotalSellQuantity);
+    }
     NormalizedDepth {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
-        ltp: num(merged.get("ltp")),
+        ltp: 0.0,
         buy: levels("bidValues"),
         sell: levels("askValues"),
-        total_buy_quantity: int(first_present(merged, &["tbq", "tBQ"])),
-        total_sell_quantity: int(first_present(merged, &["taq", "tSQ"])),
+        total_buy_quantity: int(tbq),
+        total_sell_quantity: int(tsq),
         timestamp_ms: ts,
-        ..Default::default()
+        absent,
     }
 }
 

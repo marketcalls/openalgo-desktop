@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 55. Open gaps: 165. Deviations pending approval: 102.
+Cases: 55. Open gaps: 163. Deviations pending approval: 103.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -204,8 +204,7 @@ Cases: 55. Open gaps: 165. Deviations pending approval: 102.
 | samco | `depth_book_first_future` | `close` | web-defect | no | Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision). |
 | samco | `depth_book_first_future` | `volume` | web-defect | no | Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision). |
 | samco | `depth_book_first_future` | `last_quantity` | web-defect | no | Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision). |
-| samco | `depth_quote_then_book` | `frame` | open | no | The desktop sends a Depth client a frame for Samco's first quote frame, before any quote2 book, with five invented zero levels a side; the web publishes to Depth subscribers only on quote2 frames, so its first Depth frame carries a real book. |
-| samco | `depth_quote_then_book` | `depth` | open | no | The desktop pads each side to five levels: a three-level bid and two-level ask show as five with zero levels, and a cleared book as five zero levels a side, levels Samco never sent; the web sends the levels Samco sent and leaves depth out when both sides are empty. |
+| samco | `depth_quote_then_book` | `depth` | web-defect | no | When Samco clears the book (both sides empty) the web's Depth frame has no depth key at all (samcoWebSocket._normalize_market_data adds it only when a side has levels); the desktop sends the cleared book as depth with empty buy and sell sides, as every Depth frame carries its book (docs/api/websocket-streaming/depth.md), so a client reading data['depth'] meets no KeyError. Before Samco's first book the desktop sends no Depth frame, as the web. |
 | samco | `depth_quote_then_book` | `last_trade_quantity` | desktop-decision | no | The desktop sends Samco's web name for last_quantity (last_trade_quantity, which the web's Quote frames carry) in Depth frames too, beside last_quantity; the web's Depth frames carry last_quantity only. |
 | samco | `depth_quote_then_book` | `oi` | web-defect | no | Samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, so a Depth client of a derivative never sees OI; the desktop sends it. |
 | samco | `depth_quote_then_book` | `price_change` | open | no | The desktop sends Samco's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Open until wire's per-broker canonical-key switch. |

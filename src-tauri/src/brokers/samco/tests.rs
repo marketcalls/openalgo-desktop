@@ -8,7 +8,9 @@ use super::master_contract::{self, convert_date};
 use super::streaming::{request_frame, unquote, SamcoFeed};
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use crate::brokers::common::symbols::SymToken;
 use serde_json::json;
 
@@ -775,14 +777,15 @@ fn quote_frames_decode_and_merge_with_depth() {
     let FeedEvent::Depth(d) = &ev[0] else {
         panic!()
     };
-    assert_eq!(d.ltp, 812.4, "ltp survives from the quote stream");
+    // No price of its own: the frame takes the quote stream's.
+    assert!(d.absent.contains(QuoteField::Ltp), "{:?}", d);
     assert_eq!(d.total_buy_quantity, 121000);
-    assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
+    // The levels Samco sent, none padded.
+    assert_eq!((d.buy.len(), d.sell.len()), (2, 1));
     assert_eq!(
         (d.buy[0].price, d.buy[0].quantity, d.buy[0].orders),
         (812.35, 500, 4)
     );
-    assert_eq!(d.sell[1].price, 0.0);
     // Unknown symbols and other messages are ignored.
     assert!(f
         .parse(&Message::Text(

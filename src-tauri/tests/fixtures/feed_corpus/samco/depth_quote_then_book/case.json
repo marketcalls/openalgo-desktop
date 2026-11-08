@@ -36,16 +36,10 @@
   },
   "deviations": [
     {
-      "key": "frame",
-      "kind": "open",
-      "reason": "The desktop sends a Depth client a frame for Samco's first quote frame, before any quote2 book, with five invented zero levels a side; the web publishes to Depth subscribers only on quote2 frames, so its first Depth frame carries a real book.",
-      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, samco row (all-zero book on quote before the first quote2); streaming.rs book()"
-    },
-    {
       "key": "depth",
-      "kind": "open",
-      "reason": "The desktop pads each side to five levels: a three-level bid and two-level ask show as five with zero levels, and a cleared book as five zero levels a side, levels Samco never sent; the web sends the levels Samco sent and leaves depth out when both sides are empty.",
-      "ref": "streaming.rs book() (resize to 5); samcoWebSocket.py _normalize_market_data (depth only when a side has levels)"
+      "kind": "web-defect",
+      "reason": "When Samco clears the book (both sides empty) the web's Depth frame has no depth key at all (samcoWebSocket._normalize_market_data adds it only when a side has levels); the desktop sends the cleared book as depth with empty buy and sell sides, as every Depth frame carries its book (docs/api/websocket-streaming/depth.md), so a client reading data['depth'] meets no KeyError. Before Samco's first book the desktop sends no Depth frame, as the web.",
+      "ref": "samcoWebSocket.py _normalize_market_data (if depth_buy or depth_sell); decisions 2026-11-09 (empty book)"
     },
     {
       "key": "last_trade_quantity",

@@ -61,11 +61,22 @@ fn depth_frame(data: Value) -> Message {
     ))
 }
 
-/// RELIANCE (2885 on NSE) held at Depth, so every mode's frame is made.
+/// RELIANCE (2885 on NSE) held at Depth, its book (without totals)
+/// already sent, so every mode's frame is made.
 fn reliance() -> SamcoFeed {
     let (mut f, _) = feed();
     f.subscribe_frames(&[sub("RELIANCE", "NSE", "NSE", "2885", FeedMode::Depth)]);
+    f.parse(&a_book("2885_NSE"));
     f
+}
+
+/// A one-level book without totals for `symbol`.
+fn a_book(symbol: &str) -> Message {
+    depth_frame(json!({
+        "symbol": symbol,
+        "bidValues": [{"price": "44554", "qty": "1", "no": "1"}],
+        "askValues": [{"price": "44561", "qty": "1", "no": "1"}],
+    }))
 }
 
 fn quote_sub(symbol: &str, exchange: &str, token: &str) -> FeedSubscription {
@@ -170,6 +181,7 @@ fn a_depth_frame_publishes_its_tbq_and_taq_totals() {
 fn fields_samco_did_not_send_are_left_out() {
     let (mut f, _) = feed();
     f.subscribe_frames(&[sub("ONE", "NSE", "NSE", "1", FeedMode::Depth)]);
+    f.parse(&a_book("1_NSE"));
     let events = f.parse(&Message::Text(
         json!({"sym": "1_NSE", "ltp": "10", "streaming_type": "quote"}).to_string(),
     ));
@@ -236,6 +248,30 @@ fn a_book_frame_reaches_only_the_depth_holders() {
     for k in ["open", "volume", "last_quantity", "oi", "ltt"] {
         assert!(d.get(k).is_none(), "{}: {}", k, d);
     }
+}
+
+/// Web `samcoWebSocket._normalize_market_data`: a Depth holder gets no
+/// frame until Samco has sent a book, and then the levels Samco sent,
+/// none invented. The desktop sent five zero levels a side for a quote
+/// before the first book, and padded every book to five levels.
+#[test]
+fn no_book_is_sent_before_samco_sends_one_and_none_is_padded() {
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "NSE", "2885", FeedMode::Depth)]);
+    let events = f.parse(&quote(doc_quote()));
+    assert!(
+        Frames::new("samco").at(&events, Mode::Depth).is_empty(),
+        "{:?}",
+        events
+    );
+    let events = f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE",
+        "bidValues": [{"price": "44554", "qty": "1", "no": "1"}],
+        "askValues": [],
+    })));
+    let d = Frames::new("samco").at(&events, Mode::Depth).pop().unwrap();
+    assert_eq!(d["depth"]["buy"].as_array().map(Vec::len), Some(1), "{}", d);
+    assert_eq!(d["depth"]["sell"], json!([]), "{}", d);
 }
 
 /// Web test_tick_from_another_segment_is_not_routed.
