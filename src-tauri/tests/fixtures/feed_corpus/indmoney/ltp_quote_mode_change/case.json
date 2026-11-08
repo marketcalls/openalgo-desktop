@@ -27,7 +27,8 @@
     ],
     "notes": [
       "Frames follow the INDstocks price socket's documented shape (indmoney_adapter.py:575-583: mode, instrument, timestamp in ms, data) with fractional prices so a price's JSON type is not what differs.",
-      "The web subscribes each mode on its own and sends no unsubscribe while another mode holds the instrument (indmoney_adapter.py:294-459); the frames the desktop sends the broker are the desktop's own (IndmoneyFeed::mode_change_frames, a gapless change on the manager's one effective mode)."
+      "The web subscribes each mode on its own and sends no unsubscribe while another mode holds the instrument (indmoney_adapter.py:294-459); the frames the desktop sends the broker are the desktop's own (IndmoneyFeed::mode_change_frames, a gapless change on the manager's one effective mode).",
+      "desktop-decision (lead 2026-11-09): one effective stream per instrument, not one per held mode. The web subscribes each held mode on its own: b adds Quote -> subscribe quote; a leaves LTP -> unsubscribe ltp; a takes LTP again -> subscribe ltp; b leaves Quote -> unsubscribe quote. The desktop sends subscribe quote then unsubscribe ltp when Quote becomes the effective mode, nothing while it stays, and subscribe ltp then unsubscribe quote when it falls back. The client frames are the same, and the desktop holds fewer broker subscriptions, which is safer near INDstocks' per-connection limit."
     ]
   },
   "deviations": [

@@ -27,7 +27,8 @@
     ],
     "notes": [
       "Frames follow the INDstocks price socket's documented shape (indmoney_adapter.py:575-583: mode, instrument, timestamp in ms, data) with fractional prices so a price's JSON type is not what differs.",
-      "The second frame is a JSON string holding the JSON (indmoney_order_adapter.py:241 says the order socket double-encodes; the adapter decodes the price socket's twice too, indmoney_adapter.py:571)."
+      "The second frame is a JSON string holding the JSON (indmoney_order_adapter.py:241 says the order socket double-encodes; the adapter decodes the price socket's twice too, indmoney_adapter.py:571).",
+      "desktop-decision (lead 2026-11-09): after the last subscription goes, the web's adapter disconnects the price socket (indmoney_adapter.py:451-459); the desktop sends the unsubscribe and keeps the socket open, so nothing reaches clients and the next subscribe is immediate. On the maintainer's live-check list in case INDmoney limits idle sessions."
     ]
   },
   "deviations": []
