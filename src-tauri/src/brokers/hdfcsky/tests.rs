@@ -10,7 +10,7 @@ use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType};
 use crate::brokers::common::streaming::{
-    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+    FeedEvent, FeedMode, FeedSubscription, Message, NormalizedTick, QuoteField,
 };
 use chrono::{Datelike, NaiveDate, TimeZone, Utc};
 use prost::Message as _;
@@ -868,16 +868,53 @@ fn ticks_say_what_their_packet_carries() {
         (n.extras.lower_circuit, n.extras.upper_circuit),
         (Some(1260.0), Some(1540.0))
     );
-    assert_eq!(n.last_trade_time_ms, 1_759_649_999);
+    assert_eq!(
+        (n.last_trade_time_ms, n.timestamp_ms),
+        (1_759_649_999_000, 1_759_650_000_000),
+        "the trade time in ms, the packet's own time"
+    );
+    assert_eq!(i.timestamp_ms, 1_759_650_001_000, "the index packet's time");
+    assert!(
+        !i.knows(QuoteField::LastTradeTime) && i.absent.contains(QuoteField::LastTradeTime),
+        "an index packet has no trade time"
+    );
     let FeedEvent::Depth(d) = &ev[2] else {
         panic!()
     };
     assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
     assert_eq!(d.total_sell_quantity, 6000);
+    assert_eq!(d.timestamp_ms, 1_759_650_000_000);
     let FeedEvent::Tick(bse) = &ev[3] else {
         panic!()
     };
     assert_eq!((bse.exchange.as_str(), bse.mode), ("BSE", 2));
+}
+
+/// HDFC's `lastTradeTime` is epoch seconds and the frames carry epoch ms;
+/// a value already in ms is kept. A packet without one has no trade time,
+/// never the packet's or the receipt time.
+#[test]
+fn trade_time_is_epoch_ms_or_absent() {
+    use super::investright::{set_trade_time, trade_time_ms};
+    assert_eq!(trade_time_ms(1_700_000_000), 1_700_000_000_000);
+    assert_eq!(trade_time_ms(1_700_000_000_123), 1_700_000_000_123);
+    let mut t = NormalizedTick {
+        mode: 2,
+        ltp: 1500.5,
+        timestamp_ms: 1_700_000_000_000,
+        ..Default::default()
+    };
+    set_trade_time(&mut t, 1_700_000_000);
+    assert!(t.knows(QuoteField::LastTradeTime));
+    assert_eq!(t.last_trade_time_ms, 1_700_000_000_000);
+    let mut t = NormalizedTick {
+        mode: 2,
+        ltp: 1500.5,
+        timestamp_ms: 1_700_000_000_000,
+        ..Default::default()
+    };
+    set_trade_time(&mut t, 0);
+    assert!(t.absent.contains(QuoteField::LastTradeTime));
 }
 
 /// An `ALL` future carries its OI (even a zero one: a derivative's packet

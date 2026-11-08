@@ -17,6 +17,9 @@
 //!   other field is a proto3 zero. They are merged into the last full packet
 //!   for the instrument and never published on their own; that packet lives
 //!   as long as the subscription and the socket.
+//! * A frame's `timestamp` is the packet's own time, as on the web; `ltt`
+//!   is `lastTradeTime`, sent in epoch seconds, in milliseconds, and left
+//!   out for a packet without one (`investright::set_trade_time`).
 //! * Text frames are acknowledgements and errors; an error naming a token or
 //!   auth problem ends the session (`investright::text_events`, audit
 //!   RB-10).
@@ -77,7 +80,8 @@ pub struct Packet {
     pub oi: i64,
     pub lower_limit: f64,
     pub upper_limit: f64,
-    /// Last trade time as sent (0 when absent).
+    /// Last trade time as sent: epoch seconds, 0 when absent
+    /// (`investright::trade_time_ms`).
     pub ltt: i64,
     /// Epoch ms (packet timestamp, or receive time).
     pub timestamp_ms: i64,
@@ -445,13 +449,9 @@ impl HdfcSecuritiesFeed {
             ltp: p.ltp,
             close: p.close,
             timestamp_ms: p.timestamp_ms,
-            last_trade_time_ms: if p.ltt > 1_000_000_000_000 {
-                p.ltt
-            } else {
-                p.ltt * 1000
-            },
             ..Default::default()
         };
+        investright::set_trade_time(&mut t, p.ltt);
         if sub.mode >= FeedMode::Quote {
             t.open = p.open;
             t.high = p.high;

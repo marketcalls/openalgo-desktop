@@ -25,6 +25,9 @@
 //!   an `LTP` scrip's price, an `ALL` scrip's full quote with OI on the
 //!   derivative segments, an index's levels without volume or OI; the
 //!   circuit band goes out as `upper_circuit` / `lower_circuit` in Depth.
+//! * A frame's `timestamp` is the packet's own time, as on the web; `ltt`
+//!   is `lastTradeTime`, sent in epoch seconds, in milliseconds, and left
+//!   out for a packet without one (`investright::set_trade_time`).
 
 use super::investright;
 use super::mapping::ws_scrip_id;
@@ -150,9 +153,11 @@ pub struct RawTick {
     pub oi: i64,
     pub lower_limit: f64,
     pub upper_limit: f64,
-    /// Last trade time as sent.
+    /// Last trade time as sent: epoch seconds (`investright::trade_time_ms`).
     pub ltt: i64,
-    /// Packet time, epoch ms.
+    /// Packet time, epoch ms (`packetTimestamp`, an index's own
+    /// `packetTimeStamp`, else the receipt time): the frames' `timestamp`,
+    /// as the web sends it.
     pub timestamp: i64,
     pub buy: Vec<DepthLevel>,
     pub sell: Vec<DepthLevel>,
@@ -468,7 +473,6 @@ impl HdfcSkyFeed {
             return Vec::new();
         };
         let t = &resolved;
-        let now = now_ms();
         let mut tick = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
@@ -483,10 +487,10 @@ impl HdfcSkyFeed {
             total_buy_quantity: t.total_buy_quantity,
             total_sell_quantity: t.total_sell_quantity,
             oi: t.oi,
-            last_trade_time_ms: if t.ltt != 0 { t.ltt } else { t.timestamp },
-            timestamp_ms: now,
+            timestamp_ms: t.timestamp,
             ..Default::default()
         };
+        investright::set_trade_time(&mut tick, t.ltt);
         tick.extras.lower_circuit = investright::limit(t.lower_limit);
         tick.extras.upper_circuit = investright::limit(t.upper_limit);
         investright::mark_carriage(&mut tick, sub.mode, t.kind == Kind::Index);
@@ -500,7 +504,7 @@ impl HdfcSkyFeed {
             sell: t.sell.clone(),
             total_buy_quantity: t.total_buy_quantity,
             total_sell_quantity: t.total_sell_quantity,
-            timestamp_ms: now,
+            timestamp_ms: t.timestamp,
             ..Default::default()
         });
         out.push(FeedEvent::Tick(tick));

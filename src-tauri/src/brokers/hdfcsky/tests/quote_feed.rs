@@ -120,6 +120,12 @@ fn partial_packets_merge_into_the_last_quote_instead_of_blanking_it() {
     assert_eq!(last["volume"], 12345, "{}", last);
     assert_eq!(last["open"], 1490.0, "{}", last);
     assert_eq!(last["oi"], 777, "{}", last);
+    assert_eq!(
+        (&last["ltt"], &last["timestamp"]),
+        (&json!(1_700_000_000_000_i64), &json!(1_700_000_000_000_i64)),
+        "the trade time in ms and the packet's time: {}",
+        last
+    );
     for d in &frames {
         assert_eq!(d["ltp"], 1500.5, "no frame blanks the price: {}", d);
     }

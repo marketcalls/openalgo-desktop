@@ -57,6 +57,31 @@ pub(crate) fn mark_carriage(t: &mut NormalizedTick, subscribed: FeedMode, index:
     }
 }
 
+/// `lastTradeTime` in epoch milliseconds. HDFC sends it in epoch seconds
+/// (the web's own test pairs `lastTradeTime` 1700000000 with
+/// `packetTimestamp` 1700000000000), and every time on the feed is epoch
+/// ms (`docs/prompt/websockets-format.md`); the web publishes the seconds
+/// unconverted as `ltt`. A value already in milliseconds is kept.
+pub(crate) fn trade_time_ms(sent: i64) -> i64 {
+    if sent > 1_000_000_000_000 {
+        sent
+    } else {
+        sent.saturating_mul(1000)
+    }
+}
+
+/// The tick's trade time from the packet's `lastTradeTime`. A packet with
+/// none (an index, an instrument not traded yet) has no trade time, and
+/// its frames leave `ltt` out: the web falls back to the packet time
+/// (`tick.get("ltt", tick.get("timestamp"))`), which no trade happened at.
+pub(crate) fn set_trade_time(t: &mut NormalizedTick, sent: i64) {
+    if sent > 0 {
+        t.last_trade_time_ms = trade_time_ms(sent);
+    } else {
+        t.mark_absent(QuoteField::LastTradeTime);
+    }
+}
+
 /// The web's `_AUTH_FAILURE_INDICATORS` (both `*_websocket.py`).
 const AUTH_FAILURE: &[&str] = &[
     "401",
