@@ -214,6 +214,13 @@ a placeholder:
   integer epoch-ms time from just before that push to just before the next
   one: a frame that carries an earlier packet's time (a book built after a
   ticker, stamped with the ticker's receipt).
+- `"<ist_today_ms:HH:MM:SS>"` (or `HH:MM:SS.mmm`): that time of day on the
+  IST date of receipt (the latest push's window; either date when it spans
+  IST midnight), in epoch ms: a time of day the feed dates by the day it
+  receives it (Definedge's depth `ltt`). The web script's `datetime` reads
+  its frozen clock, an IST midnight, so `web.json` writes the web's value
+  the same way (a time of day before 02:47 IST reads as a step's time
+  there).
 - `"<random:float>"`, `"<random:int>"`, `"<random:string>"`: a value a
   synthetic feed draws at random (Dhan Sandbox): any value of that JSON
   type. Declare the key a `random-values` deviation and bound it with

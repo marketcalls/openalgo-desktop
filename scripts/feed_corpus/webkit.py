@@ -32,6 +32,10 @@ Rules the extraction follows:
   (milliseconds) or `"<receipt_s>"` (seconds) when the push being replayed
   stamped it, and `"<receipt_ms:N>"` when the step on line N did (a book
   that carries an earlier ticker's time), as the corpus writes it.
+- `datetime`'s `now`, `today` and `utcnow` read the same frozen clock, so
+  a time of day the web dates by the day of receipt (Definedge's depth
+  ltt "HH:MM:SS") falls on the frozen IST day and is written
+  `"<ist_today_ms:HH:MM:SS>"`, as the corpus writes it.
 - `random` is a generator seeded the same for every case, so a synthetic
   feed's draws (Dhan Sandbox) are the same on every run.
 """
@@ -46,11 +50,14 @@ import types
 from pathlib import Path
 from typing import Any
 
-# 2100-01-01T00:00:00Z: the frozen clock; no broker packet carries it.
-RECEIPT_S = 4102444800.0
+# 2100-01-01T00:00:00+05:30, IST midnight: the frozen clock; no broker
+# packet carries it.
+RECEIPT_S = 4102425000.0
 RECEIPT_MS = int(RECEIPT_S * 1000)
-# A script has fewer lines than this, so RECEIPT_S + line is a step's time.
-MAX_LINES = 100_000
+# A script has fewer lines than this, so RECEIPT_S + line is a step's time:
+# the steps' times stay before 02:47 IST, and a market's time of day on the
+# frozen date (`<ist_today_ms:..>`) is never one of them.
+MAX_LINES = 10_000
 # The script line being replayed (0 before the first).
 _STEP = {"line": 0}
 # The seed of the `random` a web file imports.
@@ -111,6 +118,43 @@ def frozen_time() -> types.ModuleType:
     m.time = lambda: float(now_s())
     m.time_ns = lambda: now_s() * 1_000_000_000
     m.sleep = lambda *_: None
+    m.localtime = lambda secs=None: real.localtime(now_s() if secs is None else secs)
+    m.gmtime = lambda secs=None: real.gmtime(now_s() if secs is None else secs)
+    m.strftime = lambda fmt, t=None: real.strftime(fmt, m.localtime() if t is None else t)
+    return m
+
+
+def frozen_datetime() -> types.ModuleType:
+    """`datetime` whose `now`, `today` and `utcnow` read the frozen clock, so
+    a time of day the web dates by today (Definedge's depth ltt) is dated
+    by the step being replayed."""
+    import datetime as real
+
+    m = types.ModuleType("datetime")
+    for name in dir(real):
+        if not name.startswith("__"):
+            setattr(m, name, getattr(real, name))
+
+    class datetime(real.datetime):  # noqa: N801 (the module's own name)
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(now_s(), tz)
+
+        @classmethod
+        def today(cls):
+            return cls.fromtimestamp(now_s())
+
+        @classmethod
+        def utcnow(cls):
+            return cls.fromtimestamp(now_s(), real.timezone.utc).replace(tzinfo=None)
+
+    class date(real.date):  # noqa: N801 (the module's own name)
+        @classmethod
+        def today(cls):
+            return cls.fromtimestamp(now_s())
+
+    m.datetime = datetime
+    m.date = date
     return m
 
 
@@ -126,6 +170,8 @@ def _stdlib_module(name: str):
 
     if name == "time":
         return frozen_time()
+    if name == "datetime":
+        return frozen_datetime()
     if name == "random":
         return seeded_random()
     return importlib.import_module(name)
@@ -226,6 +272,23 @@ def placeholder(unit: str, line: int) -> str:
     return f"<receipt_{unit}>" if line == _STEP["line"] else f"<receipt_{unit}:{line}>"
 
 
+IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
+DAY_MS = 24 * 60 * 60 * 1000
+
+
+def ist_time_of_day(ms: int) -> str | None:
+    """`HH:MM:SS` (or `HH:MM:SS.mmm`) when epoch `ms` falls on the IST day
+    of the step being replayed: a time of day dated by the day of receipt
+    (harness/compare.rs `<ist_today_ms:..>`)."""
+    midnight = (now_s() * 1000 + IST_OFFSET_MS) // DAY_MS * DAY_MS - IST_OFFSET_MS
+    after = ms - midnight
+    if not 0 <= after < DAY_MS:
+        return None
+    s, milli = divmod(after, 1000)
+    text = f"{s // 3600:02d}:{s // 60 % 60:02d}:{s % 60:02d}"
+    return f"{text}.{milli:03d}" if milli else text
+
+
 def receipt(v: Any) -> Any:
     """`v` as JSON, with the frozen clock's values written as placeholders."""
     if isinstance(v, dict):
@@ -245,6 +308,10 @@ def receipt(v: Any) -> Any:
         line = stamped_at(int(v))
         if line is not None:
             return placeholder("s", line)
+    if type(v) is int:
+        tod = ist_time_of_day(v)
+        if tod is not None:
+            return f"<ist_today_ms:{tod}>"
     if v is None or isinstance(v, (bool, int, float, str)):
         return v
     raise SystemExit(f"a published value is not JSON: {v!r}")

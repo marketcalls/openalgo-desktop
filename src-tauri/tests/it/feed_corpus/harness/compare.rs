@@ -13,10 +13,18 @@
 //!   push and the next one;
 //! * `"<random:float>"`, `"<random:int>"`, `"<random:string>"`: a value a
 //!   broker's synthetic feed draws at random (Dhan Sandbox): any value of
-//!   that JSON type, checked against the case's invariants instead.
+//!   that JSON type, checked against the case's invariants instead;
+//! * `"<ist_today_ms:HH:MM:SS>"` (or `HH:MM:SS.mmm`): that time of day on
+//!   the IST date of receipt, in epoch ms (Definedge's depth `ltt`, a time
+//!   of day the feed dates by the day it receives it); either date counts
+//!   when the receipt window spans IST midnight.
 
 use serde_json::Value;
 use std::collections::BTreeMap;
+
+/// IST is UTC+05:30 all year.
+const IST_OFFSET_MS: i64 = (5 * 60 + 30) * 60 * 1000;
+const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// The placeholder for a time stamped on receipt of the latest push.
 pub(crate) const RECEIPT_MS: &str = "<receipt_ms>";
@@ -113,6 +121,42 @@ fn receipt_window(p: &str, times: Option<&Receipts>) -> Option<Result<Window, St
 
 /// Whether a `<random:..>` placeholder's type is `got`'s; `None` if `p` is
 /// no such placeholder.
+/// The times a `<ist_today_ms:HH:MM:SS>` placeholder can be (that time on
+/// the IST date of each end of the latest receipt window), or why there
+/// are none; `None` if `p` is no such placeholder.
+fn ist_today(p: &str, times: Option<&Receipts>) -> Option<Result<Vec<i64>, String>> {
+    let tod = p.strip_prefix("<ist_today_ms:")?.strip_suffix('>')?;
+    let Some(ms) = time_of_day_ms(tod) else {
+        return Some(Err(format!("\"{}\" is not HH:MM:SS or HH:MM:SS.mmm", tod)));
+    };
+    let Some(w) = times.map(|t| t.latest) else {
+        return Some(Err("no push to date it by".into()));
+    };
+    let midnight = |t: i64| (t + IST_OFFSET_MS).div_euclid(DAY_MS) * DAY_MS - IST_OFFSET_MS;
+    let mut days = vec![midnight(w.from_ms) + ms, midnight(w.to_ms) + ms];
+    days.dedup();
+    Some(Ok(days))
+}
+
+/// `HH:MM:SS` or `HH:MM:SS.mmm` as ms after midnight.
+fn time_of_day_ms(tod: &str) -> Option<i64> {
+    let digits = |p: &str, n: usize| -> Option<i64> {
+        Some(p)
+            .filter(|p| p.len() == n && p.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|p| p.parse().ok())
+    };
+    let (hms, frac) = tod.split_once('.').unwrap_or((tod, "000"));
+    let parts: Vec<i64> = hms
+        .split(':')
+        .map(|p| digits(p, 2))
+        .collect::<Option<_>>()?;
+    let ms = digits(frac, 3)?;
+    match parts.as_slice() {
+        [h, m, s] if *h < 24 && *m < 60 && *s < 60 => Some(((h * 60 + m) * 60 + s) * 1000 + ms),
+        _ => None,
+    }
+}
+
 fn random_type(p: &str, got: &Value) -> Option<bool> {
     Some(match p.strip_prefix("<random:")?.strip_suffix('>')? {
         "float" => got.is_f64(),
@@ -134,6 +178,21 @@ fn walk(path: &str, want: &Value, got: &Value, times: Option<&Receipts>, out: &m
                 )),
                 (Ok(_), None) => out.push(format!(
                     "{}: expected a receipt time in epoch ms, received {}",
+                    at, got
+                )),
+                (Err(e), _) => out.push(format!("{}: {}: {}", at, p, e)),
+            }
+            return;
+        }
+        if let Some(days) = ist_today(p, times) {
+            match (days, got.as_i64()) {
+                (Ok(d), Some(t)) if d.contains(&t) => {}
+                (Ok(d), Some(t)) => out.push(format!(
+                    "{}: {} is not {} on the IST date of receipt ({:?})",
+                    at, t, p, d
+                )),
+                (Ok(_), None) => out.push(format!(
+                    "{}: expected an epoch-ms time of day, received {}",
                     at, got
                 )),
                 (Err(e), _) => out.push(format!("{}: {}: {}", at, p, e)),
@@ -271,6 +330,50 @@ mod tests {
         });
         assert_eq!(as_expected(&got, &times()), want);
         assert!(check(&want, &got).is_ok());
+    }
+
+    fn received_between(from_ms: i64, to_ms: i64) -> Receipts {
+        Receipts {
+            latest: Window { from_ms, to_ms },
+            by_push: BTreeMap::new(),
+        }
+    }
+
+    /// 2026-11-09 09:30:00 IST, and that day's 09:15:07 IST.
+    const AT_0930_IST: i64 = 1_794_196_800_000;
+    const AT_091507_IST: i64 = 1_794_195_907_000;
+
+    #[test]
+    fn a_time_of_day_is_dated_by_the_ist_day_of_receipt() {
+        let times = received_between(AT_0930_IST, AT_0930_IST + 1_000);
+        let want = json!({"ltt": "<ist_today_ms:09:15:07>"});
+        assert!(exact(&want, &json!({"ltt": AT_091507_IST}), Some(&times)).is_ok());
+        let e = exact(&want, &json!({"ltt": AT_091507_IST + 1}), Some(&times)).unwrap_err();
+        assert!(e.contains("is not <ist_today_ms:09:15:07>"), "{}", e);
+        assert!(exact(&want, &json!({"ltt": AT_091507_IST + DAY_MS}), Some(&times)).is_err());
+        let with_ms = json!({"ltt": "<ist_today_ms:09:15:07.250>"});
+        assert!(exact(&with_ms, &json!({"ltt": AT_091507_IST + 250}), Some(&times)).is_ok());
+        let bad = exact(
+            &json!({"ltt": "<ist_today_ms:9:15>"}),
+            &json!({"ltt": 1}),
+            Some(&times),
+        );
+        assert!(bad.unwrap_err().contains("is not HH:MM:SS"));
+    }
+
+    /// Received across IST midnight: the time of day on either date.
+    #[test]
+    fn across_ist_midnight_either_date_counts() {
+        let midnight = AT_0930_IST + (14 * 60 + 30) * 60 * 1000;
+        let times = received_between(midnight - 100, midnight + 100);
+        let want = json!({"ltt": "<ist_today_ms:09:15:07>"});
+        for t in [AT_091507_IST, AT_091507_IST + DAY_MS] {
+            assert!(
+                exact(&want, &json!({"ltt": t}), Some(&times)).is_ok(),
+                "{}",
+                t
+            );
+        }
     }
 
     #[test]
