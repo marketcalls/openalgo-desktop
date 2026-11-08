@@ -710,8 +710,15 @@ fn feed_connect_subscribe_and_decode() {
 fn order_feed_frames_and_updates() {
     let mut f = DefinedgeOrderFeed::new("wss://x/", "UID1", "suser", symbols());
     let c = f.on_connected();
-    assert_eq!(c.len(), 2);
-    assert_eq!(text_of(&c[1]), json!({"t":"o","actid":"UID1"}));
+    assert_eq!(
+        c.len(),
+        1,
+        "audit RB-12: the order subscription waits for ck"
+    );
+    assert!(f.awaits_auth_ack());
+    let after = f.on_authenticated();
+    assert_eq!(after.len(), 1);
+    assert_eq!(text_of(&after[0]), json!({"t":"o","actid":"UID1"}));
     let ev = f.parse_text(
         r#"{"t":"om","norenordno":"25100300000101","tsym":"SBIN-EQ","exch":"NSE","trantype":"B","qty":"10","prc":"0","trgprc":"0","prctyp":"MKT","prd":"I","status":"COMPLETE","fillshares":"4","avgprc":"812.35"}"#,
     );

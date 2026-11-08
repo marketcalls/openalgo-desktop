@@ -22,8 +22,9 @@
 //!   the touchline never carries the trade time, last quantity or the book
 //!   totals, which the depth acknowledgement does.
 //! * heartbeat `{"t":"h"}` every 30 s (`definedge_websocket.py:484-528`).
-//! * order updates: same URL and connect, then `{"t":"o","actid"}`; frames
-//!   `t == "om"` (`definedge_order_adapter.py:9-15,74-137`).
+//! * order updates: same URL and connect, then `{"t":"o","actid"}` once
+//!   `ck` accepts the session; frames `t == "om"`
+//!   (`definedge_order_adapter.py:9-15,74-137`).
 
 use super::mapping;
 use super::DefinedgeSession;
@@ -457,10 +458,10 @@ impl BrokerFeed for DefinedgeFeed {
     }
 }
 
-/// Order-update feed: the connect frame and the order subscription
-/// `{"t":"o","actid"}` go out together (Noren processes frames in order;
-/// the shared manager sends no subscribe frames on a feed without
-/// instruments), so no reply channel is needed.
+/// Order-update feed: the connect frame, then the order subscription
+/// `{"t":"o","actid"}` once `ck` has accepted the session, as the web's
+/// order adapter sends it (`definedge_order_adapter.py` `normalize` on
+/// `ck`, audit RB-12); a refused `ck` sends no subscription.
 pub struct DefinedgeOrderFeed {
     url: String,
     uid: String,
@@ -507,10 +508,17 @@ impl BrokerFeed for DefinedgeOrderFeed {
     }
 
     fn on_connected(&mut self) -> Vec<Message> {
-        vec![
-            connect_frame(&self.uid, self.token.expose()),
-            Message::Text(json!({"t": "o", "actid": self.uid}).to_string()),
-        ]
+        vec![connect_frame(&self.uid, self.token.expose())]
+    }
+
+    fn awaits_auth_ack(&self) -> bool {
+        true
+    }
+
+    fn on_authenticated(&mut self) -> Vec<Message> {
+        vec![Message::Text(
+            json!({"t": "o", "actid": self.uid}).to_string(),
+        )]
     }
 
     fn subscribe_frames(&mut self, _subs: &[FeedSubscription]) -> Vec<Message> {

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "definedge",
-  "inputs_sha256": "e77e4261537f8f0440d968aa723196d5f68aab8a53c939945063ffbba99d2a5f",
+  "inputs_sha256": "ea83adf45f0cdab71ea2534f9a4ed09ca87b940a21ab660af5edef0a61691fe3",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -22,7 +22,7 @@
       "published": []
     },
     {
-      "line": 6,
+      "line": 7,
       "published": [
         {
           "kind": "order",
@@ -50,7 +50,7 @@
       ]
     },
     {
-      "line": 8,
+      "line": 9,
       "published": [
         {
           "kind": "order",
@@ -78,7 +78,7 @@
       ]
     },
     {
-      "line": 10,
+      "line": 11,
       "published": [
         {
           "kind": "order",
@@ -106,7 +106,7 @@
       ]
     },
     {
-      "line": 12,
+      "line": 13,
       "published": [
         {
           "kind": "order",
@@ -134,7 +134,7 @@
       ]
     },
     {
-      "line": 14,
+      "line": 15,
       "published": [
         {
           "kind": "order",

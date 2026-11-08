@@ -46,5 +46,6 @@ corpus_cases!(
         mode_transitions,
         reconnect_resubscribes,
         order_updates,
+        order_login_refused,
     ]
 );

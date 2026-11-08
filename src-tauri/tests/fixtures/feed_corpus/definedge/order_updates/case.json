@@ -29,7 +29,7 @@
       "subscribers/wsproxy_subscriber.py::on_order_update"
     ],
     "notes": [
-      "RB-12: the desktop sends t=o with the connect frame, before ck; the web sends it only once ck says Ok (definedge_order_adapter.py:98-105). The frames sent upstream are not part of the web output, so the case pins the desktop's order here.",
+      "RB-12: the order subscription t=o goes out only once ck says Ok, as the web's order adapter sends it (definedge_order_adapter.py:98-105).",
       "The market data socket connects too and gets its connect frame and ck."
     ]
   },
