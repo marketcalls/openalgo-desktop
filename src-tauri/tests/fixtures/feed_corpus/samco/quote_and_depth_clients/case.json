@@ -71,18 +71,6 @@
       "key": "change_percentage"
     },
     {
-      "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "When the Depth client leaves, the desktop keeps the quote2 stream's book totals (tbq/taq) merged and prefers them to the quote stream's fresh tBQ/tSQ, so the Quote client is shown the totals of a book it no longer streams; the web's client drops the symbol's merged fields on that unsubscribe and sends the quote's own totals.",
-      "ref": "streaming.rs mode_change_frames (state kept) and first_present; samcoWebSocket.py _unsubscribe_locked"
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "As total_buy_quantity: taq from the quote2 stream the client left wins over the quote's tSQ.",
-      "ref": "streaming.rs mode_change_frames and first_present"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "The desktop sends Samco's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Open until wire's per-broker canonical-key switch.",

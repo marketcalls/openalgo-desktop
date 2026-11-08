@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 55. Open gaps: 163. Deviations pending approval: 103.
+Cases: 55. Open gaps: 161. Deviations pending approval: 103.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -226,8 +226,6 @@ Cases: 55. Open gaps: 163. Deviations pending approval: 103.
 | samco | `quote_and_depth_clients` | `best_bid_quantity` | open | no | The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them. |
 | samco | `quote_and_depth_clients` | `change` | web-defect | no | Before Samco's first quote the web sends change and change_percentage as 0.0, values the book stream never carried (samcoWebSocket._normalize_market_data defaults ch and chPer to 0); the desktop leaves them out. |
 | samco | `quote_and_depth_clients` | `change_percentage` | web-defect | no | Before Samco's first quote the web sends change and change_percentage as 0.0, values the book stream never carried (samcoWebSocket._normalize_market_data defaults ch and chPer to 0); the desktop leaves them out. |
-| samco | `quote_and_depth_clients` | `total_buy_quantity` | open | no | When the Depth client leaves, the desktop keeps the quote2 stream's book totals (tbq/taq) merged and prefers them to the quote stream's fresh tBQ/tSQ, so the Quote client is shown the totals of a book it no longer streams; the web's client drops the symbol's merged fields on that unsubscribe and sends the quote's own totals. |
-| samco | `quote_and_depth_clients` | `total_sell_quantity` | open | no | As total_buy_quantity: taq from the quote2 stream the client left wins over the quote's tSQ. |
 | samco | `quote_and_depth_clients` | `price_change` | open | no | The desktop sends Samco's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Open until wire's per-broker canonical-key switch. |
 | samco | `quote_and_depth_clients` | `price_change_percent` | open | no | As price_change: Samco's web adapter sends change_percentage only. Open until wire's per-broker canonical-key switch. |
 | samco | `quote_and_depth_clients` | `open` | web-defect | no | Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision). |

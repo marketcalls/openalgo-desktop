@@ -274,6 +274,28 @@ fn no_book_is_sent_before_samco_sends_one_and_none_is_padded() {
     assert_eq!(d["depth"]["sell"], json!([]), "{}", d);
 }
 
+/// When the last Depth holder leaves, the book stream's fields go with it
+/// (the web's client drops the symbol's merged fields on that
+/// unsubscribe): a Quote holder was then shown quote2's totals over the
+/// quote stream's fresh tBQ/tSQ, the totals of a book no longer streamed.
+#[test]
+fn leaving_depth_drops_the_book_streams_totals() {
+    let mut f = reliance();
+    f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE", "tbq": "5", "taq": "6", "bidValues": [], "askValues": [],
+    })));
+    let depth = sub("RELIANCE", "NSE", "NSE", "2885", FeedMode::Depth);
+    f.mode_change_frames(&depth, &depth.with_mode(FeedMode::Quote));
+    let events = f.parse(&quote(doc_quote()));
+    let d = Frames::new("samco").at(&events, Mode::Quote).pop().unwrap();
+    assert_eq!(
+        (&d["total_buy_quantity"], &d["total_sell_quantity"]),
+        (&json!(973), &json!(610)),
+        "{}",
+        d
+    );
+}
+
 /// Web test_tick_from_another_segment_is_not_routed.
 #[test]
 fn a_tick_from_another_segment_is_not_routed() {

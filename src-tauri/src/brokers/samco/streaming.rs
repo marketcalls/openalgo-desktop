@@ -41,6 +41,9 @@ use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 
+/// The fields only the book stream (quote2) carries.
+const BOOK_FIELDS: &[&str] = &["bidValues", "askValues", "tbq", "taq"];
+
 /// Samco's two streams on the socket: `quote` (price, OHLC, volume, OI,
 /// best bid and ask) and `quote2` / `marketDepth` (the book and its
 /// totals).
@@ -499,6 +502,14 @@ impl BrokerFeed for SamcoFeed {
                 "unsubscribe",
                 std::slice::from_ref(&k),
             ));
+            // The book stream's fields go with it: its totals would
+            // otherwise stand in for the quote stream's fresh ones (the
+            // web's client drops the symbol's merged fields here).
+            if let Some(st) = self.state.get_mut(&k) {
+                for field in BOOK_FIELDS {
+                    st.remove(*field);
+                }
+            }
         }
         self.subs.insert(
             k,
