@@ -1,0 +1,37 @@
+{
+  "broker": "samco",
+  "summary": "BANKNIFTY at Quote before any REST index quote: the web fetches its streaming id (-25) at subscribe and streams it; the desktop knows no id, sends Samco nothing and streams nothing (audit RB-05).",
+  "scenarios": [
+    "index",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "BANKNIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "NIFTY_BANK",
+      "brsymbol": "NIFTY BANK",
+      "brexchange": "NSE",
+      "name": "Nifty Bank",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter.subscribe",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._get_index_listing_id"
+    ],
+    "notes": [
+      "Pending, not run: the corpus cannot yet declare a frame the web sends and the desktop does not (a receive needs the desktop's frame). Today the desktop acknowledges the subscribe, sends no subscribe frame and streams nothing. Once RB-05 is fixed this case moves into feed_corpus/samco with upstream_receives quote [-25] and a receive of the web's frame."
+    ]
+  },
+  "deviations": []
+}
