@@ -1,0 +1,83 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "kotak",
+  "inputs_sha256": "83cd874bad01c5d3b8a4494255b5f53804ec670b085723e862c4459f5e33f45a",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    },
+    {
+      "symbol": "NIFTY50",
+      "exchange": "NSE_INDEX",
+      "token": "26999",
+      "brsymbol": "NIFTY50",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 21350.0,
+            "volume": 0,
+            "open": 21000.0,
+            "high": 21500.0,
+            "low": 20900.0,
+            "close": 21100.0,
+            "percent_change": 1.18,
+            "ltt": 1762666200000,
+            "last_trade_time": 1762666200000,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "timestamp": "<receipt_ms>"
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY50_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 21350.0,
+            "ltt": 1762666200000,
+            "symbol": "NIFTY50",
+            "exchange": "NSE_INDEX",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY50_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 21360.0,
+            "ltt": 1762666201000,
+            "symbol": "NIFTY50",
+            "exchange": "NSE_INDEX",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

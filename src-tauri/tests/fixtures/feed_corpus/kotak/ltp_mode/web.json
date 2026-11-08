@@ -1,0 +1,69 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "kotak",
+  "inputs_sha256": "3717eb4e60dc65fa94a033fc13613e54af3037c5f46f99b526da3034694c6422",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 1300.5,
+            "ltt": 1762666200000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": []
+    },
+    {
+      "line": 11,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 800.0,
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

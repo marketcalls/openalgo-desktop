@@ -1,0 +1,58 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "kotak",
+  "inputs_sha256": "0dfe5f7f0239393990a2470d6025c541362ccee10b78a41d7591631a14f4d20b",
+  "instruments": [
+    {
+      "symbol": "USDINR25NOV26FUT",
+      "exchange": "BCD",
+      "token": "1101",
+      "brsymbol": "USDINR25NOVFUT",
+      "brexchange": "bcs_fo",
+      "lotsize": 1000,
+      "instrumenttype": "FUTCUR",
+      "expiry": "25-NOV-26",
+      "tick_size": 0.0025
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "BCD_USDINR25NOV26FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 83.625,
+            "volume": 5200,
+            "open": 83.5,
+            "high": 83.75,
+            "low": 83.475,
+            "close": 83.45,
+            "average_price": 83.6,
+            "percent_change": 0.21,
+            "last_quantity": 10,
+            "total_buy_quantity": 1200,
+            "total_sell_quantity": 900,
+            "oi": 45000,
+            "ltt": 1762666200000,
+            "last_trade_time": 1762666200000,
+            "symbol": "USDINR25NOV26FUT",
+            "exchange": "BCD",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

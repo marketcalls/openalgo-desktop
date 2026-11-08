@@ -1,0 +1,83 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "kotak",
+  "inputs_sha256": "fbf7126ce4af1bfabaf97f164ce719a1133e6ecab3a8aea35cc9bc74c8de7805",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 1300.5,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "close": 1280.5,
+            "average_price": 1298.25,
+            "percent_change": 1.56,
+            "last_quantity": 25,
+            "total_buy_quantity": 9000,
+            "total_sell_quantity": 7000,
+            "oi": 0,
+            "ltt": 1762666200000,
+            "last_trade_time": 1762666200000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 1301.0,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "close": 1280.5,
+            "average_price": 1298.25,
+            "percent_change": 1.6,
+            "last_quantity": 10,
+            "total_buy_quantity": 9000,
+            "total_sell_quantity": 7000,
+            "oi": 0,
+            "ltt": 1762666205000,
+            "last_trade_time": 1762666205000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

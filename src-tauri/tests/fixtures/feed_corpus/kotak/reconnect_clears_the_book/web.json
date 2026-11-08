@@ -1,0 +1,294 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "kotak",
+  "inputs_sha256": "877d632296b6a23dc467deb5a7848bcea50d2e7f6f236884ff9683ef560a0532",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 1300.5,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "close": 1280.5,
+            "average_price": 1298.25,
+            "percent_change": 1.56,
+            "last_quantity": 25,
+            "total_buy_quantity": 9000,
+            "total_sell_quantity": 7000,
+            "oi": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1300.45,
+                  "quantity": 100,
+                  "orders": 3
+                },
+                {
+                  "price": 1300.4,
+                  "quantity": 200,
+                  "orders": 5
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1300.6,
+                  "quantity": 150,
+                  "orders": 4
+                },
+                {
+                  "price": 1300.65,
+                  "quantity": 250,
+                  "orders": 6
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            },
+            "totalbuyqty": 9000,
+            "totalsellqty": 7000,
+            "ltt": 1762666200000,
+            "last_trade_time": 1762666200000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": []
+    },
+    {
+      "line": 13,
+      "published": []
+    },
+    {
+      "line": 14,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 1301.5,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "close": 1280.5,
+            "average_price": 1298.25,
+            "percent_change": 1.56,
+            "last_quantity": 5,
+            "total_buy_quantity": 9000,
+            "total_sell_quantity": 7000,
+            "oi": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1300.45,
+                  "quantity": 100,
+                  "orders": 3
+                },
+                {
+                  "price": 1300.4,
+                  "quantity": 200,
+                  "orders": 5
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1300.6,
+                  "quantity": 150,
+                  "orders": 4
+                },
+                {
+                  "price": 1300.65,
+                  "quantity": 250,
+                  "orders": 6
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            },
+            "totalbuyqty": 9000,
+            "totalsellqty": 7000,
+            "ltt": 1762666260000,
+            "last_trade_time": 1762666260000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 16,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 1301.5,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "close": 1280.5,
+            "average_price": 1298.25,
+            "percent_change": 1.56,
+            "last_quantity": 5,
+            "total_buy_quantity": 8000,
+            "total_sell_quantity": 6000,
+            "oi": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1301.4,
+                  "quantity": 90,
+                  "orders": 2
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1301.6,
+                  "quantity": 80,
+                  "orders": 1
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            },
+            "totalbuyqty": 8000,
+            "totalsellqty": 6000,
+            "ltt": 1762666261000,
+            "last_trade_time": 1762666261000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

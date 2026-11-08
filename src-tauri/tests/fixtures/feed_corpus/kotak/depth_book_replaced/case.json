@@ -1,0 +1,68 @@
+{
+  "broker": "kotak",
+  "summary": "A Depth subscription: a depth packet replaces the whole book, so bids the exchange removed are gone and only the one ask left shows (audit P-04); a touch line after it moves the price over the same book.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._to_depth",
+      "test/test_kotak_quote_feed.py::test_a_depth_packet_replaces_the_whole_book"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the web's Kotak adapter puts no mode in data.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; the web's Kotak adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    },
+    {
+      "key": "percent_change",
+      "kind": "open",
+      "reason": "The web sends the packet's own net change percent (nc) as percent_change for every scrip; the desktop's carrier keeps a change only for an index, so an equity or a derivative frame has none.",
+      "ref": "audit C04; kotak_adapter.py::_QUOTE_EXTRA_FIELDS; sfeed_websocket.py::_trade_fields"
+    },
+    {
+      "key": "totalbuyqty",
+      "kind": "open",
+      "reason": "The web's Kotak depth frame also names the book total totalbuyqty; the desktop's Kotak dialect does not send that name.",
+      "ref": "kotak_adapter.py:668 (mode 3 publish); feed::dialect (lane wire)"
+    },
+    {
+      "key": "totalsellqty",
+      "kind": "open",
+      "reason": "The web's Kotak depth frame also names the book total totalsellqty; the desktop's Kotak dialect does not send that name.",
+      "ref": "kotak_adapter.py:668 (mode 3 publish); feed::dialect (lane wire)"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "open",
+      "reason": "A market picture's total is the exchange's figure now: with every bid gone it is 0. The desktop folds a 0 total as 'unchanged' (streaming::State::fold_picture keep_i) and sends the last nonzero total, 9000, over an empty bid side; the web sends 0.",
+      "ref": "kotak/streaming/mod.rs fold_picture; kotak_adapter.py:476 (a complete packet's fields win)"
+    }
+  ]
+}

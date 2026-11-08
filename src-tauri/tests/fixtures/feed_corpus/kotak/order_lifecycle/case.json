@@ -1,0 +1,48 @@
+{
+  "broker": "kotak",
+  "summary": "The realtime order socket: the cn connect frame and its acknowledgement, then an order open, partly filled and complete, a stop-loss order trigger pending then rejected with its reason, an after-market order cancelled, each as an order_update frame with OpenAlgo's constants; a position frame sends nothing.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "53001",
+      "brsymbol": "NIFTY25NOVFUT",
+      "brexchange": "nse_fo",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX",
+      "expiry": "25-NOV-26"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/kotak_order_adapter.py::KotakOrderUpdateAdapter.normalize",
+      "broker/kotak/streaming/kotak_order_adapter.py::_STATUS_MAP",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

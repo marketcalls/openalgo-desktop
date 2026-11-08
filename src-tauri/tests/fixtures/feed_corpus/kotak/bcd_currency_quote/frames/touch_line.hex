@@ -1,0 +1,39 @@
+# USDINR BSE currency future touch line (level 4), exchange 7 (bse_cd), divider 10^7.
+# SFeed market picture (web sfeed_protocol._decode_market_picture).
+b000                    # packet length 176
+281c                    # message code 7208
+07                      # exchange 7 (bse_cd)
+04                      # level 4
+00                      # auction flag
+00                      # sequence
+00                      # bitmask length
+4d040000                # token 1101
+b004000000000000        # total buy quantity 1200
+8403000000000000        # total sell quantity 900
+5014000000000000        # volume 5200
+d826106900000000        # last trade time 1762666200 (epoch s)
+d826106900000000        # last update time
+c016c531                # open 835000000 -> 83.5
+a075bd31                # previous close 834500000 -> 83.45
+603ceb31                # high 837500000 -> 83.75
+3046c131                # low 834750000 -> 83.475
+9029d831                # ltp 836250000 -> 83.625
+0a00000000000000        # last traded quantity 10
+0059d431                # average price 836000000 -> 83.6
+00000000                # indicative close
+01000000                # buy rows 1
+01000000                # sell rows 1
+0000                    # trading status
+15000000                # change % 21 -> 0.21
+c8af0000                # open interest 45000
+0000000000000000        # turnover
+f0b31a00                # change 1750000 -> 0.175
+00000000                # upper circuit 0 -> 0.0
+00000000                # lower circuit 0 -> 0.0
+00000000                # 52-week high
+00000000                # 52-week low
+01000000                # lot
+02                      # precision
+01000000                # multiplier
+f4010000000000004066d73102000000        # bid: qty 500, price 836200000 -> 83.62, orders 2
+9001000000000000e0ecd83103000000        # ask: qty 400, price 836300000 -> 83.63, orders 3

@@ -1,0 +1,23 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "broker": "kotak",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "mode": "quote",
+    "ltp": 21350.0,
+    "ltt": 1762666200000,
+    "timestamp": "<receipt_ms>",
+    "open": 21000.0,
+    "high": 21500.0,
+    "low": 20900.0,
+    "close": 21100.0,
+    "price_change": 250.0,
+    "price_change_percent": 1.18,
+    "percent_change": 1.18,
+    "last_trade_time": 1762666200000
+  }
+}

@@ -1,0 +1,12 @@
+{"step": "upstream_receives", "frames": [{"json": {"user": "U", "auth": "s", "format": "native_batch", "source": "NEOTRADEAPI", "platform": "Web", "version": "1.2.3", "sdk_version": 2, "sdk_date": "2026-08-07T09:41:17.667Z", "conn_req_time": 1762650000000, "sessionValidation": false}}], "note": "The native_batch login, on connect."}
+{"step": "push", "frame": {"json": {"message_code": 1119, "format": "native_batch", "exchanges": {"nse_cm": {"value": 1, "divider": 100}, "nse_fo": {"value": 2, "divider": 100}, "bse_cm": {"value": 5, "divider": 100}, "bse_cd": {"value": 7, "divider": 10000000}}}}, "note": "The login answer with each exchange's price divider, before any client subscribes: a subscription made while the login is unanswered can reach Kotak twice (the post-login replay and its own queued change; websocket::manager)."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeScrips", "inputtoken": "nse_cm|2885", "ack_symbol": true}}]}
+{"step": "push", "frame": {"json": {"message_code": 1109, "trading_symbols": {"nse_cm|2885": "RELIANCE-EQ"}}}, "note": "The subscribe acknowledgement maps the key to Kotak's trading symbol."}
+{"step": "push", "frame": "frames/touch_line.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltp.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeScrips", "inputtoken": "nse_cm|3045", "ack_symbol": true}}]}
+{"step": "push", "frame": {"json": {"message_code": 1109, "trading_symbols": {"nse_cm|3045": "SBIN-EQ"}}}, "note": "The subscribe acknowledgement maps the key to Kotak's trading symbol."}
+{"step": "push", "frame": "frames/no_trade_yet.hex", "note": "No trade yet: no trade time, never the time it arrived."}
+{"step": "receive", "client": "a", "frame": "expected/ltp_no_trade_yet.json"}

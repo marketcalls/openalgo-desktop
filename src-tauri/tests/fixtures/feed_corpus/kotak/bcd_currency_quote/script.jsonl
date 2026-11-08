@@ -1,0 +1,7 @@
+{"step": "upstream_receives", "frames": [{"json": {"user": "U", "auth": "s", "format": "native_batch", "source": "NEOTRADEAPI", "platform": "Web", "version": "1.2.3", "sdk_version": 2, "sdk_date": "2026-08-07T09:41:17.667Z", "conn_req_time": 1762650000000, "sessionValidation": false}}], "note": "The native_batch login, on connect."}
+{"step": "push", "frame": {"json": {"message_code": 1119, "format": "native_batch", "exchanges": {"nse_cm": {"value": 1, "divider": 100}, "nse_fo": {"value": 2, "divider": 100}, "bse_cm": {"value": 5, "divider": 100}, "bse_cd": {"value": 7, "divider": 10000000}}}}, "note": "The login answer with each exchange's price divider, before any client subscribes: a subscription made while the login is unanswered can reach Kotak twice (the post-login replay and its own queued change; websocket::manager)."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "USDINR25NOV26FUT", "exchange": "BCD"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeScrips", "inputtoken": "bse_cd|1101", "ack_symbol": true}}], "note": "BCD streams as bse_cd, the feed's own segment (SFeed exchange 7)."}
+{"step": "push", "frame": {"json": {"message_code": 1109, "trading_symbols": {"bse_cd|1101": "USDINR25NOVFUT"}}}, "note": "The subscribe acknowledgement maps the key to Kotak's trading symbol."}
+{"step": "push", "frame": "frames/touch_line.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}

@@ -1,0 +1,210 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "kotak",
+  "inputs_sha256": "bc9a510f4a131be88be05fb5a10a0caae22bdc226a8cb6f5ba391852ebde4052",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "53001",
+      "brsymbol": "NIFTY25NOVFUT",
+      "brexchange": "nse_fo",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX",
+      "expiry": "25-NOV-26"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 4,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "kotak",
+            "orderid": "251109000000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1300.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 10,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "kotak",
+            "orderid": "251109000000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1300.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 4,
+            "pending_quantity": 6,
+            "average_price": 1300.4,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "kotak",
+            "orderid": "251109000000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1300.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "complete",
+            "filled_quantity": 10,
+            "pending_quantity": 0,
+            "average_price": 1300.45,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": []
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "kotak",
+            "orderid": "251109000000102",
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "action": "SELL",
+            "quantity": 75,
+            "price": 24400.0,
+            "trigger_price": 24410.0,
+            "pricetype": "SL",
+            "product": "NRML",
+            "order_status": "trigger pending",
+            "filled_quantity": 0,
+            "pending_quantity": 75,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 15,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "kotak",
+            "orderid": "251109000000102",
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "action": "SELL",
+            "quantity": 75,
+            "price": 24400.0,
+            "trigger_price": 24410.0,
+            "pricetype": "SL",
+            "product": "NRML",
+            "order_status": "rejected",
+            "filled_quantity": 0,
+            "pending_quantity": 75,
+            "average_price": 0.0,
+            "rejection_reason": "RMS:Margin Exceeds"
+          }
+        }
+      ]
+    },
+    {
+      "line": 17,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "kotak",
+            "orderid": "251109000000103",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 5,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "MARKET",
+            "product": "MIS",
+            "order_status": "cancelled",
+            "filled_quantity": 0,
+            "pending_quantity": 5,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    }
+  ]
+}

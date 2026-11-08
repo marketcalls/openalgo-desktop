@@ -1,0 +1,19 @@
+# RELIANCE mini touch line: a new price and trade, nothing else.
+# SFeed mini touch line, level 1 (web sfeed_protocol._decode_mini).
+3600                    # packet length 54
+0000                    # message code 0
+01                      # exchange 1 (nse_cm)
+01                      # level 1
+00                      # auction flag
+00                      # sequence
+00                      # bitmask length
+450b0000                # token 2885
+dd26106900000000        # last trade time 1762666205 (epoch s)
+34fc0100                # ltp 130100 -> 1301.0
+0a00000000000000        # last traded quantity 10
+32f40100                # previous close 128050 -> 1280.5
+a0000000                # change % 160 -> 1.6
+02080000                # change 2050 -> 20.5
+01000000                # lot
+02                      # precision
+01000000                # multiplier

@@ -1,0 +1,48 @@
+{
+  "broker": "kotak",
+  "summary": "A Quote subscription whose first packet is a mini touch line: the frame has the price, the previous close and the last trade, and leaves out what the packet lacks; the market picture after it fills every field.",
+  "scenarios": [
+    "absent-field",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "test/test_kotak_quote_feed.py::test_a_first_mini_tick_publishes_no_zero_ohlc_or_volume"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the web's Kotak adapter puts no mode in data.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The web's Quote frame carries the market picture's OI (0 for an equity); the desktop's Quote tick carries OI only while a Depth subscription holds the instrument.",
+      "ref": "audit C05; kotak_adapter.py::_quote_extras; feed::bridge::tick_update"
+    },
+    {
+      "key": "percent_change",
+      "kind": "open",
+      "reason": "The web sends the packet's own net change percent (nc) as percent_change for every scrip; the desktop's carrier keeps a change only for an index, so an equity or a derivative frame has none.",
+      "ref": "audit C04; kotak_adapter.py::_QUOTE_EXTRA_FIELDS; sfeed_websocket.py::_trade_fields"
+    }
+  ]
+}

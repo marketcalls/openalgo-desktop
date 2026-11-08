@@ -1,0 +1,20 @@
+{
+  "type": "order",
+  "data": {
+    "nOrdNo": "251109000000103",
+    "ordSt": "cancelled after market order",
+    "exSeg": "nse_cm",
+    "trdSym": "SBIN-EQ",
+    "tok": "",
+    "qty": "5",
+    "fldQty": "0",
+    "unFldSz": "5",
+    "prcTp": "MKT",
+    "trnsTp": "S",
+    "prc": "0.00",
+    "trgPrc": "0.00",
+    "avgPrc": "0.00",
+    "prod": "MIS",
+    "rejRsn": ""
+  }
+}
