@@ -29,9 +29,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The web's Firstock adapter puts its mode number in data.mode (1, 2, 3); the desktop sends its label. data.mode follows each broker's web adapter (lead rule 2026-11-09): closed by the per-broker dialect switch.",
+      "ref": "firstock_adapter.py:800-806; feed::dialect (lane wire)"
     },
     {
       "key": "ltt",

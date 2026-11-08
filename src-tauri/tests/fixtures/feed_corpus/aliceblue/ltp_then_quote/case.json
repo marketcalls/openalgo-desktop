@@ -48,9 +48,9 @@
     },
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::source::Mode::data_label"
+      "kind": "open",
+      "reason": "The web's AliceBlue data carries no mode; data.mode follows each broker's web adapter (lead rule 2026-11-09): closed by the per-broker dialect switch.",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
     },
     {
       "key": "timestamp",
