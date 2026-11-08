@@ -138,30 +138,30 @@ impl BrokerBridge {
                 .collect()
         };
         for (k, depth, quote) in moving {
+            any = true;
             let main = on_main_levels(depth.clone());
             let taken = self.manager.admit(vec![main.clone()]).await;
-            let moved = taken.first().is_some_and(|r| r.is_ok());
-            if moved {
-                tracing::warn!(
-                    "No {}-level book for {} on {} in {:?}; streaming the main feed's depth instead",
-                    k.2,
-                    k.0.symbol,
-                    k.0.exchange,
-                    self.state.lock().deep_books.timeout.unwrap_or_default()
-                );
-                let _ = self.depth_manager.unsubscribe(vec![depth]).await;
-                let _ = self.manager.unsubscribe(vec![quote]).await;
-            }
-            any = true;
-            let mut st = self.state.lock();
-            st.ops.stop_moving(&k);
-            if moved {
-                st.applied.insert(k.clone(), Applied::Main(main));
-                st.deep_books.fell_back.insert(k);
-            } else {
+            if !taken.first().is_some_and(|r| r.is_ok()) {
+                // The main feed has no room: the deep book stays, watched.
+                let mut st = self.state.lock();
+                st.ops.stop_moving(&k);
                 st.applied.insert(k.clone(), Applied::Deep { depth, quote });
                 st.deep_books.watch(&k);
+                continue;
             }
+            tracing::warn!(
+                "No {}-level book for {} on {} in {:?}; streaming the main feed's depth instead",
+                k.2,
+                k.0.symbol,
+                k.0.exchange,
+                self.state.lock().deep_books.timeout.unwrap_or_default()
+            );
+            let _ = self.depth_manager.unsubscribe(vec![depth]).await;
+            let _ = self.manager.unsubscribe(vec![quote]).await;
+            let mut st = self.state.lock();
+            st.ops.stop_moving(&k);
+            st.applied.insert(k.clone(), Applied::Main(main));
+            st.deep_books.fell_back.insert(k);
         }
         if any {
             // A release asked for while it moved waits for the next pass.
