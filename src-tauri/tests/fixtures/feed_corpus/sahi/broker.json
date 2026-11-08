@@ -1,0 +1,37 @@
+{
+  "broker": "sahi",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "NSE_INDEX": [
+        5
+      ],
+      "BSE_INDEX": [
+        5
+      ]
+    },
+    "orders": false
+  },
+  "sources": [
+    "broker/sahi/streaming/sahi_mapping.py::SahiCapabilityRegistry.depth_support",
+    "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter.subscribe",
+    "services/order_update_service.py:37-69"
+  ],
+  "notes": [
+    "Sahi sends up to 20 levels; the web publishes five, padded with empty rows, and acknowledges a Depth subscribe with actual_depth 5.",
+    "No order-update stream: Sahi is neither in the web's order adapter registry nor among its polling brokers."
+  ]
+}

@@ -1,0 +1,37 @@
+# Sahi ServerMessage: the next depth tick: one bid and six asks, of which OpenAlgo publishes five (web test_depth_truncated_to_five_levels).
+2261            # ServerMessage.depth_tick (field 4), 97 bytes
+08c516          #   instrument_id = 2885 (field 1)
+1001            #   exchange_segment = 1 (field 2)
+20ccf007        #   last_trade_price, paise = 129100 (field 4)
+28e3ea82eca233  #   last_trade_time, epoch ms = 1761700001123 (field 5)
+309423          #   volume_today = 4500 (field 6)
+38fed408        #   dpr_upper (upper circuit), paise = 141950 (field 7)
+40b68b07        #   dpr_lower (lower circuit), paise = 116150 (field 8)
+5a08            #   best_buys level (field 11), 8 bytes
+089af007        #     price, paise = 129050 (field 1)
+1014            #     quantity = 20 (field 2)
+1802            #     orders = 2 (field 3)
+6208            #   best_sells level (field 12), 8 bytes
+08ccf007        #     price, paise = 129100 (field 1)
+100a            #     quantity = 10 (field 2)
+1801            #     orders = 1 (field 3)
+6208            #   best_sells level (field 12), 8 bytes
+08d1f007        #     price, paise = 129105 (field 1)
+1014            #     quantity = 20 (field 2)
+1802            #     orders = 2 (field 3)
+6208            #   best_sells level (field 12), 8 bytes
+08d6f007        #     price, paise = 129110 (field 1)
+101e            #     quantity = 30 (field 2)
+1803            #     orders = 3 (field 3)
+6208            #   best_sells level (field 12), 8 bytes
+08dbf007        #     price, paise = 129115 (field 1)
+1028            #     quantity = 40 (field 2)
+1804            #     orders = 4 (field 3)
+6208            #   best_sells level (field 12), 8 bytes
+08e0f007        #     price, paise = 129120 (field 1)
+1032            #     quantity = 50 (field 2)
+1805            #     orders = 5 (field 3)
+6208            #   best_sells level (field 12), 8 bytes
+08e5f007        #     price, paise = 129125 (field 1)
+103c            #     quantity = 60 (field 2)
+1806            #     orders = 6 (field 3)

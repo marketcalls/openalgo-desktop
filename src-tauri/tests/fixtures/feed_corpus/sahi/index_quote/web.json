@@ -1,0 +1,67 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "sahi",
+  "inputs_sha256": "7e5855b1ca44cbaf26d6694da18695a5f16b45a41becd248e8de965a72379aba",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_LTP",
+          "mode": 1,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": "ltp",
+            "ltp": 24567.35,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_LTP",
+          "mode": 1,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": "ltp",
+            "ltp": 24567.5,
+            "timestamp": "<receipt_ms>"
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": "quote",
+            "ltp": 24567.5,
+            "timestamp": "<receipt_ms>",
+            "volume": 0,
+            "oi": 0,
+            "open_interest": 0,
+            "upper_circuit": 0.0,
+            "lower_circuit": 0.0
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+# Sahi ServerMessage: the subscribe acknowledgement (web test_decode_ack_packed_and_unpacked).
+0a06      # ServerMessage.ack (field 1), 6 bytes
+0801      #   action SUBSCRIBE = 1 (field 1)
+1202c516  #   instrument_ids packed [2885] (field 2)

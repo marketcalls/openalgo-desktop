@@ -1,0 +1,7 @@
+# Sahi ServerMessage: an LTP tick for RELIANCE (id 2885, NSE).
+1212            # ServerMessage.ltp_tick (field 2), 18 bytes
+08c516          #   instrument_id = 2885 (field 1)
+1001            #   exchange_segment = 1 (field 2)
+1802            #   instrument_type = 2 (field 3)
+209af007        #   last_trade_price, paise = 129050 (field 4)
+28fbe282eca233  #   last_trade_time, epoch ms = 1761700000123 (field 5)

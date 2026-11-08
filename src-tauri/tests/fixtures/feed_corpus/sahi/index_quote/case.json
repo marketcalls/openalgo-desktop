@@ -1,0 +1,56 @@
+{
+  "broker": "sahi",
+  "summary": "NIFTY on NSE_INDEX: an index tick has no trade time, so no ltt or last_trade_time in any mode. An LTP client, then a Quote client on the same index: Sahi holds one mode per instrument, so the Quote subscription is a ModeChange, and the Quote tick serves both.",
+  "scenarios": [
+    "index",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/sahi/streaming/sahi_proto.py::decode_server_message",
+      "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter._on_message",
+      "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter._handle_tick",
+      "broker/sahi/streaming/sahi_mapping.py::build_payloads",
+      "test/test_sahi_streaming_codec.py::test_index_ltp_without_time_and_derivative_oi"
+    ],
+    "notes": [
+      "Depth on an index is not cased: the desktop sends the index tick's frame and its book's frame, both without a book (feed/protocol.rs market_data leaves the book out for an index), to a Depth client, and the feed server may fold the two into one; the web sends one frame with a padded empty book."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "A Quote frame built from a Quote tick carries no oi: the bridge keeps OI only from a Depth tick (feed/bridge.rs quote_fields with_oi), so a derivative's open interest is lost in Quote mode. The web sends the tick's open_interest, and 0 when the stream left it out (sahi_mapping.py build_quote_payload). The 0 for an instrument whose stream carried no OI (an equity, an index) is a value the broker did not send: lead to decide whether the desktop matches it.",
+      "ref": "audit C05; sahi_mapping.py:131-133"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "The web's alias of oi, sent beside it with the same value; lost with oi in a Quote frame from a Quote tick (see oi).",
+      "ref": "audit C05; sahi_mapping.py:132-133"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "Sahi's daily price band (dpr_upper, field 7) is read past by the desktop decoder (sahi/streaming/proto.rs decode_tick) and NormalizedTick has no circuit field; the web publishes it in rupees in Quote and Depth, and 0.0 when the tick left the band out.",
+      "ref": "audit P-11, C06; sahi_mapping.py:134"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "Sahi's daily price band (dpr_lower, field 8), as upper_circuit.",
+      "ref": "audit P-11, C06; sahi_mapping.py:135"
+    }
+  ]
+}

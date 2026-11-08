@@ -1,0 +1,15 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "broker": "sahi",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "mode": "quote",
+    "ltp": 24567.5,
+    "timestamp": "<receipt_ms>",
+    "volume": 0
+  }
+}

@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 5, "broker": "sahi"}], "message": "Subscription processing complete", "broker": "sahi"}, "note": "web sahi_adapter.py subscribe: actual_depth 5 in Depth mode (feed::dialect DepthAck::Fallback)"}
+{"step": "upstream_receives", "frames": [{"hex": "0a0608031202c516"}], "note": "Subscribe{mode DEPTH, ids [2885]}"}
+{"step": "push", "frame": "frames/depth.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}
+{"step": "push", "frame": "frames/depth_update.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth_update.json"}
+{"step": "push", "frame": "frames/depth_clear.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth_clear.json"}

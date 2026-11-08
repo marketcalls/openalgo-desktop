@@ -1,0 +1,10 @@
+# Sahi ServerMessage: a quote tick on the new connection.
+1a1e            # ServerMessage.quote_tick (field 3), 30 bytes
+08c516          #   instrument_id = 2885 (field 1)
+1001            #   exchange_segment = 1 (field 2)
+1802            #   instrument_type = 2 (field 3)
+20b0f107        #   last_trade_price, paise = 129200 (field 4)
+28838a83eca233  #   last_trade_time, epoch ms = 1761700005123 (field 5)
+30b0b63c        #   volume_today = 990000 (field 6)
+38fed408        #   dpr_upper (upper circuit), paise = 141950 (field 7)
+40b68b07        #   dpr_lower (lower circuit), paise = 116150 (field 8)

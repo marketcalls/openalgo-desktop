@@ -1,0 +1,6 @@
+# Sahi ServerMessage: an index LTP tick without trade time (web test_decode_ltp_index_without_last_trade_time).
+120d        # ServerMessage.ltp_tick (field 2), 13 bytes
+0890cb01    #   instrument_id = 26000 (field 1)
+1001        #   exchange_segment = 1 (field 2)
+1801        #   instrument_type = 1 (field 3)
+209ff99501  #   last_trade_price, paise = 2456735 (field 4)
