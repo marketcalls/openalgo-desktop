@@ -115,8 +115,17 @@ When the chart, a watchlist and your Python script all want NIFTY:
 
 A full tick reaches Quote subscribers; LTP subscribers get the price fields;
 Depth subscribers get the depth snapshot with the last tick's quote fields.
-Index ticks reach every mode. A broker that serves deeper books on a
-separate socket (Fyers 50 levels, Dhan 20) gets a second manager for depth.
+Index ticks reach every mode. A client that holds several modes of one
+symbol gets one frame per mode for each tick, as the web's recorded
+transcripts show. A broker that serves deeper books on a separate socket
+(Fyers 50 levels, Dhan 20) gets a second manager for depth.
+
+Within one broker connection the bridge keeps each instrument's last known
+quote and merges every broker message into it by what the message says it
+carries, so a message that repeats only the price keeps the rest, and a
+field the broker never sent is left out of the frame rather than sent as 0.
+What each broker's frames carry, and the per-mode delivery policy, are in
+[Market data frames](port/market-data-frames.md).
 
 ## When a reader is slow: folding and skips
 
@@ -287,8 +296,8 @@ wrong API key counts against that caller's failure budget.
 | Broker feed contract | `brokers/common/streaming.rs`: `BrokerFeed`, `FeedEvent`, `NormalizedTick` (`derive_change`), `NormalizedDepth` |
 | Broker adapters | `brokers/<broker>/streaming.rs`, `brokers/families/{noren,xts}/streaming.rs`; non-WebSocket transports (IIFL Capital's MQTT, Nubra's order socket) through `brokers/common/relay.rs` |
 | Broker socket manager | `websocket/manager.rs` (`TICK_CHANNEL_CAP` 4,096), started and stopped per session by `services/broker_runtime.rs` |
-| Feed server | `feed/mod.rs` (`FeedService`), `feed/server/` (listener, connection, session, message budget), `feed/protocol.rs`, `feed/dialect.rs` (per-broker field names) |
-| Subscriptions | `feed/registry.rs` (per client, reference counts at the source), `feed/bridge.rs` (one manager reference per key) |
+| Feed server | `feed/mod.rs` (`FeedService`), `feed/server/` (listener, connection, session, message budget), `feed/protocol.rs` and `feed/protocol/market.rs` (the `market_data` frame), `feed/dialect.rs` and `feed/dialect/names.rs` (per-broker keys) |
+| Subscriptions | `feed/registry.rs` (per client, reference counts at the source), `feed/bridge.rs` (one manager reference per key), `feed/bridge/snapshot.rs` (each instrument's merged quote) |
 | Per-client queue | `feed/outbox.rs` |
 | Order updates | `feed/orders.rs` (`OrderRelay`) |
 | Socket.IO | `server/socketio.rs`, `events/subscribers/socketio.rs` |
