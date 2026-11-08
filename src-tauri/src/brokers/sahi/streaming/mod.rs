@@ -125,6 +125,16 @@ fn segment_of(exchange: &str) -> Option<u64> {
     }
 }
 
+/// Why Sahi's feed refuses `exchange`, when it does: it streams the cash
+/// and F&O segments of NSE and BSE and their indices only. The web's
+/// adapter refuses any other before it looks the symbol up, in these words
+/// (`sahi_adapter.py` subscribe, `UNSUPPORTED_EXCHANGE`).
+pub(crate) fn refusal(exchange: &str) -> Option<String> {
+    segment_of(exchange)
+        .is_none()
+        .then(|| format!("Exchange {} is not streamed by Sahi", exchange))
+}
+
 /// Integer paise to rupees.
 pub(crate) fn rupees(paise: i64) -> f64 {
     paise as f64 / 100.0

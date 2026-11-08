@@ -666,3 +666,23 @@ fn paise_to_rupees() {
     assert_eq!(rupees(5), 0.05);
     assert_eq!(rupees(0), 0.0);
 }
+
+/// Web test/test_sahi_streaming_codec.py::test_adapter_rejects_unknown_symbol_and_exchange
+/// (the exchange): MCX is refused, in the words of the web's
+/// UNSUPPORTED_EXCHANGE, by the broker's feed refusal; the six exchanges
+/// Sahi streams are not.
+#[test]
+fn an_exchange_sahi_does_not_stream_is_refused_in_the_webs_words() {
+    use crate::brokers::sahi::SahiBroker;
+    use crate::brokers::Broker;
+    let broker = SahiBroker::new(SymbolResolver::new());
+    for ex in ["NSE", "BSE", "NFO", "BFO", "NSE_INDEX", "BSE_INDEX"] {
+        assert_eq!(broker.feed_refusal(ex), None, "{}", ex);
+    }
+    for ex in ["MCX", "CDS", "BCD", "NCDEX"] {
+        assert_eq!(
+            broker.feed_refusal(ex),
+            Some(format!("Exchange {} is not streamed by Sahi", ex))
+        );
+    }
+}

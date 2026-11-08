@@ -1,6 +1,6 @@
 {
   "broker": "sahi",
-  "summary": "A Quote subscribe on MCX, an exchange Sahi does not stream. Today the desktop acknowledges it and sends Sahi a Subscribe for the token; the web's adapter refuses it before any lookup (sahi_adapter.py:202-205) and the web proxy answers an error item in a partial reply. This pins today's answer; Phase B turns it into the web's refusal through Broker::feed_refusal.",
+  "summary": "A Quote subscribe on MCX, an exchange Sahi does not stream, is refused before any lookup with the web's words, an error item in a partial reply, and nothing is sent to Sahi (web sahi_adapter.py:202-205; Broker::feed_refusal).",
   "scenarios": [
     "subscription-lifecycle"
   ],
@@ -29,8 +29,7 @@
       "websocket_proxy/server.py:1318-1338"
     ],
     "notes": [
-      "The harness compares a reply with the case only (web.json holds published frames), so the web's answer is recorded here and in the lane report: {\"type\": \"subscribe\", \"status\": \"partial\", \"subscriptions\": [{\"symbol\": \"CRUDEOIL25NOVFUT\", \"exchange\": \"MCX\", \"status\": \"error\", \"message\": \"Exchange MCX is not streamed by Sahi\", \"broker\": \"sahi\"}], \"message\": \"Subscription processing complete\", \"broker\": \"sahi\"} (websocket_proxy/server.py:1318-1338, sahi_adapter.py:202-205), and it subscribes nothing.",
-      "The MCX row is in the case's master so the web replay can name it; Sahi's own master has no MCX rows, and there the desktop answers today with the item message \"Token not found for CRUDEOIL25NOVFUT on MCX\"."
+      "The MCX row is in the case's master so the web replay can name it; Sahi's own master has no MCX rows. The refusal comes before the lookup, so the reply is the same either way."
     ]
   },
   "deviations": []

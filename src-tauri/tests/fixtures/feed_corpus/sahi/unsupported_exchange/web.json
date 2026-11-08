@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "sahi",
-  "inputs_sha256": "3c39ac8b16c79b28c70de8b0b9f36c797f30f27de95b87424c5c04b02c420f8f",
+  "inputs_sha256": "ec427199e72fbdb187addc38fe5a4da493a032fae19e936f368a9f66f69ecf3a",
   "instruments": [
     {
       "symbol": "CRUDEOIL25NOVFUT",
