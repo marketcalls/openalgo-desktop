@@ -57,30 +57,6 @@
       "ref": "fivepaisa_adapter.py:_quote_fields (feed.get(\"OpenRate\", 0)); feed/dialect.rs (lane wire)"
     },
     {
-      "key": "bid_price",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best bid (BidRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; audit WEBSOCKET_AUDIT_REMAINING_BROKERS carrier table"
-    },
-    {
-      "key": "bid_quantity",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best bid quantity (BidQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
-    },
-    {
-      "key": "ask_price",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best ask (OffRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
-    },
-    {
-      "key": "ask_quantity",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best ask quantity (OffQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "The desktop sends price_change on an equity or a future (ltp less the previous close: feed/dialect/names.rs gives 5paisa instrument_change); the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B: 5paisa's dialect entry without instrument_change.",

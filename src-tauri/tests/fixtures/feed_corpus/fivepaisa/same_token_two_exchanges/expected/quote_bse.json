@@ -24,6 +24,10 @@
     "price_change": -2.5,
     "price_change_percent": -0.5668,
     "percent_change": -0.5668,
-    "last_trade_time": 1759900056000
+    "last_trade_time": 1759900056000,
+    "bid_price": 440.3,
+    "bid_quantity": 40,
+    "ask_price": 440.4,
+    "ask_quantity": 55
   }
 }

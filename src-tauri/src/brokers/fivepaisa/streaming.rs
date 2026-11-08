@@ -238,7 +238,30 @@ fn quote_tick(sub: &SubInfo, m: &Value) -> NormalizedTick {
     if m.get("ChgPcnt").is_some_and(|v| !v.is_null()) {
         t.change_percent = num(m, "ChgPcnt");
     }
+    // The best bid and ask the web's Quote publishes (`bid_price`,
+    // `bid_quantity`, `ask_price`, `ask_quantity`), each only when the
+    // frame has it.
+    t.extras.bid_price = price_of(m, "BidRate");
+    t.extras.bid_quantity = quantity_of(m, "BidQty");
+    t.extras.ask_price = price_of(m, "OffRate");
+    t.extras.ask_quantity = quantity_of(m, "OffQty");
     t
+}
+
+/// A price the frame (its prices already held) carries: none for a missing
+/// key, or for the 0 5paisa sends for a price it does not have.
+fn price_of(m: &Value, key: &str) -> Option<f64> {
+    m.get(key)
+        .filter(|v| !v.is_null())
+        .map(num_of)
+        .filter(|p| *p != 0.0)
+}
+
+/// A quantity the frame carries, a real 0 included.
+fn quantity_of(m: &Value, key: &str) -> Option<i64> {
+    m.get(key)
+        .filter(|v| !v.is_null())
+        .map(|v| num_of(v) as i64)
 }
 
 /// The five-level book of a MarketDepthService frame (`BbBuySellFlag` 66

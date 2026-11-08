@@ -37,27 +37,27 @@
   "deviations": [
     {
       "key": "bid_price",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best bid (BidRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; audit WEBSOCKET_AUDIT_REMAINING_BROKERS carrier table"
+      "kind": "desktop-decision",
+      "reason": "The desktop sends 5paisa's best bid and ask in Depth too, from the latest quote: feed/dialect/names.rs sends a web key from the mode the web adapter first sends it in (Quote) and every mode above it, so a script never meets a KeyError on the richer frame; the 5paisa web adapter's Depth dict has no bid or ask. Pending the lead's approval of that rule.",
+      "ref": "feed/dialect/names.rs (module rules; FIVEPAISA from Q); fivepaisa_adapter.py:_normalize_market_data mode 3"
     },
     {
       "key": "bid_quantity",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best bid quantity (BidQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+      "kind": "desktop-decision",
+      "reason": "The desktop sends 5paisa's best bid and ask in Depth too, from the latest quote: feed/dialect/names.rs sends a web key from the mode the web adapter first sends it in (Quote) and every mode above it, so a script never meets a KeyError on the richer frame; the 5paisa web adapter's Depth dict has no bid or ask. Pending the lead's approval of that rule.",
+      "ref": "feed/dialect/names.rs (module rules; FIVEPAISA from Q); fivepaisa_adapter.py:_normalize_market_data mode 3"
     },
     {
       "key": "ask_price",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best ask (OffRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+      "kind": "desktop-decision",
+      "reason": "The desktop sends 5paisa's best bid and ask in Depth too, from the latest quote: feed/dialect/names.rs sends a web key from the mode the web adapter first sends it in (Quote) and every mode above it, so a script never meets a KeyError on the richer frame; the 5paisa web adapter's Depth dict has no bid or ask. Pending the lead's approval of that rule.",
+      "ref": "feed/dialect/names.rs (module rules; FIVEPAISA from Q); fivepaisa_adapter.py:_normalize_market_data mode 3"
     },
     {
       "key": "ask_quantity",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best ask quantity (OffQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+      "kind": "desktop-decision",
+      "reason": "The desktop sends 5paisa's best bid and ask in Depth too, from the latest quote: feed/dialect/names.rs sends a web key from the mode the web adapter first sends it in (Quote) and every mode above it, so a script never meets a KeyError on the richer frame; the 5paisa web adapter's Depth dict has no bid or ask. Pending the lead's approval of that rule.",
+      "ref": "feed/dialect/names.rs (module rules; FIVEPAISA from Q); fivepaisa_adapter.py:_normalize_market_data mode 3"
     },
     {
       "key": "price_change",

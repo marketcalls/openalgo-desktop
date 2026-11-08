@@ -72,27 +72,15 @@
     },
     {
       "key": "bid_price",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best bid (BidRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; audit WEBSOCKET_AUDIT_REMAINING_BROKERS carrier table"
-    },
-    {
-      "key": "bid_quantity",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best bid quantity (BidQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+      "kind": "web-defect",
+      "reason": "5paisa sends an index's best bid and ask price as 0, prices it does not have; the web passes the 0 on (_normalize_market_data feed.get(\"BidRate\", 0)), the desktop leaves out a price 0 with nothing held. An invented zero on the web; the quantities (0, sent) match.",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; brokers/fivepaisa/streaming.rs price_of"
     },
     {
       "key": "ask_price",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best ask (OffRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
-    },
-    {
-      "key": "ask_quantity",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best ask quantity (OffQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+      "kind": "web-defect",
+      "reason": "5paisa sends an index's best bid and ask price as 0, prices it does not have; the web passes the 0 on (_normalize_market_data feed.get(\"BidRate\", 0)), the desktop leaves out a price 0 with nothing held. An invented zero on the web; the quantities (0, sent) match.",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; brokers/fivepaisa/streaming.rs price_of"
     }
   ]
 }

@@ -67,27 +67,17 @@
     },
     {
       "key": "bid_price",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best bid (BidRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; audit WEBSOCKET_AUDIT_REMAINING_BROKERS carrier table"
-    },
-    {
-      "key": "bid_quantity",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best bid quantity (BidQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+      "kind": "web-defect",
+      "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
+      "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
+      "approved": true
     },
     {
       "key": "ask_price",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best ask (OffRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
-    },
-    {
-      "key": "ask_quantity",
-      "kind": "open",
-      "reason": "The web's Quote sends 5paisa's best ask quantity (OffQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
-      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+      "kind": "web-defect",
+      "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
+      "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
+      "approved": true
     },
     {
       "key": "price_change",

@@ -382,3 +382,51 @@ fn an_ltp_frame_is_cut_from_the_quote_packet() {
         ]
     );
 }
+
+/// The web's Quote publishes 5paisa's best bid and ask (`BidRate`,
+/// `BidQty`, `OffRate`, `OffQty`); a price of 0 keeps the last one held,
+/// and with none held, or the key missing, is left out. A quantity of 0 is
+/// sent.
+#[test]
+fn the_best_bid_and_ask_are_the_frames_own() {
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let mut frames = Frames::new("fivepaisa");
+    let d = frames
+        .at(&send(&mut f, feed_frame()), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(
+        (
+            &d["bid_price"],
+            &d["bid_quantity"],
+            &d["ask_price"],
+            &d["ask_quantity"]
+        ),
+        (&json!(440.0), &json!(10), &json!(440.2), &json!(12)),
+        "{}",
+        d
+    );
+    let thin = with(feed_frame(), json!({"BidRate": 0, "BidQty": 0}));
+    let d = frames.at(&send(&mut f, thin), Mode::Quote).pop().unwrap();
+    assert_eq!(
+        (&d["bid_price"], &d["bid_quantity"]),
+        (&json!(440.0), &json!(0)),
+        "{}",
+        d
+    );
+
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let mut first = with(feed_frame(), json!({"BidRate": 0}));
+    if let Some(o) = first.as_object_mut() {
+        o.remove("OffRate");
+        o.remove("OffQty");
+    }
+    let d = Frames::new("fivepaisa")
+        .at(&send(&mut f, first), Mode::Quote)
+        .pop()
+        .unwrap();
+    for k in ["bid_price", "ask_price", "ask_quantity"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+    assert_eq!(d["bid_quantity"], 10, "{}", d);
+}

@@ -16,6 +16,8 @@
     "total_buy_quantity": 110,
     "total_sell_quantity": 210,
     "last_trade_quantity": 10,
-    "last_trade_time": 1759900116000
+    "last_trade_time": 1759900116000,
+    "bid_quantity": 0,
+    "ask_quantity": 0
   }
 }
