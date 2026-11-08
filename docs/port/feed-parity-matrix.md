@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 37. Open gaps: 111. Deviations pending approval: 64.
+Cases: 37. Open gaps: 110. Deviations pending approval: 65.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -210,7 +210,7 @@ Cases: 37. Open gaps: 111. Deviations pending approval: 64.
 | tradejini | `future_quote_oi` | `last_trade_time` | open | no | The web also sends the trade time as last_trade_time (the same local-time text as its ltt, a web defect); the desktop sends no last_trade_time for Tradejini. Phase B: the dialect alias in epoch ms beside ltt, as Samco, 5paisa and mStock have it (feed::dialect, lane wire); the value then stays a declared web defect. |
 | tradejini | `index_quote_and_ltp` | `mode` | open | no | The web's Tradejini adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Phase B: follows the web adapter through wire's per-broker switch in the dialect table (Tradejini: the number). |
 | tradejini | `index_quote_and_ltp` | `ltt` | web-defect | no | Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as "2025-11-05 14:25:31" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or "" (LTP). |
-| tradejini | `index_quote_and_ltp` | `last_quantity` | open | no | The web's Tradejini adapter sends last_quantity in an index's Quote (0 here: the index L1 carries no ltq, message.get("ltq", 0)); the desktop's index frame has no last_quantity for any broker. Phase B: follows the web adapter through wire's per-broker switch in the dialect table; a quantity Tradejini did not send stays absent (the zero is then a declared web defect). |
+| tradejini | `index_quote_and_ltp` | `last_quantity` | web-defect | no | An index has no trades: its L1 carries no ltq, and the web sends last_quantity 0 (message.get("ltq", 0)), an invented zero; the desktop's index frame leaves it out (rules.md: no invented data). |
 | tradejini | `index_quote_and_ltp` | `average_price` | web-defect | no | As last_quantity: an index L1 carries no atp, and the web sends average_price 0. |
 | tradejini | `index_quote_and_ltp` | `oi` | web-defect | no | An index's L1 carries no OI; the web sends oi 0. The desktop's index frame carries no OI. |
 | tradejini | `index_quote_and_ltp` | `price_change` | open | no | The web's Tradejini adapter sends an index's change only under its own names (change, change_percent, percent_change); the desktop adds price_change, the canonical name of the recorded Zerodha transcript. Phase B: follows the web adapter through wire's per-broker switch in the dialect table (Tradejini: no price_change). |

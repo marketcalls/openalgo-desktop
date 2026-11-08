@@ -47,9 +47,9 @@
     },
     {
       "key": "last_quantity",
-      "kind": "open",
-      "reason": "The web's Tradejini adapter sends last_quantity in an index's Quote (0 here: the index L1 carries no ltq, message.get(\"ltq\", 0)); the desktop's index frame has no last_quantity for any broker. Phase B: follows the web adapter through wire's per-broker switch in the dialect table; a quantity Tradejini did not send stays absent (the zero is then a declared web defect).",
-      "ref": "tradejini_adapter.py:826; feed::protocol::market_data (index frames); lead ruling 2026-11-09"
+      "kind": "web-defect",
+      "reason": "An index has no trades: its L1 carries no ltq, and the web sends last_quantity 0 (message.get(\"ltq\", 0)), an invented zero; the desktop's index frame leaves it out (rules.md: no invented data).",
+      "ref": "tradejini_adapter.py:826; lead ruling 2026-11-09"
     },
     {
       "key": "average_price",
