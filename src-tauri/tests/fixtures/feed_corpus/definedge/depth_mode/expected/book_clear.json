@@ -86,6 +86,8 @@
     "bid": 0.0,
     "bid_qty": 0,
     "ask": 0.0,
-    "ask_qty": 0
+    "ask_qty": 0,
+    "lower_circuit": 1251.9,
+    "upper_circuit": 1530.1
   }
 }

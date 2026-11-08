@@ -121,6 +121,8 @@ fn extras(d: &Map<String, Value>, v: &Value) -> QuoteExtras {
         ask_quantity: qty_of(d, v, "sq1"),
         previous_oi: qty_of(d, v, "poi"),
         total_oi: qty_of(d, v, "toi"),
+        upper_circuit: price_of(d, v, "uc"),
+        lower_circuit: price_of(d, v, "lc"),
         ..Default::default()
     }
 }

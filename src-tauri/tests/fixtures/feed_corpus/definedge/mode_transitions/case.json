@@ -70,18 +70,6 @@
       "kind": "open",
       "reason": "The web sends the 52-week low (Definedge `52l`); the desktop's common carrier drops it.",
       "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "The web sends the lower circuit (Definedge `lc`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web sends the upper circuit (Definedge `uc`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
     }
   ]
 }

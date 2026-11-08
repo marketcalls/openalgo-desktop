@@ -89,6 +89,8 @@
     "ask": 24411.0,
     "ask_qty": 225,
     "prev_oi": 14100000,
-    "total_oi": 14250000
+    "total_oi": 14250000,
+    "lower_circuit": 21881.45,
+    "upper_circuit": 26743.95
   }
 }
