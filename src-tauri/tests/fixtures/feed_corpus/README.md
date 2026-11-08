@@ -368,12 +368,18 @@ credentials are fake values (never real ones, never anything gitleaks
 matches). A feed made by `Broker::create_feed` goes in with
 `Feeds::boxed(..)`, an order feed from `Broker::create_order_feed` with
 `.with_order_feed(..)`, a deep-book socket with `.with_depth(levels, ..)`.
-Build the broker itself and pass it with `.with_broker(Arc::new(broker))`,
-as the app does: the bridge then takes its depth levels
-(`Broker::feed_depth_levels`, in place of `case.json`'s `depth_levels`) and
-its exchange refusals (`Broker::feed_refusal`), so a refusal case (an
-exchange or mode the broker's feed does not stream) answers as it would in
-the app; the broker lives until the case ends. A
+Build the broker itself and pass it with the session's auth,
+`.with_broker(broker.clone(), &auth)`, as the app does: the bridge then
+takes its depth levels (`Broker::feed_depth_levels`, in place of
+`case.json`'s `depth_levels`) and its exchange refusals
+(`Broker::feed_refusal`), so a refusal case (an exchange or mode the
+broker's feed does not stream) answers as it would in the app; the market
+feed takes its step before a new instrument (`Broker::feed_presubscribe`,
+Samco's index lookup over REST, answered by the fake broker API); and the
+order relay completes each order socket's update with it
+(`Broker::complete_order_update`, IndMoney's order-book lookup for an
+order it did not see placed), waiting at most 5 s as the runtime does. The
+broker lives until the case ends. A
 feed whose `prepare` calls the broker's REST API first (Upstox's authorize,
 Groww's socket token) reads it from the fake broker API:
 `env.serve_json("/v3/feed/market-data-feed/authorize", json!({"data":

@@ -16,6 +16,7 @@ use openalgo_desktop_lib::brokers::common::streaming::{
     BrokerFeed, FeedEvent, OrderFeed, OrderUpdate,
 };
 use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
+use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
 use openalgo_desktop_lib::events::EventBus;
 use openalgo_desktop_lib::feed::auth::StaticAuth;
@@ -89,10 +90,13 @@ pub(crate) struct Feeds {
     /// What must live as long as the case (a broker whose poller stops
     /// when it is dropped).
     keep: Vec<Box<dyn Any + Send + Sync>>,
-    /// The session's broker, whose depth levels and exchange refusals the
-    /// bridge reads.
-    broker: Option<Arc<dyn Broker>>,
+    /// The session's broker and auth (`with_broker`).
+    broker: Session,
 }
+
+/// The session's broker and its auth, as `broker_runtime` holds them for
+/// the feeds' hooks.
+type Session = Option<(Arc<dyn Broker>, AuthToken)>;
 
 impl Feeds {
     pub(crate) fn market(feed: impl BrokerFeed + 'static) -> Feeds {
@@ -110,12 +114,15 @@ impl Feeds {
         }
     }
 
-    /// The session's broker, as `broker_runtime` installs it: the bridge
-    /// takes its depth levels (`Broker::feed_depth_levels`, in place of
-    /// `case.json`'s `depth_levels`) and its exchange refusals
-    /// (`Broker::feed_refusal`), and it lives until the case ends.
-    pub(crate) fn with_broker(mut self, broker: Arc<dyn Broker>) -> Feeds {
-        self.broker = Some(broker.clone());
+    /// The session's broker and its `auth`, as `broker_runtime` installs
+    /// them: the bridge takes its depth levels (`Broker::feed_depth_levels`,
+    /// in place of `case.json`'s `depth_levels`) and its exchange refusals
+    /// (`Broker::feed_refusal`), the market feed its step before a new
+    /// instrument (`Broker::feed_presubscribe`), and the order relay
+    /// completes each socket update with it
+    /// (`Broker::complete_order_update`); it lives until the case ends.
+    pub(crate) fn with_broker(mut self, broker: Arc<dyn Broker>, auth: &AuthToken) -> Feeds {
+        self.broker = Some((broker.clone(), auth.clone()));
         self.keeping(broker)
     }
 
@@ -207,7 +214,7 @@ impl World {
         let bridge = BrokerBridge::with_depth_manager(market.clone(), deep.clone(), symbols);
         match &feeds.broker {
             // `broker_runtime::start_session`'s wiring.
-            Some(b) => {
+            Some((b, auth)) => {
                 if !case.depth_levels.is_empty() {
                     panic!(
                         "feed corpus {}: depth levels come from the broker; drop case.json's",
@@ -222,6 +229,7 @@ impl World {
                 bridge.set_exchange_refusal(Arc::new(move |exchange: &str| {
                     refusal.feed_refusal(exchange)
                 }));
+                market.set_presubscribe(b.feed_presubscribe(auth));
             }
             None => {
                 let levels = case.depth_levels.clone();
@@ -238,7 +246,8 @@ impl World {
         let generation = bus.begin_session();
         let mut relays = JoinSet::new();
         for m in [&market, &orders] {
-            relay_orders(&mut relays, m, bus.clone(), case.broker.clone(), generation);
+            let session = (case.broker.clone(), feeds.broker.clone(), generation);
+            relay_orders(&mut relays, m, bus.clone(), session);
         }
 
         bridge.start();
@@ -378,14 +387,32 @@ fn route(a: &HttpAnswer, urls: &BTreeMap<Socket, String>, http: &str) -> Route {
     r
 }
 
-/// `services::broker_runtime`'s order relay: every order update a feed
-/// decodes goes on the bus as the runtime's `order_event`.
+/// How long `broker_runtime`'s socket relay waits for the broker to
+/// complete an order update (its `ORDER_COMPLETION_DEADLINE`) before it
+/// publishes the update as it came.
+const ORDER_COMPLETION_DEADLINE: Duration = Duration::from_secs(5);
+
+/// `u` as `broker_runtime::completed` makes it: completed by the session's
+/// broker with its auth (IndMoney looks an order it did not see placed up
+/// in the order book), or as it came when there is none or it is late.
+async fn completed(session: &Session, u: &OrderUpdate) -> OrderUpdate {
+    let Some((broker, auth)) = session else {
+        return u.clone();
+    };
+    let asked = broker.complete_order_update(auth, u.clone());
+    tokio::time::timeout(ORDER_COMPLETION_DEADLINE, asked)
+        .await
+        .unwrap_or_else(|_| u.clone())
+}
+
+/// `services::broker_runtime`'s socket order relay: every order update a
+/// feed decodes is completed by the broker and goes on the bus as the
+/// runtime's `order_event`.
 fn relay_orders(
     set: &mut JoinSet<()>,
     feed: &WebSocketManager,
     bus: Arc<EventBus>,
-    broker: String,
-    generation: u64,
+    (broker, session, generation): (String, Session, u64),
 ) {
     let mut rx = feed.subscribe_ticks();
     set.spawn(async move {
@@ -393,7 +420,8 @@ fn relay_orders(
             match rx.recv().await {
                 Ok(ev) => {
                     if let FeedEvent::OrderUpdate(u) = &*ev {
-                        bus.publish(order_event(u, &broker, generation));
+                        let u = completed(&session, u).await;
+                        bus.publish(order_event(&u, &broker, generation));
                     }
                 }
                 Err(RecvError::Lagged(n)) => {
