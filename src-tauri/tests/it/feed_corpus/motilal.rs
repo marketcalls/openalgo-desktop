@@ -40,5 +40,6 @@ corpus_cases!(
         index_quote,
         reconnect_quote,
         order_lifecycle,
+        order_session_refused,
     ]
 );

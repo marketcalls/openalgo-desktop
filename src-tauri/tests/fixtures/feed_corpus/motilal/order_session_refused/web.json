@@ -1,0 +1,21 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "motilal",
+  "inputs_sha256": "06c3dffe0d5ee48a7061714bc2f0b9ad016c4063ef598da92a80d58878fc491b",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 4,
+      "published": []
+    }
+  ]
+}
