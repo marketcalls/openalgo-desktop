@@ -1,0 +1,172 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "flattrade",
+  "inputs_sha256": "b3c9bc0746ca169bcf38bfde905eb213140a7450f22d9b4b23ea22d3a18afbdd",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "token": "59317",
+      "brsymbol": "NIFTY25NOV26C24000",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "strike": 24000.0,
+      "lotsize": 75,
+      "instrumenttype": "OPTIDX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "flattrade",
+            "orderid": "26110900000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 100,
+            "price": 1410.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "MIS",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 100,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "flattrade",
+            "orderid": "26110900000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 100,
+            "price": 1410.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "MIS",
+            "order_status": "open",
+            "filled_quantity": 40,
+            "pending_quantity": 60,
+            "average_price": 1410.5,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "flattrade",
+            "orderid": "26110900000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 100,
+            "price": 1410.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "MIS",
+            "order_status": "complete",
+            "filled_quantity": 100,
+            "pending_quantity": 0,
+            "average_price": 1410.47,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "flattrade",
+            "orderid": "26110900000102",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 5000,
+            "price": 1395.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "MIS",
+            "order_status": "rejected",
+            "filled_quantity": 0,
+            "pending_quantity": 5000,
+            "average_price": 0.0,
+            "rejection_reason": "RMS:Margin Exceeds,Required:7069250.00, Available:250000.00"
+          }
+        }
+      ]
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "flattrade",
+            "orderid": "26110900000103",
+            "symbol": "NIFTY25NOV2624000CE",
+            "exchange": "NFO",
+            "action": "SELL",
+            "quantity": 75,
+            "price": 142.0,
+            "trigger_price": 140.5,
+            "pricetype": "SL",
+            "product": "NRML",
+            "order_status": "cancelled",
+            "filled_quantity": 0,
+            "pending_quantity": 75,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    }
+  ]
+}

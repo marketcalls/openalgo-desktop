@@ -6,6 +6,7 @@ from web_adapters.aliceblue import AliceBlue
 from web_adapters.angel import Angel
 from web_adapters.dhan import Dhan
 from web_adapters.firstock import Firstock
+from web_adapters.flattrade import Flattrade
 from web_adapters.shoonya import Shoonya
 from web_adapters.zerodha import Zerodha
 
@@ -16,6 +17,7 @@ GLUES = {
         Angel,
         Dhan,
         Firstock,
+        Flattrade,
         Shoonya,
         Zerodha,
     )

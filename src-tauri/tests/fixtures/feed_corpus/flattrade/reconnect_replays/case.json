@@ -1,0 +1,77 @@
+{
+  "broker": "flattrade",
+  "summary": "A Quote subscription survives the broker dropping the socket: the feed logs in again, asks for order updates again, subscribes the touchline again, and the snapshot Noren answers with is served.",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._process_market_message",
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._normalize_market_data",
+      "broker/flattrade/streaming/flattrade_adapter.py::MarketDataCache",
+      "broker/flattrade/streaming/flattrade_adapter.py::QuoteNormalizer"
+    ],
+    "notes": [
+      "The desktop drops its cached snapshots on a new connection (appendix item 11); the web's Flattrade adapter keeps them. A full snapshot follows every subscribe, so both serve the same frame here."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "flattrade_timestamp",
+      "kind": "open",
+      "reason": "The web forwards Noren's feed time ft (epoch seconds) as flattrade_timestamp; the desktop drops it.",
+      "ref": "audit FB-07, C06; broker/flattrade/streaming/flattrade_adapter.py normalisers"
+    },
+    {
+      "key": "last_trade_time",
+      "kind": "open",
+      "reason": "The web's Flattrade adapter forwards Noren's trade time ltt (HH:MM:SS, null when the frame has none) as last_trade_time; the desktop's carrier has no place for it.",
+      "ref": "audit FB-07, C06; broker/flattrade/streaming/flattrade_adapter.py normalisers"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "The desktop sends Noren's feed time ft, in ms, as ltt: a packet time, not the trade time. Noren's trade time is its ltt (HH:MM:SS, IST), which the web forwards raw as last_trade_time; the web's Flattrade adapter sends no ltt key in any mode, LTP included. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "audit FB-07; brokers/families/noren/streaming.rs NorenFeed::tick (ft * 1000)"
+    },
+    {
+      "key": "mode",
+      "kind": "open",
+      "reason": "The web's Flattrade adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full) for every broker. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "feed::source::Mode::data_label; broker/flattrade/streaming/flattrade_adapter.py Config.MODE_*"
+    },
+    {
+      "key": "percent_change",
+      "kind": "open",
+      "reason": "The web's Flattrade adapter forwards Noren's pc as percent_change for every instrument; the desktop sends the change fields for indices only.",
+      "ref": "audit C04; feed/bridge.rs quote_fields; broker/flattrade/streaming/flattrade_adapter.py normalisers"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "open",
+      "reason": "The web's Flattrade Quote dict leaves out the book totals Noren's touchline sends (tbq, tsq); the desktop sends them in every Quote frame. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "feed::protocol::market_data; broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "open",
+      "reason": "The web's Flattrade Quote dict leaves out the book totals Noren's touchline sends (tbq, tsq); the desktop sends them in every Quote frame. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "feed::protocol::market_data; broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer"
+    }
+  ]
+}
