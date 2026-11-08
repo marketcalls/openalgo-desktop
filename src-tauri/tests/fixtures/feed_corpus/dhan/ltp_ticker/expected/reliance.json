@@ -1,16 +1,16 @@
 {
-  "type": "market_data",
-  "symbol": "RELIANCE",
-  "exchange": "NSE",
-  "mode": 1,
   "broker": "dhan",
   "data": {
-    "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "ltp",
+    "last_trade_time": 1794302700,
     "ltp": 1301.25,
     "ltt": 1794302700000,
-    "timestamp": "<receipt_ms>",
-    "last_trade_time": 1794302700
-  }
+    "mode": 1,
+    "symbol": "RELIANCE",
+    "timestamp": "<receipt_ms>"
+  },
+  "exchange": "NSE",
+  "mode": 1,
+  "symbol": "RELIANCE",
+  "type": "market_data"
 }

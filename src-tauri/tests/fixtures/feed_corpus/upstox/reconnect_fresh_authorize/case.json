@@ -32,24 +32,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Upstox adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::source::Mode::data_label (docs-7); lead rule 2026-11-09"
-    },
-    {
-      "key": "token",
-      "kind": "open",
-      "reason": "The web's Upstox frames carry the subscription's broker token (the instrument key); the desktop's do not. Lane wire to decide whether the carrier passes broker tokens.",
-      "ref": "upstox_adapter.py:884"
-    },
-    {
-      "key": "timestamp",
-      "kind": "open",
-      "reason": "The web stamps Upstox Quote and Depth frames with the broker's currentTs; the desktop stamps its receipt time (audit P-02, still open: the Upstox decoder should carry FeedResponse.current_ts, receipt time only when it is absent).",
-      "ref": "upstox_adapter.py:902; brokers/upstox/streaming.rs parse_frame"
-    },
-    {
       "key": "volume",
       "kind": "web-defect",
       "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",

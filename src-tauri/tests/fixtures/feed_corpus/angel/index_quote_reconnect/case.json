@@ -33,12 +33,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Angel adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts; lead rule 2026-11-09"
-    },
-    {
       "key": "last_quantity",
       "kind": "open",
       "reason": "The web's index quote carries Angel's (zero) last_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field).",

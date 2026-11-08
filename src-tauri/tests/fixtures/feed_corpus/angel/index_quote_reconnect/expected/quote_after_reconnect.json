@@ -1,22 +1,22 @@
 {
-  "type": "market_data",
-  "symbol": "NIFTY",
-  "exchange": "NSE_INDEX",
-  "mode": 2,
   "broker": "angel",
   "data": {
-    "symbol": "NIFTY",
+    "close": 24300.0,
     "exchange": "NSE_INDEX",
-    "mode": "quote",
-    "ltp": 24360.0,
-    "ltt": 1794302761000,
-    "timestamp": "<receipt_ms>",
-    "volume": 0,
-    "open": 24310.0,
     "high": 24400.25,
     "low": 24290.75,
-    "close": 24300.0,
+    "ltp": 24360.0,
+    "ltt": 1794302761000,
+    "mode": 2,
+    "open": 24310.0,
     "price_change": 60.0,
-    "price_change_percent": 0.25
-  }
+    "price_change_percent": 0.25,
+    "symbol": "NIFTY",
+    "timestamp": "<receipt_ms>",
+    "volume": 0
+  },
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "symbol": "NIFTY",
+  "type": "market_data"
 }

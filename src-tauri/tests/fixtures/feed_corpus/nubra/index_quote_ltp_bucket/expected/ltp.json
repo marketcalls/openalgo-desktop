@@ -1,15 +1,14 @@
 {
-  "type": "market_data",
-  "symbol": "NIFTY",
-  "exchange": "NSE_INDEX",
-  "mode": 1,
   "broker": "nubra",
   "data": {
-    "symbol": "NIFTY",
     "exchange": "NSE_INDEX",
-    "mode": "ltp",
     "ltp": 24350.5,
-    "ltt": "<receipt_ms>",
-    "timestamp": "<receipt_ms>"
-  }
+    "mode": "ltp",
+    "symbol": "NIFTY",
+    "timestamp": 1740729566039
+  },
+  "exchange": "NSE_INDEX",
+  "mode": 1,
+  "symbol": "NIFTY",
+  "type": "market_data"
 }

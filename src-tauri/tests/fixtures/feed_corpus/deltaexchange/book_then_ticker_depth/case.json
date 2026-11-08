@@ -1,6 +1,6 @@
 {
   "broker": "deltaexchange",
-  "summary": "A Depth subscription on a perpetual: the book before any ticker goes out with its levels padded to five; a ticker after it does not refresh the Depth frame on the desktop (audit P-07), while the web publishes the merged book again.",
+  "summary": "A Depth subscription on a perpetual: the book before any ticker goes out as Delta sent it; a ticker after it sends the book again with the mark price, OHLC, OI and the best bid and ask (audit P-07).",
   "scenarios": [
     "depth-update",
     "absent-field"
@@ -25,17 +25,9 @@
       "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_orderbook",
       "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._merge_into_cache"
     ],
-    "notes": [
-      "A book after a ticker cannot be pinned yet: the desktop's frame would carry the earlier ticker's receipt time as ltt (see the ltt deviation of ticker_quote_ltp_mode_change)."
-    ]
+    "notes": []
   },
   "deviations": [
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Delta adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::source::Mode::data_label (docs-7); lead rule 2026-11-09"
-    },
     {
       "key": "ltp",
       "kind": "desktop-decision",

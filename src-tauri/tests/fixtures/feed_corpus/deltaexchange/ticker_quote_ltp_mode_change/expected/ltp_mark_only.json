@@ -1,15 +1,23 @@
 {
-  "type": "market_data",
-  "symbol": "BTCUSDFUT",
-  "exchange": "CRYPTO",
-  "mode": 1,
   "broker": "deltaexchange",
   "data": {
-    "symbol": "BTCUSDFUT",
+    "ask_price": 63834.0,
+    "ask_qty": 718,
+    "bid_price": 63833.0,
+    "bid_qty": 4388,
+    "close": 63839.0,
     "exchange": "CRYPTO",
-    "mode": "ltp",
+    "high": 64475.5,
+    "low": 63217.5,
     "ltp": 63840.5,
-    "ltt": "<receipt_ms>",
+    "mode": 1,
+    "oi": 1407713,
+    "open": 64025.0,
+    "symbol": "BTCUSDFUT",
     "timestamp": "<receipt_ms>"
-  }
+  },
+  "exchange": "CRYPTO",
+  "mode": 1,
+  "symbol": "BTCUSDFUT",
+  "type": "market_data"
 }

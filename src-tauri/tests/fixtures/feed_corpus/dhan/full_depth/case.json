@@ -27,46 +27,10 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Dhan adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts; lead rule 2026-11-09"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does.",
       "ref": "dhan_adapter.py:900; feed::dialect (Dhan last_trade_time in seconds, openalgo#2377)"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "The desktop sends OI as both oi and open_interest; the web's Dhan adapter sends oi only. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::protocol::market_data; lead rule 2026-11-09"
-    },
-    {
-      "key": "oi_high",
-      "kind": "open",
-      "reason": "The web sends Dhan's OI day high; the desktop's common carrier drops it.",
-      "ref": "audit C06, P-11; dhan_adapter.py:923-934"
-    },
-    {
-      "key": "oi_low",
-      "kind": "open",
-      "reason": "The web sends Dhan's OI day low; the desktop's common carrier drops it.",
-      "ref": "audit C06, P-11; dhan_adapter.py:923-934"
-    },
-    {
-      "key": "prev_oi",
-      "kind": "open",
-      "reason": "The web sends Dhan's previous OI; the desktop's common carrier drops it.",
-      "ref": "audit C06, P-11; dhan_adapter.py:923-934"
-    },
-    {
-      "key": "depth_level",
-      "kind": "open",
-      "reason": "The web sends Dhan's book depth (5); the desktop's common carrier drops it.",
-      "ref": "audit C06, P-11; dhan_adapter.py:923-934"
     }
   ]
 }

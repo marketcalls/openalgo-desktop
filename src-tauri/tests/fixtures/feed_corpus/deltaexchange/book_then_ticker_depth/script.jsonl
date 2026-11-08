@@ -3,4 +3,4 @@
 {"step": "push", "frame": "frames/book.json"}
 {"step": "receive", "client": "a", "frame": "expected/book_before_ticker.json", "note": "The book before any ticker: three levels a side as Delta sent them, padded to five."}
 {"step": "push", "frame": "frames/ticker.json"}
-{"step": "silence", "client": "a", "ms": 500, "note": "Audit P-07, still open: the web publishes the merged snapshot (book with the new mark price, OHLC and OI) to the Depth subscriber on every ticker; the desktop sends a Depth subscriber nothing until the next ob_l2 frame."}
+{"step": "receive", "client": "a", "frame": "expected/book_after_ticker.json", "note": "Audit P-07: the ticker sends the Depth subscriber its book again with the new prices, as the web publishes the merged snapshot on either channel."}

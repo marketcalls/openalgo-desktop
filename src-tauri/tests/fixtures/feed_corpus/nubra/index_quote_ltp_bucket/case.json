@@ -32,18 +32,6 @@
   },
   "deviations": [
     {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "Nubra's messages carry no trade time; the desktop sends its receipt time as ltt (NubraFeed leaves last_trade_time_ms 0, feed::bridge::ltt falls back to the tick's timestamp), the web sends no ltt. A receipt time must not pass as a trade time (audit P-08).",
-      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:737-756"
-    },
-    {
-      "key": "timestamp",
-      "kind": "open",
-      "reason": "The web stamps Nubra frames with the message's own timestamp (obj.timestamp, receipt time only when it is 0); the desktop stamps its receipt time (audit P-08, still open).",
-      "ref": "nubra_adapter.py:707, 822; brokers/nubra/streaming.rs tick"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "The desktop's index frames add price_change and price_change_percent; the web's Nubra adapter sends no change for an index. Lead ruling 2026-11-09: not docs keys, the desktop follows the adapter (lane wire dialect, phase B).",
@@ -66,12 +54,6 @@
       "kind": "web-defect",
       "reason": "Once the day bucket came the web sends the bucket's close (today's price) as close, ahead of prev_close (ohlcv.get('close', prev_close)); close is the previous day's close, which the desktop keeps sending (the audit's 'Nubra bucket close' note).",
       "ref": "nubra_adapter.py:712"
-    },
-    {
-      "key": "prev_close",
-      "kind": "open",
-      "reason": "The web also sends the previous close as prev_close; the desktop sends it as close only. An alias for lane wire.",
-      "ref": "nubra_adapter.py:723"
     }
   ]
 }

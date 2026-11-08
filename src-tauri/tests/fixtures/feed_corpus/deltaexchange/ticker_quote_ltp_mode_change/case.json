@@ -33,18 +33,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Delta adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::source::Mode::data_label (docs-7); lead rule 2026-11-09"
-    },
-    {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "Delta's ticker carries no trade time; the desktop sends its receipt time as ltt (feed::bridge::ltt falls back to the tick's timestamp), the web sends none. A receipt time must not pass as a trade time: the Delta decoder should mark LastTradeTime absent.",
-      "ref": "brokers/deltaexchange/streaming.rs ticker; feed::bridge::ltt"
-    },
-    {
       "key": "average_price",
       "kind": "open",
       "reason": "Delta's ticker carries no average price. The web sends a constant 0 (int, _normalise_ticker's fields default, a web defect to write up); the desktop sends 0.0. Neither is Delta's: the desktop should leave it out once the decoder marks it absent.",
@@ -61,78 +49,6 @@
       "kind": "open",
       "reason": "The web's Quote frames carry the ticker's OI; the desktop's Quote frames carry OI only in Depth mode (audit C05, lane wire quote OI).",
       "ref": "delta_adapter.py:596; feed::bridge::quote_fields"
-    },
-    {
-      "key": "volume",
-      "kind": "open",
-      "reason": "Delta's ticker carries no volume; the desktop's Quote frame sends it as 0 (DeltaFeed marks no field absent), the web leaves it out. A field the stream does not carry must be left out, never sent as 0 (web openalgo#2376).",
-      "ref": "brokers/deltaexchange/streaming.rs ticker; delta_adapter.py:532-600"
-    },
-    {
-      "key": "last_quantity",
-      "kind": "open",
-      "reason": "Delta's ticker carries no last quantity; the desktop's Quote frame sends it as 0 (DeltaFeed marks no field absent), the web leaves it out. A field the stream does not carry must be left out, never sent as 0 (web openalgo#2376).",
-      "ref": "brokers/deltaexchange/streaming.rs ticker; delta_adapter.py:532-600"
-    },
-    {
-      "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "Delta's ticker carries no total buy quantity; the desktop's Quote frame sends it as 0 (DeltaFeed marks no field absent), the web leaves it out. A field the stream does not carry must be left out, never sent as 0 (web openalgo#2376).",
-      "ref": "brokers/deltaexchange/streaming.rs ticker; delta_adapter.py:532-600"
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "Delta's ticker carries no total sell quantity; the desktop's Quote frame sends it as 0 (DeltaFeed marks no field absent), the web leaves it out. A field the stream does not carry must be left out, never sent as 0 (web openalgo#2376).",
-      "ref": "brokers/deltaexchange/streaming.rs ticker; delta_adapter.py:532-600"
-    },
-    {
-      "key": "bid_price",
-      "kind": "open",
-      "reason": "The web sends the ticker's best bid and ask and their sizes (q array); the desktop's common carrier drops them (audit P-11; brokers/deltaexchange/streaming.rs records the earlier decision BF-02 to leave q out). Lane wire bid/ask fields.",
-      "ref": "delta_adapter.py:597-600"
-    },
-    {
-      "key": "bid_qty",
-      "kind": "open",
-      "reason": "The web sends the ticker's best bid and ask and their sizes (q array); the desktop's common carrier drops them (audit P-11; brokers/deltaexchange/streaming.rs records the earlier decision BF-02 to leave q out). Lane wire bid/ask fields.",
-      "ref": "delta_adapter.py:597-600"
-    },
-    {
-      "key": "ask_price",
-      "kind": "open",
-      "reason": "The web sends the ticker's best bid and ask and their sizes (q array); the desktop's common carrier drops them (audit P-11; brokers/deltaexchange/streaming.rs records the earlier decision BF-02 to leave q out). Lane wire bid/ask fields.",
-      "ref": "delta_adapter.py:597-600"
-    },
-    {
-      "key": "ask_qty",
-      "kind": "open",
-      "reason": "The web sends the ticker's best bid and ask and their sizes (q array); the desktop's common carrier drops them (audit P-11; brokers/deltaexchange/streaming.rs records the earlier decision BF-02 to leave q out). Lane wire bid/ask fields.",
-      "ref": "delta_adapter.py:597-600"
-    },
-    {
-      "key": "open",
-      "kind": "open",
-      "reason": "The web's LTP subscribers get the symbol's whole merged cache (the adapter publishes the same dict to every mode), so their frames carry the ticker's quote fields; the desktop's LTP frame carries the LTP alone. Lane wire to decide (LTP frame shape).",
-      "ref": "delta_adapter.py:462-476"
-    },
-    {
-      "key": "high",
-      "kind": "open",
-      "reason": "The web's LTP subscribers get the symbol's whole merged cache (the adapter publishes the same dict to every mode), so their frames carry the ticker's quote fields; the desktop's LTP frame carries the LTP alone. Lane wire to decide (LTP frame shape).",
-      "ref": "delta_adapter.py:462-476"
-    },
-    {
-      "key": "low",
-      "kind": "open",
-      "reason": "The web's LTP subscribers get the symbol's whole merged cache (the adapter publishes the same dict to every mode), so their frames carry the ticker's quote fields; the desktop's LTP frame carries the LTP alone. Lane wire to decide (LTP frame shape).",
-      "ref": "delta_adapter.py:462-476"
-    },
-    {
-      "key": "close",
-      "kind": "open",
-      "reason": "The web's LTP subscribers get the symbol's whole merged cache (the adapter publishes the same dict to every mode), so their frames carry the ticker's quote fields; the desktop's LTP frame carries the LTP alone. Lane wire to decide (LTP frame shape).",
-      "ref": "delta_adapter.py:462-476"
     }
   ]
 }

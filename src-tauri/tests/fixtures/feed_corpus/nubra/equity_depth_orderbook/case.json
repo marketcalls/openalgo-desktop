@@ -28,64 +28,10 @@
   },
   "deviations": [
     {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "Nubra's messages carry no trade time; the desktop sends its receipt time as ltt (NubraFeed leaves last_trade_time_ms 0, feed::bridge::ltt falls back to the tick's timestamp), the web sends no ltt. A receipt time must not pass as a trade time (audit P-08).",
-      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:737-756"
-    },
-    {
-      "key": "timestamp",
-      "kind": "open",
-      "reason": "The web stamps Nubra frames with the message's own timestamp (obj.timestamp, receipt time only when it is 0); the desktop stamps its receipt time (audit P-08, still open).",
-      "ref": "nubra_adapter.py:707, 822; brokers/nubra/streaming.rs tick"
-    },
-    {
       "key": "last_quantity",
       "kind": "open",
       "reason": "Nubra's order book carries no last quantity; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376).",
       "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:880-890"
-    },
-    {
-      "key": "average_price",
-      "kind": "open",
-      "reason": "Nubra's order book carries no average price; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376).",
-      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:880-890"
-    },
-    {
-      "key": "open",
-      "kind": "open",
-      "reason": "Nubra's order book carries no open; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376).",
-      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:880-890"
-    },
-    {
-      "key": "high",
-      "kind": "open",
-      "reason": "Nubra's order book carries no high; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376).",
-      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:880-890"
-    },
-    {
-      "key": "low",
-      "kind": "open",
-      "reason": "Nubra's order book carries no low; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376).",
-      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:880-890"
-    },
-    {
-      "key": "close",
-      "kind": "open",
-      "reason": "Nubra's order book carries no close; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376).",
-      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:880-890"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "Nubra's order book carries no oi; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376).",
-      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:880-890"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "As oi (the desktop also sends open_interest beside oi; lead rule 2026-11-09: follows the web adapter).",
-      "ref": "feed::protocol::market_data"
     },
     {
       "key": "depth",

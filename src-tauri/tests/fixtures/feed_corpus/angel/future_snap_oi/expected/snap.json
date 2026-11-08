@@ -1,83 +1,84 @@
 {
-  "type": "market_data",
-  "symbol": "NIFTY25NOV26FUT",
-  "exchange": "NFO",
-  "mode": 3,
   "broker": "angel",
   "data": {
-    "symbol": "NIFTY25NOV26FUT",
-    "exchange": "NFO",
-    "mode": "full",
-    "ltp": 24450.5,
-    "ltt": 1794302700000,
-    "timestamp": "<receipt_ms>",
-    "volume": 1500000,
-    "last_quantity": 75,
     "average_price": 24430.25,
-    "total_buy_quantity": 450000,
-    "total_sell_quantity": 400000,
-    "open": 24410.0,
-    "high": 24500.0,
-    "low": 24380.0,
     "close": 24400.0,
-    "oi": 9500000,
-    "open_interest": 9500000,
     "depth": {
       "buy": [
         {
+          "orders": 3,
           "price": 24450.0,
-          "quantity": 150,
-          "orders": 3
+          "quantity": 150
         },
         {
+          "orders": 5,
           "price": 24449.5,
-          "quantity": 300,
-          "orders": 5
+          "quantity": 300
         },
         {
+          "orders": 6,
           "price": 24449.0,
-          "quantity": 450,
-          "orders": 6
+          "quantity": 450
         },
         {
+          "orders": 8,
           "price": 24448.5,
-          "quantity": 600,
-          "orders": 8
+          "quantity": 600
         },
         {
+          "orders": 9,
           "price": 24448.0,
-          "quantity": 750,
-          "orders": 9
+          "quantity": 750
         }
       ],
       "sell": [
         {
+          "orders": 1,
           "price": 24451.0,
-          "quantity": 75,
-          "orders": 1
+          "quantity": 75
         },
         {
+          "orders": 2,
           "price": 24451.5,
-          "quantity": 225,
-          "orders": 2
+          "quantity": 225
         },
         {
+          "orders": 4,
           "price": 24452.0,
-          "quantity": 375,
-          "orders": 4
+          "quantity": 375
         },
         {
+          "orders": 5,
           "price": 24452.5,
-          "quantity": 525,
-          "orders": 5
+          "quantity": 525
         },
         {
+          "orders": 7,
           "price": 24453.0,
-          "quantity": 675,
-          "orders": 7
+          "quantity": 675
         }
       ]
     },
-    "last_trade_quantity": 75
-  }
+    "exchange": "NFO",
+    "high": 24500.0,
+    "last_quantity": 75,
+    "last_trade_quantity": 75,
+    "low": 24380.0,
+    "lower_circuit": 21960.0,
+    "ltp": 24450.5,
+    "ltt": 1794302700000,
+    "mode": 3,
+    "oi": 9500000,
+    "open": 24410.0,
+    "symbol": "NIFTY25NOV26FUT",
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 450000.0,
+    "total_sell_quantity": 400000.0,
+    "upper_circuit": 26840.0,
+    "volume": 1500000
+  },
+  "exchange": "NFO",
+  "mode": 3,
+  "symbol": "NIFTY25NOV26FUT",
+  "type": "market_data"
 }

@@ -28,22 +28,10 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Fyers adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::source::Mode::data_label (docs-7); lead rule 2026-11-09"
-    },
-    {
       "key": "timestamp",
       "kind": "web-defect",
       "reason": "The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
       "ref": "fyers_mapping.py:178; fyers_adapter.py:553"
-    },
-    {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "Whether and how a frame carries ltt (in LTP frames, or beside the broker's own trade-time name) follows the web's Fyers adapter; the desktop always sends ltt in ms. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::dialect (Fyers last_trade_time in seconds); lead rule 2026-11-09"
     },
     {
       "key": "token",
@@ -52,82 +40,16 @@
       "ref": "fyers_mapping.py:150"
     },
     {
-      "key": "data_type",
-      "kind": "open",
-      "reason": "The web's Fyers frames carry the mapper's data_type label; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
-      "ref": "fyers_mapping.py:179"
-    },
-    {
       "key": "update_type",
       "kind": "open",
       "reason": "The web's Fyers frames say whether the message was a snapshot or a live update; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
       "ref": "fyers_adapter.py:552"
     },
     {
-      "key": "subscription_mode",
-      "kind": "open",
-      "reason": "The web's Fyers frames carry the subscription's mode number; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
-      "ref": "fyers_websocket_adapter.py:319"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web sends HSM's circuit limits; the desktop's common carrier drops them (audit P-11, lane wire circuit fields).",
-      "ref": "fyers_mapping.py:164-165"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "The web sends HSM's circuit limits; the desktop's common carrier drops them (audit P-11, lane wire circuit fields).",
-      "ref": "fyers_mapping.py:164-165"
-    },
-    {
-      "key": "exchange_time",
-      "kind": "open",
-      "reason": "The web sends HSM's exchange feed time (exch_feed_time, epoch s) as exchange_time; the desktop's common carrier drops it.",
-      "ref": "fyers_mapping.py:167"
-    },
-    {
-      "key": "last_traded_time",
-      "kind": "open",
-      "reason": "The web also sends the Fyers-era name last_traded_time beside last_trade_time; the desktop sends only last_trade_time (feed::dialect). An alias for lane wire.",
-      "ref": "fyers_mapping.py:166"
-    },
-    {
-      "key": "change",
-      "kind": "open",
-      "reason": "The web sends the change since the previous close on every Fyers instrument; the desktop's frames carry it for indices only (audit C04, lane wire).",
-      "ref": "fyers_mapping.py:137-140"
-    },
-    {
-      "key": "change_percent",
-      "kind": "open",
-      "reason": "The web sends the change since the previous close on every Fyers instrument; the desktop's frames carry it for indices only (audit C04, lane wire).",
-      "ref": "fyers_mapping.py:137-140"
-    },
-    {
-      "key": "percent_change",
-      "kind": "open",
-      "reason": "The web sends the change since the previous close on every Fyers instrument; the desktop's frames carry it for indices only (audit C04, lane wire).",
-      "ref": "fyers_mapping.py:137-140"
-    },
-    {
       "key": "ltp",
       "kind": "desktop-decision",
       "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote; the web's Fyers depth before the first quote has no ltp (CLAUDE.md, the compatibility contract).",
       "ref": "feed::bridge::depth_update; fyers_adapter.py:535"
-    },
-    {
-      "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "Before the scrip's first quote the desktop's book frame sends the book totals as 0 (HSM's depth feed carries none, depth_event takes them from the symbol feed); the web leaves them out. A total the stream did not carry must be left out, not sent as 0.",
-      "ref": "brokers/fyers/streaming/mod.rs depth_event; fyers_adapter.py:532-536"
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "Before the scrip's first quote the desktop's book frame sends the book totals as 0 (HSM's depth feed carries none, depth_event takes them from the symbol feed); the web leaves them out. A total the stream did not carry must be left out, not sent as 0.",
-      "ref": "brokers/fyers/streaming/mod.rs depth_event; fyers_adapter.py:532-536"
     }
   ]
 }

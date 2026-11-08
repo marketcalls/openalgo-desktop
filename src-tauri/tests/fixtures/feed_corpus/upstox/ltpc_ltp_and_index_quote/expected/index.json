@@ -1,22 +1,23 @@
 {
-  "type": "market_data",
-  "symbol": "NIFTY",
-  "exchange": "NSE_INDEX",
-  "mode": 2,
   "broker": "upstox",
   "data": {
-    "symbol": "NIFTY",
+    "close": 24300.0,
+    "cp": 24300.0,
     "exchange": "NSE_INDEX",
-    "mode": "quote",
+    "high": 24400.25,
+    "last_trade_time": 1740729561000,
+    "low": 24290.75,
     "ltp": 24350.5,
     "ltt": 1740729561000,
-    "timestamp": "<receipt_ms>",
     "open": 24310.0,
-    "high": 24400.25,
-    "low": 24290.75,
-    "close": 24300.0,
     "price_change": 50.5,
     "price_change_percent": 0.21,
-    "last_trade_time": 1740729561000
-  }
+    "symbol": "NIFTY",
+    "timestamp": 1740729566500,
+    "token": "NSE_INDEX|Nifty 50"
+  },
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "symbol": "NIFTY",
+  "type": "market_data"
 }

@@ -30,12 +30,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Fyers adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::source::Mode::data_label (docs-7); lead rule 2026-11-09"
-    },
-    {
       "key": "timestamp",
       "kind": "web-defect",
       "reason": "The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
@@ -48,22 +42,10 @@
       "ref": "fyers_mapping.py:150"
     },
     {
-      "key": "data_type",
-      "kind": "open",
-      "reason": "The web's Fyers frames carry the mapper's data_type label; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
-      "ref": "fyers_mapping.py:179"
-    },
-    {
       "key": "update_type",
       "kind": "open",
       "reason": "The web's Fyers frames say whether the message was a snapshot or a live update; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
       "ref": "fyers_adapter.py:552"
-    },
-    {
-      "key": "subscription_mode",
-      "kind": "open",
-      "reason": "The web's Fyers frames carry the subscription's mode number; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
-      "ref": "fyers_websocket_adapter.py:319"
     },
     {
       "key": "exchange_time",
