@@ -103,7 +103,7 @@
     {
       "key": "depth",
       "kind": "open",
-      "reason": "Four book levels have not arrived. Both sides pad them to five; the web pads with integer zeros ({\"price\": 0, ...}), the desktop with 0.0. Whether to pad as the web does, in its number types, or send only the levels received (no padded book) is a lead decision.",
+      "reason": "Four book levels have not arrived and both sides pad them to five, the web with integer zeros ({\"price\": 0, ...}), the desktop with 0.0. Phase B sends only the levels received (lead ruling 2026-11-09: no invented level; a side the broker sent empty is an empty array); the web's zero levels are then a web defect.",
       "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs ScripData::levels"
     }
   ]

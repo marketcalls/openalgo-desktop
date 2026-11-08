@@ -35,6 +35,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY28OCT26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY28OCT26FUT",
           "mode": 3,
           "data": {
             "ltp": 0,
@@ -116,6 +118,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY28OCT26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY28OCT26FUT",
           "mode": 3,
           "data": {
             "ltp": 25010.5,

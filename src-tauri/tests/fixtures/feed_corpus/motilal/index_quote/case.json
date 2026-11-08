@@ -81,20 +81,20 @@
     {
       "key": "price_change",
       "kind": "open",
-      "reason": "The desktop sends an index's change since the previous close for every broker (feed::dialect: the change fields are sent for indices), and the web's Motilal adapter sends none. Before the previous close is known the desktop sends 0.0, an invented change: mark the change absent until it can be worked out; the change it works out from the G packet (212.75, 0.86%) is then a desktop decision.",
-      "ref": "feed::bridge::quote_fields; motilal_adapter.py _normalize_quote_data"
+      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web adapter sends no change for an index (its Quote dict has none), so Phase B drops it; until then the desktop sends 0.0 before the previous close is known and the change it works out after the G packet (212.75, 0.86%).",
+      "ref": "motilal_adapter.py _normalize_quote_data; feed::bridge::quote_fields"
     },
     {
       "key": "price_change_percent",
       "kind": "open",
-      "reason": "The desktop sends an index's change since the previous close for every broker (feed::dialect: the change fields are sent for indices), and the web's Motilal adapter sends none. Before the previous close is known the desktop sends 0.0, an invented change: mark the change absent until it can be worked out; the change it works out from the G packet (212.75, 0.86%) is then a desktop decision.",
-      "ref": "feed::bridge::quote_fields; motilal_adapter.py _normalize_quote_data"
+      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web adapter sends no change for an index (its Quote dict has none), so Phase B drops it; until then the desktop sends 0.0 before the previous close is known and the change it works out after the G packet (212.75, 0.86%).",
+      "ref": "motilal_adapter.py _normalize_quote_data; feed::bridge::quote_fields"
     },
     {
       "key": "volume",
-      "kind": "open",
-      "reason": "The web's LTP dict carries the volume (0 for an index); the desktop's LTP frame carries no volume for any broker: a carrier gap for lane wire. An index's 0 is the web's default, not a measured volume.",
-      "ref": "motilal_adapter.py _normalize_ltp_data"
+      "kind": "web-defect",
+      "reason": "Motilal's index packet (H) carries no volume, and the web's LTP dict sends volume 0 for the index from a default (quote.get('volume', 0)), an invented zero; the desktop leaves it out (lead index ruling 2026-11-09).",
+      "ref": "motilal_adapter.py _normalize_ltp_data; MotilalWebSocket._parse_index_packet"
     }
   ]
 }
