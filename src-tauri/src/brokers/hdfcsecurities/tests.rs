@@ -904,6 +904,35 @@ fn an_auth_error_text_frame_stops_the_feed() {
     }
 }
 
+/// The feed's book holds the levels the broker sent, at most five a side,
+/// never zero rows padding it to five (web `_parse_packet`: `buy[:5]`,
+/// `sell[:5]`).
+#[test]
+fn a_depth_frame_carries_only_the_levels_sent() {
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
+    let mut p = mbp_packet(packet_type::NSE_CM_ALL, 3045, 800.0, 0);
+    if let Some(list) = p
+        .mbp_data
+        .as_mut()
+        .and_then(|m| m.market_depth_dto_list.as_mut())
+    {
+        let (bids, asks): (Vec<_>, Vec<_>) =
+            list.market_depth_dto.drain(..).partition(|l| l.buy_flag);
+        list.market_depth_dto = bids
+            .into_iter()
+            .take(3)
+            .chain(asks.into_iter().take(2))
+            .collect();
+    }
+    let ev = f.parse(&Message::Binary(p.encode_to_vec()));
+    let Some(FeedEvent::Depth(d)) = ev.iter().find(|e| matches!(e, FeedEvent::Depth(_))) else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!((d.buy.len(), d.sell.len()), (3, 2));
+    assert_eq!((d.buy[2].price, d.sell[1].price), (98.0, 102.0));
+}
+
 #[test]
 fn feed_sub_types() {
     assert_eq!(sub_type(FeedMode::Ltp), "LTP");

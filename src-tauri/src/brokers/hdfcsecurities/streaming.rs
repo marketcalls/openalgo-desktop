@@ -471,8 +471,8 @@ impl HdfcSecuritiesFeed {
                 symbol: t.symbol.clone(),
                 exchange: t.exchange.clone(),
                 ltp: t.ltp,
-                buy: pad5(buy),
-                sell: pad5(sell),
+                buy,
+                sell,
                 total_buy_quantity: p.total_buy_quantity,
                 total_sell_quantity: p.total_sell_quantity,
                 timestamp_ms: p.timestamp_ms,
@@ -518,13 +518,6 @@ impl HdfcSecuritiesFeed {
     pub fn tracked(&self) -> (usize, usize) {
         (self.subs.len(), self.last.len())
     }
-}
-
-/// Exactly five levels, zero padded.
-pub fn pad5(mut v: Vec<DepthLevel>) -> Vec<DepthLevel> {
-    v.truncate(5);
-    v.resize(5, DepthLevel::default());
-    v
 }
 
 impl BrokerFeed for HdfcSecuritiesFeed {
