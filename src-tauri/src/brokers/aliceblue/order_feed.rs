@@ -3,7 +3,10 @@
 //! connect `wss://a3.aliceblueonline.com/open-api/order-notify/websocket`,
 //! send `{"orderToken","userId"}`, heartbeat `{"heartbeat":"h","userId"}`
 //! every 55 s, `t == "om"` frames carry Noren order fields. Like the market
-//! socket it runs through the loopback relay.
+//! socket it runs through the loopback relay. A `createWsToken` answer
+//! without a token is tried again at the web's spacing, and five in a row
+//! stop the feed with one message to the trader (web
+//! `MAX_CONSECUTIVE_TOKEN_FAILURES`).
 
 use super::mapping::{self, s};
 use super::Endpoints;
@@ -22,13 +25,61 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 /// Order-feed heartbeat (under AliceBlue's 60 s timeout).
 pub const ORDER_HEARTBEAT: Duration = Duration::from_secs(55);
 
+/// Consecutive `createWsToken` answers without a token after which the
+/// order feed stops, as the web's does (`MAX_CONSECUTIVE_TOKEN_FAILURES`):
+/// an account without the Order Status Feed answers the same every time,
+/// and a passing bad answer gets four more tries.
+pub const MAX_TOKEN_FAILURES: u32 = 5;
+/// Least time between token attempts after the 1st, 2nd, 3rd and 4th
+/// consecutive failure: the web's order-update reconnect spacing
+/// (`websocket_proxy/order_adapter.py` `_RECONNECT_BACKOFFS`).
+const TOKEN_RETRY_SPACING: [Duration; 4] = [
+    Duration::from_secs(1),
+    Duration::from_secs(2),
+    Duration::from_secs(5),
+    Duration::from_secs(10),
+];
+
 /// What `createWsToken` produced.
 #[derive(Debug, Clone, PartialEq)]
 pub enum OrderToken {
     Token(crate::security::Secret),
-    /// The account cannot use the feed, or the session is gone.
+    /// The session is gone: the trader logs in again.
     Refused(String),
+    /// An answer without a token (empty, not JSON, no `orderToken`): most
+    /// often the Order Status Feed is not enabled for the account (web
+    /// `OrderTokenUnavailable`).
+    NoToken,
     Unavailable,
+}
+
+/// The run of consecutive answers without a token.
+#[derive(Debug, Default)]
+pub(crate) struct TokenFailures {
+    count: u32,
+    last: Option<tokio::time::Instant>,
+}
+
+impl TokenFailures {
+    /// How long the next token attempt waits, at `now`.
+    pub(crate) fn wait(&self, now: tokio::time::Instant) -> Duration {
+        let (Some(last), Some(n)) = (self.last, self.count.checked_sub(1)) else {
+            return Duration::ZERO;
+        };
+        let i = (n as usize).min(TOKEN_RETRY_SPACING.len() - 1);
+        (last + TOKEN_RETRY_SPACING[i]).saturating_duration_since(now)
+    }
+
+    /// One more answer without a token at `now`; true once the feed stops.
+    pub(crate) fn record(&mut self, now: tokio::time::Instant) -> bool {
+        self.count = self.count.saturating_add(1);
+        self.last = Some(now);
+        self.count >= MAX_TOKEN_FAILURES
+    }
+
+    pub(crate) fn count(&self) -> u32 {
+        self.count
+    }
 }
 
 fn order_feed_disabled() -> String {
@@ -37,7 +88,7 @@ fn order_feed_disabled() -> String {
 }
 
 /// `GET /open-api/order-notify/ws/createWsToken` -> `result[0].orderToken`
-/// (an empty or non-JSON body means the feed is not enabled).
+/// (an empty or non-JSON body, or none, means the feed is not enabled).
 pub async fn fetch_order_token(http: &reqwest::Client, ep: &Endpoints, jwt: &str) -> OrderToken {
     let resp = match http
         .get(format!(
@@ -67,11 +118,11 @@ pub async fn fetch_order_token(http: &reqwest::Client, ep: &Endpoints, jwt: &str
     let body = resp.text().await.unwrap_or_default();
     if body.trim().is_empty() {
         tracing::warn!("AliceBlue createWsToken answered with an empty body");
-        return OrderToken::Refused(order_feed_disabled());
+        return OrderToken::NoToken;
     }
     let Ok(v) = serde_json::from_str::<Value>(&body) else {
         tracing::warn!("AliceBlue createWsToken answered with a non-JSON body");
-        return OrderToken::Refused(order_feed_disabled());
+        return OrderToken::NoToken;
     };
     let token = v
         .get("result")
@@ -84,7 +135,7 @@ pub async fn fetch_order_token(http: &reqwest::Client, ep: &Endpoints, jwt: &str
             "AliceBlue createWsToken returned no orderToken (status {})",
             s(&v, "status")
         );
-        return OrderToken::Refused(order_feed_disabled());
+        return OrderToken::NoToken;
     }
     OrderToken::Token(crate::security::Secret::new(token))
 }
@@ -95,6 +146,29 @@ struct OrderUpstream {
     jwt: crate::security::Secret,
     ucc: String,
     token: parking_lot::Mutex<Option<crate::security::Secret>>,
+    failures: parking_lot::Mutex<TokenFailures>,
+}
+
+impl OrderUpstream {
+    /// An answer without a token: try again at the web's spacing, and stop
+    /// the feed (the trader is told once, by its refusal) after
+    /// `MAX_TOKEN_FAILURES` in a row.
+    fn no_token(&self) -> Open {
+        let mut failures = self.failures.lock();
+        if failures.record(tokio::time::Instant::now()) {
+            tracing::warn!(
+                "AliceBlue order updates stopped after {} answers without an order token",
+                failures.count()
+            );
+            return Open::AuthFailed(order_feed_disabled());
+        }
+        tracing::info!(
+            "AliceBlue gave no order token ({}/{}); trying again",
+            failures.count(),
+            MAX_TOKEN_FAILURES
+        );
+        Open::Unavailable
+    }
 }
 
 #[async_trait]
@@ -104,8 +178,16 @@ impl Upstream for OrderUpstream {
     }
 
     async fn open(&self) -> Open {
+        let wait = self.failures.lock().wait(tokio::time::Instant::now());
+        if !wait.is_zero() {
+            tokio::time::sleep(wait).await;
+        }
         let token = match fetch_order_token(&self.http, &self.ep, self.jwt.expose()).await {
-            OrderToken::Token(t) => t,
+            OrderToken::Token(t) => {
+                *self.failures.lock() = TokenFailures::default();
+                t
+            }
+            OrderToken::NoToken => return self.no_token(),
             OrderToken::Refused(m) => return Open::AuthFailed(m),
             OrderToken::Unavailable => return Open::Unavailable,
         };
@@ -195,6 +277,7 @@ impl AliceBlueOrderFeed {
                 jwt: crate::security::Secret::new(jwt),
                 ucc: ucc.to_string(),
                 token: parking_lot::Mutex::new(None),
+                failures: parking_lot::Mutex::default(),
             }),
             relay: parking_lot::Mutex::new(None),
             symbols,

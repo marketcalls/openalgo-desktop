@@ -11,7 +11,7 @@
   "price": 1295.5,
   "trigger_price": 0.0,
   "pricetype": "LIMIT",
-  "product": "INTRADAY",
+  "product": "MIS",
   "order_status": "complete",
   "filled_quantity": 10,
   "pending_quantity": 0,

@@ -5,11 +5,7 @@
   "mode": 1,
   "broker": "aliceblue",
   "data": {
-    "symbol": "RELIANCE",
-    "exchange": "NSE",
-    "mode": "ltp",
     "ltp": 1296.0,
-    "ltt": 1794302702000,
-    "timestamp": "<receipt_ms>"
+    "ltt": 1794302702000
   }
 }

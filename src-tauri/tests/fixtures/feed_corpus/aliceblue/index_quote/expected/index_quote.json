@@ -5,13 +5,8 @@
   "mode": 2,
   "broker": "aliceblue",
   "data": {
-    "symbol": "NIFTY",
-    "exchange": "NSE_INDEX",
-    "mode": "quote",
     "ltp": 24450.3,
     "ltt": 1794302700000,
-    "timestamp": "<receipt_ms>",
-    "volume": 0,
     "open": 24400.0,
     "high": 24520.0,
     "low": 24360.5,

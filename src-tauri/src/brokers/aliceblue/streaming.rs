@@ -27,8 +27,8 @@ use super::{text, Endpoints};
 use crate::brokers::common::redact;
 use crate::brokers::common::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::brokers::common::streaming::{
-    now_ms, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, WsRequest,
+    now_ms, round2, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -311,6 +311,8 @@ impl DepthSnap {
 /// Live-feed snapshot with the adapter's retention rule: prices keep the
 /// last non-zero value, volumes take any non-negative value, depth sides
 /// are merged level by level and only levels with a price are published.
+/// `known` is what this session has had a value for, so a field AliceBlue
+/// never sent is left out rather than sent as 0 (audit C03).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FeedSnap {
     pub ltp: f64,
@@ -329,36 +331,40 @@ pub struct FeedSnap {
     pub ft_ms: i64,
     pub bids: Vec<DepthLevel>,
     pub asks: Vec<DepthLevel>,
+    pub known: AbsentFields,
 }
 
 impl FeedSnap {
     pub fn apply(&mut self, v: &Value) {
-        for (k, f) in [
-            ("lp", &mut self.ltp),
-            ("o", &mut self.open),
-            ("h", &mut self.high),
-            ("l", &mut self.low),
-            ("c", &mut self.close),
-            ("ap", &mut self.avg_price),
+        use QuoteField as F;
+        for (k, field, f) in [
+            ("lp", F::Ltp, &mut self.ltp),
+            ("o", F::Open, &mut self.open),
+            ("h", F::High, &mut self.high),
+            ("l", F::Low, &mut self.low),
+            ("c", F::Close, &mut self.close),
+            ("ap", F::AveragePrice, &mut self.avg_price),
         ] {
             if v.get(k).is_some() {
                 let x = num(v.get(k));
                 if x != 0.0 {
                     *f = x;
+                    self.known = self.known.with(field);
                 }
             }
         }
-        for (k, f) in [
-            ("v", &mut self.volume),
-            ("ltq", &mut self.ltq),
-            ("tbq", &mut self.total_buy_qty),
-            ("tsq", &mut self.total_sell_qty),
-            ("toi", &mut self.oi),
+        for (k, field, f) in [
+            ("v", F::Volume, &mut self.volume),
+            ("ltq", F::LastQuantity, &mut self.ltq),
+            ("tbq", F::TotalBuyQuantity, &mut self.total_buy_qty),
+            ("tsq", F::TotalSellQuantity, &mut self.total_sell_qty),
+            ("toi", F::OpenInterest, &mut self.oi),
         ] {
             if v.get(k).is_some() {
                 let x = int(v.get(k));
                 if x >= 0 {
                     *f = x;
+                    self.known = self.known.with(field);
                 }
             }
         }
@@ -381,14 +387,11 @@ impl FeedSnap {
     fn side(levels: &[DepthLevel]) -> Vec<DepthLevel> {
         levels
             .iter()
+            // AliceBlue's own order counts (bo, so); the web publishes 0
+            // for every level (aliceblue_adapter.py `_on_data_received`), a
+            // wrong value the desktop does not copy.
             .filter(|l| l.price != 0.0)
-            .map(|l| DepthLevel {
-                price: l.price,
-                quantity: l.quantity,
-                // The web publishes 0: AliceBlue's order counts are not
-                // forwarded (aliceblue_adapter.py `_on_data_received`).
-                orders: 0,
-            })
+            .copied()
             .collect()
     }
 }
@@ -634,52 +637,94 @@ impl AliceBlueFeed {
             return Vec::new();
         };
         entry.snap.apply(v);
-        let snap = &entry.snap;
-        let sub = &entry.sub;
-        let now = now_ms();
-        let mut tick = NormalizedTick {
-            symbol: sub.symbol.clone(),
-            exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
-            ltp: snap.ltp,
-            last_trade_time_ms: snap.ft_ms,
-            timestamp_ms: now,
-            ..Default::default()
-        };
-        if sub.mode != FeedMode::Ltp {
-            tick.open = snap.open;
-            tick.high = snap.high;
-            tick.low = snap.low;
-            tick.close = snap.close;
-            tick.volume = snap.volume;
-            tick.average_price = snap.avg_price;
-            tick.last_quantity = snap.ltq;
-            tick.total_buy_quantity = snap.total_buy_qty;
-            tick.total_sell_quantity = snap.total_sell_qty;
-            tick.oi = snap.oi;
-            tick.derive_change();
-            if let Some(pc) = snap.change_percent {
-                tick.change_percent = pc;
-            }
-            if let Some(cv) = snap.change {
-                tick.change = round2(cv);
-            }
-        }
-        let mut out = vec![FeedEvent::Tick(tick)];
-        if sub.mode == FeedMode::Depth && matches!(t.as_str(), "dk" | "df") {
-            out.push(FeedEvent::Depth(NormalizedDepth {
-                symbol: sub.symbol.clone(),
-                exchange: sub.exchange.clone(),
-                ltp: snap.ltp,
-                buy: FeedSnap::side(&snap.bids),
-                sell: FeedSnap::side(&snap.asks),
-                total_buy_quantity: snap.total_buy_qty,
-                total_sell_quantity: snap.total_sell_qty,
-                timestamp_ms: now,
-                ..Default::default()
-            }));
+        let book = matches!(t.as_str(), "dk" | "df");
+        let tick = snapshot_tick(&entry.sub, &entry.snap, book);
+        let mut out = vec![FeedEvent::Tick(tick.clone())];
+        if entry.sub.mode == FeedMode::Depth && book {
+            out.push(FeedEvent::Depth(snapshot_book(&tick, &entry.snap)));
         }
         out
+    }
+}
+
+/// The tick of an instrument's snapshot. A touchline message (`tk`, `tf`)
+/// carries the quote and a depth message (`dk`, `df`) the quote and its
+/// OI (`toi`), whatever the subscription, so the packet's mode is Quote or
+/// Depth; OI in a touchline is carried (the web's `total_oi`), and a field
+/// AliceBlue has not sent this session is absent.
+fn snapshot_tick(sub: &FeedSubscription, snap: &FeedSnap, book: bool) -> NormalizedTick {
+    use QuoteField as F;
+    let mut tick = NormalizedTick {
+        symbol: sub.symbol.clone(),
+        exchange: sub.exchange.clone(),
+        mode: if book { 3 } else { 2 },
+        ltp: snap.ltp,
+        open: snap.open,
+        high: snap.high,
+        low: snap.low,
+        close: snap.close,
+        volume: snap.volume,
+        average_price: snap.avg_price,
+        last_quantity: snap.ltq,
+        total_buy_quantity: snap.total_buy_qty,
+        total_sell_quantity: snap.total_sell_qty,
+        oi: snap.oi,
+        last_trade_time_ms: snap.ft_ms,
+        timestamp_ms: now_ms(),
+        ..Default::default()
+    };
+    for field in [
+        F::Ltp,
+        F::Open,
+        F::High,
+        F::Low,
+        F::Close,
+        F::Volume,
+        F::AveragePrice,
+        F::LastQuantity,
+        F::TotalBuyQuantity,
+        F::TotalSellQuantity,
+    ] {
+        if !snap.known.contains(field) {
+            tick.mark_absent(field);
+        }
+    }
+    match (snap.known.contains(F::OpenInterest), book) {
+        (true, false) => tick.mark_carried(F::OpenInterest),
+        (false, true) => tick.mark_absent(F::OpenInterest),
+        _ => {}
+    }
+    tick.derive_change();
+    if let Some(pc) = snap.change_percent {
+        tick.change_percent = pc;
+        tick.mark_carried(F::Change);
+    }
+    if let Some(cv) = snap.change {
+        tick.change = round2(cv);
+        tick.mark_carried(F::Change);
+    }
+    tick
+}
+
+/// The book of a depth message, with the tick's totals.
+fn snapshot_book(tick: &NormalizedTick, snap: &FeedSnap) -> NormalizedDepth {
+    use QuoteField as F;
+    let mut absent = AbsentFields::default();
+    for field in [F::Ltp, F::TotalBuyQuantity, F::TotalSellQuantity] {
+        if !snap.known.contains(field) {
+            absent = absent.with(field);
+        }
+    }
+    NormalizedDepth {
+        symbol: tick.symbol.clone(),
+        exchange: tick.exchange.clone(),
+        ltp: snap.ltp,
+        buy: FeedSnap::side(&snap.bids),
+        sell: FeedSnap::side(&snap.asks),
+        total_buy_quantity: snap.total_buy_qty,
+        total_sell_quantity: snap.total_sell_qty,
+        timestamp_ms: tick.timestamp_ms,
+        absent,
     }
 }
 

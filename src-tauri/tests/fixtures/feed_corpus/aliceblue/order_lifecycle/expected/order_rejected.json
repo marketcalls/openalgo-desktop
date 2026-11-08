@@ -11,7 +11,7 @@
   "price": 0.0,
   "trigger_price": 0.0,
   "pricetype": "MARKET",
-  "product": "LONGTERM",
+  "product": "CNC",
   "order_status": "rejected",
   "filled_quantity": 0,
   "pending_quantity": 5,

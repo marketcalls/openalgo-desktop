@@ -5,12 +5,8 @@
   "mode": 2,
   "broker": "aliceblue",
   "data": {
-    "symbol": "RELIANCE",
-    "exchange": "NSE",
-    "mode": "quote",
     "ltp": 1296.0,
     "ltt": 1794302705000,
-    "timestamp": "<receipt_ms>",
     "volume": 4568100,
     "last_quantity": 5,
     "average_price": 1292.33,
@@ -19,6 +15,11 @@
     "open": 1288.0,
     "high": 1301.2,
     "low": 1285.1,
-    "close": 1280.0
+    "close": 1280.0,
+    "price_change": 16.0,
+    "price_change_percent": 1.25,
+    "oi": 0,
+    "change_percent": 1.25,
+    "total_oi": 0
   }
 }

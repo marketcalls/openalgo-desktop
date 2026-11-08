@@ -35,30 +35,6 @@
   },
   "deviations": [
     {
-      "key": "symbol",
-      "kind": "open",
-      "reason": "The web's AliceBlue data carries no symbol (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
-    },
-    {
-      "key": "exchange",
-      "kind": "open",
-      "reason": "The web's AliceBlue data carries no exchange (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's AliceBlue data carries no mode (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
-    },
-    {
-      "key": "timestamp",
-      "kind": "open",
-      "reason": "The web's AliceBlue data carries no timestamp in LTP and Quote (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "aliceblue_adapter.py:1243-1269; feed::dialect (lane wire)"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, and a string (\"1794302700\"); the protocol's WebSocket timestamps are epoch milliseconds (docs/prompt/websockets-format.md), so the unit is wrong, as for Dhan. The desktop sends the trade time in ms, as a number.",
@@ -66,15 +42,21 @@
     },
     {
       "key": "price_change",
-      "kind": "web-defect",
-      "reason": "AliceBlue's index tick carries its change (cv); the web's mapper reads it as change_value and never publishes it (aliceblue_adapter.py:1259-1268). The desktop sends it as price_change.",
-      "ref": "aliceblue_mapping.py:143; aliceblue_adapter.py:1259-1268"
+      "kind": "open",
+      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical price_change follows the adapter (lead decision 2026-11-09): the index_change switch (lane wire) turns it off on an index; until then it is open.",
+      "ref": "aliceblue_adapter.py:1259-1268; feed::dialect (lane wire)"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends the canonical price_change_percent beside the web's change_percent (feed::dialect aliases, WS-05); the web sends change_percent only.",
-      "ref": "feed::dialect"
+      "kind": "open",
+      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical price_change_percent follows the adapter (lead decision 2026-11-09): the index_change switch (lane wire) turns it off on an index; until then it is open.",
+      "ref": "aliceblue_adapter.py:1259-1268; feed::dialect (lane wire)"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "The web's Quote sends volume 0 for an index tick that carries none; a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "aliceblue_mapping.py:136; aliceblue_adapter.py:1261"
     },
     {
       "key": "average_price",

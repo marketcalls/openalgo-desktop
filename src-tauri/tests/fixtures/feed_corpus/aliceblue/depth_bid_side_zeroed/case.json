@@ -32,28 +32,10 @@
       "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received"
     ],
     "notes": [
-      "The desktop takes a 0 price in a df as the level gone and publishes the bid side empty; the web drops levels without a price and keeps the previous side when none is left (aliceblue_adapter.py:700-718). Which is right depends on what AliceBlue means by a 0 price in a df (a cleared level, or unchanged, as both codebases say AliceBlue sends 0 for unchanged prices in ticks): audit appendix item 10, a live capture decides."
+      "The desktop takes a level sent with price 0 and quantity 0 in a df as gone and publishes the bid side empty; the web drops levels without a price and keeps the previous side when none is left (aliceblue_adapter.py:700-718). A df carries only the keys that changed, so a sent 0 is a value: the web's kept side is ghost liquidity (lead ruling 2026-11-09, audit appendix item 10). Listed for the maintainer's live check."
     ]
   },
   "deviations": [
-    {
-      "key": "symbol",
-      "kind": "open",
-      "reason": "The web's AliceBlue data carries no symbol (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
-    },
-    {
-      "key": "exchange",
-      "kind": "open",
-      "reason": "The web's AliceBlue data carries no exchange (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's AliceBlue data carries no mode (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
-    },
     {
       "key": "timestamp",
       "kind": "web-defect",
@@ -121,22 +103,40 @@
       "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
     },
     {
-      "key": "oi",
+      "key": "change_percent",
       "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries oi and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "reason": "AliceBlue's depth packet carries change_percent and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
       "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
     },
     {
-      "key": "open_interest",
+      "key": "total_oi",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries total_oi and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web's AliceBlue Depth sends no OI; open_interest beside oi follows each broker's web adapter (lead rule 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::dialect (lane wire)"
+      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical price_change follows the adapter (lead decision 2026-11-09): the per-broker key rule (lane wire) turns it off; until then it is open.",
+      "ref": "aliceblue_adapter.py:1259-1268; feed::dialect (lane wire)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical price_change_percent follows the adapter (lead decision 2026-11-09): the per-broker key rule (lane wire) turns it off; until then it is open.",
+      "ref": "aliceblue_adapter.py:1259-1268; feed::dialect (lane wire)"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical oi follows the adapter (lead decision 2026-11-09): the per-broker key rule (lane wire) turns it off; until then it is open.",
+      "ref": "aliceblue_adapter.py:1268; feed::dialect (lane wire)"
     },
     {
       "key": "depth",
-      "kind": "open",
-      "reason": "Undecided until a live capture: the desktop clears the bid side on a df of 0 prices, the web keeps the previous bids (audit appendix item 10).",
-      "ref": "audit appendix item 10; aliceblue_adapter.py:700-718"
+      "kind": "web-defect",
+      "reason": "AliceBlue's dk and df carry each level's order count (bo1..bo5, so1..so5); the web publishes 0 for every level (aliceblue_adapter.py:1280-1290), a wrong value (lead ruling 2026-11-09). The desktop sends the counts. And a df that sends a level's price and quantity as 0 removes it; the web keeps the previous bids, a stale book (lead ruling 2026-11-09, audit appendix item 10; maintainer live check listed).",
+      "ref": "audit appendix item 10; aliceblue_adapter.py:700-718, 1280-1290"
     }
   ]
 }

@@ -8,6 +8,14 @@
     "order-rejected",
     "order-cancelled"
   ],
+  "deviations": [
+    {
+      "key": "product",
+      "kind": "web-defect",
+      "reason": "The web's order stream sends AliceBlue's product code raw (INTRADAY, LONGTERM), not OpenAlgo's MIS, CNC, NRML (docs/prompt/order-constants.md), although its own REST order book maps the same codes (transform_data.py reverse_map_product_type). The desktop maps them as that book does; a code AliceBlue has not documented passes as it came.",
+      "ref": "aliceblue_order_adapter.py:200; audit appendix item 9"
+    }
+  ],
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -40,7 +48,7 @@
       "subscribers/wsproxy_subscriber.py::on_order_update"
     ],
     "notes": [
-      "Both send AliceBlue's product code as it comes (INTRADAY, LONGTERM, NRML), not OpenAlgo's MIS, CNC, NRML (audit appendix item 9). The web's REST order book maps it (broker/aliceblue/mapping/transform_data.py reverse_map_product_type); the order stream does not, on either side. Pinned as today's behaviour.",
+      "The desktop names OpenAlgo's product (MIS, CNC, NRML) as the web's REST order book maps AliceBlue's codes (broker/aliceblue/mapping/transform_data.py reverse_map_product_type); the web's order stream passes the code raw (audit appendix item 9).",
       "The market socket's relay logs in too, and its frame is taken from the main socket first."
     ]
   }
