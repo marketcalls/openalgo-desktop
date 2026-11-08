@@ -10,7 +10,7 @@
 //! carrying subscriptions (connecting, reconnecting, refused), the
 //! release is done: the next connection is sent the registry without it.
 
-use super::{Apply, Command, Delta, WebSocketManager};
+use super::{Apply, Command, Delta, Routed, WebSocketManager};
 use crate::brokers::common::streaming::{FeedSubscription, ReleaseAnswer};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
@@ -46,42 +46,61 @@ impl WebSocketManager {
     /// did not take, or the broker refused, stays held and answers why.
     pub async fn release(&self, subs: Vec<FeedSubscription>) -> Vec<ReleaseOutcome> {
         let epoch = self.epoch.load(Ordering::SeqCst);
-        let deltas: Vec<Delta> = {
+        let (conns, deltas): (Vec<Option<usize>>, Vec<Routed>) = {
             let mut reg = self.registry.lock();
-            subs.iter().filter_map(|s| reg.remove(s)).collect()
+            let conns = subs.iter().map(|s| reg.conn_of(s)).collect();
+            (conns, subs.iter().filter_map(|s| reg.remove(s)).collect())
         };
         let mut answers = vec![Ok(()); subs.len()];
-        if deltas.is_empty() {
-            return answers;
-        }
-        let refused = match self.send_waited(deltas, subs.clone()).await {
-            None => return answers,
-            Some(Written::Failed) => return vec![Err(RELEASE_NOT_TAKEN.to_string()); subs.len()],
-            Some(Written::Sent(later)) => refusals(later).await,
-        };
-        if refused.is_empty() {
-            return answers;
-        }
         let mut back = Vec::new();
-        for (answer, s) in answers.iter_mut().zip(&subs) {
-            if let Some(why) = refused.get(&s.instrument_key()) {
-                *answer = Err(why.clone());
-                back.push(s.clone());
+        for conn in distinct(deltas.iter().map(|(c, _)| *c)) {
+            let mine: Vec<Delta> = deltas
+                .iter()
+                .filter(|(c, _)| *c == conn)
+                .map(|(_, d)| d.clone())
+                .collect();
+            let on_conn = |i: &usize| conns[*i] == Some(conn);
+            let undo = (0..subs.len())
+                .filter(on_conn)
+                .map(|i| subs[i].clone())
+                .collect();
+            let refused = match self.send_waited(conn, mine, undo).await {
+                None => continue,
+                Some(Written::Failed) => {
+                    for i in (0..subs.len()).filter(on_conn) {
+                        answers[i] = Err(RELEASE_NOT_TAKEN.to_string());
+                    }
+                    continue;
+                }
+                Some(Written::Sent(later)) => refusals(later).await,
+            };
+            for i in (0..subs.len()).filter(on_conn) {
+                if let Some(why) = refused.get(&subs[i].instrument_key()) {
+                    answers[i] = Err(why.clone());
+                    back.push((subs[i].clone(), conn));
+                }
             }
         }
         self.put_back(back, epoch).await;
+        self.close_idle().await;
         answers
     }
 
-    /// Hand the change to the socket's task and wait for what it did;
-    /// `None` when no socket carried it (no task, or the task dropped it
-    /// while connecting or reconnecting): the registry is the truth then.
+    /// Hand connection `conn` the change and wait for what it did; `None`
+    /// when no socket carried it (no task, or the task dropped it while
+    /// connecting or reconnecting): the registry is the truth then.
     async fn send_waited(
         &self,
+        conn: usize,
         deltas: Vec<Delta>,
         undo: Vec<FeedSubscription>,
     ) -> Option<Written> {
-        let tx = self.running.lock().as_ref().map(|r| r.cmd.clone())?;
+        let tx = self
+            .connections
+            .lock()
+            .get(conn)
+            .and_then(Option::as_ref)
+            .map(|r| r.cmd.clone())?;
         let (reply, written) = oneshot::channel();
         tx.send(Command::Apply(Apply {
             deltas,
@@ -93,20 +112,37 @@ impl WebSocketManager {
         written.await.ok()
     }
 
-    /// Hold again the references a broker refused to release, unless every
-    /// reference was forgotten since (a disconnect), and send them again:
-    /// a broker that still streams them answers "already subscribed", and
-    /// the feed learns them again (XTS keeps no book of what it released).
-    async fn put_back(&self, subs: Vec<FeedSubscription>, epoch: u64) {
-        let deltas: Vec<Delta> = {
+    /// Hold again the references a broker refused to release, on the
+    /// connection that carried them, unless every reference was forgotten
+    /// since (a disconnect), and send them again: a broker that still
+    /// streams them answers "already subscribed", and the feed learns them
+    /// again (XTS keeps no book of what it released).
+    async fn put_back(&self, subs: Vec<(FeedSubscription, usize)>, epoch: u64) {
+        if subs.is_empty() {
+            return;
+        }
+        let deltas: Vec<Routed> = {
             let mut reg = self.registry.lock();
             if self.epoch.load(Ordering::SeqCst) != epoch {
                 return;
             }
-            subs.into_iter().filter_map(|s| reg.add(s)).collect()
+            subs.into_iter()
+                .filter_map(|(s, conn)| reg.add(s, conn))
+                .collect()
         };
         self.apply(deltas).await;
     }
+}
+
+/// Each connection once, in first-seen order.
+fn distinct(conns: impl Iterator<Item = usize>) -> Vec<usize> {
+    let mut out: Vec<usize> = Vec::new();
+    for c in conns {
+        if !out.contains(&c) {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Why each instrument a broker refused to release stays subscribed; an

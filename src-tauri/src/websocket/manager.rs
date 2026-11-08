@@ -14,12 +14,15 @@
 //! Subscriptions are reference counted per instrument and mode. The broker
 //! sees one subscription per instrument at its effective (highest) mode; a
 //! registry entry is removed when its last reference goes, so the registry
-//! is bounded by what clients currently hold.
+//! is bounded by what clients currently hold. A feed started with
+//! `connect_pool` spreads its instruments over several broker connections,
+//! as the web's `ConnectionPool` does (`pool`, audit C07).
 //!
-//! Resource ownership: the only spawned task is the supervisor, kept as a
-//! `JoinHandle` and aborted (after a graceful stop request) on `disconnect`.
-//! The command channel is bounded; the event channel is a bounded broadcast
-//! whose slow receivers see `Lagged` and skip ahead.
+//! Resource ownership: the spawned tasks are the supervisors, one per open
+//! connection, each kept as a `JoinHandle` and aborted (after a graceful
+//! stop request) on `disconnect`; an extra connection that carries nothing
+//! any more is stopped. The command channels are bounded; the event channel
+//! is a bounded broadcast whose slow receivers see `Lagged` and skip ahead.
 
 use crate::brokers::common::streaming::{BrokerFeed, FeedSubscription, MarketEvent};
 use crate::error::{AppError, Result};
@@ -33,12 +36,14 @@ use tokio::task::JoinHandle;
 
 mod heartbeat;
 mod losses;
+mod pool;
 mod registry;
 mod release;
 mod stats;
 mod supervisor;
 pub use losses::{Reader, SinceConnect};
-use registry::{Delta, Registry};
+pub use pool::{FeedFactory, PoolLimits};
+use registry::{Delta, Registry, Routed};
 use release::Written;
 pub use stats::{Connection, DropCause, FeedStats, LastDrop};
 #[cfg(test)]
@@ -62,7 +67,8 @@ pub struct FeedConfig {
     pub write_timeout: Duration,
     /// A connection that lived this long resets the backoff.
     pub stable_after: Duration,
-    /// Most instruments one connection may carry (Kite: 3000).
+    /// Most instruments the one connection of `connect` may carry (a pool
+    /// takes its own limits, `connect_pool`).
     pub max_instruments: usize,
     pub command_capacity: usize,
     pub event_capacity: usize,
@@ -136,16 +142,25 @@ enum Command {
     Stop,
 }
 
+/// One connection's socket task, and its state.
 struct Running {
     cmd: mpsc::Sender<Command>,
     task: JoinHandle<()>,
+    status: watch::Receiver<FeedStatus>,
 }
 
 pub struct WebSocketManager {
     events: broadcast::Sender<MarketEvent>,
+    /// The first connection's state: the feed's, for the UI and the feed
+    /// server.
     status: watch::Sender<FeedStatus>,
     registry: Arc<Mutex<Registry>>,
-    running: Mutex<Option<Running>>,
+    /// The broker connections, first one first; `None` where an extra one
+    /// is not open.
+    connections: Mutex<Vec<Option<Running>>>,
+    /// Makes the adapter for another connection of the session
+    /// (`connect_pool`); `None` for a feed of one connection.
+    factory: Mutex<Option<FeedFactory>>,
     config: FeedConfig,
     stats: Arc<FeedStats>,
     /// Moves when `disconnect` forgets every reference, so a release
@@ -170,8 +185,11 @@ impl WebSocketManager {
         Self {
             events,
             status,
-            registry: Arc::new(Mutex::new(Registry::default())),
-            running: Mutex::new(None),
+            registry: Arc::new(Mutex::new(Registry::with_limits(PoolLimits::single(
+                config.max_instruments,
+            )))),
+            connections: Mutex::new(Vec::new()),
+            factory: Mutex::new(None),
             config,
             stats: Arc::new(FeedStats::default()),
             epoch: AtomicU64::new(0),
@@ -215,11 +233,13 @@ impl WebSocketManager {
         matches!(*self.status.borrow(), FeedStatus::Connected { .. })
     }
 
-    /// Whether a supervisor task is alive (connected or retrying).
+    /// Whether the first connection's task is alive (connected or
+    /// retrying).
     pub fn is_running(&self) -> bool {
-        self.running
+        self.connections
             .lock()
-            .as_ref()
+            .first()
+            .and_then(Option::as_ref)
             .is_some_and(|r| !r.task.is_finished())
     }
 
@@ -233,102 +253,147 @@ impl WebSocketManager {
         self.registry.lock().effective_all()
     }
 
-    /// Start (or restart) the feed with this broker adapter. Existing
+    /// The room the feed has: instruments per connection, and connections.
+    pub fn limits(&self) -> PoolLimits {
+        self.registry.lock().limits
+    }
+
+    /// Start (or restart) the feed on one connection with this adapter,
+    /// carrying at most `FeedConfig::max_instruments`. Existing
     /// subscriptions are kept and sent again on the new socket.
     pub async fn connect(&self, feed: Box<dyn BrokerFeed>) -> Result<()> {
-        self.stop_task().await;
-        self.stats.begin(feed.broker());
-        let (tx, rx) = mpsc::channel(self.config.command_capacity.max(1));
-        let ctx = Supervisor {
-            feed,
-            cmd: rx,
-            registry: self.registry.clone(),
-            events: self.events.clone(),
-            status: self.status.clone(),
-            config: self.config.clone(),
-            stats: self.stats.clone(),
-        };
-        let task = tokio::spawn(ctx.run());
-        *self.running.lock() = Some(Running { cmd: tx, task });
+        let limits = PoolLimits::single(self.config.max_instruments);
+        self.start(feed, None, limits).await;
         Ok(())
     }
 
-    /// Drop the socket and connect again at once, keeping every
-    /// subscription: after the computer slept the socket is likely dead
+    /// Start (or restart) the feed as a pool of connections (audit C07):
+    /// `feed` for the first, `more` for each further one, opened once the
+    /// open ones are full; `limits` how many instruments each carries and
+    /// how many there may be. Existing subscriptions are kept and sent
+    /// again.
+    pub async fn connect_pool(
+        &self,
+        feed: Box<dyn BrokerFeed>,
+        more: FeedFactory,
+        limits: PoolLimits,
+    ) -> Result<()> {
+        self.start(feed, Some(more), limits).await;
+        Ok(())
+    }
+
+    async fn start(
+        &self,
+        feed: Box<dyn BrokerFeed>,
+        more: Option<FeedFactory>,
+        limits: PoolLimits,
+    ) {
+        self.stop_all().await;
+        self.stats.begin(feed.broker());
+        let extra: Vec<usize> = {
+            let mut reg = self.registry.lock();
+            reg.set_limits(limits);
+            (1..reg.per_conn.len())
+                .filter(|c| reg.per_conn[*c] > 0)
+                .collect()
+        };
+        *self.factory.lock() = more;
+        let first = self.spawn(0, feed);
+        {
+            let mut connections = self.connections.lock();
+            connections.clear();
+            connections.push(Some(first));
+        }
+        for conn in extra {
+            self.open_extra(conn);
+        }
+    }
+
+    /// Drop the sockets and connect again at once, keeping every
+    /// subscription: after the computer slept a socket is likely dead
     /// though no error has come yet (ARCH-03). Nothing when no feed runs,
-    /// or when the command queue is full (the session is busy with commands
-    /// and will notice a dead socket itself).
+    /// or for a connection whose command queue is full (it is busy with
+    /// commands and will notice a dead socket itself).
     pub fn reconnect(&self) {
-        if let Some(r) = self.running.lock().as_ref() {
+        for r in self.connections.lock().iter().flatten() {
             let _ = r.cmd.try_send(Command::Reconnect);
         }
     }
 
     /// Stop the feed and forget every subscription (logout, broker switch).
     pub async fn disconnect(&self) -> Result<()> {
-        self.stop_task().await;
+        self.stop_all().await;
         self.epoch.fetch_add(1, Ordering::SeqCst);
-        self.registry.lock().entries.clear();
+        self.registry.lock().clear();
+        *self.factory.lock() = None;
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
     }
 
-    async fn stop_task(&self) {
-        let running = self.running.lock().take();
-        if let Some(r) = running {
-            // Ask for a clean close; abort if the task does not finish soon.
-            let _ = r.cmd.try_send(Command::Stop);
-            let mut task = r.task;
-            if tokio::time::timeout(Duration::from_secs(2), &mut task)
-                .await
-                .is_err()
-            {
-                task.abort();
-                let _ = task.await;
-            }
+    async fn stop_all(&self) {
+        let all: Vec<Running> = self.connections.lock().drain(..).flatten().collect();
+        for r in all {
+            pool::stop(r).await;
         }
     }
 
-    /// What a reference past the connection's room is refused with.
-    fn no_room(&self) -> String {
+    /// What a reference past the feed's room is refused with.
+    fn no_room(&self, limits: PoolLimits) -> String {
         format!(
             "You can stream at most {} instruments at once. Unsubscribe some before adding more.",
-            self.config.max_instruments
+            limits.total()
         )
     }
 
     /// Add references, all or none; the broker is told only about
     /// instruments whose effective mode changed.
     pub async fn subscribe(&self, subs: Vec<FeedSubscription>) -> Result<()> {
+        let usable = self.usable();
         let deltas = {
             let mut reg = self.registry.lock();
-            if reg.entries.len() + reg.new_instruments(&subs) > self.config.max_instruments {
-                return Err(AppError::Validation(self.no_room()));
+            let open = |c: usize| usable.get(c).copied().unwrap_or(true);
+            let free: usize = (0..reg.limits.connections)
+                .filter(|c| open(*c))
+                .map(|c| {
+                    let held = reg.per_conn.get(c).copied().unwrap_or(0);
+                    reg.limits.per_connection.saturating_sub(held)
+                })
+                .sum();
+            if reg.new_instruments(&subs) > free {
+                return Err(AppError::Validation(self.no_room(reg.limits)));
             }
-            subs.into_iter().filter_map(|s| reg.add(s)).collect()
+            let mut deltas = Vec::new();
+            for s in subs {
+                if let Some(conn) = reg.place(&s, &open) {
+                    deltas.extend(reg.add(s, conn));
+                }
+            }
+            deltas
         };
         self.apply(deltas).await;
         Ok(())
     }
 
-    /// Add references one by one, each while the connection has room for
+    /// Add references one by one, each while a connection has room for
     /// another instrument, counted across every consumer of this manager
     /// (feed clients, the sandbox, strategies, Flow): one answer each, so
     /// a batch that crosses the limit still starts its admissible members
     /// and refuses the rest with why (audit C02).
     pub async fn admit(&self, subs: Vec<FeedSubscription>) -> Vec<std::result::Result<(), String>> {
+        let usable = self.usable();
         let (answers, deltas) = {
             let mut reg = self.registry.lock();
+            let open = |c: usize| usable.get(c).copied().unwrap_or(true);
             let mut answers = Vec::with_capacity(subs.len());
             let mut deltas = Vec::new();
             for s in subs {
-                let new = !reg.entries.contains_key(&s.instrument_key());
-                if new && reg.entries.len() >= self.config.max_instruments {
-                    answers.push(Err(self.no_room()));
-                    continue;
+                match reg.place(&s, &open) {
+                    Some(conn) => {
+                        deltas.extend(reg.add(s, conn));
+                        answers.push(Ok(()));
+                    }
+                    None => answers.push(Err(self.no_room(reg.limits))),
                 }
-                deltas.extend(reg.add(s));
-                answers.push(Ok(()));
             }
             (answers, deltas)
         };
@@ -348,33 +413,59 @@ impl WebSocketManager {
 
     /// Drop every subscription (the feed stays connected).
     pub async fn unsubscribe_all(&self) -> Result<()> {
-        let deltas: Vec<Delta> = {
+        let deltas: Vec<Routed> = {
             let mut reg = self.registry.lock();
-            let all = reg.effective_all();
-            reg.entries.clear();
-            all.into_iter().map(Delta::Unsubscribe).collect()
+            let all = reg
+                .entries
+                .values()
+                .filter_map(|e| Some((e.conn, Delta::Unsubscribe(e.effective()?))))
+                .collect();
+            reg.clear();
+            all
         };
         self.apply(deltas).await;
         Ok(())
     }
 
-    async fn apply(&self, deltas: Vec<Delta>) {
+    /// Hand each connection its changes. An extra connection that is not
+    /// open yet is opened (its first subscription sends what it carries);
+    /// one that carries nothing any more is closed.
+    async fn apply(&self, deltas: Vec<Routed>) {
         if deltas.is_empty() {
             return;
         }
-        let tx = self.running.lock().as_ref().map(|r| r.cmd.clone());
-        if let Some(tx) = tx {
-            // Bounded: back-pressure rather than unbounded growth. If the
-            // task is gone the registry still holds the state for the next
-            // connection.
-            let _ = tx.send(Command::Apply(Apply::plain(deltas))).await;
+        let mut by_conn: Vec<(usize, Vec<Delta>)> = Vec::new();
+        for (conn, d) in deltas {
+            match by_conn.iter_mut().find(|(c, _)| *c == conn) {
+                Some((_, v)) => v.push(d),
+                None => by_conn.push((conn, vec![d])),
+            }
         }
+        for (conn, deltas) in by_conn {
+            let tx = self
+                .connections
+                .lock()
+                .get(conn)
+                .and_then(Option::as_ref)
+                .map(|r| r.cmd.clone());
+            match tx {
+                // Bounded: back-pressure rather than unbounded growth. If
+                // the task is gone the registry still holds the state for
+                // the next connection.
+                Some(tx) => {
+                    let _ = tx.send(Command::Apply(Apply::plain(deltas))).await;
+                }
+                None if conn > 0 => self.open_extra(conn),
+                None => {}
+            }
+        }
+        self.close_idle().await;
     }
 }
 
 impl Drop for WebSocketManager {
     fn drop(&mut self) {
-        if let Some(r) = self.running.get_mut().take() {
+        for r in self.connections.get_mut().drain(..).flatten() {
             r.task.abort();
         }
     }
@@ -382,6 +473,8 @@ impl Drop for WebSocketManager {
 
 #[cfg(test)]
 mod deadline_tests;
+#[cfg(test)]
+mod pool_tests;
 #[cfg(test)]
 mod release_tests;
 #[cfg(test)]

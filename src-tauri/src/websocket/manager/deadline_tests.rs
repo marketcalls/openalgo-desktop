@@ -167,6 +167,7 @@ fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender<Command>) 
         status: watch::channel(FeedStatus::Disconnected).0,
         config,
         stats: Arc::default(),
+        conn: 0,
     };
     (s, cmd_tx)
 }

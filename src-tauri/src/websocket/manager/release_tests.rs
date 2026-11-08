@@ -95,6 +95,7 @@ async fn session(
         status: watch::channel(FeedStatus::Disconnected).0,
         config: FeedConfig::default(),
         stats: Arc::default(),
+        conn: 0,
     };
     let sent: Arc<Mutex<Vec<String>>> = Arc::default();
     let mut write = Socket {
@@ -118,7 +119,7 @@ async fn session(
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         // The manager's release: the last reference goes, then the change.
-        let Some(change) = reg.lock().remove(&reliance()) else {
+        let Some((_, change)) = reg.lock().remove(&reliance()) else {
             return;
         };
         let _ = cmd_tx
@@ -155,7 +156,7 @@ async fn session(
 #[tokio::test]
 async fn a_release_the_socket_did_not_take_is_held_again_and_its_retry_releases_it_once() {
     let registry: Arc<Mutex<Registry>> = Arc::default();
-    registry.lock().add(reliance());
+    registry.lock().add(reliance(), 0);
 
     // The login's subscription goes out; the `u` frame finds the socket gone.
     let (end, sent, heard) = session(&registry, 3).await;

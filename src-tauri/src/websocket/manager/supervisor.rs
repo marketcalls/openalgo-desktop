@@ -58,6 +58,11 @@ pub(super) struct Supervisor {
     pub(super) status: watch::Sender<FeedStatus>,
     pub(super) config: FeedConfig,
     pub(super) stats: Arc<FeedStats>,
+    /// Which of the manager's connections this is: it sends the
+    /// registry's instruments placed on it, and only the first relays
+    /// the broker's order updates (a broker that sends them on every
+    /// socket is heard once).
+    pub(super) conn: usize,
 }
 
 impl Supervisor {
@@ -265,6 +270,7 @@ impl Supervisor {
                 }
                 FeedEvent::Heartbeat => {}
                 FeedEvent::Reply(m) => self.send_all(write, vec![m]).await?,
+                FeedEvent::OrderUpdate(_) if self.conn > 0 => self.stats.mark_event(),
                 e @ (FeedEvent::Tick(_) | FeedEvent::Depth(_) | FeedEvent::OrderUpdate(_)) => {
                     self.stats.mark_event();
                     // No receiver yet is normal; nothing is retained.
@@ -493,7 +499,7 @@ impl Supervisor {
                 {
                     let mut reg = self.registry.lock();
                     for s in undo {
-                        reg.add(s);
+                        reg.add(s, self.conn);
                     }
                 }
                 let _ = reply.send(Written::Failed);
@@ -573,7 +579,7 @@ impl Supervisor {
     {
         // The session was just accepted: its post-login frames go first.
         let mut frames = self.feed.on_authenticated();
-        let subs = self.registry.lock().effective_all();
+        let subs = self.registry.lock().effective_on(self.conn);
         if !subs.is_empty() {
             frames.extend(self.feed.subscribe_frames(&subs));
         }

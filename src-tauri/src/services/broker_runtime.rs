@@ -7,9 +7,11 @@
 //!    stored one (`master_contract_service::ensure`), with the web's
 //!    Socket.IO events;
 //! 3. the feed bridge learns the broker's depth levels;
-//! 4. the market feed (`create_feed`) on the shared manager, a depth socket
-//!    (`create_depth_feed`) when the broker streams deeper books, and the
-//!    order feed (`create_order_feed`, a socket or the adapter's poller);
+//! 4. the market feed (`create_feed`) on the shared manager, pooled over as
+//!    many connections as the broker allows (`limits`, audit C07), a depth
+//!    socket (`create_depth_feed`) when the broker streams deeper books,
+//!    and the order feed (`create_order_feed`, a socket or the adapter's
+//!    poller);
 //! 5. order updates from any of them are published as `order.update` with
 //!    the web payload, which the Socket.IO subscriber and the 8765 order
 //!    stream consume.
@@ -27,12 +29,14 @@ use crate::events::{self, Event, EventBus};
 use crate::feed::bridge;
 use crate::services::master_contract_service::{self, DownloadClaims};
 use crate::state::{AppState, BrokerSession};
-use crate::websocket::WebSocketManager;
+use crate::websocket::{FeedFactory, WebSocketManager};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinSet;
+
+mod limits;
 
 pub struct BrokerRuntime {
     /// The broker's order-update socket.
@@ -224,7 +228,12 @@ async fn start_session(
     // A feed that cannot stream makes feed subscribes say why (WS-01).
     match broker.create_feed(&auth) {
         Ok(feed) => {
-            if let Err(e) = ctx.websocket.connect(feed).await {
+            let more: FeedFactory = {
+                let (b, auth) = (broker.clone(), auth.clone());
+                Arc::new(move || b.create_feed(&auth).ok())
+            };
+            let limits = limits::pool_limits(id);
+            if let Err(e) = ctx.websocket.connect_pool(feed, more, limits).await {
                 tracing::error!("Market data feed for {} did not start: {}", id, e);
                 ctx.bridge.set_unavailable(bridge::FEED_NOT_STARTED);
             }
@@ -282,7 +291,7 @@ async fn start_deep_feed(ctx: &AppState, broker: &Arc<dyn Broker>, auth: &AuthTo
         Ok(feed) => ctx
             .runtime
             .depth_ws
-            .connect(feed)
+            .connect_pool(feed, Arc::new(|| None), limits::depth_limits(id))
             .await
             .map_err(|e| e.to_string()),
         Err(e) => Err(e.to_string()),

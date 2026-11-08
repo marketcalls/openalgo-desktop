@@ -1,12 +1,17 @@
 //! The manager's references: for each instrument, how many of each mode its
 //! consumers hold (feed clients through the bridge, the sandbox, strategies,
-//! Flow), and the one subscription the broker sees for it, at the highest
-//! mode held and, in Depth, the deepest book held (audit Phase 3.2: a
-//! Quote owner's 5 levels followed by a Depth owner's 20 streams 20, and
-//! goes back to 5 when the last 20-level owner leaves). An instrument goes
-//! when its last reference does, so the registry is bounded by what is
-//! held now.
+//! Flow), the connection that carries it, and the one subscription the
+//! broker sees for it, at the highest mode held and, in Depth, the deepest
+//! book held (audit Phase 3.2: a Quote owner's 5 levels followed by a Depth
+//! owner's 20 streams 20, and goes back to 5 when the last 20-level owner
+//! leaves). An instrument goes when its last reference does, so the
+//! registry is bounded by what is held now.
+//!
+//! Instruments are placed on the broker's connections as the web's
+//! `ConnectionPool` does (audit C07): on the first connection with room,
+//! a new one once every open one is full, up to the broker's limit.
 
+use super::PoolLimits;
 use crate::brokers::common::streaming::{FeedMode, FeedSubscription};
 use std::collections::{BTreeMap, HashMap};
 
@@ -18,11 +23,16 @@ pub(super) enum Delta {
     ModeChange(FeedSubscription, FeedSubscription),
 }
 
+/// A change and the connection that carries its instrument.
+pub(super) type Routed = (usize, Delta);
+
 pub(super) struct Entry {
     pub(super) base: FeedSubscription,
     pub(super) modes: BTreeMap<FeedMode, u32>,
     /// Depth references by the book depth each asked for.
     pub(super) depths: BTreeMap<u8, u32>,
+    /// The connection that carries the instrument.
+    pub(super) conn: usize,
 }
 
 impl Entry {
@@ -38,7 +48,7 @@ impl Entry {
     }
 }
 
-/// Count `n` up (or down, dropping it at zero) in a tally.
+/// Count `key` up, or down (dropping it at zero), in a tally.
 fn tally<K: Ord>(counts: &mut BTreeMap<K, u32>, key: K, up: bool) {
     if up {
         *counts.entry(key).or_insert(0) += 1;
@@ -63,14 +73,68 @@ fn change(before: Option<FeedSubscription>, after: Option<FeedSubscription>) -> 
     }
 }
 
-#[derive(Default)]
 pub(super) struct Registry {
     pub(super) entries: HashMap<(String, String), Entry>,
+    /// Instruments each connection carries.
+    pub(super) per_conn: Vec<usize>,
+    pub(super) limits: PoolLimits,
+}
+
+impl Default for Registry {
+    fn default() -> Self {
+        Self::with_limits(PoolLimits::single(usize::MAX))
+    }
 }
 
 impl Registry {
+    pub(super) fn with_limits(limits: PoolLimits) -> Self {
+        Self {
+            entries: HashMap::new(),
+            per_conn: vec![0; limits.connections.max(1)],
+            limits,
+        }
+    }
+
+    /// New limits (a broker session's feed): instruments already placed
+    /// keep their connection.
+    pub(super) fn set_limits(&mut self, limits: PoolLimits) {
+        if self.per_conn.len() < limits.connections {
+            self.per_conn.resize(limits.connections, 0);
+        }
+        self.limits = limits;
+    }
+
+    pub(super) fn clear(&mut self) {
+        self.entries.clear();
+        self.per_conn.iter_mut().for_each(|n| *n = 0);
+    }
+
     pub(super) fn effective_all(&self) -> Vec<FeedSubscription> {
         self.entries.values().filter_map(Entry::effective).collect()
+    }
+
+    /// What connection `conn` must be subscribed to.
+    pub(super) fn effective_on(&self, conn: usize) -> Vec<FeedSubscription> {
+        self.entries
+            .values()
+            .filter(|e| e.conn == conn)
+            .filter_map(Entry::effective)
+            .collect()
+    }
+
+    /// Where `s` goes: its instrument's connection, else the first one
+    /// `usable` says may take it that has room; `None` when none has.
+    pub(super) fn place(
+        &self,
+        s: &FeedSubscription,
+        usable: &dyn Fn(usize) -> bool,
+    ) -> Option<usize> {
+        if let Some(e) = self.entries.get(&s.instrument_key()) {
+            return Some(e.conn);
+        }
+        (0..self.limits.connections).find(|c| {
+            usable(*c) && self.per_conn.get(*c).copied().unwrap_or(0) < self.limits.per_connection
+        })
     }
 
     /// Instruments among `subs` that no reference names yet.
@@ -82,42 +146,59 @@ impl Registry {
             .len()
     }
 
-    /// Count one more reference; the change the broker must see, if any.
-    pub(super) fn add(&mut self, s: FeedSubscription) -> Option<Delta> {
-        let entry = self
-            .entries
-            .entry(s.instrument_key())
-            .or_insert_with(|| Entry {
-                base: s.clone(),
-                modes: BTreeMap::new(),
-                depths: BTreeMap::new(),
-            });
+    /// Count one more reference, placing a new instrument on `conn`; the
+    /// change its connection must see, if any.
+    pub(super) fn add(&mut self, s: FeedSubscription, conn: usize) -> Option<Routed> {
+        let key = s.instrument_key();
+        if !self.entries.contains_key(&key) {
+            if self.per_conn.len() <= conn {
+                self.per_conn.resize(conn + 1, 0);
+            }
+            self.per_conn[conn] += 1;
+        }
+        let entry = self.entries.entry(key).or_insert_with(|| Entry {
+            base: s.clone(),
+            modes: BTreeMap::new(),
+            depths: BTreeMap::new(),
+            conn,
+        });
         let before = entry.effective();
         tally(&mut entry.modes, s.mode, true);
         if s.mode == FeedMode::Depth {
             tally(&mut entry.depths, s.depth, true);
         }
-        change(before, entry.effective())
+        let conn = entry.conn;
+        change(before, entry.effective()).map(|d| (conn, d))
     }
 
-    /// Count one reference less (nothing when none is held); the change the
-    /// broker must see, if any. The instrument goes with its last one.
-    pub(super) fn remove(&mut self, s: &FeedSubscription) -> Option<Delta> {
+    /// Count one reference less (nothing when none is held); the change
+    /// its connection must see, if any. The instrument goes with its last
+    /// one.
+    pub(super) fn remove(&mut self, s: &FeedSubscription) -> Option<Routed> {
         let key = s.instrument_key();
         let entry = self.entries.get_mut(&key)?;
-        let before = entry.effective();
         if !entry.modes.contains_key(&s.mode) {
             return None;
         }
+        let before = entry.effective();
         tally(&mut entry.modes, s.mode, false);
         if s.mode == FeedMode::Depth {
             tally(&mut entry.depths, s.depth, false);
         }
         let after = entry.effective();
+        let conn = entry.conn;
         if after.is_none() {
             self.entries.remove(&key);
+            if let Some(n) = self.per_conn.get_mut(conn) {
+                *n = n.saturating_sub(1);
+            }
         }
-        change(before, after)
+        change(before, after).map(|d| (conn, d))
+    }
+
+    /// The connection carrying `s`'s instrument, if it is held.
+    pub(super) fn conn_of(&self, s: &FeedSubscription) -> Option<usize> {
+        self.entries.get(&s.instrument_key()).map(|e| e.conn)
     }
 }
 
@@ -137,9 +218,9 @@ mod tests {
         }
     }
 
-    fn moved(d: Option<Delta>) -> Option<(FeedMode, u8, FeedMode, u8)> {
+    fn moved(d: Option<Routed>) -> Option<(FeedMode, u8, FeedMode, u8)> {
         match d {
-            Some(Delta::ModeChange(b, a)) => Some((b.mode, b.depth, a.mode, a.depth)),
+            Some((_, Delta::ModeChange(b, a))) => Some((b.mode, b.depth, a.mode, a.depth)),
             _ => None,
         }
     }
@@ -152,16 +233,16 @@ mod tests {
     fn the_deepest_book_held_is_streamed() {
         let mut r = Registry::default();
         assert!(matches!(
-            r.add(sub(FeedMode::Quote, 5)),
+            r.add(sub(FeedMode::Quote, 5), 0).map(|(_, d)| d),
             Some(Delta::Subscribe(_))
         ));
         assert_eq!(
-            moved(r.add(sub(FeedMode::Depth, 20))),
+            moved(r.add(sub(FeedMode::Depth, 20), 0)),
             Some((FeedMode::Quote, 5, FeedMode::Depth, 20))
         );
         assert_eq!(r.effective_all()[0].depth, 20);
         assert_eq!(
-            moved(r.add(sub(FeedMode::Depth, 5))),
+            moved(r.add(sub(FeedMode::Depth, 5), 0)),
             None,
             "a shallower book is inside the deeper one"
         );
@@ -174,7 +255,7 @@ mod tests {
             Some((FeedMode::Depth, 5, FeedMode::Quote, 5))
         );
         assert!(matches!(
-            r.remove(&sub(FeedMode::Quote, 5)),
+            r.remove(&sub(FeedMode::Quote, 5)).map(|(_, d)| d),
             Some(Delta::Unsubscribe(_))
         ));
         assert!(r.entries.is_empty());
@@ -185,8 +266,49 @@ mod tests {
     #[test]
     fn releasing_what_is_not_held_changes_nothing() {
         let mut r = Registry::default();
-        r.add(sub(FeedMode::Ltp, 5));
+        r.add(sub(FeedMode::Ltp, 5), 0);
         assert!(r.remove(&sub(FeedMode::Depth, 20)).is_none());
         assert_eq!(r.effective_all()[0].mode, FeedMode::Ltp);
+    }
+
+    fn at(symbol: &str) -> FeedSubscription {
+        FeedSubscription {
+            symbol: symbol.into(),
+            ..sub(FeedMode::Ltp, 5)
+        }
+    }
+
+    /// Place `symbol` as the manager does: its connection if held, else
+    /// the first with room.
+    fn place(r: &mut Registry, symbol: &str, usable: &dyn Fn(usize) -> bool) -> Option<usize> {
+        let conn = r.place(&at(symbol), usable)?;
+        r.add(at(symbol), conn);
+        Some(conn)
+    }
+
+    /// Audit C07, web `ConnectionPool._get_adapter_with_capacity`: the first
+    /// connection fills before the next; a held instrument keeps its
+    /// connection; a place freed on an open one is taken before another;
+    /// past every connection's room there is none, and a connection the
+    /// broker refused takes nothing new.
+    #[test]
+    fn instruments_fill_one_connection_before_the_next() {
+        let mut r = Registry::with_limits(PoolLimits {
+            per_connection: 2,
+            connections: 2,
+        });
+        let all = |_: usize| true;
+        let placed: Vec<_> = ["A", "B", "C", "A", "D", "E"]
+            .iter()
+            .map(|s| place(&mut r, s, &all))
+            .collect();
+        assert_eq!(placed, [Some(0), Some(0), Some(1), Some(0), Some(1), None]);
+        assert_eq!(r.per_conn, [2, 2]);
+        r.remove(&at("B"));
+        assert_eq!(place(&mut r, "E", &all), Some(0));
+        assert_eq!(r.effective_on(1).len(), 2);
+        r.remove(&at("C"));
+        assert_eq!(place(&mut r, "F", &|c| c != 1), None);
+        assert_eq!(r.conn_of(&at("D")), Some(1));
     }
 }
