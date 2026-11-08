@@ -199,13 +199,15 @@ fn a_depth_frame_carries_the_quote_fields() {
     assert_eq!(d["volume"], 1_234_575);
     assert_eq!(d["average_price"], 301.5);
     assert_eq!(d["total_buy_quantity"], 50_000);
+    // Upstox's levels carry no order count (web `upstox_adapter.py`), so
+    // none is sent rather than 0.
     assert_eq!(
         d["depth"]["buy"][0],
-        json!({"price": 219.3, "quantity": 10, "orders": 0})
+        json!({"price": 219.3, "quantity": 10})
     );
     assert_eq!(
         d["depth"]["sell"][0],
-        json!({"price": 219.5, "quantity": 20, "orders": 0})
+        json!({"price": 219.5, "quantity": 20})
     );
 }
 
