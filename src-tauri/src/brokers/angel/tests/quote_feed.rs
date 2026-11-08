@@ -135,13 +135,16 @@ fn a_snap_quote_publishes_the_day_ohlc_and_previous_close() {
 fn a_snap_quote_keeps_the_quote_fields_and_both_sides() {
     let d = snap_quote();
     assert_eq!(d["average_price"], 1498.76);
+    // As doubles, as Angel's web adapter sends them (binary doubles in the
+    // SnapQuote packet).
     assert_eq!(
         (
-            d["total_buy_quantity"].as_i64(),
-            d["total_sell_quantity"].as_i64()
+            d["total_buy_quantity"].as_f64(),
+            d["total_sell_quantity"].as_f64()
         ),
-        (Some(1000), Some(2000))
+        (Some(1000.0), Some(2000.0))
     );
+    assert!(d["total_buy_quantity"].is_f64());
     assert_eq!(d["volume"], 123_456);
     assert_eq!(
         (

@@ -1,20 +1,22 @@
 //! The 8765 frames a broker feed's events make, for the brokers' feed
-//! tests: built as the bridge builds them (a depth on the instrument's last
-//! tick) and delivered as the registry delivers them.
+//! tests: built as the bridge builds them (each tick merged into the
+//! instrument's snapshot, a depth on that snapshot) and delivered as the
+//! registry delivers them.
 
+use super::bridge::snapshot::{self, Snapshot};
 use super::bridge::{depth_update, tick_update};
 use super::protocol::market_data;
 use super::{InstrumentKey, Mode};
-use crate::brokers::common::streaming::{FeedEvent, NormalizedTick};
+use crate::brokers::common::streaming::FeedEvent;
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// One broker's frames, with the last tick per instrument carried from
-/// one call to the next, as the bridge carries it.
+/// One broker's frames, with the snapshot per instrument carried from one
+/// call to the next, as the bridge carries it within one connection.
 pub(crate) struct Frames {
     broker: &'static str,
     depth: u8,
-    last: HashMap<InstrumentKey, NormalizedTick>,
+    last: HashMap<InstrumentKey, Snapshot>,
 }
 
 impl Frames {
@@ -34,13 +36,19 @@ impl Frames {
             let update = match e {
                 FeedEvent::Tick(t) => {
                     let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
-                    self.last.insert(key.clone(), t.clone());
-                    tick_update(key, t)
+                    let merged = snapshot::merge(self.last.get(&key), t, 0);
+                    let update = tick_update(key.clone(), merged.tick());
+                    self.last.insert(key, merged);
+                    match update {
+                        Some(u) => u,
+                        None => continue,
+                    }
                 }
                 FeedEvent::Depth(d) => {
                     let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
                     let last = self.last.get(&key);
-                    depth_update(key, d, last)
+                    let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
+                    depth_update(key, d, last.map(Snapshot::tick), lacks)
                 }
                 _ => continue,
             };

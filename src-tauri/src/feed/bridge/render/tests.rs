@@ -23,7 +23,7 @@ pub(in crate::feed::bridge) fn full_tick(symbol: &str, exchange: &str) -> Normal
 fn full_equity_tick_serves_quote_and_depth_serves_depth_holders() {
     let k = InstrumentKey::new("RELIANCE", "NSE");
     let t = full_tick("RELIANCE", "NSE");
-    let u = tick_update(k.clone(), &t);
+    let u = tick_update(k.clone(), &t).expect("a price");
     assert_eq!(u.mode, Mode::Quote);
     assert!(!u.exact_mode);
     assert_eq!(u.quote.as_ref().and_then(|q| q.oi), Some(0));
@@ -38,11 +38,11 @@ fn full_equity_tick_serves_quote_and_depth_serves_depth_holders() {
         timestamp_ms: 1_791_000_000_200,
         ..Default::default()
     };
-    let u = depth_update(k, &d, Some(&t));
+    let u = depth_update(k, &d, Some(&t), AbsentFields::default());
     assert_eq!(u.mode, Mode::Depth);
     assert!(u.exact_mode);
     let q = u.quote.unwrap();
-    assert_eq!((q.total_buy_quantity, q.volume), (7, 10));
+    assert_eq!((q.total_buy_quantity, q.volume), (Some(7), Some(10)));
     assert_eq!(u.ltt, Some(1_791_000_000_000));
     assert_eq!(u.depth.unwrap().buy.len(), 5);
 }
@@ -65,8 +65,11 @@ fn a_depth_without_its_own_ltp_frames_the_last_traded_price() {
         timestamp_ms: 1_791_000_000_200,
         ..Default::default()
     };
-    assert_eq!(depth_update(k.clone(), &d, Some(&t)).ltp, 9665.0);
-    assert_eq!(depth_update(k, &d, None).ltp, 0.0);
+    assert_eq!(
+        depth_update(k.clone(), &d, Some(&t), AbsentFields::default()).ltp,
+        9665.0
+    );
+    assert_eq!(depth_update(k, &d, None, AbsentFields::default()).ltp, 0.0);
 }
 
 #[test]
@@ -75,7 +78,7 @@ fn index_full_tick_reaches_every_mode_with_change_fields() {
     let mut t = full_tick("NIFTY", "NSE_INDEX");
     t.open = 0.0;
     t.change = 1.5;
-    let u = tick_update(k, &t);
+    let u = tick_update(k, &t).expect("a price");
     assert_eq!(u.mode, Mode::Depth);
     let q = u.quote.unwrap();
     assert_eq!(q.open, None);
@@ -86,7 +89,7 @@ fn index_full_tick_reaches_every_mode_with_change_fields() {
 /// it) carries under `data`, for a subscriber at `mode`.
 fn frame_data(t: &NormalizedTick, mode: Mode, broker: &str) -> serde_json::Value {
     let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
-    let tick = tick_update(key.clone(), t);
+    let tick = tick_update(key.clone(), t).expect("a price");
     let update = if mode == Mode::Depth && tick.mode < Mode::Depth {
         let d = NormalizedDepth {
             symbol: t.symbol.clone(),
@@ -97,7 +100,7 @@ fn frame_data(t: &NormalizedTick, mode: Mode, broker: &str) -> serde_json::Value
             timestamp_ms: t.timestamp_ms,
             ..Default::default()
         };
-        depth_update(key, &d, Some(t))
+        depth_update(key, &d, Some(t), t.absent)
     } else {
         tick
     };
@@ -151,15 +154,17 @@ fn a_field_the_stream_does_not_carry_is_left_out_with_its_aliases() {
             }
             assert_eq!(d["volume"], 4000, "{} {:?}", broker, mode);
             assert_eq!(d["oi"], 0, "{} {:?}", broker, mode);
-            assert_eq!(d["ltt"], 1_791_000_000_000_i64);
+            if broker == "sahi" || broker == "angel" {
+                assert_eq!(d["ltt"], 1_791_000_000_000_i64, "{}", broker);
+            }
         }
     }
     let d = frame_data(&t, Mode::Depth, "sahi");
     assert_eq!(d["depth"]["buy"].as_array().map(Vec::len), Some(5));
 }
 
-/// The same tick with nothing marked renders as it always did: every
-/// quote field sent, a missing one as 0.
+/// A full tick that marks nothing carries every quote field of its mode,
+/// a zero included (an untraded book's 0 volume is a real 0).
 #[test]
 fn a_tick_that_marks_nothing_still_sends_every_field() {
     let t = full_tick("RELIANCE", "NSE");
@@ -242,8 +247,7 @@ fn an_index_without_a_change_sends_none_of_its_names() {
     }
 }
 
-/// A depth frame sends OI as 0 when a tick has none, unless the stream
-/// does not carry OI at all.
+/// A depth frame leaves out OI the stream does not carry.
 #[test]
 fn a_depth_frame_leaves_out_oi_the_stream_does_not_carry() {
     let mut t = full_tick("RELIANCE", "NSE");
@@ -255,4 +259,119 @@ fn a_depth_frame_leaves_out_oi_the_stream_does_not_carry() {
         d
     );
     assert_eq!(d["close"], 1187.0);
+}
+
+/// C03: a packet without a trade price publishes nothing, rather than an
+/// LTP of 0; with its price it does.
+#[test]
+fn a_tick_without_a_price_makes_no_update() {
+    let k = InstrumentKey::new("RELIANCE", "NSE");
+    let mut t = full_tick("RELIANCE", "NSE");
+    t.ltp = 0.0;
+    t.mark_absent(QuoteField::Ltp);
+    assert!(tick_update(k.clone(), &t).is_none());
+    t.ltp = 1167.7;
+    t.mark_carried(QuoteField::Ltp);
+    assert!(tick_update(k, &t).is_some());
+}
+
+/// C05 (audit): a Quote packet serves OI to Quote holders when the adapter
+/// says it carries OI, whatever the packet's mode; one that does not leaves
+/// it out, and so does the depth frame built on it, instead of the 0 it
+/// used to invent.
+#[test]
+fn quote_oi_goes_by_what_the_packet_carries() {
+    let k = InstrumentKey::new("NIFTY28NOV26FUT", "NFO");
+    let mut t = full_tick("NIFTY28NOV26FUT", "NFO");
+    t.mode = 2;
+    t.oi = 98_765;
+    let u = tick_update(k.clone(), &t).expect("a price");
+    assert_eq!(u.quote.as_ref().and_then(|q| q.oi), None, "a Quote packet");
+    let book = NormalizedDepth {
+        symbol: t.symbol.clone(),
+        exchange: t.exchange.clone(),
+        buy: vec![Default::default(); 5],
+        sell: vec![Default::default(); 5],
+        ..Default::default()
+    };
+    let d = depth_update(k.clone(), &book, Some(&t), AbsentFields::default());
+    assert_eq!(d.quote.as_ref().and_then(|q| q.oi), None, "no invented OI");
+    t.mark_carried(QuoteField::OpenInterest);
+    let u = tick_update(k.clone(), &t).expect("a price");
+    assert_eq!(u.quote.as_ref().and_then(|q| q.oi), Some(98_765));
+    let d = depth_update(k, &book, Some(&t), AbsentFields::default());
+    assert_eq!(d.quote.and_then(|q| q.oi), Some(98_765));
+}
+
+/// C04 (audit): the change goes with an equity or a future as with an
+/// index, from the broker's own figure or a previous close above 0, and
+/// not at all without either.
+#[test]
+fn the_change_is_known_for_every_exchange() {
+    for (symbol, exchange) in [
+        ("SBIN", "NSE"),
+        ("NIFTY28NOV26FUT", "NFO"),
+        ("NIFTY", "NSE_INDEX"),
+    ] {
+        let k = InstrumentKey::new(symbol, exchange);
+        let mut t = full_tick(symbol, exchange);
+        t.derive_change();
+        let q = tick_update(k.clone(), &t).and_then(|u| u.quote).unwrap();
+        assert_eq!(
+            (q.price_change, q.price_change_percent),
+            (Some(-19.3), Some(-1.63)),
+            "{}",
+            symbol
+        );
+        t.close = 0.0;
+        t.change = 0.0;
+        t.change_percent = 0.0;
+        let q = tick_update(k.clone(), &t).and_then(|u| u.quote).unwrap();
+        assert_eq!(q.price_change, None, "{}: no previous close", symbol);
+        t.mark_carried(QuoteField::Change);
+        let q = tick_update(k, &t).and_then(|u| u.quote).unwrap();
+        assert_eq!(q.price_change, Some(0.0), "{}: the broker said 0", symbol);
+    }
+}
+
+/// C03: a book without totals takes the tick's, one with them wins; a book
+/// without order counts sends none rather than 0 (Upstox, a 1.0.6 known
+/// limitation); a cleared side stays empty.
+#[test]
+fn a_book_sends_only_what_it_carries() {
+    let k = InstrumentKey::new("RELIANCE", "NSE");
+    let mut t = full_tick("RELIANCE", "NSE");
+    t.total_buy_quantity = 300;
+    t.total_sell_quantity = 400;
+    let level = crate::brokers::types::DepthLevel {
+        price: 1167.5,
+        quantity: 10,
+        orders: 0,
+    };
+    let mut book = NormalizedDepth {
+        symbol: "RELIANCE".into(),
+        exchange: "NSE".into(),
+        buy: vec![level; 5],
+        sell: Vec::new(),
+        absent: AbsentFields::of(&[
+            QuoteField::TotalBuyQuantity,
+            QuoteField::TotalSellQuantity,
+            QuoteField::Orders,
+        ]),
+        ..Default::default()
+    };
+    let u = depth_update(k.clone(), &book, Some(&t), AbsentFields::default());
+    let q = u.quote.as_ref().unwrap();
+    assert_eq!(
+        (q.total_buy_quantity, q.total_sell_quantity),
+        (Some(300), Some(400))
+    );
+    let depth = u.depth.unwrap();
+    assert_eq!(depth.buy[0].orders, None);
+    assert!(depth.sell.is_empty(), "a cleared side");
+    book.absent = AbsentFields::default();
+    book.total_buy_quantity = 0;
+    let u = depth_update(k, &book, Some(&t), AbsentFields::default());
+    assert_eq!(u.quote.unwrap().total_buy_quantity, Some(0), "the book's 0");
+    assert_eq!(u.depth.unwrap().buy[0].orders, Some(0));
 }

@@ -32,7 +32,7 @@ use super::source::{
     ClientLosses, InstrumentKey, MarketDataSource, MarketUpdate, Mode, DEFAULT_DEPTH,
 };
 use crate::brokers::common::streaming::{
-    FeedEvent, FeedMode, FeedSubscription, MarketEvent, NormalizedTick,
+    FeedEvent, FeedMode, FeedSubscription, MarketEvent, QuoteField,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::websocket::{FeedStatus, Reader, WebSocketManager};
@@ -44,7 +44,9 @@ use tokio::sync::{broadcast, Notify};
 use tokio::task::JoinSet;
 
 mod render;
+pub(super) mod snapshot;
 pub(crate) use render::{depth_update, tick_update};
+use snapshot::Snapshot;
 
 /// Capacity of the update channel between the bridge and feed servers.
 pub const BRIDGE_UPDATE_CAP: usize = 8192;
@@ -143,9 +145,9 @@ impl Desired {
 struct State {
     desired: Desired,
     applied: HashMap<DesiredKey, Applied>,
-    /// Last tick per held instrument, for the quote fields of a separate
-    /// depth snapshot.
-    last_tick: HashMap<InstrumentKey, NormalizedTick>,
+    /// The merged quote per held instrument (`snapshot`): what a tick's
+    /// frame and a separate depth snapshot's quote fields are built on.
+    last_tick: HashMap<InstrumentKey, Snapshot>,
 }
 
 impl State {
@@ -472,29 +474,60 @@ impl BrokerBridge {
         }
     }
 
+    /// The instrument's broker token from the symbol master.
+    fn token(&self, key: &InstrumentKey) -> Option<Arc<str>> {
+        self.symbols
+            .by_symbol(&key.exchange, &key.symbol)
+            .map(|row| Arc::from(row.token.as_str()))
+    }
+
+    /// The main feed's connection count: a snapshot belongs to the
+    /// connection that made it (`snapshot`).
+    fn connection(&self) -> u64 {
+        self.manager
+            .stats()
+            .connects
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     fn convert(&self, ev: &FeedEvent) -> Option<MarketUpdate> {
         match ev {
             FeedEvent::Tick(t) => {
                 let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
-                {
-                    let mut st = self.state.lock();
-                    if !st.holds(&key) {
-                        return None;
-                    }
-                    st.last_tick.insert(key.clone(), t.clone());
+                let epoch = self.connection();
+                let mut st = self.state.lock();
+                if !st.holds(&key) {
+                    return None;
                 }
-                Some(tick_update(key, t))
+                let mut merged = snapshot::merge(st.last_tick.get(&key), t, epoch);
+                if merged.token().is_none() {
+                    merged.set_token(self.token(&key));
+                }
+                // A packet without a trade (OI, circuits) only updates the
+                // snapshot; the next priced packet carries what it brought.
+                let update = t
+                    .knows(QuoteField::Ltp)
+                    .then(|| tick_update(key.clone(), merged.tick()))
+                    .flatten()
+                    .map(|u| MarketUpdate {
+                        token: merged.token(),
+                        ..u
+                    });
+                st.last_tick.insert(key, merged);
+                update
             }
             FeedEvent::Depth(d) => {
                 let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
-                let last = {
-                    let st = self.state.lock();
-                    if !st.holds(&key) {
-                        return None;
-                    }
-                    st.last_tick.get(&key).cloned()
-                };
-                Some(depth_update(key, d, last.as_ref()))
+                let epoch = self.connection();
+                let st = self.state.lock();
+                if !st.holds(&key) {
+                    return None;
+                }
+                let last = st.last_tick.get(&key).filter(|s| s.of_epoch(epoch));
+                let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
+                let token = last.and_then(Snapshot::token).or_else(|| self.token(&key));
+                let update = depth_update(key, d, last.map(Snapshot::tick), lacks);
+                Some(MarketUpdate { token, ..update })
             }
             _ => None,
         }
@@ -559,7 +592,7 @@ impl MarketDataSource for BrokerBridge {
 mod tests {
     use super::render::tests::full_tick;
     use super::*;
-    use crate::brokers::common::streaming::{NormalizedDepth, QuoteField};
+    use crate::brokers::common::streaming::{NormalizedDepth, NormalizedTick};
 
     /// NEW-REL-05: what the relay to the apps' feed skipped because it fell
     /// behind is counted against the broker feed it reads (it was a log
@@ -661,7 +694,6 @@ mod tests {
             "average_price",
             "last_quantity",
             "oi",
-            "open_interest",
             "ltt",
         ];
         for k in quote_keys {
@@ -707,8 +739,11 @@ mod tests {
             sell: vec![Default::default(); 50],
             ..Default::default()
         });
-        let open = |b: &BrokerBridge| b.convert(&book).and_then(|u| u.quote).map(|q| q.absent);
-        let quoted = |b: &BrokerBridge| open(b).is_some_and(|a| !a.contains(QuoteField::Open));
+        let quoted = |b: &BrokerBridge| {
+            b.convert(&book)
+                .and_then(|u| u.quote)
+                .is_some_and(|q| q.open.is_some())
+        };
 
         bridge.subscribe(&key, Mode::Depth, 50);
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
@@ -721,5 +756,68 @@ mod tests {
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
         bridge.unsubscribe(&key, Mode::Depth, 50);
         assert!(quoted(&bridge), "the 5-level book still reads the quote");
+    }
+
+    /// Audit regression matrix, "Reconnect with first packet partial": once
+    /// the broker feed has connected again, a book is framed with no quote
+    /// until the new connection's first tick, and a partial first tick does
+    /// not bring the old connection's quote back.
+    #[test]
+    fn a_new_broker_connection_starts_every_quote_afresh() {
+        let manager = Arc::new(WebSocketManager::new());
+        let bridge = BrokerBridge::new(manager.clone(), SymbolResolver::new());
+        let key = InstrumentKey::new("SBIN", "NSE");
+        bridge.subscribe(&key, Mode::Depth, 5);
+        bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
+        let book = FeedEvent::Depth(NormalizedDepth {
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            buy: vec![Default::default(); 5],
+            sell: vec![Default::default(); 5],
+            ..Default::default()
+        });
+        let open = |b: &BrokerBridge| b.convert(&book).and_then(|u| u.quote).and_then(|q| q.open);
+        assert_eq!(open(&bridge), Some(1180.1));
+        manager
+            .stats()
+            .connects
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(open(&bridge), None, "the old connection's quote");
+        let mut partial = full_tick("SBIN", "NSE");
+        partial.mark_absent(QuoteField::Open);
+        let u = bridge.convert(&FeedEvent::Tick(partial)).expect("a price");
+        assert_eq!(u.quote.and_then(|q| q.open), None);
+    }
+
+    /// C03: a packet without a trade is not published (no LTP of 0 reaches a
+    /// client) and what it carried reaches the instrument's next frame.
+    #[test]
+    fn a_packet_without_a_trade_waits_for_the_price() {
+        let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
+        let key = InstrumentKey::new("NIFTY28NOV26FUT", "NFO");
+        bridge.subscribe(&key, Mode::Quote, 5);
+        let mut oi = NormalizedTick {
+            symbol: key.symbol.clone(),
+            exchange: key.exchange.clone(),
+            mode: 1,
+            oi: 777,
+            ..Default::default()
+        };
+        oi.mark_absent(QuoteField::Ltp);
+        oi.mark_carried(QuoteField::OpenInterest);
+        assert!(bridge.convert(&FeedEvent::Tick(oi.clone())).is_none());
+        let mut quote = full_tick("NIFTY28NOV26FUT", "NFO");
+        quote.mode = 2;
+        let u = bridge
+            .convert(&FeedEvent::Tick(quote.clone()))
+            .expect("a price");
+        assert_eq!(u.quote.and_then(|q| q.oi), Some(777));
+        oi.oi = 778;
+        assert!(
+            bridge.convert(&FeedEvent::Tick(oi)).is_none(),
+            "an OI packet after a price is not published either"
+        );
+        let u = bridge.convert(&FeedEvent::Tick(quote)).expect("a price");
+        assert_eq!(u.quote.and_then(|q| q.oi), Some(778));
     }
 }

@@ -11,9 +11,8 @@
 //! received them, an update built from the recorded frame. The desktop
 //! frame must then have the same keys (top level, `data`, depth levels) and
 //! the same JSON value types, and the same `data.mode` label; prices are not
-//! compared. One tolerance: the
-//! desktop always sends `ltt` in mode-1 data, which the web's Zerodha
-//! adapter omits on mode-1 copies derived from a richer tick.
+//! compared. The desktop leaves `ltt` out of an LTP copy of a richer
+//! Zerodha tick as the web's adapter does, so there is no tolerance.
 
 use crate::feed_support;
 
@@ -122,7 +121,7 @@ fn compare_market(exp: &Value, got: &Value) {
     let (ed, gd) = (&exp["data"], &got["data"]);
     let (ek, gk) = (keys(ed), keys(gd));
     let missing: Vec<_> = ek.difference(&gk).collect();
-    let extra: Vec<_> = gk.difference(&ek).filter(|k| *k != "ltt").collect();
+    let extra: Vec<_> = gk.difference(&ek).collect();
     assert!(
         missing.is_empty() && extra.is_empty(),
         "data keys differ: missing {:?} extra {:?}\nrecorded {}\ndesktop  {}",
@@ -202,11 +201,11 @@ fn update_from(frame: &Value) -> MarketUpdate {
     let mode = Mode::from_u8(frame["mode"].as_u64().unwrap_or(1) as u8).unwrap_or(Mode::Ltp);
     let ts = int(&d["timestamp"]).unwrap_or(0);
     let quote = (mode >= Mode::Quote).then(|| QuoteFields {
-        volume: int(&d["volume"]).unwrap_or(0),
-        last_quantity: int(&d["last_quantity"]).unwrap_or(0),
-        average_price: num(&d["average_price"]).unwrap_or(0.0),
-        total_buy_quantity: int(&d["total_buy_quantity"]).unwrap_or(0),
-        total_sell_quantity: int(&d["total_sell_quantity"]).unwrap_or(0),
+        volume: int(&d["volume"]),
+        last_quantity: int(&d["last_quantity"]),
+        average_price: num(&d["average_price"]),
+        total_buy_quantity: int(&d["total_buy_quantity"]),
+        total_sell_quantity: int(&d["total_sell_quantity"]),
         open: num(&d["open"]),
         high: num(&d["high"]),
         low: num(&d["low"]),
@@ -224,7 +223,7 @@ fn update_from(frame: &Value) -> MarketUpdate {
                     .map(|l| DepthLevel {
                         price: num(&l["price"]).unwrap_or(0.0),
                         quantity: int(&l["quantity"]).unwrap_or(0),
-                        orders: int(&l["orders"]).unwrap_or(0),
+                        orders: int(&l["orders"]),
                     })
                     .collect()
             })
@@ -246,6 +245,7 @@ fn update_from(frame: &Value) -> MarketUpdate {
         quote,
         depth,
         exact_mode: false,
+        token: None,
     }
 }
 

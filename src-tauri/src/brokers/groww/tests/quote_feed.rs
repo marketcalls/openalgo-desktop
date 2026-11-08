@@ -106,9 +106,21 @@ fn an_index_quote_carries_only_what_the_tick_does() {
     .encode_to_vec();
     let d = quote(&mut f, &tick);
     assert_eq!(d["ltp"], 24_350.75);
+    // `broker`, `topic` and `subscription_mode`: the meta keys the web's
+    // Groww adapter adds to every frame (`groww_adapter.py`).
     assert_eq!(
         keys(&d),
-        ["exchange", "ltp", "ltt", "mode", "symbol", "timestamp"]
+        [
+            "broker",
+            "exchange",
+            "ltp",
+            "ltt",
+            "mode",
+            "subscription_mode",
+            "symbol",
+            "timestamp",
+            "topic"
+        ]
     );
 }
 

@@ -133,10 +133,10 @@ impl AppFeed {
 fn frame(event: &FeedEvent, key: &InstrumentKey, mode: Mode, broker: &str) -> Option<Value> {
     let update = match event {
         FeedEvent::Tick(t) if t.symbol == key.symbol && t.exchange == key.exchange => {
-            tick_update(key.clone(), t)
+            tick_update(key.clone(), t)?
         }
         FeedEvent::Depth(d) if d.symbol == key.symbol && d.exchange == key.exchange => {
-            depth_update(key.clone(), d, None)
+            depth_update(key.clone(), d, None, Default::default())
         }
         _ => return None,
     };

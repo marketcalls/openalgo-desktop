@@ -1,0 +1,188 @@
+//! The audit's minimum regression matrix for merges (C03): previously
+//! supplied fields stay within a connection, absent never becomes 0, a
+//! genuine 0 stays, and a new connection starts afresh.
+
+use super::*;
+use crate::feed::bridge::render::tests::full_tick;
+
+fn quote_packet() -> NormalizedTick {
+    NormalizedTick {
+        mode: 2,
+        ltp: 219.3,
+        open: 480.0,
+        high: 495.0,
+        low: 210.0,
+        close: 494.05,
+        volume: 1_234_575,
+        average_price: 300.5,
+        last_quantity: 25,
+        total_buy_quantity: 700,
+        total_sell_quantity: 800,
+        last_trade_time_ms: 1_740_729_550_000,
+        timestamp_ms: 1_740_729_550_100,
+        ..full_tick("NIFTY28NOV26FUT", "NFO")
+    }
+}
+
+/// Only the price, its quantity and trade time (Upstox LTPC).
+fn ltpc_packet(ltp: f64) -> NormalizedTick {
+    let mut t = NormalizedTick {
+        symbol: "NIFTY28NOV26FUT".into(),
+        exchange: "NFO".into(),
+        mode: 2,
+        ltp,
+        last_quantity: 150,
+        last_trade_time_ms: 1_740_729_553_000,
+        timestamp_ms: 1_740_729_553_100,
+        ..Default::default()
+    };
+    for f in [
+        QuoteField::Open,
+        QuoteField::High,
+        QuoteField::Low,
+        QuoteField::Close,
+        QuoteField::Volume,
+        QuoteField::AveragePrice,
+        QuoteField::TotalBuyQuantity,
+        QuoteField::TotalSellQuantity,
+    ] {
+        t.mark_absent(f);
+    }
+    t
+}
+
+/// Only open interest, no trade (HDFC Sky's OI packet).
+fn oi_packet(oi: i64) -> NormalizedTick {
+    let mut t = NormalizedTick {
+        symbol: "NIFTY28NOV26FUT".into(),
+        exchange: "NFO".into(),
+        mode: 1,
+        oi,
+        timestamp_ms: 1_740_729_554_000,
+        ..Default::default()
+    };
+    t.mark_absent(QuoteField::Ltp);
+    t.mark_carried(QuoteField::OpenInterest);
+    t
+}
+
+/// Audit regression matrix row 1 (web upstox_adapter.py `_merge_feed`,
+/// audit P-01's probe): full, then LTPC-only, then OI-only, then full. The
+/// quote an LTPC packet does not repeat stays, its new price and trade time
+/// replace the old, the change follows the new price, and an OI-only
+/// packet changes OI alone.
+#[test]
+fn a_partial_packet_keeps_the_quote_it_did_not_repeat() {
+    let full = quote_packet();
+    let s = merge(None, &full, 1);
+    let s = merge(Some(&s), &ltpc_packet(220.0), 1);
+    let t = s.tick();
+    assert_eq!((t.ltp, t.last_quantity), (220.0, 150));
+    assert_eq!((t.open, t.close, t.volume), (480.0, 494.05, 1_234_575));
+    assert_eq!(t.last_trade_time_ms, 1_740_729_553_000);
+    assert_eq!((t.change, t.change_percent), (-274.05, -55.47));
+    let k = t.known();
+    for f in [QuoteField::Open, QuoteField::Volume, QuoteField::Change] {
+        assert!(k.contains(f), "{:?}", f);
+    }
+    assert!(
+        !k.contains(QuoteField::OpenInterest),
+        "a Quote packet has none"
+    );
+
+    let s = merge(Some(&s), &oi_packet(98_765), 1);
+    let t = s.tick();
+    assert_eq!((t.ltp, t.oi, t.volume), (220.0, 98_765, 1_234_575));
+    assert!(t.knows(QuoteField::OpenInterest) && t.knows(QuoteField::Ltp));
+    assert_eq!(
+        t.last_trade_time_ms, 1_740_729_553_000,
+        "no trade, same time"
+    );
+
+    let s = merge(Some(&s), &full, 1);
+    assert_eq!((s.tick().ltp, s.tick().oi), (219.3, 98_765));
+}
+
+/// An OI-only packet before the first price makes a snapshot with no price
+/// (the bridge publishes nothing for it) and its OI waits for the price.
+#[test]
+fn a_packet_without_a_price_first_keeps_its_fields_for_the_price() {
+    let s = merge(None, &oi_packet(0), 1);
+    assert!(!s.tick().knows(QuoteField::Ltp));
+    assert!(s.tick().knows(QuoteField::OpenInterest), "a genuine 0 OI");
+    let s = merge(Some(&s), &quote_packet(), 1);
+    assert_eq!(s.tick().oi, 0);
+    assert!(s.tick().knows(QuoteField::OpenInterest));
+}
+
+/// A genuine zero replaces a value: no volume yet after a session's first
+/// packet, a total that went to 0.
+#[test]
+fn a_genuine_zero_replaces_the_old_value() {
+    let s = merge(None, &quote_packet(), 1);
+    let mut next = quote_packet();
+    next.total_buy_quantity = 0;
+    next.volume = 0;
+    let s = merge(Some(&s), &next, 1);
+    assert_eq!((s.tick().total_buy_quantity, s.tick().volume), (0, 0));
+    assert!(s.tick().knows(QuoteField::TotalBuyQuantity));
+}
+
+/// Audit regression matrix row "Reconnect with first packet partial": a
+/// packet of a new connection never merges the old connection's quote.
+#[test]
+fn a_new_connection_starts_afresh() {
+    let s = merge(None, &quote_packet(), 1);
+    let s = merge(Some(&s), &ltpc_packet(220.0), 2);
+    let t = s.tick();
+    assert!(!t.knows(QuoteField::Open) && !t.knows(QuoteField::Close));
+    assert!(!t.knows(QuoteField::Change), "no close of this connection");
+    assert_eq!(t.open, 0.0);
+    assert!(s.of_epoch(2) && !s.of_epoch(1));
+}
+
+/// A new price without a trade time does not keep the old trade time (it
+/// belonged to the old price), and one with an explicit "no trade time"
+/// mark keeps that mark.
+#[test]
+fn the_trade_time_goes_with_its_price() {
+    let s = merge(None, &quote_packet(), 1);
+    let mut next = ltpc_packet(221.0);
+    next.last_trade_time_ms = 0;
+    let s = merge(Some(&s), &next, 1);
+    assert!(!s.tick().knows(QuoteField::LastTradeTime));
+    assert!(!s.tick().absent.contains(QuoteField::LastTradeTime));
+    next.mark_absent(QuoteField::LastTradeTime);
+    let s = merge(Some(&s), &next, 1);
+    assert!(s.tick().absent.contains(QuoteField::LastTradeTime));
+}
+
+/// The optional shared fields stay until a packet sends a new value; the
+/// broker-only fields last one packet (Upstox's auction price).
+#[test]
+fn extras_stay_and_broker_fields_last_one_packet() {
+    use crate::brokers::common::streaming::{BrokerField, BrokerValue};
+    let mut first = quote_packet();
+    first.extras.upper_circuit = Some(540.0);
+    first.broker_fields.set(
+        BrokerField::IndicativeEquilibriumPrice,
+        BrokerValue::Float(0.0),
+    );
+    let s = merge(None, &first, 1);
+    assert_eq!(
+        s.tick()
+            .broker_fields
+            .get(BrokerField::IndicativeEquilibriumPrice),
+        Some(BrokerValue::Float(0.0)),
+        "an explicit 0 is carried"
+    );
+    let mut next = ltpc_packet(220.0);
+    next.extras.lower_circuit = Some(440.0);
+    let s = merge(Some(&s), &next, 1);
+    let x = s.tick().extras;
+    assert_eq!(
+        (x.upper_circuit, x.lower_circuit),
+        (Some(540.0), Some(440.0))
+    );
+    assert!(s.tick().broker_fields.is_empty());
+}
