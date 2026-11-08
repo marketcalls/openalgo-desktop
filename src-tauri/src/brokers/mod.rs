@@ -605,10 +605,12 @@ pub trait Broker: Send + Sync {
     /// An update from the broker's order socket, completed before it is
     /// published: IndMoney's stream names an order it did not see placed
     /// by its id alone, and the web looks it up in the order book (bk-b
-    /// RB-11). The relay awaits it within a deadline and holds no lock
-    /// meanwhile. Default: as it came.
+    /// RB-11). `auth` is the session's, as `create_feed` gets it (the
+    /// broker keeps no token). The relay awaits it within a deadline and
+    /// holds no lock meanwhile. Default: as it came.
     async fn complete_order_update(
         &self,
+        _auth: &AuthToken,
         update: common::streaming::OrderUpdate,
     ) -> common::streaming::OrderUpdate {
         update

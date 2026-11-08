@@ -338,7 +338,7 @@ impl Broker for MockBroker {
     fn id(&self) -> &'static str {
         self.id
     }
-    async fn complete_order_update(&self, update: OrderUpdate) -> OrderUpdate {
+    async fn complete_order_update(&self, _auth: &AuthToken, update: OrderUpdate) -> OrderUpdate {
         let delay = *self.completion_delay.lock();
         if let Some(delay) = delay {
             tokio::time::sleep(delay).await;

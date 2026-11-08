@@ -191,7 +191,7 @@ impl BrokerRuntime {
             let bus = bus.clone();
             Self::spawn(
                 &self.tasks,
-                relay_socket_orders(rx, feed, bus, (broker.clone(), generation)),
+                relay_socket_orders(rx, feed, bus, (broker.clone(), auth.clone(), generation)),
             );
         }
 
@@ -403,10 +403,10 @@ fn feed_refusal(broker: &Arc<dyn Broker>) -> FeedRefusal {
 /// (`Broker::complete_order_update`) before it is published as it came.
 const ORDER_COMPLETION_DEADLINE: Duration = Duration::from_secs(5);
 
-/// `update` as the broker completed it, or as it came when the broker did
-/// not answer within the deadline (bk-b RB-11).
-async fn completed(broker: &dyn Broker, update: OrderUpdate) -> OrderUpdate {
-    let asked = broker.complete_order_update(update.clone());
+/// `update` as the broker completed it with the session's `auth`, or as it
+/// came when the broker did not answer within the deadline (bk-b RB-11).
+async fn completed(broker: &dyn Broker, auth: &AuthToken, update: OrderUpdate) -> OrderUpdate {
+    let asked = broker.complete_order_update(auth, update.clone());
     match tokio::time::timeout(ORDER_COMPLETION_DEADLINE, asked).await {
         Ok(done) => done,
         Err(_) => {
@@ -423,13 +423,13 @@ async fn relay_socket_orders(
     mut rx: broadcast::Receiver<MarketEvent>,
     feed: Arc<WebSocketManager>,
     bus: Arc<EventBus>,
-    (broker, generation): (Arc<dyn Broker>, u64),
+    (broker, auth, generation): (Arc<dyn Broker>, AuthToken, u64),
 ) {
     loop {
         match rx.recv().await {
             Ok(ev) => {
                 if let FeedEvent::OrderUpdate(u) = &*ev {
-                    let u = completed(&*broker, u.clone()).await;
+                    let u = completed(&*broker, &auth, u.clone()).await;
                     bus.publish(order_event(&u, broker.id(), generation));
                 }
             }
