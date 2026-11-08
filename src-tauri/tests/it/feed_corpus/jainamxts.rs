@@ -20,6 +20,7 @@ corpus_cases!(
         index_quote_root,
         index_quote_touchline,
         ltp_equity_and_index,
+        oi_event_1510_kept,
         quote_partial_keeps_the_quote,
         quote_root,
         quote_touchline,
