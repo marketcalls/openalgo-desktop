@@ -4,7 +4,9 @@
 
 use crate::brokers::common::mapping::Exchange;
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::brokers::families::xts::{BinaryDecoder, XtsBroker, XtsConfig, XtsHooks, XtsLogin};
+use crate::brokers::families::xts::{
+    BinaryDecoder, EventCode, XtsBroker, XtsConfig, XtsHooks, XtsLogin,
+};
 
 pub static CONFIG: XtsConfig = XtsConfig {
     id: "jainamxts",
@@ -35,6 +37,9 @@ pub static CONFIG: XtsConfig = XtsConfig {
         multiquote_oi: false,
         split_duplicate_batch: false,
         data_stall_watchdog: false,
+        event_code: EventCode::WhenMissing,
+        text_1105_as_ltp: true,
+        oi_events: true,
     },
 };
 

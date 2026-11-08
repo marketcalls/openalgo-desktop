@@ -12,7 +12,7 @@ use crate::brokers::common::streaming::{
     QuoteField,
 };
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::brokers::{compositedge, ibulls, Broker};
+use crate::brokers::{compositedge, ibulls, jainamxts, rmoney, Broker};
 use serde_json::{json, Value};
 
 fn feed(cfg: &'static XtsConfig) -> XtsFeed {
@@ -154,4 +154,65 @@ fn twenty_levels_on_nse_and_nfo() {
     for exchange in ["BSE", "BFO", "MCX", "CDS", "NSE_INDEX"] {
         assert_eq!(b.feed_depth_levels(exchange), vec![5], "{}", exchange);
     }
+}
+
+/// FB-05: Jainam's and RMoney's web clients take the code of a payload
+/// without one from its event (RMoney's always); the template's adapter
+/// reads a code-less payload as a touchline.
+#[test]
+fn jainam_and_rmoney_take_the_code_from_the_event() {
+    let mut no_code = depth_1502();
+    no_code.as_object_mut().unwrap().remove("MessageCode");
+    for (cfg, mode, books) in [
+        (&jainamxts::CONFIG, 3, 1),
+        (&rmoney::CONFIG, 3, 1),
+        (&ibulls::CONFIG, 2, 0),
+    ] {
+        let (t, b) = decode(&mut feed(cfg), "1502-json-full", no_code.clone());
+        assert_eq!((t[0].mode, b.len()), (mode, books), "{}", cfg.id);
+    }
+    // A payload's own code: Jainam keeps it, RMoney takes the event's.
+    let mut quote_code = depth_1502();
+    quote_code["MessageCode"] = json!(1501);
+    let (t, _) = decode(
+        &mut feed(&jainamxts::CONFIG),
+        "1502-json-full",
+        quote_code.clone(),
+    );
+    assert_eq!(t[0].mode, 2);
+    let (t, b) = decode(&mut feed(&rmoney::CONFIG), "1502-json-full", quote_code);
+    assert_eq!((t[0].mode, b.len()), (3, 1));
+}
+
+/// FB-05: Jainam and RMoney read a 1105 text event as LTP (1512); the
+/// desktop reads it as a touchline for the members whose web adapter drops
+/// it.
+#[test]
+fn jainam_and_rmoney_read_1105_text_as_ltp() {
+    let text = json!("t:1_2885,110:2503.25,111:4,112:4512345,114:2490");
+    for (cfg, mode) in [
+        (&jainamxts::CONFIG, 1),
+        (&rmoney::CONFIG, 1),
+        (&ibulls::CONFIG, 2),
+    ] {
+        let (t, _) = decode(&mut feed(cfg), "1105-json-partial", text.clone());
+        assert_eq!((t[0].mode, t[0].ltp), (mode, 2503.25), "{}", cfg.id);
+        assert!(!t[0].knows(QuoteField::LastTradeTime), "{}", cfg.id);
+    }
+}
+
+/// FB-05: Jainam's web adapter publishes a 1510 open-interest event; the
+/// desktop keeps its OI for the next priced message and publishes nothing
+/// from a message without a trade.
+#[test]
+fn jainam_keeps_the_oi_of_a_1510() {
+    let oi = json!({"MessageCode": 1510, "ExchangeSegment": 1, "ExchangeInstrumentID": 2885,
+                    "OpenInterest": 12345675});
+    let (t, _) = decode(&mut feed(&jainamxts::CONFIG), "1510-json-full", oi.clone());
+    assert_eq!(t[0].oi, 12345675);
+    assert!(t[0].knows(QuoteField::OpenInterest));
+    assert!(!t[0].knows(QuoteField::Ltp));
+    assert!(decode(&mut feed(&ibulls::CONFIG), "1510-json-full", oi)
+        .0
+        .is_empty());
 }

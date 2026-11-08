@@ -91,6 +91,31 @@ pub struct XtsHooks {
     /// #2155). XTS answers pings on an otherwise silent socket, so the
     /// manager's frame watchdog alone never sees such a stall.
     pub data_stall_watchdog: bool,
+    /// Where a payload's `MessageCode` comes from (audit FB-05).
+    pub event_code: EventCode,
+    /// A 1105 text event is an LTP (1512) message: jainamxts
+    /// `_process_1105_data` and rmoney `_process_binary_format` mark it so.
+    /// The other members' web adapters drop it for want of a code; the
+    /// desktop reads it there as the touchline its codes 110-119 are.
+    pub text_1105_as_ltp: bool,
+    /// A 1510 open-interest event updates the instrument's OI (jainamxts
+    /// `_process_json_data` publishes 1505 and 1510 to every subscribed
+    /// mode; a 1505 candle carries no trade and is not read).
+    pub oi_events: bool,
+}
+
+/// Where a member's web client takes a payload's `MessageCode` from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EventCode {
+    /// The payload's own; one without is a touchline (the template
+    /// adapters).
+    #[default]
+    Payload,
+    /// The event's (`1502` in `1502-json-full`) when the payload has none
+    /// (jainamxts `_process_xts_data`).
+    WhenMissing,
+    /// Always the event's (rmoney `_process_market_data`).
+    Event,
 }
 
 /// Static configuration of one XTS white-label.

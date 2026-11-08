@@ -90,9 +90,7 @@ fn levels(v: Option<&Value>) -> Vec<DepthLevel> {
         .unwrap_or_default()
 }
 
-/// The price, its trade time and the last quantity, which every code
-/// carries; the last quantity counts beyond an LTP message's mode (the
-/// web's XTS LTP data is `{ltp, ltt, ltq}`).
+/// The price and its trade time, which every code carries.
 fn trade(tick: &mut NormalizedTick, t: &Value) {
     match number(t, &["LastTradedPrice"]) {
         Some(p) => tick.ltp = p,
@@ -102,22 +100,24 @@ fn trade(tick: &mut NormalizedTick, t: &Value) {
         Some(s) => tick.last_trade_time_ms = xts_time_ms(s as i64),
         None => tick.mark_absent(F::LastTradeTime),
     }
-    if tick.mode == 1 {
-        if let Some(q) = number(t, &["LastTradedQunatity", "LastTradedQuantity"]) {
-            tick.last_quantity = q as i64;
-            tick.mark_carried(F::LastQuantity);
-        }
-    }
 }
 
-/// The quote fields of a Quote or Depth message; each one it lacks is
-/// marked absent.
+/// The quote fields of a message. A Quote or Depth message lacking one
+/// marks it absent; an LTP message carries those it has beyond its mode:
+/// a 1512's last quantity (the web's XTS LTP data is `{ltp, ltt, ltq}`),
+/// a 1105 read as LTP its whole touchline, kept for the next Quote frame.
 fn quote(tick: &mut NormalizedTick, t: &Value) {
+    let ltp_message = tick.mode == 1;
     for (field, keys) in QUOTE_KEYS {
         let Some(v) = number(t, keys) else {
-            tick.mark_absent(*field);
+            if !ltp_message {
+                tick.mark_absent(*field);
+            }
             continue;
         };
+        if ltp_message {
+            tick.mark_carried(*field);
+        }
         match field {
             F::Open => tick.open = v,
             F::High => tick.high = v,
@@ -156,9 +156,7 @@ pub fn normalise_message(v: &Value, sub: &FeedSubscription) -> Vec<FeedEvent> {
         ..Default::default()
     };
     trade(&mut tick, t);
-    if mode >= 2 {
-        quote(&mut tick, t);
-    }
+    quote(&mut tick, t);
     if mode == 3 {
         match number(v, &["OpenInterest"]) {
             Some(oi) => tick.oi = oi as i64,
@@ -192,4 +190,21 @@ fn book_lacks(tick: &NormalizedTick) -> AbsentFields {
         lacks = lacks.with(F::Ltp);
     }
     lacks
+}
+
+/// A 1510 open-interest message (Jainam's web adapter publishes it to every
+/// subscribed mode): the instrument's OI, kept for its next priced message
+/// and published with nothing of its own, since it carries no trade (the
+/// web's frame for it has an LTP of 0).
+pub(crate) fn open_interest(v: &Value, sub: &FeedSubscription) -> Option<FeedEvent> {
+    let oi = number(v, &["OpenInterest"])?;
+    Some(FeedEvent::Tick(NormalizedTick {
+        symbol: sub.symbol.clone(),
+        exchange: sub.exchange.clone(),
+        mode: 3,
+        oi: oi as i64,
+        timestamp_ms: now_ms(),
+        absent: AbsentFields::ALL.without(F::OpenInterest),
+        ..Default::default()
+    }))
 }

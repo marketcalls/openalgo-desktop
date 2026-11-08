@@ -4,7 +4,7 @@
 
 use crate::brokers::common::mapping::Exchange;
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::brokers::families::xts::{XtsBroker, XtsConfig, XtsHooks, XtsLogin};
+use crate::brokers::families::xts::{EventCode, XtsBroker, XtsConfig, XtsHooks, XtsLogin};
 
 pub static CONFIG: XtsConfig = XtsConfig {
     id: "compositedge",
@@ -37,6 +37,9 @@ pub static CONFIG: XtsConfig = XtsConfig {
         multiquote_oi: false,
         split_duplicate_batch: false,
         data_stall_watchdog: false,
+        event_code: EventCode::Payload,
+        text_1105_as_ltp: false,
+        oi_events: false,
     },
 };
 

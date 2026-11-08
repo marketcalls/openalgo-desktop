@@ -39,7 +39,7 @@ use super::auth::{market_login_with, MarketSession};
 use super::binary;
 use super::mapping;
 use super::socketio::{self, EioPacket, SioPacket};
-use super::{BinaryDecoder, MarketKeys, XtsConfig};
+use super::{BinaryDecoder, EventCode, MarketKeys, XtsConfig};
 use crate::brokers::common::mapping::Exchange;
 use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedSubscription, Message, PrepareError, ReleaseAnswer, WsRequest,
@@ -525,6 +525,18 @@ fn is_market_event(name: &str) -> bool {
     )
 }
 
+/// The code an event's name carries (`1502` in `1502-json-full`).
+fn event_code(name: &str) -> Option<i64> {
+    name.split_once('-')?.0.parse().ok()
+}
+
+/// `MessageCode` set to `code` (a JSON message object).
+fn set_code(v: &mut Value, code: i64) {
+    if let Value::Object(m) = v {
+        m.insert("MessageCode".into(), Value::from(code));
+    }
+}
+
 fn now_secs() -> i64 {
     chrono::Utc::now().timestamp()
 }
@@ -646,7 +658,7 @@ impl XtsFeed {
     fn drain_snapshots(&mut self) -> Vec<FeedEvent> {
         let mut out = Vec::new();
         while let Ok(s) = self.snapshots_rx.try_recv() {
-            out.extend(self.handle_payload(&Value::String(s)));
+            out.extend(self.handle_payload(None, &Value::String(s)));
         }
         out
     }
@@ -679,26 +691,58 @@ impl XtsFeed {
             .collect()
     }
 
-    /// Decode one market-data message (JSON shape) into events.
+    /// Decode one market-data message (JSON shape) into events, routed by
+    /// `(segment, instrument id)` to its subscription.
     pub fn normalise(&self, v: &Value) -> Vec<FeedEvent> {
         let seg = mapping::i(v, "ExchangeSegment");
         let id = mapping::s(v, "ExchangeInstrumentID");
         let Some(sub) = self.book.get(&(seg, id.trim().to_string())) else {
             return Vec::new();
         };
+        if self.cfg.hooks.oi_events && mapping::i(v, "MessageCode") == 1510 {
+            return normalise::open_interest(v, sub).into_iter().collect();
+        }
         normalise_message(v, sub)
     }
 
-    fn handle_payload(&self, payload: &Value) -> Vec<FeedEvent> {
-        match payload {
-            Value::String(s) if s.starts_with("t:") => binary::parse_1105(s)
-                .map(|v| self.normalise(&v))
-                .unwrap_or_default(),
-            Value::String(s) => serde_json::from_str::<Value>(s)
-                .map(|v| self.normalise(&v))
-                .unwrap_or_default(),
-            o @ Value::Object(_) => self.normalise(o),
-            _ => Vec::new(),
+    /// One event's payload (a 1105 text packet or a JSON message) with the
+    /// code the member's web client gives it (audit FB-05). `event` is the
+    /// Socket.IO event's name; a subscribe snapshot has none.
+    fn handle_payload(&self, event: Option<&str>, payload: &Value) -> Vec<FeedEvent> {
+        let hooks = &self.cfg.hooks;
+        let parsed;
+        let v = match payload {
+            Value::String(s) if s.starts_with("t:") => {
+                let Some(mut v) = binary::parse_1105(s) else {
+                    return Vec::new();
+                };
+                if hooks.text_1105_as_ltp {
+                    set_code(&mut v, 1512);
+                }
+                return self.normalise(&v);
+            }
+            Value::String(s) => match serde_json::from_str::<Value>(s) {
+                Ok(v) => {
+                    parsed = v;
+                    &parsed
+                }
+                Err(_) => return Vec::new(),
+            },
+            o @ Value::Object(_) => o,
+            _ => return Vec::new(),
+        };
+        let from_event = match hooks.event_code {
+            EventCode::Payload => None,
+            EventCode::WhenMissing if v.get("MessageCode").is_some() => None,
+            EventCode::WhenMissing | EventCode::Event => event.and_then(event_code),
+        };
+        match from_event {
+            Some(code) => {
+                let mut v = v.clone();
+                set_code(&mut v, code);
+                self.normalise(&v)
+            }
+            None => self.normalise(v),
         }
     }
 
@@ -752,7 +796,7 @@ impl XtsFeed {
             return Vec::new();
         }
         args.first()
-            .map(|a| self.handle_payload(a))
+            .map(|a| self.handle_payload(Some(name.as_str()), a))
             .unwrap_or_default()
     }
 
