@@ -207,12 +207,14 @@ fn a_depth_before_the_first_quote_is_sent_again_complete() {
     assert_eq!(d["depth"]["buy"][0]["price"], 801.45);
 
     let next = record(DATA_FIELDS.len(), &[(LTP, 80_200)]);
-    let events = parse(&mut f, &[update(SF_ID, &next)]);
-    assert!(
-        matches!(&events[..], [FeedEvent::Tick(_)]),
-        "a later quote does not resend the book: {:?}",
-        events
-    );
+    for later in [update(SF_ID, &next), quote_snapshot(&base())] {
+        let events = parse(&mut f, &[later]);
+        assert!(
+            matches!(&events[..], [FeedEvent::Tick(_)]),
+            "a later quote does not resend the book: {:?}",
+            events
+        );
+    }
 }
 
 /// Web `test_unsent_quote_field_is_left_out_of_depth`.

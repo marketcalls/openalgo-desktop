@@ -490,7 +490,9 @@ impl HsmFeed {
             precision,
         };
         self.emit(&state, out);
-        let first_quote = (kind == Topic::Scrip).then(|| state.name.clone());
+        let first_quote = (kind == Topic::Scrip
+            && !self.live.values().any(|s| s.name == state.name))
+        .then(|| state.name.clone());
         // Only topics this feed subscribed are kept, so the map is bounded
         // by the subscriptions.
         if self.topics.contains_key(&state.name) {
@@ -500,7 +502,8 @@ impl HsmFeed {
         }
         // A depth sent before the scrip's first quote went out without the
         // quote fields; it goes once more, now complete (web
-        // `depth_awaiting_quote`). Later quotes are updates, not snapshots.
+        // `depth_awaiting_quote`). A later quote, an update or another
+        // snapshot of the same feed, does not send it again.
         if let Some(depth) = first_quote.and_then(|n| self.sibling(&n, "sf|", "dp|")) {
             self.emit(depth, out);
         }
