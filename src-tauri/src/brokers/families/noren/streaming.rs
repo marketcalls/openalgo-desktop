@@ -156,6 +156,7 @@ impl NorenFeed {
             total_buy_quantity: i(&v, "tbq"),
             total_sell_quantity: i(&v, "tsq"),
             timestamp_ms: now_ms(),
+            ..Default::default()
         }
     }
 

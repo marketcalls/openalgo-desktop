@@ -470,6 +470,7 @@ impl HdfcSecuritiesFeed {
                 total_buy_quantity: p.total_buy_quantity,
                 total_sell_quantity: p.total_sell_quantity,
                 timestamp_ms: p.timestamp_ms,
+                ..Default::default()
             });
         out.push(FeedEvent::Tick(t));
         if let Some(d) = depth {

@@ -79,6 +79,7 @@ fn a_depth_snapshot_carries_its_book_as_depth_buy_and_sell() {
         total_buy_quantity: 210,
         total_sell_quantity: 200,
         timestamp_ms: 1_793_000_000_000,
+        ..Default::default()
     });
     let f = frame(&d, &key(), Mode::Depth, "zerodha").unwrap();
     assert_eq!(f["mode"].as_u64(), Some(3));

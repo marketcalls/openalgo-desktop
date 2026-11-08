@@ -572,6 +572,7 @@ impl PocketfulFeed {
                     total_buy_quantity: s.total_buy_qty,
                     total_sell_quantity: s.total_sell_qty,
                     timestamp_ms: now,
+                    ..Default::default()
                 };
                 vec![FeedEvent::Tick(t), FeedEvent::Depth(depth)]
             }

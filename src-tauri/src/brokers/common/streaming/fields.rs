@@ -1,0 +1,340 @@
+//! What a packet carries (audit C03) and the fields beyond the canonical
+//! quote (C06). The adapter API is described in the parent module's doc.
+//!
+//! # What each broker's adapter fills
+//!
+//! Read from the web adapters at a1b9e3250 (every key each one publishes
+//! per mode is in `docs/port/market-data-frames.md`; the names the frames
+//! use are in `feed/dialect/names.rs`). Beside the canonical quote, the
+//! web publishes, and the desktop adapter fills (`carried` / `absent`
+//! marks, [`QuoteExtras`], [`BrokerField`]):
+//!
+//! * aliceblue: OI (as `total_oi`); marks for the `tf` fields it lacks.
+//! * angel: Depth circuits (SNAP packet).
+//! * arrow: close and change in the 17-byte LTPC packet (`carried`), Depth
+//!   circuits (241-byte packet).
+//! * XTS family (compositedge, fivepaisaxts, ibulls, iifl, jainamxts,
+//!   rmoney, wisdom): last quantity in 1512 LTP packets (`carried`), Depth
+//!   OI and circuits from 1502.
+//! * definedge: previous OI, total OI, best bid and ask, circuits, 52-week
+//!   range.
+//! * deltaexchange: best bid and ask (ticker `q`), `absent(Orders)`.
+//! * dhan: previous close as `close`, the packet's close as `day_close`,
+//!   previous OI, `OiHigh` / `OiLow`.
+//! * firstock: OI in Quote (`carried`), circuits.
+//! * fivepaisa: best bid and ask.
+//! * Noren family (flattrade, shoonya, tradesmart, zebu): the feed time
+//!   `ft` as `exchange_time_ms`, circuits, 52-week range; TradeSmart OI in
+//!   Quote.
+//! * fyers: best bid and ask, circuits, exchange time; the quote in
+//!   LTP-mode packets (`carried`).
+//! * groww: `TradedValue`, best bid and ask from the book.
+//! * hdfcsecurities, hdfcsky: circuits (CIRC packets), OI in quote packets.
+//! * iiflcapital, nubra, samco: best bid and ask.
+//! * indmoney: best bid and ask, OI change, OI in Quote.
+//! * kotak: nothing beyond the canonical quote.
+//! * motilal: volume in LTP packets (`carried`), circuits.
+//! * mstock: exchange time, circuits.
+//! * paytm: 52-week range, OI change.
+//! * pocketful: change and OI in compact (LTP) packets, best bid and ask.
+//! * rupeezy, tradejini: circuits; Tradejini OI in Quote.
+//! * sahi: circuits, OI in Quote.
+//! * upstox: last quantity and close in LTPC packets (`carried`), the
+//!   auction fields, `absent(Orders)` (done).
+//! * zerodha: the index packet's change (`carried`) and exchange time
+//!   (done).
+
+use super::FeedMode;
+use serde::ser::{Serialize, SerializeMap, Serializer};
+
+/// A field of a `market_data` frame whose presence a packet decides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum QuoteField {
+    Open = 1 << 0,
+    High = 1 << 1,
+    Low = 1 << 2,
+    /// Previous close.
+    Close = 1 << 3,
+    Volume = 1 << 4,
+    AveragePrice = 1 << 5,
+    LastQuantity = 1 << 6,
+    TotalBuyQuantity = 1 << 7,
+    TotalSellQuantity = 1 << 8,
+    OpenInterest = 1 << 9,
+    /// The change since the previous close, absolute and in percent.
+    Change = 1 << 10,
+    /// The exchange's last trade time (an index tick may have none): `ltt`
+    /// is then left out in every mode, LTP included.
+    LastTradeTime = 1 << 11,
+    /// The last traded price. A packet without a trade (an OI, circuit or
+    /// book-only packet) marks it absent and leaves `ltp` at 0.
+    Ltp = 1 << 12,
+    /// The order count of each book level (`NormalizedDepth::absent`;
+    /// Upstox's book has none).
+    Orders = 1 << 13,
+}
+
+/// A set of [`QuoteField`]s. Named for its first use, the fields a packet
+/// does not carry (`NormalizedTick::absent`); the same set names what a
+/// packet carries beyond its mode (`NormalizedTick::carried`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+pub struct AbsentFields(u32);
+
+impl AbsentFields {
+    /// Every field.
+    pub const ALL: Self = Self((1 << 14) - 1);
+
+    pub const fn of(fields: &[QuoteField]) -> Self {
+        let mut bits = 0;
+        let mut i = 0;
+        while i < fields.len() {
+            bits |= fields[i] as u32;
+            i += 1;
+        }
+        Self(bits)
+    }
+
+    pub const fn contains(self, field: QuoteField) -> bool {
+        self.0 & field as u32 != 0
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.0 == 0
+    }
+
+    /// This set and `field`: an adapter that learns field by field what a
+    /// message lacks.
+    pub const fn with(self, field: QuoteField) -> Self {
+        Self(self.0 | field as u32)
+    }
+
+    pub const fn without(self, field: QuoteField) -> Self {
+        Self(self.0 & !(field as u32))
+    }
+
+    pub const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    pub const fn minus(self, other: Self) -> Self {
+        Self(self.0 & !other.0)
+    }
+
+    /// What a packet of `mode` carries unless it marks a field absent: the
+    /// last traded price; in Quote the day's quote, the previous close and
+    /// the change; in Depth open interest too. The trade time goes by its
+    /// value (`NormalizedTick::known`).
+    pub const fn of_mode(mode: u8) -> Self {
+        const LTP: AbsentFields = AbsentFields::of(&[QuoteField::Ltp]);
+        const QUOTE: AbsentFields = LTP.union(AbsentFields::of(&[
+            QuoteField::Open,
+            QuoteField::High,
+            QuoteField::Low,
+            QuoteField::Close,
+            QuoteField::Volume,
+            QuoteField::AveragePrice,
+            QuoteField::LastQuantity,
+            QuoteField::TotalBuyQuantity,
+            QuoteField::TotalSellQuantity,
+            QuoteField::Change,
+        ]));
+        match mode {
+            2 => QUOTE,
+            m if m >= 3 => QUOTE.with(QuoteField::OpenInterest),
+            _ => LTP,
+        }
+    }
+}
+
+/// The optional fields several brokers' web adapters publish with the
+/// same meaning (C06): `None` when this packet did not carry the value,
+/// never a default. The bridge keeps an instrument's last value of each
+/// within one connection, as it keeps its quote. `feed::dialect` renders
+/// each under the names the broker's web adapter uses, and only those.
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize)]
+pub struct QuoteExtras {
+    /// Today's price band (circuit limits).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upper_circuit: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lower_circuit: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub high_52_week: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub low_52_week: Option<f64>,
+    /// The best bid and ask of the packet (its own top-of-book fields, or
+    /// level 1 where the web adapter takes it from the book).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bid_price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bid_quantity: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ask_price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ask_quantity: Option<i64>,
+    /// The previous session's open interest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_oi: Option<i64>,
+    /// Open interest against the previous session's, as the broker sends it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oi_change: Option<i64>,
+    /// The broker's total open interest where it sends one beside `oi`
+    /// (Definedge `total_oi`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_oi: Option<i64>,
+    /// Today's close as the exchange sends it, beside the previous close
+    /// (`close`; Dhan's `day_close`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub day_close: Option<f64>,
+    /// The packet's own exchange or feed time, epoch milliseconds (Zerodha
+    /// `exchange_timestamp`, the Noren family's `<broker>_timestamp`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exchange_time_ms: Option<i64>,
+}
+
+impl QuoteExtras {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// These fields, each replaced by `newer`'s where it carries one.
+    pub fn overlay(self, newer: Self) -> Self {
+        Self {
+            upper_circuit: newer.upper_circuit.or(self.upper_circuit),
+            lower_circuit: newer.lower_circuit.or(self.lower_circuit),
+            high_52_week: newer.high_52_week.or(self.high_52_week),
+            low_52_week: newer.low_52_week.or(self.low_52_week),
+            bid_price: newer.bid_price.or(self.bid_price),
+            bid_quantity: newer.bid_quantity.or(self.bid_quantity),
+            ask_price: newer.ask_price.or(self.ask_price),
+            ask_quantity: newer.ask_quantity.or(self.ask_quantity),
+            previous_oi: newer.previous_oi.or(self.previous_oi),
+            oi_change: newer.oi_change.or(self.oi_change),
+            total_oi: newer.total_oi.or(self.total_oi),
+            day_close: newer.day_close.or(self.day_close),
+            exchange_time_ms: newer.exchange_time_ms.or(self.exchange_time_ms),
+        }
+    }
+}
+
+/// A field one broker's web adapter publishes and no other does with the
+/// same meaning. The set is fixed here, so an adapter can never write an
+/// identity, mode or canonical key (each name is checked against them by
+/// `feed::dialect`'s tests).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrokerField {
+    /// Upstox: the call auction's indicative equilibrium price (an explicit
+    /// 0 included), web `upstox_adapter.py` `_auction_fields`.
+    IndicativeEquilibriumPrice,
+    /// Upstox: the auction's reference price.
+    ReferencePrice,
+    /// Upstox: the indicative equilibrium quantity.
+    IndicativeEquilibriumQuantity,
+    /// Upstox: the signed indicative imbalance, total and at market.
+    IndicativeImbalanceQuantityTotal,
+    IndicativeImbalanceQuantityMarket,
+    /// Upstox: whether the instrument trades in the closing auction.
+    CasEligible,
+    /// Dhan: today's highest and lowest open interest (`oi_high`, `oi_low`).
+    OiHigh,
+    OiLow,
+    /// Groww: the day's traded value (`value`).
+    TradedValue,
+}
+
+impl BrokerField {
+    /// The web adapter's key.
+    pub const fn name(self) -> &'static str {
+        match self {
+            BrokerField::IndicativeEquilibriumPrice => "indicative_equilibrium_price",
+            BrokerField::ReferencePrice => "reference_price",
+            BrokerField::IndicativeEquilibriumQuantity => "indicative_equilibrium_quantity",
+            BrokerField::IndicativeImbalanceQuantityTotal => "indicative_imbalance_quantity_total",
+            BrokerField::IndicativeImbalanceQuantityMarket => {
+                "indicative_imbalance_quantity_market"
+            }
+            BrokerField::CasEligible => "cas_eligible",
+            BrokerField::OiHigh => "oi_high",
+            BrokerField::OiLow => "oi_low",
+            BrokerField::TradedValue => "value",
+        }
+    }
+
+    /// The lowest mode whose frames carry it (and every mode above).
+    pub const fn from_mode(self) -> FeedMode {
+        match self {
+            BrokerField::IndicativeEquilibriumPrice | BrokerField::TradedValue => FeedMode::Ltp,
+            BrokerField::OiHigh | BrokerField::OiLow => FeedMode::Depth,
+            _ => FeedMode::Quote,
+        }
+    }
+
+    pub const ALL: [BrokerField; 9] = [
+        BrokerField::IndicativeEquilibriumPrice,
+        BrokerField::ReferencePrice,
+        BrokerField::IndicativeEquilibriumQuantity,
+        BrokerField::IndicativeImbalanceQuantityTotal,
+        BrokerField::IndicativeImbalanceQuantityMarket,
+        BrokerField::CasEligible,
+        BrokerField::OiHigh,
+        BrokerField::OiLow,
+        BrokerField::TradedValue,
+    ];
+}
+
+/// A [`BrokerField`]'s value.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BrokerValue {
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+}
+
+impl Serialize for BrokerValue {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match *self {
+            BrokerValue::Int(v) => s.serialize_i64(v),
+            BrokerValue::Float(v) => s.serialize_f64(v),
+            BrokerValue::Bool(v) => s.serialize_bool(v),
+        }
+    }
+}
+
+/// The [`BrokerField`]s one packet carried, each at most once. Not kept
+/// from one packet to the next: a value that should last (an auction's
+/// price lasts one tick) stays only as long as the adapter sends it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct BrokerFields(Vec<(BrokerField, BrokerValue)>);
+
+impl BrokerFields {
+    /// Record `field`, replacing an earlier value of it.
+    pub fn set(&mut self, field: BrokerField, value: BrokerValue) {
+        match self.0.iter_mut().find(|(f, _)| *f == field) {
+            Some(slot) => slot.1 = value,
+            None => self.0.push((field, value)),
+        }
+    }
+
+    pub fn get(&self, field: BrokerField) -> Option<BrokerValue> {
+        self.0.iter().find(|(f, _)| *f == field).map(|(_, v)| *v)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (BrokerField, BrokerValue)> + '_ {
+        self.0.iter().copied()
+    }
+}
+
+impl Serialize for BrokerFields {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut m = s.serialize_map(Some(self.0.len()))?;
+        for (f, v) in &self.0 {
+            m.serialize_entry(f.name(), v)?;
+        }
+        m.end()
+    }
+}

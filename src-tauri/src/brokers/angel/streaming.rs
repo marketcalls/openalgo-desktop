@@ -258,6 +258,7 @@ impl AngelFeed {
                 total_buy_quantity: t.total_buy_quantity,
                 total_sell_quantity: t.total_sell_quantity,
                 timestamp_ms: now,
+                ..Default::default()
             });
         }
         out.push(FeedEvent::Tick(t));

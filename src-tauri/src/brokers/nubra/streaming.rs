@@ -252,6 +252,7 @@ impl NubraFeed {
             buy,
             sell,
             timestamp_ms: now_ms(),
+            ..Default::default()
         }
     }
 

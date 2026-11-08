@@ -331,6 +331,7 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
         last_trade_time_ms: ltt.unwrap_or(0),
         timestamp_ms: ts,
         absent,
+        ..Default::default()
     };
     if tick.change == 0.0 && tick.change_percent == 0.0 {
         tick.derive_change();
@@ -367,6 +368,7 @@ fn book(sub: &SubInfo, merged: &Map<String, Value>, tick: &NormalizedTick) -> No
         total_buy_quantity: tick.total_buy_quantity,
         total_sell_quantity: tick.total_sell_quantity,
         timestamp_ms: tick.timestamp_ms,
+        ..Default::default()
     }
 }
 

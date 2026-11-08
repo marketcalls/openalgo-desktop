@@ -560,6 +560,7 @@ impl KotakFeed {
                 total_buy_quantity: st.total_buy,
                 total_sell_quantity: st.total_sell,
                 timestamp_ms: now,
+                ..Default::default()
             }));
         }
     }

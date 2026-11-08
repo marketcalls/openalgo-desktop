@@ -275,6 +275,7 @@ impl ArrowFeed {
             total_buy_quantity: t.total_buy_quantity,
             total_sell_quantity: t.total_sell_quantity,
             timestamp_ms: ts,
+            ..Default::default()
         });
         out.push(FeedEvent::Tick(t));
         if let Some(d) = depth {

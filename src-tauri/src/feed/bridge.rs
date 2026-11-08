@@ -644,6 +644,7 @@ mod tests {
             total_buy_quantity: 7,
             total_sell_quantity: 8,
             timestamp_ms: 1_791_000_000_200,
+            ..Default::default()
         });
         let data = |b: &BrokerBridge| {
             let u = b.convert(&book).expect("held");

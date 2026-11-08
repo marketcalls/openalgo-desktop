@@ -347,6 +347,7 @@ pub fn ticks(sub: &FeedSubscription, p: &MarketPacket, oi: Option<i64>) -> Vec<F
             total_buy_quantity: p.total_buy_quantity,
             total_sell_quantity: p.total_sell_quantity,
             timestamp_ms: now,
+            ..Default::default()
         }));
     }
     out

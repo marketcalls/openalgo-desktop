@@ -36,6 +36,7 @@ fn full_equity_tick_serves_quote_and_depth_serves_depth_holders() {
         total_buy_quantity: 7,
         total_sell_quantity: 8,
         timestamp_ms: 1_791_000_000_200,
+        ..Default::default()
     };
     let u = depth_update(k, &d, Some(&t));
     assert_eq!(u.mode, Mode::Depth);

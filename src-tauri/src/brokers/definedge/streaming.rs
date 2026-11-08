@@ -317,6 +317,7 @@ impl DefinedgeFeed {
             last_trade_time_ms: trade_time.unwrap_or(0),
             timestamp_ms: received,
             absent: absent(d, trade_time),
+            ..Default::default()
         };
         let pc = t.change_percent;
         t.derive_change();
@@ -342,6 +343,7 @@ impl DefinedgeFeed {
             total_buy_quantity: i(&v, "tbq"),
             total_sell_quantity: i(&v, "tsq"),
             timestamp_ms: now_ms(),
+            ..Default::default()
         }
     }
 

@@ -857,6 +857,7 @@ pub fn normalise_message(v: &Value, sub: &FeedSubscription) -> Vec<FeedEvent> {
             total_buy_quantity: tick.total_buy_quantity,
             total_sell_quantity: tick.total_sell_quantity,
             timestamp_ms: now,
+            ..Default::default()
         }
     });
     out.push(FeedEvent::Tick(tick));

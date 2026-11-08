@@ -276,6 +276,7 @@ impl IndmoneyFeed {
                 total_buy_quantity: bid_qty as i64,
                 total_sell_quantity: ask_qty as i64,
                 timestamp_ms: t.timestamp_ms,
+                ..Default::default()
             }));
         }
         out.insert(0, FeedEvent::Tick(t));

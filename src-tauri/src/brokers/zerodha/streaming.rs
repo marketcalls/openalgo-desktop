@@ -245,6 +245,7 @@ impl KiteFeed {
                         buy,
                         sell,
                         timestamp_ms: now,
+                        ..Default::default()
                     });
                 }
             }
