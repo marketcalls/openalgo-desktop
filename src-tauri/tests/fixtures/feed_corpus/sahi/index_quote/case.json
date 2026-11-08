@@ -24,7 +24,7 @@
       "test/test_sahi_streaming_codec.py::test_index_ltp_without_time_and_derivative_oi"
     ],
     "notes": [
-      "Depth on an index is not cased: the desktop sends the index tick's frame and its book's frame, both without a book (feed/protocol.rs market_data leaves the book out for an index), to a Depth client, and the feed server may fold the two into one; the web sends one frame with a padded empty book."
+      "Depth on an index is the case index_depth."
     ]
   },
   "deviations": [

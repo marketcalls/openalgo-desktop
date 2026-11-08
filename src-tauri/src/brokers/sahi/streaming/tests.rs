@@ -547,6 +547,23 @@ fn an_index_tick_frames_no_trade_time() {
     }
 }
 
+/// An index's DepthTick (a price and no levels) makes one tick event and no
+/// book event, so a Depth holder gets one frame for it, as the web sends
+/// one (lead ruling R1).
+#[test]
+fn an_index_depth_tick_makes_no_book_event() {
+    let mut f = feed();
+    f.subscribe_frames(&[sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Depth)]);
+    let idx = [vfield(1, 26000), vfield(4, 2456735)].concat();
+    let events = f.parse(&Message::Binary(lfield(4, &idx)));
+    assert!(
+        matches!(&events[..], [FeedEvent::Tick(t)] if t.mode == 3),
+        "{:?}",
+        events
+    );
+    assert_eq!(frames(&events, crate::feed::Mode::Depth).len(), 1);
+}
+
 #[test]
 fn unknown_and_unsubscribed_ids_and_wrong_segments_are_ignored() {
     let mut f = feed();

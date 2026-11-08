@@ -332,7 +332,11 @@ impl SahiFeed {
         }
         let mut out = Vec::with_capacity(2);
         out.push(FeedEvent::Tick(tick));
-        if served == FeedMode::Depth {
+        // An index has no book: its DepthTick carries a price and no levels,
+        // and its tick already reaches the Depth holders, so a book event
+        // would only send them the same frame twice (the web sends one).
+        let index = sub.exchange.ends_with("_INDEX");
+        if served == FeedMode::Depth && !index {
             out.push(FeedEvent::Depth(NormalizedDepth {
                 symbol: sub.symbol.clone(),
                 exchange: sub.exchange.clone(),

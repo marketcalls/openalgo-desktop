@@ -31,6 +31,7 @@ corpus_cases!(
         quote_mode,
         depth_mode,
         index_quote,
+        index_depth,
         derivative_oi,
         reconnect_resubscribes,
         unsupported_exchange,
