@@ -4,6 +4,7 @@
 //! left out, never sent as 0 (web openalgo#2376, audit C03).
 
 use super::to_json;
+use crate::brokers::common::streaming::QuoteField;
 use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Fold, Key, Source, Unit};
 use crate::feed::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
 use serde::ser::{SerializeMap, Serializer};
@@ -223,6 +224,40 @@ fn time_text(ms: i64) -> Option<Value> {
     Some(t.format("%Y-%m-%d %H:%M:%S").to_string().into())
 }
 
+/// The quote field whose value `source` reads, for the packet's doubles.
+fn field_of(source: Source) -> Option<QuoteField> {
+    Some(match source {
+        Source::Volume => QuoteField::Volume,
+        Source::LastQuantity => QuoteField::LastQuantity,
+        Source::TotalBuyQuantity => QuoteField::TotalBuyQuantity,
+        Source::TotalSellQuantity => QuoteField::TotalSellQuantity,
+        Source::Oi => QuoteField::OpenInterest,
+        Source::TradeTime(_) => QuoteField::LastTradeTime,
+        _ => return None,
+    })
+}
+
+/// The quote field a canonical integer key carries.
+fn field_named(key: &str) -> Option<QuoteField> {
+    Some(match key {
+        "volume" => QuoteField::Volume,
+        "last_quantity" => QuoteField::LastQuantity,
+        "total_buy_quantity" => QuoteField::TotalBuyQuantity,
+        "total_sell_quantity" => QuoteField::TotalSellQuantity,
+        "oi" | "open_interest" => QuoteField::OpenInterest,
+        "ltt" => QuoteField::LastTradeTime,
+        _ => return None,
+    })
+}
+
+/// An integer as a double, for a key the broker's web form writes as one.
+fn as_double(v: Value) -> Value {
+    match v.as_i64() {
+        Some(i) => Value::from(i as f64),
+        None => v,
+    }
+}
+
 /// The value of `source` in this frame, if known.
 fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
     let q = fr.q;
@@ -275,12 +310,15 @@ fn web_keys(d: &DataOut<'_>, fr: &Frame<'_>) -> WebKeys {
     let mut out: Vec<(&'static str, Value)> = Vec::new();
     let taken =
         |out: &[(&'static str, Value)], key: &str| d.has(key) || out.iter().any(|(k, _)| *k == key);
-    for name in dialect(fr.broker).names {
+    let dia = dialect(fr.broker);
+    for name in dia.names {
         if fr.content < name.from || fr.content > name.to || taken(&out, name.key) {
             continue;
         }
         if let Some(v) = value(name.source, fr) {
-            out.push((name.key, v));
+            let double = dia.floats.contains(&name.key)
+                || field_of(name.source).is_some_and(|f| fr.q.floats.contains(f));
+            out.push((name.key, if double { as_double(v) } else { v }));
         }
     }
     for (field, v) in fr.q.broker_fields.iter() {
@@ -369,8 +407,10 @@ fn canonical<'a>(
 ) -> DataOut<'a> {
     let key = &update.key;
     let num = |name: &str, v: Option<i64>| {
+        let double =
+            dia.floats.contains(&name) || field_named(name).is_some_and(|f| qf.floats.contains(f));
         v.map(|v| {
-            if dia.floats.contains(&name) {
+            if double {
                 Num::Float(v as f64)
             } else {
                 Num::Int(v)

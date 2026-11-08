@@ -34,6 +34,7 @@ fn quote_fields(key: &InstrumentKey, t: &NormalizedTick, known: AbsentFields) ->
         trade_time: has(F::LastTradeTime).then_some(t.last_trade_time_ms),
         extras: t.extras,
         broker_fields: t.broker_fields.clone(),
+        floats: t.floats,
     }
 }
 

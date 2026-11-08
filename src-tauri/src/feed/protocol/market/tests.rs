@@ -3,7 +3,7 @@
 //! on every exchange where the broker's web adapter sends one (C04).
 
 use super::market_data;
-use crate::brokers::common::streaming::{BrokerField, BrokerValue, QuoteExtras};
+use crate::brokers::common::streaming::{BrokerField, BrokerValue, QuoteExtras, QuoteField};
 use crate::feed::dialect::names::BROKERS;
 use crate::feed::source::{DepthBook, DepthLevel, QuoteFields};
 use crate::feed::{InstrumentKey, MarketUpdate, Mode};
@@ -650,6 +650,32 @@ fn a_lower_holder_gets_the_packet_as_the_brokers_web_adapter_sends_it() {
         assert!(zerodha.get(k).is_none(), "{}: {}", k, zerodha);
     }
     assert!(render(&u, Mode::Quote, "zerodha").get("depth").is_none());
+}
+
+/// A key goes out as a double where the broker's web form writes one: by
+/// the broker's list, for canonical keys and its own names alike (Groww's
+/// LTP `volume`), or for one packet (Jainam's 1105 text event, `ltq`).
+#[test]
+fn doubles_go_where_the_web_writes_them() {
+    let u = update(equity());
+    assert!(
+        render(&u, Mode::Ltp, "groww")["volume"].is_f64(),
+        "Groww's LTP name"
+    );
+    assert!(
+        render(&u, Mode::Quote, "groww")["volume"].is_f64(),
+        "canonical too"
+    );
+    let mut text_event = update(equity());
+    if let Some(q) = text_event.quote.as_mut() {
+        q.floats = crate::brokers::common::streaming::AbsentFields::of(&[QuoteField::LastQuantity]);
+    }
+    let mut at_ltp = text_event.clone();
+    at_ltp.mode = Mode::Ltp;
+    assert_eq!(render(&at_ltp, Mode::Ltp, "jainamxts")["ltq"], 7.0);
+    assert!(render(&at_ltp, Mode::Ltp, "jainamxts")["ltq"].is_f64());
+    assert!(render(&update(equity()), Mode::Ltp, "jainamxts")["ltq"].is_i64());
+    assert!(render(&text_event, Mode::Quote, "jainamxts")["last_quantity"].is_f64());
 }
 
 /// Fyers' 50-level frames carry the TBT book's keys; Upstox's book carries

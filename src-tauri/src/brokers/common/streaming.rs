@@ -183,6 +183,12 @@ pub struct NormalizedTick {
     /// The broker-only fields this packet carried.
     #[serde(skip_serializing_if = "BrokerFields::is_empty")]
     pub broker_fields: BrokerFields,
+    /// The integer fields this packet's web form writes as doubles (Jainam's
+    /// and RMoney's 1105 text event parses with `float()`): their keys,
+    /// canonical and the broker's own, go out as JSON doubles for this
+    /// packet only, beside the broker's fixed list (`feed::dialect`).
+    #[serde(skip_serializing_if = "AbsentFields::is_empty")]
+    pub floats: AbsentFields,
 }
 
 impl NormalizedTick {

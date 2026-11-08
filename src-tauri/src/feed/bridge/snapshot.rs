@@ -83,6 +83,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
     s.timestamp_ms = t.timestamp_ms;
     s.extras = s.extras.overlay(t.extras);
     s.broker_fields = t.broker_fields.clone();
+    s.floats = t.floats;
     let known = known.without(F::LastTradeTime).without(F::Orders);
     s.carried = known;
     s.absent = AbsentFields::ALL
