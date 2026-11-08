@@ -1,8 +1,11 @@
 //! The manager's references: for each instrument, how many of each mode its
 //! consumers hold (feed clients through the bridge, the sandbox, strategies,
 //! Flow), and the one subscription the broker sees for it, at the highest
-//! mode held. An instrument goes when its last reference does, so the
-//! registry is bounded by what is held now.
+//! mode held and, in Depth, the deepest book held (audit Phase 3.2: a
+//! Quote owner's 5 levels followed by a Depth owner's 20 streams 20, and
+//! goes back to 5 when the last 20-level owner leaves). An instrument goes
+//! when its last reference does, so the registry is bounded by what is
+//! held now.
 
 use crate::brokers::common::streaming::{FeedMode, FeedSubscription};
 use std::collections::{BTreeMap, HashMap};
@@ -18,14 +21,32 @@ pub(super) enum Delta {
 pub(super) struct Entry {
     pub(super) base: FeedSubscription,
     pub(super) modes: BTreeMap<FeedMode, u32>,
+    /// Depth references by the book depth each asked for.
+    pub(super) depths: BTreeMap<u8, u32>,
 }
 
 impl Entry {
     pub(super) fn effective(&self) -> Option<FeedSubscription> {
-        self.modes
-            .keys()
-            .next_back()
-            .map(|m| self.base.with_mode(*m))
+        let mode = *self.modes.keys().next_back()?;
+        let mut sub = self.base.with_mode(mode);
+        if mode == FeedMode::Depth {
+            if let Some(deepest) = self.depths.keys().next_back() {
+                sub.depth = *deepest;
+            }
+        }
+        Some(sub)
+    }
+}
+
+/// Count `n` up (or down, dropping it at zero) in a tally.
+fn tally<K: Ord>(counts: &mut BTreeMap<K, u32>, key: K, up: bool) {
+    if up {
+        *counts.entry(key).or_insert(0) += 1;
+    } else if let std::collections::btree_map::Entry::Occupied(mut e) = counts.entry(key) {
+        *e.get_mut() -= 1;
+        if *e.get() == 0 {
+            e.remove();
+        }
     }
 }
 
@@ -35,7 +56,9 @@ fn change(before: Option<FeedSubscription>, after: Option<FeedSubscription>) -> 
     match (before, after) {
         (None, Some(a)) => Some(Delta::Subscribe(a)),
         (Some(b), None) => Some(Delta::Unsubscribe(b)),
-        (Some(b), Some(a)) if b.mode != a.mode => Some(Delta::ModeChange(b, a)),
+        (Some(b), Some(a)) if b.mode != a.mode || b.depth != a.depth => {
+            Some(Delta::ModeChange(b, a))
+        }
         _ => None,
     }
 }
@@ -67,9 +90,13 @@ impl Registry {
             .or_insert_with(|| Entry {
                 base: s.clone(),
                 modes: BTreeMap::new(),
+                depths: BTreeMap::new(),
             });
         let before = entry.effective();
-        *entry.modes.entry(s.mode).or_insert(0) += 1;
+        tally(&mut entry.modes, s.mode, true);
+        if s.mode == FeedMode::Depth {
+            tally(&mut entry.depths, s.depth, true);
+        }
         change(before, entry.effective())
     }
 
@@ -79,16 +106,87 @@ impl Registry {
         let key = s.instrument_key();
         let entry = self.entries.get_mut(&key)?;
         let before = entry.effective();
-        if let Some(n) = entry.modes.get_mut(&s.mode) {
-            *n -= 1;
-            if *n == 0 {
-                entry.modes.remove(&s.mode);
-            }
+        if !entry.modes.contains_key(&s.mode) {
+            return None;
+        }
+        tally(&mut entry.modes, s.mode, false);
+        if s.mode == FeedMode::Depth {
+            tally(&mut entry.depths, s.depth, false);
         }
         let after = entry.effective();
         if after.is_none() {
             self.entries.remove(&key);
         }
         change(before, after)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sub(mode: FeedMode, depth: u8) -> FeedSubscription {
+        FeedSubscription {
+            symbol: "RELIANCE".into(),
+            exchange: "NSE".into(),
+            token: "2885".into(),
+            brsymbol: "RELIANCE".into(),
+            brexchange: "NSE".into(),
+            mode,
+            depth,
+        }
+    }
+
+    fn moved(d: Option<Delta>) -> Option<(FeedMode, u8, FeedMode, u8)> {
+        match d {
+            Some(Delta::ModeChange(b, a)) => Some((b.mode, b.depth, a.mode, a.depth)),
+            _ => None,
+        }
+    }
+
+    /// Audit Phase 3.2: a Quote owner (5 levels) then a Depth owner asking
+    /// for 20 on one socket streams 20, not the first reference's 5; when
+    /// the last 20-level owner leaves it goes back to the deepest still
+    /// held, then to Quote.
+    #[test]
+    fn the_deepest_book_held_is_streamed() {
+        let mut r = Registry::default();
+        assert!(matches!(
+            r.add(sub(FeedMode::Quote, 5)),
+            Some(Delta::Subscribe(_))
+        ));
+        assert_eq!(
+            moved(r.add(sub(FeedMode::Depth, 20))),
+            Some((FeedMode::Quote, 5, FeedMode::Depth, 20))
+        );
+        assert_eq!(r.effective_all()[0].depth, 20);
+        assert_eq!(
+            moved(r.add(sub(FeedMode::Depth, 5))),
+            None,
+            "a shallower book is inside the deeper one"
+        );
+        assert_eq!(
+            moved(r.remove(&sub(FeedMode::Depth, 20))),
+            Some((FeedMode::Depth, 20, FeedMode::Depth, 5))
+        );
+        assert_eq!(
+            moved(r.remove(&sub(FeedMode::Depth, 5))),
+            Some((FeedMode::Depth, 5, FeedMode::Quote, 5))
+        );
+        assert!(matches!(
+            r.remove(&sub(FeedMode::Quote, 5)),
+            Some(Delta::Unsubscribe(_))
+        ));
+        assert!(r.entries.is_empty());
+    }
+
+    /// A reference that is not held changes nothing, and does not take
+    /// another mode's reference with it.
+    #[test]
+    fn releasing_what_is_not_held_changes_nothing() {
+        let mut r = Registry::default();
+        r.add(sub(FeedMode::Ltp, 5));
+        assert!(r.remove(&sub(FeedMode::Depth, 20)).is_none());
+        assert_eq!(r.effective_all()[0].mode, FeedMode::Ltp);
     }
 }
