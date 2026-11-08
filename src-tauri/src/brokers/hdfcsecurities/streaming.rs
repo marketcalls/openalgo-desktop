@@ -560,6 +560,23 @@ impl BrokerFeed for HdfcSecuritiesFeed {
         subscribe_frames(&items, "unSubscribe")
     }
 
+    /// The instrument stays subscribed, so it keeps its merge snapshot. A
+    /// new feed type is a subscribe at that type, with no unSubscribe
+    /// first, as the web moves a held scrip (`subscribe_scrips` at the
+    /// highest mode left, hdfcsecurities_adapter.py:211 and :255); Quote
+    /// and Depth are both `ALL`, so moving between them sends nothing.
+    fn mode_change_frames(
+        &mut self,
+        old: &FeedSubscription,
+        new: &FeedSubscription,
+    ) -> Vec<Message> {
+        let items = self.items(std::slice::from_ref(new), true);
+        if sub_type(old.mode) == sub_type(new.mode) {
+            return Vec::new();
+        }
+        subscribe_frames(&items, "subscribe")
+    }
+
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
         match msg {
             Message::Binary(b) => {

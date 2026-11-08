@@ -986,6 +986,56 @@ fn ticks_say_what_their_packet_carries() {
     assert_eq!((idx.timestamp_ms, idx.change), (1_790_000_000_999, 10.5));
 }
 
+/// Web test/test_hdfcsky_quote_feed.py::test_modes_tracked_and_highest_kept_at_broker
+/// on HDFC Sky's sibling feed (the InvestRight adapter's subscribe and
+/// unsubscribe are the same code): a tier change subscribes the scrip again
+/// at the new type with no unSubscribe, Quote and Depth (both `ALL`) send
+/// nothing, and the instrument keeps its snapshot, so the next OI packet
+/// merges into it; the last unsubscribe sends one unSubscribe.
+#[test]
+fn a_mode_change_moves_the_tier_and_keeps_the_snapshot() {
+    let fut = |mode: FeedMode| sub("NIFTY25AUG2624500CE", "NFO", "45001", mode);
+    let frames_of = |m: Vec<Message>| m.iter().map(text).collect::<Vec<Value>>();
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    f.subscribe_frames(&[fut(FeedMode::Depth)]);
+    let full = mbp_packet(packet_type::NSE_FO_ALL, 45001, 100.5, 900);
+    f.parse(&Message::Binary(full.encode_to_vec()));
+    let down = f.mode_change_frames(&fut(FeedMode::Depth), &fut(FeedMode::Ltp));
+    assert_eq!(
+        frames_of(down),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_45001", "type": "LTP"}]})]
+    );
+    assert_eq!(f.tracked(), (1, 1), "the snapshot stays");
+    let oi = GenericDto {
+        instrument_id: 45001,
+        packet_type: packet_type::NSE_FO_OI,
+        mbp_data: Some(MbpData {
+            oi: 1500,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let ev = f.parse(&Message::Binary(oi.encode_to_vec()));
+    let [FeedEvent::Tick(t)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!((t.mode, t.ltp), (1, 100.5));
+    let up = f.mode_change_frames(&fut(FeedMode::Ltp), &fut(FeedMode::Quote));
+    assert_eq!(
+        frames_of(up),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_45001", "type": "ALL"}]})]
+    );
+    assert!(f
+        .mode_change_frames(&fut(FeedMode::Quote), &fut(FeedMode::Depth))
+        .is_empty());
+    let gone = f.unsubscribe_frames(&[fut(FeedMode::Depth)]);
+    assert_eq!(
+        frames_of(gone),
+        [json!({"heart_beat": false, "unSubscribe": [{"scripId": "NFO_45001", "type": "ALL"}]})]
+    );
+    assert_eq!(f.tracked(), (0, 0));
+}
+
 /// The feed's book holds the levels the broker sent, at most five a side,
 /// never zero rows padding it to five (web `_parse_packet`: `buy[:5]`,
 /// `sell[:5]`).

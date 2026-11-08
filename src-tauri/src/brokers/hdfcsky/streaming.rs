@@ -565,13 +565,11 @@ impl BrokerFeed for HdfcSkyFeed {
             // changes.
             return Vec::new();
         }
-        let was: Vec<(String, &'static str)> = scrips
-            .iter()
-            .map(|(id, _)| (id.clone(), sub_type(old.mode)))
-            .collect();
-        unsubscribe_messages(&was)
+        // A new type is a subscribe at that type, with no unSubscribe first:
+        // the web moves a held scrip the same way (`subscribe_scrips` at
+        // the highest mode left, hdfcsky_adapter.py:239 and :296).
+        subscribe_messages(&scrips)
             .into_iter()
-            .chain(subscribe_messages(&scrips))
             .map(Message::Text)
             .collect()
     }
