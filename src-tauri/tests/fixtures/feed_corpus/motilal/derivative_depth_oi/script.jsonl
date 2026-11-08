@@ -1,0 +1,10 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28OCT26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": ["frames/register.hex"]}
+{"step": "push", "frame": "frames/level1.hex", "note": "Only book level 1 has arrived."}
+{"step": "receive", "client": "a", "frame": "expected/book_1.json", "web": false}
+{"step": "push", "frame": "frames/oi.hex"}
+{"step": "push", "frame": "frames/ohlc.hex"}
+{"step": "push", "frame": "frames/ltp.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}

@@ -1,0 +1,8 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": ["frames/register.hex"]}
+{"step": "push", "frame": "frames/circuit.hex", "note": "Circuit limits: no Depth frame on either side."}
+{"step": "push", "frame": "frames/ohlc.hex", "note": "Day OHLC: no Depth frame on either side."}
+{"step": "push", "frame": "frames/ltp.hex", "note": "The last trade, before any book level (audit RB-09)."}
+{"step": "receive", "client": "a", "frame": "expected/depth_no_book.json", "web": false}

@@ -1,0 +1,72 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 3,
+  "broker": "motilal",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": "full",
+    "ltp": 0.0,
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 0,
+    "total_sell_quantity": 0,
+    "depth": {
+      "buy": [
+        {
+          "price": 1300.0,
+          "quantity": 10,
+          "orders": 1
+        },
+        {
+          "price": 1299.0,
+          "quantity": 11,
+          "orders": 1
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ],
+      "sell": [
+        {
+          "price": 1301.0,
+          "quantity": 20,
+          "orders": 2
+        },
+        {
+          "price": 1302.0,
+          "quantity": 21,
+          "orders": 2
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ]
+    }
+  }
+}

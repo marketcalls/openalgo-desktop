@@ -1,0 +1,1 @@
+{"uniqueorderid": "1300000000000002", "exchange": "NSEFO", "symboltoken": 35001, "symbol": "NIFTY 28-Oct-2026 FUT", "buyorsell": "SELL", "ordertype": "STOPLOSS", "producttype": "NORMAL", "price": 0, "triggerprice": 25000, "orderqty": 75, "qtytradedtoday": 0, "totalqtyremaining": 75, "averageprice": 0, "orderstatus": "Rejected", "error": "RMS: insufficient margin"}

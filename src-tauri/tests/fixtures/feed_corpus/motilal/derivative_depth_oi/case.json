@@ -1,0 +1,110 @@
+{
+  "broker": "motilal",
+  "summary": "Depth mode on an NFO future: one book level, the open interest packet, day OHLC and the last trade; OI 1500 in the Depth frame, the four levels not yet received padded.",
+  "scenarios": [
+    "derivative-oi",
+    "depth-update",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY28OCT26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY 28-Oct-2026 FUT",
+      "brexchange": "NSEFO",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "expiry": "28-OCT-26",
+      "tick_size": 0.1
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_binary_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._poll_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._normalize_depth_data",
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_oi_packet"
+    ],
+    "notes": [
+      "The web publishes every subscription from its packet stores every 500 ms (motilal_adapter.py _poll_market_data); web.json holds the poll after each push, the desktop sends a frame when a packet changes what a subscription reports.",
+      "NFO registers as exchange NSEFO, segment D: wire character N, as NSE cash."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "open",
+      "reason": "The desktop sends each book level as a Depth frame before the instrument's first trade, with LTP 0.0 and no quote fields (feed::bridge NO_QUOTE_YET); the web publishes Depth only once a quote and at least one book level have arrived. Gate the first Depth frame on both, as for RB-09.",
+      "ref": "audit RB-09; motilal_adapter.py:450-455"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "The desktop sends its receipt time as ltt: Motilal's packets carry no trade time either side reads (the packet header's time is undocumented and unused), and the web sends no ltt. A receipt time is not a trade time (lead decision 2026-11-09): mark the last trade time absent.",
+      "ref": "feed::bridge::ltt; motilal/streaming.rs MotilalFeed::events"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the canonical last_quantity in every broker's Quote and Depth frames and the web adapter's own name (ltq) beside it with the same value (feed::dialect, WS-05); this web adapter sends ltq only.",
+      "ref": "feed::dialect (Motilal ltq)"
+    },
+    {
+      "key": "ltq",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends Motilal's ltq beside last_quantity in Depth frames as in Quote frames (feed::dialect sends the aliases in both modes); this web adapter's Depth dict has no last quantity.",
+      "ref": "feed::dialect; motilal_adapter.py _normalize_depth_data"
+    },
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries every quote field of the instrument's latest tick (feed::bridge::depth_update); this web adapter's Depth dict leaves out the average price its Quote dict sends.",
+      "ref": "feed::bridge::depth_update; motilal_adapter.py _normalize_depth_data"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "open",
+      "reason": "Motilal's packets carry no book totals; the desktop sends 0, the web leaves the total out. Mark the totals absent.",
+      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "open",
+      "reason": "Motilal's packets carry no book totals; the desktop sends 0, the web leaves the total out. Mark the totals absent.",
+      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "No circuit packet has arrived: the web sends 0 (quote.get('upper_circuit', 0)), an invented limit; the desktop's carrier drops circuits altogether (audit C06). Once the carrier has them, a limit never received is left out and this becomes a web defect.",
+      "ref": "motilal_adapter.py _normalize_depth_data"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "No circuit packet has arrived: the web sends 0 (quote.get('upper_circuit', 0)), an invented limit; the desktop's carrier drops circuits altogether (audit C06). Once the carrier has them, a limit never received is left out and this becomes a web defect.",
+      "ref": "motilal_adapter.py _normalize_depth_data"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    },
+    {
+      "key": "depth",
+      "kind": "open",
+      "reason": "Four book levels have not arrived. Both sides pad them to five; the web pads with integer zeros ({\"price\": 0, ...}), the desktop with 0.0. Whether to pad as the web does, in its number types, or send only the levels received (no padded book) is a lead decision.",
+      "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs ScripData::levels"
+    }
+  ]
+}

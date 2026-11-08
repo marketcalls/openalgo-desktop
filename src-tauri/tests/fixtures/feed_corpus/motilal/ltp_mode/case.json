@@ -1,0 +1,49 @@
+{
+  "broker": "motilal",
+  "summary": "LTP mode on NSE cash: the login, the register, a last-trade packet as an LTP frame; after the unregister a late packet reaches no one.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_binary_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._poll_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._normalize_ltp_data"
+    ],
+    "notes": [
+      "The web publishes every subscription from its packet stores every 500 ms (motilal_adapter.py _poll_market_data); web.json holds the poll after each push, the desktop sends a frame when a packet changes what a subscription reports."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "The desktop sends its receipt time as ltt: Motilal's packets carry no trade time either side reads (the packet header's time is undocumented and unused), and the web sends no ltt. A receipt time is not a trade time (lead decision 2026-11-09): mark the last trade time absent.",
+      "ref": "feed::bridge::ltt; motilal/streaming.rs MotilalFeed::events"
+    },
+    {
+      "key": "volume",
+      "kind": "open",
+      "reason": "The web's LTP dict carries the day volume from the last-trade packet (motilal_adapter.py _normalize_ltp_data); the desktop's LTP frame carries no volume for any broker: a carrier gap for lane wire (audit RB 'Verified broker fields dropped by the common carrier').",
+      "ref": "feed::protocol::market_data; motilal_adapter.py:541"
+    }
+  ]
+}

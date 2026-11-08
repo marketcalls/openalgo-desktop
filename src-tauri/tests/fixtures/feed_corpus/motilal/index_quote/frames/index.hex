@@ -1,0 +1,7 @@
+# H: index value (web _parse_index_packet)
+4e                      # exchange character N (NSE and NSEFO share it)
+90650000                # scrip 26000
+c037fd46                # packet time, read by neither the web nor the desktop
+48                      # type H
+8069c346                # rate 25012.75
+00000000000000000000000000000000# unused

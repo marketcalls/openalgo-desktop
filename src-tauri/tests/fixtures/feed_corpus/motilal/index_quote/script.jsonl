@@ -1,0 +1,11 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "upstream_receives", "frames": ["frames/register.hex"], "note": "An index registers on its real exchange, NSE cash."}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "push", "frame": "frames/index.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_index.json"}
+{"step": "receive", "client": "b", "frame": "expected/ltp_index.json"}
+{"step": "push", "frame": "frames/ohlc.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_index_ohlc.json"}
+{"step": "receive", "client": "b", "frame": "expected/ltp_index.json"}

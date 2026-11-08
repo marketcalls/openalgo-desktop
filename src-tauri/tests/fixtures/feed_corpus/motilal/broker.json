@@ -1,0 +1,41 @@
+{
+  "broker": "motilal",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "CDS": [
+        5
+      ],
+      "NCX": [
+        5
+      ]
+    },
+    "orders": "a dedicated JSON order-update socket (wss://openapi.motilaloswal.com/ws)"
+  },
+  "sources": [
+    "broker/motilal/streaming/motilal_mapping.py::MotilalCapabilityRegistry",
+    "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter.subscribe",
+    "broker/motilal/streaming/motilal_order_adapter.py",
+    "services/order_update_service.py:68"
+  ],
+  "notes": [
+    "Depth is 5 levels everywhere; the web refuses any other depth in Depth mode (INVALID_DEPTH, motilal_adapter.py:242).",
+    "The web publishes from its packet stores on a 500 ms poll; the desktop pushes per packet."
+  ]
+}
