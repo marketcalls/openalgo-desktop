@@ -282,6 +282,8 @@ pub struct KotakFeed {
     /// both subscribe "Nifty 50".
     aliases: HashMap<(String, String), Vec<String>>,
     state: HashMap<String, State>,
+    /// `conn_req_time` of every auth frame, when pinned; now otherwise.
+    connect_time: Option<i64>,
 }
 
 impl KotakFeed {
@@ -296,7 +298,16 @@ impl KotakFeed {
             subs: HashMap::new(),
             aliases: HashMap::new(),
             state: HashMap::new(),
+            connect_time: None,
         }
+    }
+
+    /// Stamp every auth frame with `epoch_ms` as its `conn_req_time`, in
+    /// place of the time it is sent: the feed corpus compares the frames a
+    /// feed sends exactly (`tests/it/feed_corpus/kotak.rs`).
+    pub fn with_connect_time(mut self, epoch_ms: i64) -> Self {
+        self.connect_time = Some(epoch_ms);
+        self
     }
 
     /// Look the data centre's feed host up in `prepare` (once) and remember
@@ -333,7 +344,7 @@ impl KotakFeed {
             "version": "1.2.3",
             "sdk_version": 2,
             "sdk_date": "2026-08-07T09:41:17.667Z",
-            "conn_req_time": now_ms(),
+            "conn_req_time": self.connect_time.unwrap_or_else(now_ms),
             "sessionValidation": false,
         })
     }

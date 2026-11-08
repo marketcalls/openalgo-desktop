@@ -25,7 +25,7 @@ mod feed_config;
 mod funds;
 pub mod mapping;
 pub mod master_contract;
-mod order_feed;
+pub mod order_feed;
 mod orders;
 pub mod streaming;
 #[cfg(test)]
