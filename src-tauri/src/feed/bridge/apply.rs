@@ -303,6 +303,11 @@ impl BrokerBridge {
             })
             .collect();
         last_tick.retain(|k, _| desired.holds(k));
+        // A retry is for a reference still held that nobody wants; one the
+        // managers forgot (a new broker session) or that is wanted again
+        // has nothing to retry, and must not wake the loop.
+        ops.retry
+            .retain(|k, _| applied.contains_key(k) && !desired.contains(k));
         (*generation, add, remove)
     }
 
@@ -545,3 +550,6 @@ impl BrokerBridge {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

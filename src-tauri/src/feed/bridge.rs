@@ -278,6 +278,7 @@ impl BrokerBridge {
             st.applied.clear();
             st.last_tick.clear();
             st.generation += 1;
+            st.ops.forget_retries();
         }
         *self.deep.lock() = None;
         *self.deep_down.lock() = None;
