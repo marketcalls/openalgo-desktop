@@ -14,6 +14,9 @@
 //! * Quote and Depth frames carry the daily price band as `upper_circuit`
 //!   and `lower_circuit` (web `sahi_mapping.py` `build_quote_payload`,
 //!   audit P-11). A tick without a band leaves it out; the web sends 0.0.
+//! * Open interest goes out in Quote and Depth when the tick carries it
+//!   (audit C05), and not at all for an instrument whose ticks carry none
+//!   (an equity, an index), where the web sends 0.
 //! * The server pings every 30 s and closes with 4408 when no pong comes;
 //!   tungstenite answers its pings, so the feed sends no heartbeat. The
 //!   pings also keep the manager's stall watchdog quiet.
@@ -125,6 +128,21 @@ fn segment_of(exchange: &str) -> Option<u64> {
 /// Integer paise to rupees.
 pub(crate) fn rupees(paise: i64) -> f64 {
     paise as f64 / 100.0
+}
+
+/// Open interest as the tick carries it. `open_interest` is a proto3
+/// optional, so a tick without it (an equity, an index) has none, never a
+/// 0 (the web sends 0: an approved web defect), and a Quote tick that has
+/// it carries it beyond its mode (audit C05), as the web's Quote payload
+/// does.
+fn carry_oi(tick: &mut NormalizedTick, oi: Option<i64>) {
+    match oi {
+        Some(v) => {
+            tick.oi = v;
+            tick.mark_carried(QuoteField::OpenInterest);
+        }
+        None => tick.mark_absent(QuoteField::OpenInterest),
+    }
 }
 
 /// One side of the daily price band in rupees, or none when the tick left
@@ -295,7 +313,7 @@ impl SahiFeed {
         };
         if served >= FeedMode::Quote {
             tick.volume = t.volume_today;
-            tick.oi = t.open_interest.unwrap_or(0);
+            carry_oi(&mut tick, t.open_interest);
             tick.extras.upper_circuit = band(t.dpr_upper);
             tick.extras.lower_circuit = band(t.dpr_lower);
         }

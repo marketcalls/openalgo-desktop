@@ -13,8 +13,6 @@
     "timestamp": "<receipt_ms>",
     "last_trade_time": 1761700000123,
     "volume": 4000,
-    "oi": 0,
-    "open_interest": 0,
     "upper_circuit": 1419.5,
     "lower_circuit": 1161.5,
     "depth": {

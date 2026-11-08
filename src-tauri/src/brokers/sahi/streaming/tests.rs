@@ -300,7 +300,8 @@ fn depth_tick_publishes_tick_and_padded_depth_in_rupees() {
     // leave it out.
     assert_eq!((t.open, t.high, t.low, t.close), (0.0, 0.0, 0.0, 0.0));
     assert_eq!((t.change, t.change_percent), (0.0, 0.0));
-    assert_eq!(t.absent, NOT_ON_THE_STREAM);
+    // An equity's tick carries no open interest either.
+    assert_eq!(t.absent, NOT_ON_THE_STREAM.with(QuoteField::OpenInterest));
     let FeedEvent::Depth(d) = &events[1] else {
         panic!("second event is not depth")
     };
@@ -397,6 +398,34 @@ fn index_tick_and_derivative_oi() {
         panic!("not a tick")
     };
     assert_eq!((t.oi, t.ltp), (1500, 24700.0));
+    assert!(t.knows(QuoteField::OpenInterest), "{:?}", t);
+}
+
+/// Web test/test_sahi_streaming_codec.py::test_index_ltp_without_time_and_derivative_oi
+/// (its derivative): a Quote tick with open interest frames `oi` and
+/// `open_interest` (1500, audit C05); a Quote tick without it frames
+/// neither, where the web sends 0.
+#[test]
+fn a_quote_tick_frames_the_open_interest_it_carries() {
+    use crate::feed::Mode;
+    let mut f = feed();
+    f.subscribe_frames(&[
+        sub("NIFTYFUT", "NFO", "5", FeedMode::Quote),
+        sub("RELIANCE", "NSE", "2885", FeedMode::Quote),
+    ]);
+    let fut = [vfield(1, 5), vfield(4, 1), vfield(10, 1500)].concat();
+    let quote = &frames(&f.parse(&Message::Binary(lfield(3, &fut))), Mode::Quote)[0];
+    assert_eq!(
+        (quote["oi"].as_i64(), quote["open_interest"].as_i64()),
+        (Some(1500), Some(1500))
+    );
+    let stock = [vfield(1, 2885), vfield(4, 129050)].concat();
+    let quote = &frames(&f.parse(&Message::Binary(lfield(3, &stock))), Mode::Quote)[0];
+    assert!(
+        quote.get("oi").is_none() && quote.get("open_interest").is_none(),
+        "{}",
+        quote
+    );
 }
 
 /// The `data` of the 8765 frames Sahi's `events` make at `mode`.
@@ -408,8 +437,9 @@ fn frames(events: &[FeedEvent], mode: crate::feed::Mode) -> Vec<serde_json::Valu
 /// a depth tick serves every mode; `last_trade_time` goes beside `ltt`,
 /// the Quote and Depth frames carry the price band in rupees (1419.5 and
 /// 1161.5, audit P-11), and what the stream does not carry (open, high,
-/// low, close, last quantity, average price, the book totals) is left
-/// out, never sent as 0.
+/// low, close, last quantity, average price, the book totals, and for this
+/// equity open interest) is left out, never sent as 0. The web sends this
+/// equity `oi` 0, a number Sahi never sent (an approved web defect).
 #[test]
 fn a_depth_tick_frames_only_what_the_stream_carries() {
     use crate::feed::Mode;
@@ -441,8 +471,6 @@ fn a_depth_tick_frames_only_what_the_stream_carries() {
         "ltp",
         "ltt",
         "mode",
-        "oi",
-        "open_interest",
         "symbol",
         "timestamp",
         "upper_circuit",
@@ -450,10 +478,7 @@ fn a_depth_tick_frames_only_what_the_stream_carries() {
     ];
     let quote = &frames(&events, Mode::Quote)[0];
     assert_eq!(keys(quote), quote_keys);
-    assert_eq!(
-        (quote["volume"].as_i64(), quote["oi"].as_i64()),
-        (Some(4000), Some(0))
-    );
+    assert_eq!(quote["volume"].as_i64(), Some(4000));
     assert_eq!(
         (
             quote["upper_circuit"].as_f64(),

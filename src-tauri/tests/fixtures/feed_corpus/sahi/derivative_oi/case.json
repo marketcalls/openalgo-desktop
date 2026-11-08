@@ -31,18 +31,5 @@
     ],
     "notes": []
   },
-  "deviations": [
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "A Quote tick's open interest is not marked carried, so a Quote frame from a Quote tick has no oi, or the OI of the connection's last Depth tick. The web sends the tick's open_interest (sahi_mapping.py build_quote_payload).",
-      "ref": "audit C05; sahi_mapping.py:129"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "The web's alias of oi, sent beside it with the same value; follows oi (see oi).",
-      "ref": "audit C05; sahi_mapping.py:130"
-    }
-  ]
+  "deviations": []
 }

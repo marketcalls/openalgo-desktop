@@ -27,5 +27,20 @@
     ],
     "notes": []
   },
-  "deviations": []
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Sahi sent no open interest for this instrument (open_interest, a proto3 optional, is off its ticks); the web publishes oi 0 for it (sahi_mapping.py build_quote_payload), a number the exchange never sent. The desktop leaves it out (docs: a field the stream does not carry is left out; decisions.md).",
+      "ref": "sahi_mapping.py:129",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "The web's alias of oi, sent as 0 with it for an instrument whose ticks carry no open interest; left out with oi (see oi).",
+      "ref": "sahi_mapping.py:130",
+      "approved": true
+    }
+  ]
 }
