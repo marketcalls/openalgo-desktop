@@ -12,11 +12,13 @@
  */
 
 import type {
+  BrokerFeedLosses,
   CurrentMetrics,
   DataGrowth,
   HealthLevel,
   MarketDataLosses,
   OrderFacts,
+  OrderUpdatesSource,
   RecordLosses,
   StoreGrowth,
   StrategyTicks,
@@ -228,6 +230,35 @@ export function DataFilesCard({
   )
 }
 
+/**
+ * Where order updates come from: the broker's order feed being up is not
+ * the same as an app having asked for them, which always succeeds.
+ */
+function orderUpdatesWords(o: OrderUpdatesSource): string {
+  switch (o.source) {
+    case 'order_socket':
+      return o.connected ? "From the broker's order feed" : "Broker's order feed not connected"
+    case 'market_feed':
+      return o.connected ? 'With the market data feed' : 'Market data feed not connected'
+    case 'broker_adapter':
+      return "Read from the broker's order book"
+    case 'not_started':
+      return "Broker's order feed did not start"
+    default:
+      return 'Not streamed for this broker'
+  }
+}
+
+/** A broker feed's state, and its connections when it has more than one. */
+function feedWords(feed: BrokerFeedLosses): string {
+  if (!feed.connected) return 'Not connected'
+  const updates = `${count(feed.received_since_connect, 'update', 'updates')} since it connected`
+  const open = feed.connections?.open ?? []
+  if (open.length < 2) return updates
+  const instruments = open.reduce((n, c) => n + c.instruments, 0)
+  return `${updates}, ${instruments.toLocaleString('en-IN')} symbols on ${open.length} connections`
+}
+
 /** What one reader skipped on every broker feed since OpenAlgo started. */
 function skippedSinceStart(data: MarketDataLosses, reader: string): number {
   return data.broker_feeds.reduce((n, feed) => n + (feed.skipped_since_start?.[reader] ?? 0), 0)
@@ -241,6 +272,9 @@ export function MarketDataCard({ data, stale }: { data: MarketDataLosses; stale?
   const orderUpdatesSkipped = skippedSinceStart(data, 'order_relay')
   const apps = data.feed_clients
   const appsMissed = skippedSinceStart(data, 'feed_clients') + apps.dropped + apps.skipped
+  const subs = data.subscriptions
+  const orderFeedDown =
+    data.order_updates?.source === 'not_started' || data.order_updates?.connected === false
   const warning =
     [
       pricesMissed > 0 &&
@@ -249,6 +283,10 @@ export function MarketDataCard({ data, stale }: { data: MarketDataLosses; stale?
         "Some order updates from the broker were skipped; OpenAlgo re-checks the broker's order book.",
       appsMissed > 0 &&
         'Apps on the market data feed missed some updates because they read too slowly.',
+      (subs?.refused ?? 0) > 0 &&
+        `The broker did not take ${count(subs?.refused ?? 0, 'subscription', 'subscriptions')}: ${subs?.refused_items[0]?.reason ?? ''}`,
+      orderFeedDown &&
+        "Order updates are not arriving from the broker now; OpenAlgo re-checks the broker's order book.",
     ]
       .filter(Boolean)
       .join(' ') || null
@@ -261,16 +299,24 @@ export function MarketDataCard({ data, stale }: { data: MarketDataLosses; stale?
     <AppCard title="Market Data" level={data.status} note={note} warning={warning} stale={stale}>
       {data.broker_feeds.length === 0 && <Row label="Broker feed" value="Not connected" />}
       {data.broker_feeds.map((feed) => (
-        <Row
-          key={feed.name}
-          label={FEED_NAMES[feed.name] ?? feed.name}
-          value={
-            feed.connected
-              ? `${count(feed.received_since_connect, 'update', 'updates')} since it connected`
-              : 'Not connected'
-          }
-        />
+        <Row key={feed.name} label={FEED_NAMES[feed.name] ?? feed.name} value={feedWords(feed)} />
       ))}
+      {data.order_updates && (
+        <Row label="Order updates" value={orderUpdatesWords(data.order_updates)} />
+      )}
+      {subs && subs.waiting + subs.releasing + subs.release_retrying > 0 && (
+        <Row
+          label="Subscriptions in progress"
+          value={[
+            subs.waiting > 0 && `${subs.waiting.toLocaleString('en-IN')} waiting to stream`,
+            subs.releasing > 0 && `${subs.releasing.toLocaleString('en-IN')} being stopped`,
+            subs.release_retrying > 0 &&
+              `${subs.release_retrying.toLocaleString('en-IN')} the broker still streams, trying again`,
+          ]
+            .filter(Boolean)
+            .join(', ')}
+        />
+      )}
       <Row
         label="Prices missed by stops and orders"
         value={

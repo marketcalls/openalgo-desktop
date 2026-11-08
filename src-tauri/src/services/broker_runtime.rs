@@ -38,6 +38,24 @@ use tokio::task::JoinSet;
 
 mod limits;
 
+/// Where this session's order updates come from (health: an app asking
+/// for order updates is not the broker's order feed running).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OrderSource {
+    /// No broker session, or the broker streams no order updates here.
+    #[default]
+    None,
+    /// The broker's own order socket (`order_ws`).
+    Socket,
+    /// The market data feed carries them (Kite, the Noren family).
+    MarketFeed,
+    /// The adapter reads them itself, from its order book or a stream of
+    /// its own (Groww, 5paisa, Samco).
+    Adapter,
+    /// The broker has an order feed, and it did not start.
+    NotStarted,
+}
+
 pub struct BrokerRuntime {
     /// The broker's order-update socket.
     pub order_ws: Arc<WebSocketManager>,
@@ -53,6 +71,8 @@ pub struct BrokerRuntime {
     started: Mutex<Option<chrono::DateTime<chrono::Utc>>>,
     /// Serialises activate / teardown.
     lifecycle: tokio::sync::Mutex<()>,
+    /// Where the running session's order updates come from.
+    order_source: Mutex<OrderSource>,
 }
 
 impl Default for BrokerRuntime {
@@ -71,6 +91,7 @@ impl BrokerRuntime {
             active: Mutex::new(None),
             started: Mutex::new(None),
             lifecycle: tokio::sync::Mutex::new(()),
+            order_source: Mutex::new(OrderSource::None),
         }
     }
 
@@ -79,6 +100,11 @@ impl BrokerRuntime {
         let mut t = self.tasks.lock();
         while t.try_join_next().is_some() {}
         t.len()
+    }
+
+    /// Where the running session's order updates come from.
+    pub fn order_source(&self) -> OrderSource {
+        *self.order_source.lock()
     }
 
     /// The broker whose session is running, if any.
@@ -188,6 +214,7 @@ impl BrokerRuntime {
         let _ = self.order_ws.disconnect().await;
         let _ = self.depth_ws.disconnect().await;
         ctx.bridge.reset();
+        *self.order_source.lock() = OrderSource::None;
         let broker = self.active.lock().take();
         let b = broker?;
         b.on_logout().await;
@@ -256,19 +283,29 @@ async fn start_session(
         ctx.bridge.resync();
     }
 
-    match broker.create_order_feed(&auth) {
-        Ok(OrderFeed::Socket(feed)) => {
-            if let Err(e) = ctx.runtime.order_ws.connect(feed).await {
+    let source = match broker.create_order_feed(&auth) {
+        Ok(OrderFeed::Socket(feed)) => match ctx.runtime.order_ws.connect(feed).await {
+            Ok(()) => OrderSource::Socket,
+            Err(e) => {
                 tracing::warn!("Order updates for {} not started: {}", id, e);
+                OrderSource::NotStarted
             }
-        }
+        },
         Ok(OrderFeed::Stream(rx)) => {
             let bus = ctx.bus.clone();
             BrokerRuntime::spawn(&tasks, relay_stream_orders(rx, bus, id, generation));
+            OrderSource::Adapter
         }
-        Err(AppError::Unsupported(_)) => {}
-        Err(e) => tracing::warn!("Order updates for {} not started: {}", id, e),
-    }
+        Err(AppError::Unsupported(_)) if broker.capabilities().order_feed => {
+            OrderSource::MarketFeed
+        }
+        Err(AppError::Unsupported(_)) => OrderSource::None,
+        Err(e) => {
+            tracing::warn!("Order updates for {} not started: {}", id, e);
+            OrderSource::NotStarted
+        }
+    };
+    *ctx.runtime.order_source.lock() = source;
     tracing::info!("Broker session for {} is streaming", id);
 }
 

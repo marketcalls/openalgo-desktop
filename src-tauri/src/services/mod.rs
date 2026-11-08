@@ -45,6 +45,7 @@ pub mod core;
 pub mod error_log;
 pub mod feed_connections;
 pub mod feed_losses;
+pub mod feed_state;
 pub mod freeze_qty_service;
 pub mod gtt_service;
 pub mod health_service;

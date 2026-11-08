@@ -264,6 +264,78 @@ describe('App health cards', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
+  it("says where order updates come from and warns when the broker's order feed is down or a subscription was refused", () => {
+    render(
+      <AppHealthCards
+        read={fresh({
+          market_data: {
+            status: 'warn',
+            broker_feeds: [
+              {
+                ...feed('market_data', {}, {}),
+                connections: {
+                  per_connection: 1000,
+                  most: 3,
+                  open: [
+                    { instruments: 1000, state: 'connected' },
+                    { instruments: 200, state: 'connected' },
+                  ],
+                },
+              },
+            ],
+            feed_clients: { coalesced: 0, dropped: 0, skipped: 0 },
+            subscriptions: {
+              waiting: 2,
+              releasing: 0,
+              release_retrying: 1,
+              refused: 1,
+              refused_items: [
+                {
+                  symbol: 'INFY',
+                  exchange: 'NSE',
+                  mode: 'Quote',
+                  reason:
+                    'You can stream at most 3000 instruments at once. Unsubscribe some before adding more.',
+                },
+              ],
+            },
+            order_updates: { source: 'order_socket', connected: false },
+          },
+        })}
+      />
+    )
+    expect(rowValue('Order updates')).toBe("Broker's order feed not connected")
+    expect(rowValue('Broker market data')).toBe(
+      '1,200 updates since it connected, 1,200 symbols on 2 connections'
+    )
+    expect(rowValue('Subscriptions in progress')).toBe(
+      '2 waiting to stream, 1 the broker still streams, trying again'
+    )
+    const warning = screen.getByRole('status')
+    expect(warning).toHaveTextContent(
+      /The broker did not take 1 subscription: You can stream at most 3000 instruments/
+    )
+    expect(warning).toHaveTextContent(/Order updates are not arriving from the broker now/)
+  })
+
+  it('names an order source that is up without warning', () => {
+    render(
+      <AppHealthCards
+        read={fresh({
+          market_data: {
+            status: 'pass',
+            broker_feeds: [feed('market_data', {}, {})],
+            feed_clients: { coalesced: 0, dropped: 0, skipped: 0 },
+            order_updates: { source: 'broker_adapter', connected: null },
+          },
+        })}
+      />
+    )
+    expect(rowValue('Order updates')).toBe("Read from the broker's order book")
+    expect(rowValue('Broker market data')).toBe('1,200 updates since it connected')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('stays quiet when nothing was missed or lost', () => {
     render(
       <AppHealthCards

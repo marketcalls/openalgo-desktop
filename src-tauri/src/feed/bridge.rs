@@ -49,6 +49,7 @@ mod apply;
 mod render;
 pub(super) mod snapshot;
 use apply::{Applied, Ops};
+pub use apply::{Operations, Refused};
 pub(crate) use render::{depth_update, tick_update};
 use snapshot::Snapshot;
 
@@ -247,6 +248,11 @@ impl BrokerBridge {
             .values()
             .flat_map(Applied::main_subs)
             .collect()
+    }
+
+    /// What the bridge's subscriptions stand at now, for health.
+    pub fn operations(&self) -> Operations {
+        self.state.lock().operations()
     }
 
     /// References the bridge currently holds on the depth manager.

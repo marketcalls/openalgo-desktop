@@ -98,6 +98,7 @@ fn feed_json(name: &str, feed: &WebSocketManager) -> Value {
         stats.last_event_age(),
     );
     v["connection"] = crate::services::feed_connections::json(feed);
+    v["connections"] = crate::services::feed_state::connections(feed);
     v
 }
 
@@ -140,7 +141,13 @@ pub fn json(ctx: &AppState) -> Value {
         },
         None => AppFrames::default(),
     };
-    block(broker_feeds, apps)
+    let mut v = block(broker_feeds, apps);
+    v["subscriptions"] = crate::services::feed_state::subscriptions(ctx);
+    v["order_updates"] = crate::services::feed_state::order_updates(ctx);
+    if crate::services::feed_state::needs_attention(&v) {
+        v["status"] = json!("warn");
+    }
+    v
 }
 
 /// What a trader reads about a reader that fell behind.

@@ -130,9 +130,63 @@ impl Ops {
         self.retry.values().map(|(at, _)| *at).min()
     }
 
+    /// The managers forgot every reference (a new broker session): no
+    /// release is left to retry.
+    pub(super) fn forget_retries(&mut self) {
+        self.retry.clear();
+    }
+
     /// Forget every waiter (they hear the bridge stopped) and retry.
     pub(super) fn clear(&mut self) {
         *self = Ops::default();
+    }
+}
+
+/// A subscription the managers refused while no app waited on it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Refused {
+    pub symbol: String,
+    pub exchange: String,
+    pub mode: &'static str,
+    pub reason: String,
+}
+
+/// What the bridge's subscriptions stand at now (audit Phase 3.5): taken
+/// and not yet streaming, released and not yet confirmed, releases the
+/// broker refused that are being tried again, and keys refused while no
+/// app waited.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Operations {
+    pub waiting: usize,
+    pub releasing: usize,
+    pub release_retrying: usize,
+    pub refused: Vec<Refused>,
+}
+
+impl State {
+    pub(super) fn operations(&self) -> Operations {
+        let mut refused: Vec<Refused> = self
+            .ops
+            .refused
+            .iter()
+            .map(|((k, mode, _), why)| Refused {
+                symbol: k.symbol.clone(),
+                exchange: k.exchange.clone(),
+                mode: mode.label(),
+                reason: why.clone(),
+            })
+            .collect();
+        refused.sort_by(|a, b| (&a.exchange, &a.symbol).cmp(&(&b.exchange, &b.symbol)));
+        Operations {
+            waiting: self
+                .desired
+                .iter()
+                .filter(|k| !self.applied.contains_key(*k) && !self.ops.refused.contains_key(*k))
+                .count(),
+            releasing: self.ops.in_flight.len(),
+            release_retrying: self.ops.retry.len(),
+            refused,
+        }
     }
 }
 

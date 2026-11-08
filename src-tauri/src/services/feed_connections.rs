@@ -12,7 +12,8 @@
 use crate::websocket::{Connection, FeedStatus, WebSocketManager};
 use serde_json::{json, Value};
 
-fn state(status: &FeedStatus) -> &'static str {
+/// A feed state as health names it.
+pub(crate) fn state(status: &FeedStatus) -> &'static str {
     match status {
         FeedStatus::Disconnected => "disconnected",
         FeedStatus::Connecting { .. } => "connecting",
