@@ -195,7 +195,6 @@ fn dialect(broker: &str) -> Dialect {
             change: Some(C::Change),
             change_percent: &[P::ChangePercent, P::PercentChange],
             last_trade_time: Some(TradeTime::Seconds),
-            ..CANONICAL
         },
         "angel" | "upstox" | "fivepaisa" | "mstock" | "pocketful" => Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
