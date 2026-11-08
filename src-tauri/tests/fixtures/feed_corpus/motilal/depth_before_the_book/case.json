@@ -58,18 +58,6 @@
       "kind": "web-defect",
       "reason": "Motilal has sent book level 1 only; the web pads the four levels that never arrived with integer zeros ({\"price\": 0, \"quantity\": 0, \"orders\": 0}, _normalize_depth_data), invented levels; the desktop sends the level received (lead decision 2026-11-09: no invented level).",
       "ref": "motilal_adapter.py _normalize_depth_data"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web's Depth dict carries the circuit limits of Motilal's W packet; the desktop decodes them (ScripData) and does not yet put them on the tick (audit C06).",
-      "ref": "motilal_adapter.py _normalize_depth_data"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "The web's Depth dict carries the circuit limits of Motilal's W packet; the desktop decodes them (ScripData) and does not yet put them on the tick (audit C06).",
-      "ref": "motilal_adapter.py _normalize_depth_data"
     }
   ]
 }

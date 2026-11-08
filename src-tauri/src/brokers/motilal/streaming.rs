@@ -204,6 +204,7 @@ pub struct ScripData {
     pub has_ltp: bool,
     pub has_ohlc: bool,
     pub has_oi: bool,
+    pub has_circuit: bool,
     pub bids: [Option<DepthLevel>; 5],
     pub asks: [Option<DepthLevel>; 5],
 }
@@ -378,6 +379,7 @@ impl FeedState {
                 b'W' => {
                     d.upper_circuit = r2(f32_at(b, 0));
                     d.lower_circuit = r2(f32_at(b, 4));
+                    d.has_circuit = true;
                 }
                 _ => continue,
             }
@@ -452,6 +454,12 @@ fn quote_tick(sub: &SubInfo, d: &ScripData, now: i64) -> NormalizedTick {
     let derivative = mapping::segment(&sub.exchange) == "DERIVATIVES";
     if d.has_oi || (derivative && d.has_ltp) {
         t.mark_carried(F::OpenInterest);
+    }
+    // The W packet's price band, which the web's Depth dict carries
+    // (audit C06); none before Motilal has sent one.
+    if d.has_circuit {
+        t.extras.upper_circuit = Some(d.upper_circuit);
+        t.extras.lower_circuit = Some(d.lower_circuit);
     }
     t
 }

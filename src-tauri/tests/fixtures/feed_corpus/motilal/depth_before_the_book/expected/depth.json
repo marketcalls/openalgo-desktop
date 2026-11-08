@@ -33,6 +33,8 @@
         }
       ]
     },
+    "upper_circuit": 1430.5,
+    "lower_circuit": 1170.5,
     "mode": 3
   }
 }

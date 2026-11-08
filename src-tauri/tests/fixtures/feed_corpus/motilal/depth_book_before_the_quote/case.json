@@ -53,18 +53,6 @@
       "kind": "web-defect",
       "reason": "Motilal sent no open interest for this cash scrip (no m packet; a cash scrip has none and its last-trade packet's OI slot is 0); the web's Depth dict sends oi 0 from a default (_normalize_depth_data: result['oi'] = 0 without an m packet); the desktop leaves it out.",
       "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs quote_tick"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web's Depth dict carries the circuit limits of Motilal's W packet; the desktop decodes them (ScripData) and does not yet put them on the tick (audit C06).",
-      "ref": "motilal_adapter.py _normalize_depth_data"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "The web's Depth dict carries the circuit limits of Motilal's W packet; the desktop decodes them (ScripData) and does not yet put them on the tick (audit C06).",
-      "ref": "motilal_adapter.py _normalize_depth_data"
     }
   ]
 }

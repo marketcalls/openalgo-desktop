@@ -916,6 +916,11 @@ fn live_feed_frames_and_events() {
     ] {
         assert!(!last.knows(field), "{:?}", field);
     }
+    // The W packet's price band (audit C06).
+    assert_eq!(
+        (last.extras.upper_circuit, last.extras.lower_circuit),
+        (Some(2600.0), Some(2200.0))
+    );
     let d = depths.last().unwrap();
     // Only the level Motilal sent, and no book totals it never sends.
     assert_eq!((d.buy.len(), d.sell.len(), d.buy[0].price), (1, 1, 2410.0));
