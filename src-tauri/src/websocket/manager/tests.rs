@@ -838,7 +838,7 @@ async fn admit_takes_what_fits_and_refuses_the_rest() {
         ])
         .await;
     assert_eq!(
-        answers.iter().map(Result::is_ok).collect::<Vec<_>>(),
+        answers.iter().map(|a| a.is_ok()).collect::<Vec<_>>(),
         [true, true, true, false, true]
     );
     assert!(answers[3]

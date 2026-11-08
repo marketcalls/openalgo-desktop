@@ -152,6 +152,7 @@ fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender<Command>) 
             base: sub,
             modes: BTreeMap::from([(FeedMode::Ltp, 1)]),
             depths: BTreeMap::new(),
+            conn: 0,
         },
     );
     let config = FeedConfig {

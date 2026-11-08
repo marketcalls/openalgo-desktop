@@ -100,7 +100,7 @@ async fn a_full_connection_opens_another_and_an_idle_one_closes() {
 
     let answers = m.admit(["A", "B", "C", "D", "E"].map(sub).to_vec()).await;
     assert_eq!(
-        answers.iter().map(Result::is_ok).collect::<Vec<_>>(),
+        answers.iter().map(|a| a.is_ok()).collect::<Vec<_>>(),
         [true, true, true, true, false]
     );
     assert!(answers[4]
@@ -116,7 +116,7 @@ async fn a_full_connection_opens_another_and_an_idle_one_closes() {
 
     // What the second connection carried goes: it closes; the first stays.
     let released = m.release(vec![sub("C"), sub("D")]).await;
-    assert!(released.iter().all(Result::is_ok), "{:?}", released);
+    assert!(released.iter().all(|r| r.is_ok()), "{:?}", released);
     until("the idle connection to close", || {
         m.connection_states().len() == 1
     })
