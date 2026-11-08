@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "fivepaisa",
+  "orderid": "1100000002",
+  "symbol": "ITC",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 100,
+  "price": 440.1,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "CNC",
+  "order_status": "complete",
+  "filled_quantity": 100,
+  "pending_quantity": 0,
+  "average_price": 440.08,
+  "rejection_reason": ""
+}

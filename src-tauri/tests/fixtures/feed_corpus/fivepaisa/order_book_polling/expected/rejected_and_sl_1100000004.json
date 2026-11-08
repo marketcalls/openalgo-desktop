@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "fivepaisa",
+  "orderid": "1100000004",
+  "symbol": "ITC",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 5000,
+  "price": 440.1,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "CNC",
+  "order_status": "rejected",
+  "filled_quantity": 0,
+  "pending_quantity": 5000,
+  "average_price": 0.0,
+  "rejection_reason": "RMS:Margin Exceeds,Required:2200500.00, Available:15000.00 for entity account-<USER_ID> across exchange across segment across product"
+}

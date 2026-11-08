@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "fivepaisa",
+  "orderid": "1100000003",
+  "symbol": "ITC",
+  "exchange": "NSE",
+  "action": "SELL",
+  "quantity": 25,
+  "price": 440.15,
+  "trigger_price": 0.0,
+  "pricetype": "MARKET",
+  "product": "MIS",
+  "order_status": "complete",
+  "filled_quantity": 25,
+  "pending_quantity": 0,
+  "average_price": 440.2,
+  "rejection_reason": ""
+}

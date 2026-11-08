@@ -7,15 +7,27 @@ test/test_fivepaisa_quote_feed.py builds (`__new__`, `last_snapshot`,
 The adapter keeps `last_snapshot` across a reconnect (`_on_open` and
 `_on_close` leave it), and an unsubscribe releases a scrip's snapshot only
 when no subscription on its (Exch, ExchType, Token) remains, as
-`unsubscribe` does. Order updates are polled from the REST order book on
-both sides (`PollingOrderUpdateAdapter`); this glue streams none.
+`unsubscribe` does.
+
+Order updates: the web's own order-book poller (`polling.py`) over
+5paisa's `broker/fivepaisa/mapping/order_data.py` (`map_order_data`,
+`calculate_order_statistics`, `transform_order_data`), with
+`get_symbol` reading the case's symbol master.
 """
 
+from web_adapters.polling import POLLING_SOURCES, Polling
 from webkit import Glue, Source
 
+# brokers/fivepaisa/orders.rs ORDER_BOOK; web broker/fivepaisa/api/order_api.py get_order_book.
+ORDER_BOOK = "/VendorsAPI/Service1.svc/V3/OrderBook"
+# The book tests/it/feed_corpus/fivepaisa.rs serves before any case does.
+EMPTY_BOOK = '{"head": {"statusDescription": "Success"}, "body": {"Message": "Success", "OrderBookDetail": [], "Status": 0}}'
 
-class Fivepaisa(Glue):
+
+class Fivepaisa(Polling, Glue):
     broker = "fivepaisa"
+    order_book_path = ORDER_BOOK
+    empty_book = EMPTY_BOOK
     sources = [
         Source("broker/fivepaisa/streaming/fivepaisa_mapping.py", "FivePaisaExchangeMapper"),
         Source("broker/fivepaisa/streaming/fivepaisa_mapping.py", "FivePaisaCapabilityRegistry"),
@@ -35,7 +47,28 @@ class Fivepaisa(Glue):
                 "_parse_fivepaisa_time",
             ],
         ),
+        Source("broker/fivepaisa/mapping/transform_data.py", None, ["reverse_map_exchange"]),
+        Source(
+            "broker/fivepaisa/mapping/order_data.py",
+            None,
+            [
+                "_ORDER_STATUS_MAP",
+                "normalize_order_status",
+                "convert_date_string",
+                "map_order_data",
+                "calculate_order_statistics",
+                "transform_order_data",
+            ],
+        ),
+        *POLLING_SOURCES,
     ]
+
+    def stubs(self):
+        def get_symbol(token, exchange):
+            row = self.master.by_token(str(token), exchange)
+            return row["symbol"] if row else None
+
+        return {"get_symbol": get_symbol, "get_oa_symbol": get_symbol, **self.polling_stubs()}
 
     def start(self):
         self.ad = self.new(
