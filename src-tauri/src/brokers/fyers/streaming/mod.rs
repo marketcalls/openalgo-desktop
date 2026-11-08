@@ -666,8 +666,31 @@ fn scrip_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
         absent: absent_from(st, &SCRIP_SOURCES, AbsentFields::default()),
         ..Default::default()
     };
+    // A symbol-feed record is the whole quote whatever the subscription
+    // (the web publishes it to LTP holders too, with OI): a Quote packet
+    // that carries OI when Fyers sent it.
+    t.mode = FeedMode::Quote.code();
+    if field(st, 12).is_some() {
+        t.mark_carried(QuoteField::OpenInterest);
+    }
+    scrip_extras(&mut t, st);
     t.derive_change();
     t
+}
+
+/// The web quote's extra keys (`fyers_mapping.py` `map_to_openalgo_quote`):
+/// best bid and ask with sizes, circuit limits and the exchange feed time,
+/// each only when the record holds it.
+fn scrip_extras(t: &mut NormalizedTick, st: &TopicState) {
+    let price = |i| field(st, i).map(|_| st.price(i));
+    let qty = |i| field(st, i).map(i64::from);
+    t.extras.bid_quantity = qty(4);
+    t.extras.ask_quantity = qty(5);
+    t.extras.bid_price = price(6);
+    t.extras.ask_price = price(7);
+    t.extras.lower_circuit = price(17);
+    t.extras.upper_circuit = price(18);
+    t.extras.exchange_time_ms = field(st, 3).map(|s| i64::from(s) * 1000);
 }
 
 fn index_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
@@ -723,16 +746,29 @@ fn depth_event(
             });
         }
     }
+    // A depth message has no LTP and no totals: they are the symbol feed's
+    // (left out before its first quote, as the web does).
+    let mut absent = AbsentFields::of(&[QuoteField::Ltp]);
+    let (tbq, tsq) = (
+        quote.and_then(|q| field(q, 9)),
+        quote.and_then(|q| field(q, 10)),
+    );
+    if tbq.is_none() {
+        absent = absent.with(QuoteField::TotalBuyQuantity);
+    }
+    if tsq.is_none() {
+        absent = absent.with(QuoteField::TotalSellQuantity);
+    }
     NormalizedDepth {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
         ltp: 0.0,
-        total_buy_quantity: int(quote.and_then(|q| field(q, 9))),
-        total_sell_quantity: int(quote.and_then(|q| field(q, 10))),
+        total_buy_quantity: int(tbq),
+        total_sell_quantity: int(tsq),
         buy,
         sell,
         timestamp_ms: now,
-        ..Default::default()
+        absent,
     }
 }
 
