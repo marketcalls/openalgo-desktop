@@ -37,6 +37,13 @@ a cleared book side) is sent.
   `timestamp`; the web leaves `ltp` out too).
 - A book without totals takes the tick's; a book without order counts
   (Upstox) sends levels without `orders`.
+- A book goes out level for level as the adapter carries it: a broker's
+  fixed empty slots (price 0, quantity 0: the Zerodha golden fixtures carry
+  five a side) are kept, and nothing pads a short book. The levels an
+  adapter keeps follow its web adapter (AliceBlue, Groww and Fyers TBT drop
+  empty levels as theirs do); the padding some web adapters add beyond
+  what the broker sent (Tradejini, Sahi, HDFC Securities) is a web defect
+  the desktop does not copy.
 - The page's `MarketDataManager` already merges by presence (`??`) within
   one session; the zeros it kept came from the server.
 
@@ -70,7 +77,11 @@ come from three places:
   names only. One the packet did not carry keeps its last value; one the
   packet says is gone (`QuoteExtras::clear`, `clear_best_bid_ask` for a
   book that emptied both sides, as Groww's web adapter clears its best bid
-  and ask) is left out until a packet sends it again.
+  and ask) is left out until a packet sends it again. A quote field works
+  the same way (`mark_cleared`: Tradejini and Samco stop sending the book's
+  totals when the Depth holder leaves, and their later Quote frames carry
+  none). The packet's exchange time belongs to that packet alone and is
+  never sent again with a later one.
 - **Broker-only fields** (`BrokerField`, a fixed set): Upstox's auction
   fields, Dhan's `oi_high` / `oi_low`, Groww's `value`.
 
@@ -93,9 +104,12 @@ as the web's `server.py` sends them):
   Delta Exchange.
 - Number types: Angel's book totals are doubles (1000.0), as its packet
   carries them. A broker's list of doubles (`Dialect::floats`) covers its
-  own names as well as the canonical keys, and a packet can add integer
-  fields its web form writes as doubles for that packet only
-  (`NormalizedTick::floats`: Jainam's and RMoney's 1105 text event).
+  own names as well as the canonical keys, and a packet can mark the JSON
+  number form of any of its values for that packet only
+  (`NormalizedTick::numbers`: an integer for a whole value, as 5paisa's
+  JSON sends 445 and 445.5; a double, as Jainam's and RMoney's 1105 text
+  event parses with `float()`). A value kept from an earlier packet goes
+  out in the broker's usual form.
 - A broker not in the table gets the master frame of 1.0.6 (both OI keys,
   `ltt` everywhere, a numeric `data.mode`); a broker lane changes its
   broker's entry when its corpus cases show otherwise.
@@ -133,10 +147,11 @@ Deliberate differences, each a web defect or a desktop rule:
   wrong offset; the desktop decoders keep the right values.
 - `token` (Arrow, both HDFC, Rupeezy, Upstox, Fyers) is the instrument's
   broker token from the symbol master, as text.
-- Not yet carried (no source in the frame): Fyers' `update_type` and its
-  50-level frame's `total_buy_qty`, `total_sell_qty`, `feed_time`,
-  `depth_levels`, `is_50_depth`, and the `timestamp` Upstox puts inside
-  `depth`.
+- Fyers' `update_type` (`BrokerField::UpdateType`, text) and its 50-level
+  frame's `total_buy_qty`, `total_sell_qty`, `feed_time`, `depth_levels`,
+  `is_50_depth` (`Source::FiftyLevels`, on 50-level Depth frames only), and
+  the `timestamp` Upstox puts inside `depth` (`Dialect::book_time`), are
+  carried since 1.0.7.
 
 ## Per broker: what the web adapter publishes
 
