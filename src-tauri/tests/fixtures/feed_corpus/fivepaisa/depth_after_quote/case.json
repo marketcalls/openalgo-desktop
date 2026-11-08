@@ -37,12 +37,6 @@
       "ref": "fivepaisa_adapter.py:_quote_fields (feed.get(\"OpenRate\", 0)); feed/dialect.rs (lane wire)"
     },
     {
-      "key": "depth",
-      "kind": "open",
-      "reason": "The desktop pads each side of 5paisa's book to five levels with zero levels (FivepaisaFeed depth_book, v.resize(5, ..)), so a book of one bid and one ask, or an empty book, goes out as five levels a side; the web sends the levels 5paisa sent (_extract_depth_data), and rules.md says no padded book. Desktop defect.",
-      "ref": "brokers/fivepaisa/streaming.rs:244; fivepaisa_adapter.py:_extract_depth_data"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "The desktop sends price_change on an equity or a future (ltp less the previous close: feed/dialect/names.rs gives 5paisa instrument_change); the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B: 5paisa's dialect entry without instrument_change.",

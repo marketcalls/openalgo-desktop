@@ -11,7 +11,9 @@ use super::master_contract::{index_symbol, parse_csv, row_exchange};
 use super::streaming::{feed_codes, feed_url, methods, redirect_server, FivepaisaFeed};
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Validity};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use crate::brokers::common::symbols::SymToken;
 use chrono::NaiveDate;
 use serde_json::{json, Value};
@@ -747,6 +749,8 @@ fn feed_ltp_mode_carries_the_quote_packet() {
     assert!(f.parse(&Message::Text(feed_fixture("depth"))).is_empty());
 }
 
+/// The book carries no traded price (the frame takes the quote's) and only
+/// the levels 5paisa sent: two bids and one ask, no rows of zeros.
 #[test]
 fn feed_depth_takes_ltp_from_the_quote_stream() {
     let mut f = FivepaisaFeed::new("wss://x", JWT, "5000");
@@ -757,13 +761,13 @@ fn feed_depth_takes_ltp_from_the_quote_stream() {
     let FeedEvent::Depth(d) = &ev[0] else {
         panic!("{:?}", ev)
     };
-    assert_eq!(d.ltp, 812.5);
-    assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
+    assert!(d.absent.contains(QuoteField::Ltp), "{:?}", d);
+    assert_eq!((d.buy.len(), d.sell.len()), (2, 1));
     assert_eq!(
         (d.buy[0].price, d.buy[0].quantity, d.buy[0].orders),
         (812.45, 150, 3)
     );
-    assert_eq!((d.sell[0].price, d.sell[1].price), (812.55, 0.0));
+    assert_eq!((d.buy[1].price, d.sell[0].price), (812.4, 812.55));
     assert_eq!(
         (d.total_buy_quantity, d.total_sell_quantity),
         (120000, 98000)

@@ -430,3 +430,35 @@ fn the_best_bid_and_ask_are_the_frames_own() {
     }
     assert_eq!(d["bid_quantity"], 10, "{}", d);
 }
+
+/// An empty book is two empty sides, not rows of zeros (web
+/// `_extract_depth_data`), and a one-level side is one level; the depth
+/// frame's price is the latest quote's.
+#[test]
+fn a_book_has_the_levels_5paisa_sent() {
+    let mut f = feed_with(&[itc(FeedMode::Depth)]);
+    let mut events = send(&mut f, feed_frame());
+    events.extend(send(&mut f, depth_frame()));
+    let empty = json!({"Details": [], "TBidQ": 0, "TOffQ": 0});
+    events.extend(send(&mut f, with(depth_frame(), empty)));
+    let books = Frames::new("fivepaisa").at(&events, Mode::Depth);
+    let [one, cleared] = books.as_slice() else {
+        panic!("two depth frames: {:?}", books)
+    };
+    assert_eq!(
+        one["depth"],
+        json!({
+            "buy": [{"price": 440.0, "quantity": 50, "orders": 2}],
+            "sell": [{"price": 440.2, "quantity": 25, "orders": 1}]
+        }),
+        "{}",
+        one
+    );
+    assert_eq!(
+        cleared["depth"],
+        json!({"buy": [], "sell": []}),
+        "{}",
+        cleared
+    );
+    assert_eq!(cleared["ltp"], 440.1, "{}", cleared);
+}

@@ -264,16 +264,19 @@ fn quantity_of(m: &Value, key: &str) -> Option<i64> {
         .map(|v| num_of(v) as i64)
 }
 
-/// The five-level book of a MarketDepthService frame (`BbBuySellFlag` 66
-/// buy, 83 sell) with its own totals; `ltp` is the held quote price.
-fn depth_book(sub: &SubInfo, frame: &Value, ltp: f64) -> NormalizedDepth {
+/// The book of a MarketDepthService frame (`BbBuySellFlag` 66 buy, 83
+/// sell), up to five levels a side as sent, with its own totals. A side
+/// sent without levels is an empty side, never rows of zeros (web
+/// `_extract_depth_data`). The frame carries no traded price: the depth
+/// frame takes the quote's (MarketFeedV3, subscribed beside it).
+fn depth_book(sub: &SubInfo, frame: &Value) -> NormalizedDepth {
     let details = frame
         .get("Details")
         .and_then(Value::as_array)
         .map(Vec::as_slice)
         .unwrap_or_default();
-    let side = |flag: i64| {
-        let mut v: Vec<DepthLevel> = details
+    let side = |flag: i64| -> Vec<DepthLevel> {
+        details
             .iter()
             .filter(|d| num(d, "BbBuySellFlag") as i64 == flag)
             .map(|d| DepthLevel {
@@ -282,19 +285,17 @@ fn depth_book(sub: &SubInfo, frame: &Value, ltp: f64) -> NormalizedDepth {
                 orders: num(d, "NumberOfOrders") as i64,
             })
             .take(5)
-            .collect();
-        v.resize(5, DepthLevel::default());
-        v
+            .collect()
     };
     NormalizedDepth {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
-        ltp,
         buy: side(66),
         sell: side(83),
         total_buy_quantity: num(frame, "TBidQ") as i64,
         total_sell_quantity: num(frame, "TOffQ") as i64,
         timestamp_ms: now_ms(),
+        absent: AbsentFields::of(&[QuoteField::Ltp]),
         ..Default::default()
     }
 }
@@ -362,13 +363,7 @@ impl FivepaisaFeed {
         };
         match frame_kind(frame) {
             FrameKind::Depth if sub.mode == FeedMode::Depth => {
-                let ltp = self
-                    .snapshots
-                    .get(&key)
-                    .and_then(|s| s.get("LastRate"))
-                    .map(num_of)
-                    .unwrap_or(0.0);
-                vec![FeedEvent::Depth(depth_book(&sub, frame, ltp))]
+                vec![FeedEvent::Depth(depth_book(&sub, frame))]
             }
             FrameKind::Feed => {
                 let m = self.hold_prices(&key, frame);

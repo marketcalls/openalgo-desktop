@@ -37,12 +37,6 @@
       "ref": "CLAUDE.md (a depth frame before its instrument's first tick); feed/bridge.rs depth_update; fivepaisa_adapter.py:_normalize_market_data mode 3"
     },
     {
-      "key": "depth",
-      "kind": "open",
-      "reason": "The desktop pads each side of 5paisa's book to five levels with zero levels (FivepaisaFeed depth_book, v.resize(5, ..)), so a book of one bid and one ask, or an empty book, goes out as five levels a side; the web sends the levels 5paisa sent (_extract_depth_data), and rules.md says no padded book. Desktop defect.",
-      "ref": "brokers/fivepaisa/streaming.rs:244; fivepaisa_adapter.py:_extract_depth_data"
-    },
-    {
       "key": "open",
       "kind": "open",
       "reason": "The 5paisa web adapter passes 5paisa's JSON number on as it came, so a whole price (the web test's OpenRate 445) goes out as an integer (445) where the desktop sends a float (445.0). Same value, another JSON type: follows the web adapter in Phase B through lane wire's per-broker number types (5paisa: a price keeps the type of the frame's value).",
