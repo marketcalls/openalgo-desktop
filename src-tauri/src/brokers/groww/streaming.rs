@@ -475,6 +475,21 @@ fn merged_tick(sub: &FeedSubscription, m: &Merged, now: i64, priced: bool) -> No
     if !priced || m.ltp == 0.0 {
         t.mark_absent(QuoteField::Ltp);
     }
+    if sub.mode == FeedMode::Ltp {
+        // The web sends LTP subscribers its Quote normalisation of the tick
+        // (groww_adapter.py:918-919, :975).
+        for (field, known) in [
+            (QuoteField::Open, m.open.is_some()),
+            (QuoteField::High, m.high.is_some()),
+            (QuoteField::Low, m.low.is_some()),
+            (QuoteField::Close, m.close.is_some()),
+            (QuoteField::Volume, m.volume.is_some()),
+        ] {
+            if known {
+                t.mark_carried(field);
+            }
+        }
+    }
     t
 }
 

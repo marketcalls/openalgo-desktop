@@ -1641,6 +1641,33 @@ fn a_book_before_the_first_price_publishes_no_quote() {
     }
 }
 
+/// An LTP subscriber gets the quote the web's Groww adapter sends it (its
+/// Quote normalisation of the tick, groww_adapter.py:918-919, :975): the
+/// OHLC and volume beside the price and its time.
+#[test]
+fn an_ltp_frame_carries_the_quote_the_web_sends() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Ltp)]);
+    let events = f.parse(&msg_frame(1, &ltp_payload(812.35)));
+    let frames = Frames::new("groww").at(&events, Mode::Ltp);
+    let [d] = frames.as_slice() else {
+        panic!("one frame expected: {:?}", frames)
+    };
+    assert_eq!(d["ltp"], 812.35);
+    assert_eq!(
+        (d["open"].as_f64(), d["high"].as_f64(), d["low"].as_f64()),
+        (Some(809.0), Some(815.5), Some(806.25))
+    );
+    assert_eq!(d["close"], 808.0);
+    assert_eq!(d["volume"].as_f64(), Some(5_123_400.0));
+}
+
 // ---------------------------------------------------------------------------
 // Order poller
 // ---------------------------------------------------------------------------
