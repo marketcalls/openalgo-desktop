@@ -14,6 +14,7 @@ use crate::services::broker_config_service::BrokerConfigService;
 use crate::services::broker_settings_service::{
     self, SettingsError, SettingsOutcome, SettingsSave,
 };
+use crate::session::sign_in_failures::SignInFailure;
 use crate::session::web::WebSession;
 use crate::state::AppState;
 use axum::{
@@ -24,6 +25,7 @@ use axum::{
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 type Ctx = State<Arc<AppState>>;
 
@@ -32,10 +34,26 @@ fn valid_broker(b: &str) -> bool {
 }
 
 /// Back to Select Broker with the reason, shown on that broker's card.
-fn broker_page_with_error(broker: &str, msg: &str) -> Response {
+/// The reason stays here, for the browser session that came back with it;
+/// the address carries only its id, so no link can put words on the page
+/// (`session::sign_in_failures`).
+fn broker_page_with_error(
+    ctx: &AppState,
+    broker: &str,
+    msg: &str,
+    session_id: Option<&str>,
+) -> Response {
+    let failure = SignInFailure {
+        broker: broker.to_string(),
+        message: msg.to_string(),
+    };
+    let id = ctx
+        .sessions
+        .sign_in_failures
+        .record(failure, session_id, Instant::now());
     redirect(&format!(
         "/broker?error={}&broker={}",
-        urlencoding::encode(msg),
+        id,
         urlencoding::encode(broker)
     ))
 }
@@ -107,7 +125,7 @@ pub async fn initiate_oauth(
         Ok(url) => redirect(&url),
         Err(e) => {
             tracing::warn!("Could not start broker sign-in: {}", e.code());
-            broker_page_with_error(&broker, &e.client_message())
+            broker_page_with_error(&ctx, &broker, &e.client_message(), Some(&user.session_id))
         }
     }
 }
@@ -144,7 +162,8 @@ async fn form_login_open(
             // Back to the broker page with the reason (web
             // `handle_auth_failure` on a page navigation).
             tracing::warn!("Preparing the {} sign-in failed: {}", broker, e.code());
-            return broker_page_with_error(broker, &e.client_message());
+            let session_id = sess.map(|s| s.id.as_str());
+            return broker_page_with_error(ctx, broker, &e.client_message(), session_id);
         }
     }
     // The saved keys sign in from the broker page in one action (a
@@ -206,7 +225,8 @@ pub async fn oauth_callback(
         Ok(_) => redirect("/dashboard"),
         Err(e) => {
             tracing::warn!("Broker sign-in for {} failed: {}", broker, e.code());
-            broker_page_with_error(&broker, &e.client_message())
+            let session_id = sess.as_ref().map(|s| s.id.as_str());
+            broker_page_with_error(&ctx, &broker, &e.client_message(), session_id)
         }
     }
 }
@@ -245,7 +265,8 @@ pub async fn callback_post(
             Ok(_) => redirect("/dashboard"),
             Err(e) => {
                 tracing::warn!("Broker sign-in for {} failed: {}", broker, e.code());
-                broker_page_with_error(&broker, &e.client_message())
+                let session_id = sess.as_ref().map(|s| s.id.as_str());
+                broker_page_with_error(&ctx, &broker, &e.client_message(), session_id)
             }
         };
     }

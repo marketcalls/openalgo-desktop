@@ -79,6 +79,9 @@ pub struct WebSessionStore {
     /// update connections of ended sessions are closed (security review
     /// S-09).
     ended: tokio::sync::watch::Sender<u64>,
+    /// Why a broker sign-in that came back to Select Broker failed, read
+    /// once by the session it belongs to; cleared with the sessions.
+    pub(crate) sign_in_failures: super::sign_in_failures::SignInFailures,
 }
 
 impl Default for WebSessionStore {
@@ -86,6 +89,7 @@ impl Default for WebSessionStore {
         Self {
             map: Mutex::new(HashMap::new()),
             ended: tokio::sync::watch::channel(0).0,
+            sign_in_failures: Default::default(),
         }
     }
 }
@@ -195,6 +199,7 @@ impl WebSessionStore {
     /// password change).
     pub fn clear(&self) {
         self.map.lock().clear();
+        self.sign_in_failures.clear();
         self.signal_ended();
     }
 

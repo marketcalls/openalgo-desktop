@@ -227,6 +227,8 @@ mod session_rollover;
 mod sign_in;
 // Broker Configuration and Select Broker: keys per broker, one logged in.
 mod broker_config;
+// Select Broker shows no text from its address (web eec700046).
+mod sign_in_failure;
 // Codex review evaluation B: sign-out, revocation, keys, broker settings.
 mod credentials_lifecycle;
 // KEY-01: no OS keychain; the keys locked with the password in openalgo.db.
@@ -2088,12 +2090,23 @@ async fn first_state_less_sign_in_needs_the_saved_client_id() {
         with_session(get("/arrow/callback?request_token=r1"), &cookie, None),
     )
     .await;
-    let loc = urlencoding::decode(&location(&h)).unwrap().into_owned();
+    let loc = location(&h);
     assert!(loc.starts_with("/broker?error="), "{}", loc);
+    // The reason is read from OpenAlgo, never from the address.
+    let id = url::Url::parse(&format!("http://127.0.0.1{}", loc))
+        .unwrap()
+        .query_pairs()
+        .find(|(k, _)| k == "error")
+        .map(|(_, v)| v.into_owned())
+        .unwrap();
+    let reason = format!("/api/broker/sign-in-failure/{}", id);
+    let (_, _, body) = send_to(ctx, with_session(get(&reason), &cookie, None)).await;
     assert!(
-        loc.contains("Add your Arrow Client ID on the Broker Configuration page"),
+        body["data"]["message"].as_str().is_some_and(
+            |m| m.contains("Add your Arrow Client ID on the Broker Configuration page")
+        ),
         "{}",
-        loc
+        body
     );
     assert!(ctx.get_broker_session().is_none());
 

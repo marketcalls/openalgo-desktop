@@ -17,6 +17,8 @@ let posts: string[] = []
 let list: BrokerList
 
 let listReads = 0
+/** The sign-in failure ids the page asked OpenAlgo about. */
+let failureReads: string[] = []
 
 function serve(
   opts: {
@@ -24,8 +26,11 @@ function serve(
     /** A saved-keys sign-in whose reply never arrives. */
     loseSignInReply?: boolean
     capabilities?: () => Promise<Response>
+    /** Reasons OpenAlgo keeps for refused sign-ins, by id; each read once. */
+    failures?: Record<string, { broker: string; message: string }>
   } = {}
 ) {
+  const failures = { ...opts.failures }
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -43,6 +48,16 @@ function serve(
         })
       }
       if (url === '/auth/csrf-token') return json({ csrf_token: 'tok' })
+      const failurePath = '/api/broker/sign-in-failure/'
+      if (url.startsWith(failurePath)) {
+        const id = decodeURIComponent(url.slice(failurePath.length))
+        failureReads.push(id)
+        const kept = Object.hasOwn(failures, id) ? failures[id] : undefined
+        delete failures[id]
+        return kept
+          ? json({ status: 'success', data: kept })
+          : json({ status: 'error', message: 'The broker login did not complete. Try again.' }, 404)
+      }
       if (init?.method === 'POST') {
         posts.push(url)
         if (opts.loseSignInReply) throw new TypeError('Failed to fetch')
@@ -69,6 +84,7 @@ beforeEach(() => {
   assigned = []
   posts = []
   listReads = 0
+  failureReads = []
   useBrokerStore.getState().clearCapabilities()
   useAuthStore.setState({
     user: { username: 'trader', broker: 'zerodha', isLoggedIn: true, loginTime: null },
@@ -167,24 +183,52 @@ describe('Select Broker cards', () => {
     ).toBeInTheDocument()
     expect((await card('dhan')).queryByText(/Dhan requires/)).toBeNull()
   })
+})
 
-  it("shows a failed sign-in's reason on that broker's card", async () => {
+// A refused broker login comes back as /broker?error=<id>&broker=<id>.
+// Desktop: the id names the reason OpenAlgo kept for this browser session,
+// read once; the web maps a fixed code to a fixed sentence. Either way the
+// address is built by whoever sent the link, so its text never reaches the
+// page.
+describe('A login that came back refused', () => {
+  const REASON = 'The broker did not complete the sign-in.'
+
+  it("shows the reason OpenAlgo kept on that broker's card", async () => {
+    list = brokerList([saved(brokerEntry('zerodha', 'Zerodha', 'redirect'), {})])
+    serve({ failures: { 'id-1': { broker: 'zerodha', message: REASON } } })
+    renderPage('/broker?error=id-1&broker=zerodha')
+    expect(await (await card('zerodha')).findByText(REASON)).toBeInTheDocument()
+    expect(failureReads).toEqual(['id-1'])
+  })
+
+  // Web BrokerSelect.test.tsx (eec700046), the same case.
+  it('never shows text from the address', async () => {
     list = brokerList([saved(brokerEntry('zerodha', 'Zerodha', 'redirect'), {})])
     serve()
-    renderPage('/broker?error=The%20broker%20did%20not%20complete%20the%20sign-in.&broker=zerodha')
+    renderPage('/broker?error=%3Cb%3EINJECTED-TEXT%3C%2Fb%3E&broker=zerodha')
     expect(
-      await (await card('zerodha')).findByText('The broker did not complete the sign-in.')
+      await (await card('zerodha')).findByText('The broker login did not complete. Try again.')
     ).toBeInTheDocument()
+    expect(screen.queryByText(/INJECTED-TEXT/)).toBeNull()
+  })
+
+  it('puts the reason on the broker OpenAlgo names, not the one in the address', async () => {
+    list = brokerList([
+      saved(brokerEntry('zerodha', 'Zerodha', 'redirect'), {}),
+      saved(brokerEntry('angel', 'Angel One', 'form'), {}),
+    ])
+    serve({ failures: { 'id-2': { broker: 'zerodha', message: REASON } } })
+    renderPage('/broker?error=id-2&broker=angel')
+    expect(await (await card('zerodha')).findByText(REASON)).toBeInTheDocument()
+    expect((await card('angel')).queryByText(REASON)).toBeNull()
   })
 
   // Web BrokerSelect.test.tsx (eec700046) 'shows it at the top when no listed
   // broker is named': a reason for a broker without a card was never shown.
-  it('shows the reason at the top when no listed broker is named', async () => {
-    serve()
-    renderPage(
-      '/broker?error=The%20broker%20did%20not%20complete%20the%20sign-in.&broker=nosuchbroker'
-    )
-    const message = await screen.findByText('The broker did not complete the sign-in.')
+  it('shows it at the top when no listed broker is named', async () => {
+    serve({ failures: { 'id-3': { broker: 'nosuchbroker', message: REASON } } })
+    renderPage('/broker?error=id-3&broker=nosuchbroker')
+    const message = await screen.findByText(REASON)
     expect(message.closest('[data-testid^="broker-card-"]')).toBeNull()
   })
 })

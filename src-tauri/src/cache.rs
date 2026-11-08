@@ -144,6 +144,27 @@ impl<K: Eq + Hash + Clone, V: Clone> TtlCache<K, V> {
         v
     }
 
+    /// Remove and return the live value for `key` when `belongs` accepts it,
+    /// in one hold: an entry read once by its owner (a sign-in failure's
+    /// sentence). Not an invalidation, so fills in flight still store; an
+    /// entry `belongs` refuses stays for its owner.
+    pub fn take_if(&self, key: &K, now: Instant, belongs: impl FnOnce(&V) -> bool) -> Option<V> {
+        let mut g = self.inner.lock();
+        match g.map.get(key) {
+            Some((v, exp)) if *exp > now => {
+                if !belongs(v) {
+                    return None;
+                }
+                g.map.remove(key).map(|(v, _)| v)
+            }
+            Some(_) => {
+                g.map.remove(key);
+                None
+            }
+            None => None,
+        }
+    }
+
     /// Drop `key` and stop any read in flight from storing it again. Call
     /// after the writer's commit, never before.
     pub fn invalidate(&self, key: &K) {
@@ -216,6 +237,25 @@ mod tests {
         assert!(!c.fill("k", "stale", gen, now));
         assert!(c.fill("k", "fresh", c.generation(), now));
         assert_eq!(c.get(&"k", now), Some("fresh"));
+    }
+
+    /// An entry is taken once, only by the reader it belongs to, never
+    /// once expired; taking it is not an invalidation.
+    #[test]
+    fn take_if_hands_an_entry_out_once_to_its_owner() {
+        let c: TtlCache<&str, &str> = TtlCache::new(8, Duration::from_secs(60));
+        let now = Instant::now();
+        assert!(c.fill("k", "mine", c.generation(), now));
+        let gen = c.generation();
+        assert_eq!(c.take_if(&"k", now, |v| *v == "yours"), None);
+        assert_eq!(c.get(&"k", now), Some("mine"), "refused: it stays");
+        assert_eq!(c.take_if(&"k", now, |v| *v == "mine"), Some("mine"));
+        assert_eq!(c.take_if(&"k", now, |_| true), None, "once only");
+        assert_eq!(c.generation(), gen, "a take invalidates nothing");
+        assert!(c.fill("e", "old", gen, now));
+        let later = now + Duration::from_secs(61);
+        assert_eq!(c.take_if(&"e", later, |_| true), None, "expired");
+        assert!(c.is_empty(), "the expired entry is dropped");
     }
 
     #[test]

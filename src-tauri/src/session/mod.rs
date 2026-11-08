@@ -2,6 +2,7 @@
 //! what came before the boundary.
 
 pub mod boundary;
+pub mod sign_in_failures;
 pub mod web;
 
 use crate::brokers::catalog;

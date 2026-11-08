@@ -8,6 +8,7 @@ use crate::db::sqlite::credentials::CredentialUpdate;
 use crate::security::Secret;
 use crate::server::envelope::{error, json_response};
 use crate::server::form::FormData;
+use crate::server::middleware::User;
 use crate::server::routes::webui::no_store;
 use crate::services::broker_config_service::{
     BrokerConfigService, ForgetOutcome, KeySave, SaveOutcome,
@@ -21,6 +22,7 @@ use axum::{
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 type Ctx = State<Arc<AppState>>;
 
@@ -135,16 +137,50 @@ pub async fn forget(
     }
 }
 
-/// The API plan route (BRL-01). The other Broker Configuration routes are
-/// listed in the main table, which is over its size limit; they move here
-/// in the code-health pass.
+/// The API plan route (BRL-01) and the reason a sign-in sent Select Broker
+/// (its address carries only an id). The other Broker Configuration routes
+/// are listed in the main table, which is over its size limit; they move
+/// here in the code-health pass.
 pub fn table() -> Vec<super::RouteSpec> {
-    vec![super::RouteSpec {
-        path: "/api/broker/rate-plan/{broker}",
-        method: axum::http::Method::PUT,
-        access: super::Access::User,
-        make: || axum::routing::put(set_rate_plan),
-    }]
+    vec![
+        super::RouteSpec {
+            path: "/api/broker/rate-plan/{broker}",
+            method: axum::http::Method::PUT,
+            access: super::Access::User,
+            make: || axum::routing::put(set_rate_plan),
+        },
+        super::RouteSpec {
+            path: "/api/broker/sign-in-failure/{id}",
+            method: axum::http::Method::GET,
+            access: super::Access::User,
+            make: || axum::routing::get(sign_in_failure),
+        },
+    ]
+}
+
+/// What Select Broker shows when the reason behind its address is unknown,
+/// already read, expired or another session's.
+const SIGN_IN_FAILED: &str = "The broker login did not complete. Try again.";
+
+/// GET /api/broker/sign-in-failure/{id}: why the sign-in that sent this
+/// browser back to Select Broker failed (`session::sign_in_failures`), read
+/// once, by the session it belongs to.
+pub async fn sign_in_failure(
+    State(ctx): Ctx,
+    User(user): User,
+    Path(id): Path<String>,
+) -> Response {
+    let found = ctx
+        .sessions
+        .sign_in_failures
+        .take(&id, &user.session_id, Instant::now());
+    no_store(match found {
+        Some(f) => json_response(
+            StatusCode::OK,
+            json!({"status": "success", "data": {"broker": f.broker, "message": f.message}}),
+        ),
+        None => error(StatusCode::NOT_FOUND, SIGN_IN_FAILED),
+    })
 }
 
 /// PUT /api/broker/rate-plan/{broker} (json or form: plan): the API plan

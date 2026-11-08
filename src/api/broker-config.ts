@@ -146,11 +146,38 @@ async function write<T>(url: string, method: 'PUT' | 'POST' | 'DELETE', payload?
 
 const brokerPath = (id: string) => `/api/broker/credentials/${encodeURIComponent(id)}`
 
+/** Why a broker sign-in that came back to Select Broker failed. */
+export interface SignInFailure {
+  broker: string
+  message: string
+}
+
 export const brokerConfigApi = {
   /** Every broker, with what is saved (masked) and which one is logged in. */
   async list(): Promise<BrokerList> {
     const body = await request<{ data: BrokerList }>('/api/broker/list')
     return body.data
+  },
+
+  /**
+   * Desktop: the reason a failed sign-in sent this browser back with
+   * (`/broker?error=<id>`). The address carries only an id; the server
+   * keeps the sentence for this session and answers it once. Null when it
+   * is unknown, already read, expired or another session's.
+   */
+  async signInFailure(id: string): Promise<SignInFailure | null> {
+    try {
+      const body = await request<{ data?: Partial<SignInFailure> }>(
+        `/api/broker/sign-in-failure/${encodeURIComponent(id)}`
+      )
+      const broker = body.data?.broker
+      const message = body.data?.message
+      return typeof broker === 'string' && typeof message === 'string' && message
+        ? { broker, message }
+        : null
+    } catch {
+      return null
+    }
   },
 
   /**
