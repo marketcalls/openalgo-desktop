@@ -131,7 +131,8 @@ fn each_alias_carries_its_canonical_value() {
                 continue;
             }
             for mode in [Mode::Quote, Mode::Depth] {
-                let depth_only = ["totalbuyqty", "total_traded_value"].contains(&alias);
+                let depth_only = ["totalbuyqty", "total_traded_value"].contains(&alias)
+                    || (broker, alias) == ("definedge", "ltq");
                 if depth_only && mode == Mode::Quote {
                     continue;
                 }

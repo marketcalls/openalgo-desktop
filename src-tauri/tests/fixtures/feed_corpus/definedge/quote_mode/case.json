@@ -53,12 +53,6 @@
       "kind": "open",
       "reason": "Definedge's web adapter names the percent change change_percent and percent_change (both sent by the desktop too); the desktop adds its canonical price_change_percent. Dropped in Phase B through the per-broker switch (lead rules 2026-11-09).",
       "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
-    },
-    {
-      "key": "ltq",
-      "kind": "open",
-      "reason": "Definedge's web adapter sends ltq (its name for last_quantity) in Depth only (_DEPTH_EXTRA_FIELDS); the desktop's names table sends it from Quote. Phase B: from Depth, in Definedge's entry of feed/dialect/names.rs.",
-      "ref": "definedge_adapter.py:1004-1005; feed/dialect/names.rs DEFINEDGE"
     }
   ]
 }

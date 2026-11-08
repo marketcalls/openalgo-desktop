@@ -359,8 +359,10 @@ const ALICEBLUE: &[WebName] = &[
     n("total_oi", S::Oi, Q),
 ];
 
+/// Definedge sends `ltq` in Depth only (`_DEPTH_EXTRA_FIELDS`); Quote's
+/// last quantity is `last_quantity` alone.
 const DEFINEDGE: &[WebName] = &[
-    n("ltq", S::LastQuantity, Q),
+    n("ltq", S::LastQuantity, D),
     n("change_percent", S::ChangePercent, Q),
     n("percent_change", S::ChangePercent, Q),
     n("prev_oi", S::Extra(E::PreviousOi), Q),

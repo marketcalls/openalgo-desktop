@@ -42,12 +42,6 @@
       "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms"
     },
     {
-      "key": "ltq",
-      "kind": "open",
-      "reason": "Definedge's web adapter sends ltq (its name for last_quantity) in Depth only (_DEPTH_EXTRA_FIELDS); the desktop's names table sends it from Quote. Phase B: from Depth, in Definedge's entry of feed/dialect/names.rs.",
-      "ref": "definedge_adapter.py:1004-1005; feed/dialect/names.rs DEFINEDGE"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "Definedge's web adapter sends the percent change only (change_percent, percent_change), never price_change, for any instrument; the desktop adds its canonical price_change. Lead rules 2026-11-09: change keys outside the docs follow the adapter; dropped in Phase B through the per-broker switch.",

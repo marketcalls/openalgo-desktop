@@ -39,12 +39,6 @@
   },
   "deviations": [
     {
-      "key": "ltq",
-      "kind": "open",
-      "reason": "Definedge's web adapter sends ltq (its name for last_quantity) in Depth only (_DEPTH_EXTRA_FIELDS); the desktop's names table sends it from Quote. Phase B: from Depth, in Definedge's entry of feed/dialect/names.rs.",
-      "ref": "definedge_adapter.py:1004-1005; feed/dialect/names.rs DEFINEDGE"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",

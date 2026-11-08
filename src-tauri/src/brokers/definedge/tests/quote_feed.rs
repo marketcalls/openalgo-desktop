@@ -80,7 +80,8 @@ fn a_depth_message_carries_the_full_quote_and_the_trade_time() {
     assert_eq!(quote["open"], 1382.6);
     assert_eq!(quote["average_price"], 1391.24);
     assert_eq!(quote["last_quantity"], 7);
-    assert_eq!(quote["ltq"], 7);
+    // The web's Quote names it last_quantity only; ltq is Depth's.
+    assert!(quote.get("ltq").is_none(), "{}", quote);
     assert_eq!(ist_seconds_of_day(&quote["ltt"]), AT_14_25_31);
 
     let depth = last(frames.at(&ev, Mode::Depth));
@@ -88,6 +89,7 @@ fn a_depth_message_carries_the_full_quote_and_the_trade_time() {
     assert_eq!(depth["total_buy_quantity"], 120_952);
     assert_eq!(depth["total_sell_quantity"], 131_730);
     assert_eq!(depth["last_quantity"], 7);
+    assert_eq!(depth["ltq"], 7);
     assert_eq!(ist_seconds_of_day(&depth["ltt"]), AT_14_25_31);
     assert_eq!(depth["depth"]["buy"][0]["price"], 1395.4);
 
