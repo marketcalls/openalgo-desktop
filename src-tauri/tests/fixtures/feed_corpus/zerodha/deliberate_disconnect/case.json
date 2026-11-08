@@ -1,0 +1,28 @@
+{
+  "broker": "zerodha",
+  "summary": "A logout closes the Kite ticker while a client still holds INFY: the feed sends no farewell frame, closes the socket with a close frame, and does not connect again.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter.disconnect",
+      "broker/zerodha/streaming/zerodha_websocket.py::ZerodhaWebSocket.stop"
+    ],
+    "notes": [
+      "The web adapter's disconnect stops its client (zerodha_adapter.py:215-240), and the client's stop closes the socket without sending anything first (zerodha_websocket.py:321-331): no unsubscribe, no farewell. The desktop's KiteFeed has no farewell frames either.",
+      "After WebSocketManager::disconnect the manager has no feed to connect again, so the fake broker sees one connection only."
+    ]
+  }
+}

@@ -87,6 +87,11 @@ impl Socket {
 pub(crate) enum Wire {
     Text(String),
     Binary(Vec<u8>),
+    /// The feed's close frame, with its code if it gave one; recorded only
+    /// after a `disconnect` step.
+    Closed(Option<u16>),
+    /// The connection ended without a close frame (after a `disconnect`).
+    Ended,
 }
 
 impl std::fmt::Display for Wire {
@@ -94,6 +99,9 @@ impl std::fmt::Display for Wire {
         match self {
             Wire::Text(t) => write!(f, "text {}", t),
             Wire::Binary(b) => write!(f, "binary {}", hex::encode(b)),
+            Wire::Closed(Some(code)) => write!(f, "close {}", code),
+            Wire::Closed(None) => write!(f, "close"),
+            Wire::Ended => write!(f, "the connection ended without a close frame"),
         }
     }
 }
@@ -156,6 +164,9 @@ pub(crate) enum Expect {
     BinaryJson(Value),
     Text(String),
     Binary(Vec<u8>),
+    /// The feed's close frame (with this code, if named): `{"close": 1000}`,
+    /// or `{"close": null}` for any.
+    Close(Option<u16>),
 }
 
 impl Expect {
@@ -169,6 +180,7 @@ impl Expect {
             }
             (Expect::Text(s), Wire::Text(t)) => s == t,
             (Expect::Binary(b), Wire::Binary(x)) => b == x,
+            (Expect::Close(want), Wire::Closed(got)) => want.is_none() || want == got,
             _ => false,
         }
     }
@@ -181,6 +193,8 @@ impl std::fmt::Display for Expect {
             Expect::BinaryJson(v) => write!(f, "binary json {}", v),
             Expect::Text(t) => write!(f, "text {}", t),
             Expect::Binary(b) => write!(f, "binary {}", hex::encode(b)),
+            Expect::Close(Some(code)) => write!(f, "close {}", code),
+            Expect::Close(None) => write!(f, "close"),
         }
     }
 }
@@ -280,6 +294,12 @@ pub(crate) enum Action {
         /// The close frame's code and reason, if the broker sends one.
         close: Option<(u16, String)>,
     },
+    /// The socket's manager closes it deliberately (a logout, a broker
+    /// switch) while clients still hold subscriptions: the feed's farewell
+    /// frames, then its close, reach the fake broker.
+    Disconnect {
+        socket: Socket,
+    },
     /// Refuse the next `times` upgrades with HTTP `status`.
     RefuseUpgrades {
         socket: Socket,
@@ -319,6 +339,7 @@ impl Action {
             | Action::UpstreamReceives { socket, .. }
             | Action::UpstreamConnected { socket, .. }
             | Action::DropUpstream { socket, .. }
+            | Action::Disconnect { socket }
             | Action::RefuseUpgrades { socket, .. }
             | Action::UpstreamConnections { socket, .. } => Some(*socket),
             _ => None,
@@ -747,6 +768,7 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
         "upstream_receives" => &["socket", "frames", "any_order", "connection"],
         "upstream_connected" => &["socket", "connection", "path", "headers"],
         "drop_upstream" => &["socket", "code", "reason"],
+        "disconnect" => &["socket"],
         "refuse_upgrades" => &["socket", "status", "times"],
         "upstream_connections" => &["socket", "count", "refused", "ms"],
         "http_serve" => &["method", "path", "status", "body", "record"],
@@ -846,6 +868,7 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
                 })
                 .unwrap_or_default(),
         },
+        "disconnect" => Action::Disconnect { socket: socket() },
         "drop_upstream" => Action::DropUpstream {
             socket: socket(),
             close: match (o.get("code"), o.get("reason")) {
@@ -1112,6 +1135,20 @@ fn upstream_frame(at: &str, dir: &Path, v: &Value) -> Expect {
                 format!("{}: a frame file is .hex, .bin, .json or .txt", name),
             ),
         };
+    }
+    if let Some(code) = v
+        .as_object()
+        .filter(|o| o.len() == 1)
+        .and_then(|o| o.get("close"))
+    {
+        return Expect::Close(match code {
+            Value::Null | Value::Bool(true) => None,
+            c => Some(
+                c.as_u64()
+                    .and_then(|c| u16::try_from(c).ok())
+                    .unwrap_or_else(|| bad(at, "\"close\" is a close code, or null for any")),
+            ),
+        });
     }
     match inline(at, v) {
         ("hex", s) => Expect::Binary(decode_hex(at, s.as_str().unwrap_or_default())),

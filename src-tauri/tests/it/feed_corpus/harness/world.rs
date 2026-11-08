@@ -25,9 +25,10 @@ use openalgo_desktop_lib::feed::orders::OrderRelay;
 use openalgo_desktop_lib::feed::{start, FeedConfig, FeedDeps, FeedHandle};
 use openalgo_desktop_lib::services::broker_runtime::order_event;
 use openalgo_desktop_lib::websocket::{FeedConfig as ManagerConfig, WebSocketManager};
+use parking_lot::Mutex;
 use serde_json::Value;
 use std::any::Any;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast::error::RecvError;
@@ -182,6 +183,8 @@ pub(crate) struct World {
     relays: JoinSet<()>,
     server: FeedHandle,
     keep: Vec<Box<dyn Any + Send + Sync>>,
+    /// The sockets a `disconnect` step closed.
+    disconnected: Mutex<BTreeSet<Socket>>,
 }
 
 impl World {
@@ -320,11 +323,32 @@ impl World {
             relays,
             server,
             keep: feeds.keep,
+            disconnected: Mutex::new(BTreeSet::new()),
         }
     }
 
     pub(crate) fn upstream(&self, s: Socket) -> &Upstream {
         &self.upstreams[&s]
+    }
+
+    /// The manager whose feed connects to socket `s`.
+    fn manager(&self, s: Socket) -> &WebSocketManager {
+        match s {
+            Socket::Main => &self.market,
+            Socket::Depth => &self.deep,
+            Socket::Orders => &self.orders,
+        }
+    }
+
+    /// Close socket `s` deliberately, as a logout or a broker switch does
+    /// (`WebSocketManager::disconnect`), with clients still subscribed: the
+    /// fake broker records the feed's farewell frames and its close.
+    pub(crate) async fn disconnect(&self, s: Socket) {
+        self.upstream(s).expect_close();
+        self.disconnected.lock().insert(s);
+        if let Err(e) = self.manager(s).disconnect().await {
+            panic!("the {} feed did not disconnect: {}", s.name(), e);
+        }
     }
 
     pub(crate) fn http(&self) -> &HttpFake {
@@ -345,16 +369,27 @@ impl World {
     /// hold nothing for them any more, then stop everything.
     pub(crate) async fn stop(mut self, id: &str) {
         let gone = eventually(DEADLINE, || self.server.stats().clients == 0).await;
+        // A manager a `disconnect` step closed forgot its subscriptions
+        // while clients held them; the bridge's release of those cannot
+        // reach the broker, so only the others are checked.
+        let closed = self.disconnected.lock().clone();
+        let main_open = !closed.contains(&Socket::Main);
+        let deep_open = !closed.contains(&Socket::Depth);
         let released = eventually(DEADLINE, || {
-            self.bridge.applied().is_empty()
-                && self.bridge.applied_deep().is_empty()
-                && self.market.instrument_count() == 0
-                && self.deep.instrument_count() == 0
+            let main = self.bridge.applied().is_empty() && self.market.instrument_count() == 0;
+            let deep = self.bridge.applied_deep().is_empty() && self.deep.instrument_count() == 0;
+            (main || !main_open) && (deep || !deep_open)
         })
         .await;
         self.server.stop().await;
         self.bridge.stop().await;
-        for m in [&self.market, &self.deep, &self.orders] {
+        // By field: `self.server` has gone, so `self.manager` cannot be used.
+        let managers = [
+            (Socket::Main, &self.market),
+            (Socket::Depth, &self.deep),
+            (Socket::Orders, &self.orders),
+        ];
+        for (_, m) in managers.into_iter().filter(|(s, _)| !closed.contains(s)) {
             let _ = m.disconnect().await;
         }
         // Dropping an owner stops its poller, which ends its stream.

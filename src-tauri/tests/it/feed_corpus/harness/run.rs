@@ -197,6 +197,7 @@ impl Runner<'_> {
                     bad(&at, format!("{} socket: {}", socket.name(), e));
                 }
             }
+            Action::Disconnect { socket } => self.world.disconnect(*socket).await,
             Action::RefuseUpgrades {
                 socket,
                 status,
