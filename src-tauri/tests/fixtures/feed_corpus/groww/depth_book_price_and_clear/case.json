@@ -38,62 +38,62 @@
     {
       "key": "ask",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "ask_price",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "ask_qty",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "ask_quantity",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "ask_size",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "bid",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "bid_price",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "bid_qty",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "bid_quantity",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "bid_size",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "ltp",
@@ -104,14 +104,14 @@
     {
       "key": "offer_price",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     },
     {
       "key": "offer_quantity",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1020-1048"
+      "reason": "After a book with no level on either side the web sends no best bid or ask; the desktop's snapshot keeps the previous book's (feed/bridge/snapshot.rs: extras overlay, a None never clears one), so the cleared frame shows the last best bid and ask. Needs a shared change asked of the lead: a book that empties a side clears its best price and quantity.",
+      "ref": "groww_adapter.py:1020-1048; feed/bridge/snapshot.rs::merge (s.extras.overlay)"
     }
   ]
 }

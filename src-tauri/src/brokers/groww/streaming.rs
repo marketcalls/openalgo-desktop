@@ -502,7 +502,23 @@ fn merged_tick(sub: &FeedSubscription, m: &Merged, now: i64, priced: bool) -> No
         t.broker_fields
             .set(BrokerField::TradedValue, BrokerValue::Float(v));
     }
+    if sub.mode == FeedMode::Depth && !is_index(&sub.exchange) {
+        // The web lifts the top of a Depth subscriber's book into flat
+        // fields, each only when it is not 0 (groww_adapter.py:1020-1048).
+        (t.extras.bid_price, t.extras.bid_quantity) = best(&m.buy);
+        (t.extras.ask_price, t.extras.ask_quantity) = best(&m.sell);
+    }
     t
+}
+
+/// A book side's best price and quantity, each where it is not 0.
+fn best(side: &[DepthLevel]) -> (Option<f64>, Option<i64>) {
+    side.first().map_or((None, None), |l| {
+        (
+            (l.price != 0.0).then_some(l.price),
+            (l.quantity != 0).then_some(l.quantity),
+        )
+    })
 }
 
 /// The merged quote as a tick: what Groww has not sent yet marked absent.

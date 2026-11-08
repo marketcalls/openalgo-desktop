@@ -1703,6 +1703,39 @@ fn a_quote_keeps_the_traded_value() {
     assert_eq!(next[0]["value"], 974_250_000.0);
 }
 
+/// The web lifts a Depth subscriber's best bid and ask from the book into
+/// flat fields under twelve names (groww_adapter.py:1020-1048); the padded
+/// empty level is no level.
+#[test]
+fn a_depth_frame_carries_the_best_bid_and_ask_under_the_web_names() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
+    let mut frames = Frames::new("groww");
+    frames.at(&f.parse(&msg_frame(1, &ltp_payload(812.35))), Mode::Depth);
+    let book = frames.at(&f.parse(&msg_frame(2, &depth_payload())), Mode::Depth);
+    let [d] = book.as_slice() else {
+        panic!("one frame expected: {:?}", book)
+    };
+    for k in ["bid", "bid_price"] {
+        assert_eq!(d[k], 812.3, "{}", k);
+    }
+    for k in ["bid_qty", "bid_size", "bid_quantity"] {
+        assert_eq!(d[k], 120, "{}", k);
+    }
+    for k in ["ask", "ask_price", "offer_price"] {
+        assert_eq!(d[k], 812.4, "{}", k);
+    }
+    for k in ["ask_qty", "ask_size", "ask_quantity", "offer_quantity"] {
+        assert_eq!(d[k], 80, "{}", k);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Order poller
 // ---------------------------------------------------------------------------

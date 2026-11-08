@@ -22,7 +22,19 @@
     "broker": "groww",
     "topic": "NSE_SBIN_DEPTH",
     "subscription_mode": 3,
-    "value": 974250000.0
+    "value": 974250000.0,
+    "bid": 812.5,
+    "bid_price": 812.5,
+    "bid_qty": 100,
+    "bid_size": 100,
+    "bid_quantity": 100,
+    "ask": 812.6,
+    "ask_price": 812.6,
+    "offer_price": 812.6,
+    "ask_qty": 120,
+    "ask_size": 120,
+    "ask_quantity": 120,
+    "offer_quantity": 120
   },
   "broker": "groww"
 }
