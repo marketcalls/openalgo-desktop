@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 37. Open gaps: 110. Deviations pending approval: 65.
+Cases: 37. Open gaps: 108. Deviations pending approval: 67.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -121,8 +121,8 @@ Cases: 37. Open gaps: 110. Deviations pending approval: 65.
 | samco | `index_ltp_and_quote` | `best_ask_quantity` | web-defect | no | For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out. |
 | samco | `index_ltp_and_quote` | `best_bid_price` | web-defect | no | For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out. |
 | samco | `index_ltp_and_quote` | `best_bid_quantity` | web-defect | no | For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out. |
-| samco | `index_ltp_and_quote` | `last_quantity` | open | no | The desktop's index frames carry no last_quantity; Samco's web adapter sends last_quantity for an index too (0 when Samco sends no ltq). Follows the web adapter in Phase B through the per-broker switch. |
-| samco | `index_ltp_and_quote` | `last_trade_quantity` | open | no | As last_quantity: Samco's web adapter sends last_trade_quantity for an index too. Follows the web adapter in Phase B through the per-broker switch. |
+| samco | `index_ltp_and_quote` | `last_quantity` | web-defect | no | Samco sent no ltq for the index, and the web sends last_quantity 0, a value it never received; the desktop leaves it out. (Where Samco does send an ltq for an index, the desktop must send it, under both of the adapter's names: a Phase B fix.) |
+| samco | `index_ltp_and_quote` | `last_trade_quantity` | web-defect | no | As last_quantity: the web sends last_trade_quantity 0 for an index frame without ltq; the desktop leaves it out. |
 | samco | `index_ltp_and_quote` | `mode` | open | no | The web's Samco adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Follows the web adapter in Phase B through wire's per-broker switch in the dialect table (Samco: the number). |
 | samco | `index_ltp_and_quote` | `price_change` | open | no | The desktop sends an index's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change). |
 | samco | `index_ltp_and_quote` | `price_change_percent` | open | no | As price_change: Samco's web adapter sends change_percentage only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change_percent). |
