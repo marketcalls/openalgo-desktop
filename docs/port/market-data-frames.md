@@ -185,7 +185,7 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 | paytm | L `close`, `change_absolute`, `change_percent`; Q `last_trade_quantity`, `52_week_high`, `52_week_low`; D `oi_change` | number | 52-week range, OI change |
 | pocketful | L `change`, `oi`, `bid_price`, `ask_price`; Q `last_trade_quantity` | number | `carried(Change, OpenInterest)` on compact packets, best bid and ask |
 | rupeezy | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; D circuits | none | circuits (parsed, not yet carried) |
-| sahi | L `last_trade_time`; Q `oi`, circuits | label | circuits (decoded past the price bands), `carried(OpenInterest)` on Quote |
+| sahi | L `last_trade_time`; Q `oi`, circuits | label | circuits from the price band (none when a tick has none), `carried(OpenInterest)` on Quote ticks with OI, `absent(OpenInterest)` on ticks without; book sides as streamed, no padding; no book event for an index |
 | samco | L `last_trade_time`; Q `last_trade_quantity`, `change`, `change_percentage`, `best_bid_price`, `best_bid_quantity`, `best_ask_price`, `best_ask_quantity` | number | best bid and ask |
 | tradejini | Q `change`, `change_percent`, `percent_change`, `oi`; D circuits | number | circuits, `carried(OpenInterest)` on Quote |
 | upstox | L `ltq`, `cp`, `indicative_equilibrium_price`; Q `last_trade_quantity`, `last_trade_time`, `reference_price`, `indicative_equilibrium_quantity`, `indicative_imbalance_quantity_total`, `indicative_imbalance_quantity_market`, `cas_eligible`; depth levels without `orders` | none | `carried(LastQuantity, Close)` on LTPC, the auction `BrokerField`s (audit P-11), `absent(Orders)` on the book |
