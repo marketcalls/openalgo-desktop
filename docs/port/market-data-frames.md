@@ -67,7 +67,10 @@ come from three places:
 - **Shared optional fields** (`QuoteExtras`): circuits, 52-week range, best
   bid and ask with quantities, previous OI, OI change, total OI, the day's
   close, the packet's exchange time. Each is sent under the broker's own
-  names only.
+  names only. One the packet did not carry keeps its last value; one the
+  packet says is gone (`QuoteExtras::clear`, `clear_best_bid_ask` for a
+  book that emptied both sides, as Groww's web adapter clears its best bid
+  and ask) is left out until a packet sends it again.
 - **Broker-only fields** (`BrokerField`, a fixed set): Upstox's auction
   fields, Dhan's `oi_high` / `oi_low`, Groww's `value`.
 
@@ -89,7 +92,10 @@ as the web's `server.py` sends them):
   tick (as recorded), never for Fyers, Motilal, Nubra, the Noren family and
   Delta Exchange.
 - Number types: Angel's book totals are doubles (1000.0), as its packet
-  carries them.
+  carries them. A broker's list of doubles (`Dialect::floats`) covers its
+  own names as well as the canonical keys, and a packet can add integer
+  fields its web form writes as doubles for that packet only
+  (`NormalizedTick::floats`: Jainam's and RMoney's 1105 text event).
 - A broker not in the table gets the master frame of 1.0.6 (both OI keys,
   `ltt` everywhere, a numeric `data.mode`); a broker lane changes its
   broker's entry when its corpus cases show otherwise.

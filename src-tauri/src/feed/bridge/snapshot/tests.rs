@@ -187,6 +187,34 @@ fn extras_stay_and_broker_fields_last_one_packet() {
     assert!(s.tick().broker_fields.is_empty());
 }
 
+/// A packet can clear an extra (a book that emptied both sides has no best
+/// bid or ask: web groww depth clear), which a `None` would have kept.
+#[test]
+fn a_cleared_extra_is_gone_where_a_missing_one_stays() {
+    use crate::brokers::common::streaming::ExtraField;
+    let mut first = quote_packet();
+    first.extras.bid_price = Some(219.25);
+    first.extras.ask_price = Some(219.35);
+    first.extras.upper_circuit = Some(540.0);
+    let s = merge(None, &first, 1);
+    let s = merge(Some(&s), &ltpc_packet(220.0), 1);
+    assert_eq!(s.tick().extras.bid_price, Some(219.25), "not sent: kept");
+    let mut emptied = ltpc_packet(220.5);
+    emptied.extras.clear_best_bid_ask();
+    let s = merge(Some(&s), &emptied, 1);
+    let x = s.tick().extras;
+    assert_eq!((x.bid_price, x.ask_price), (None, None));
+    assert_eq!(x.upper_circuit, Some(540.0));
+    let mut circuit = ltpc_packet(221.0);
+    circuit.extras.clear(ExtraField::UpperCircuit);
+    let s = merge(Some(&s), &circuit, 1);
+    assert_eq!(s.tick().extras.upper_circuit, None);
+    assert!(
+        s.tick().extras.cleared == Default::default(),
+        "the mark is per packet"
+    );
+}
+
 /// A packet that marks the change absent (its stream has none) gets none
 /// worked out from the price and the close, which an adapter could not
 /// otherwise leave out.

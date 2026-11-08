@@ -40,7 +40,10 @@
 //! * **Optional shared fields** ([`QuoteExtras`], C06): `t.extras.
 //!   upper_circuit = Some(v)`, likewise the 52-week range, the best bid and
 //!   ask, previous OI, OI change, total OI, the day's close and the packet's
-//!   exchange time. Leave `None` what the packet did not carry.
+//!   exchange time. Leave `None` what the packet did not carry (the
+//!   bridge keeps the last value); `t.extras.clear(ExtraField::BidPrice)` or
+//!   `clear_best_bid_ask()` for what the packet says is gone (an emptied
+//!   book).
 //! * **Broker-only fields** ([`BrokerField`]): `t.broker_fields.set(
 //!   BrokerField::IndicativeEquilibriumPrice, BrokerValue::Float(v))`. The
 //!   set of keys is fixed in `fields.rs`, so a broker field can never
@@ -67,7 +70,10 @@ pub use tokio_tungstenite::tungstenite::handshake::client::Request as WsRequest;
 pub use tokio_tungstenite::tungstenite::Message;
 
 mod fields;
-pub use fields::{AbsentFields, BrokerField, BrokerFields, BrokerValue, QuoteExtras, QuoteField};
+pub use fields::{
+    AbsentFields, BrokerField, BrokerFields, BrokerValue, ClearedExtras, ExtraField, QuoteExtras,
+    QuoteField,
+};
 
 /// Longest a feed waits for a required login acknowledgement
 /// (`BrokerFeed::auth_ack_deadline`).
