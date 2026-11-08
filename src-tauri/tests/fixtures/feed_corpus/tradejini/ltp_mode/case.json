@@ -31,12 +31,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Tradejini adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Phase B: follows the web adapter through wire's per-broker switch in the dialect table (Tradejini: the number).",
-      "ref": "tradejini_adapter.py:780 (\"mode\": subscription_mode); feed::source::Mode::data_label; lead rule 2026-11-09"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",

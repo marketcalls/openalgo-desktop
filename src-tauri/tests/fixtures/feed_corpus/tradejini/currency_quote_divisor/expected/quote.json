@@ -7,7 +7,7 @@
   "data": {
     "symbol": "USDINR25NOV25FUT",
     "exchange": "CDS",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 83.85125,
     "ltt": 1762332990000,
     "timestamp": "<receipt_ms>",
@@ -17,6 +17,11 @@
     "open": 83.8,
     "high": 83.9,
     "low": 83.75,
-    "close": 83.775
+    "close": 83.775,
+    "price_change": 0.76,
+    "price_change_percent": 0.09,
+    "change": 0.76,
+    "change_percent": 0.09,
+    "percent_change": 0.09
   }
 }

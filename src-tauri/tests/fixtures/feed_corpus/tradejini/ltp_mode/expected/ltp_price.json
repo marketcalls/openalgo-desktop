@@ -7,7 +7,7 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "ltp",
+    "mode": 1,
     "ltp": 810.75,
     "ltt": 1762332931000,
     "timestamp": "<receipt_ms>"

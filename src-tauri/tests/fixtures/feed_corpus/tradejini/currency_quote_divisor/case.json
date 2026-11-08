@@ -37,12 +37,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Tradejini adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Phase B: follows the web adapter through wire's per-broker switch in the dialect table (Tradejini: the number).",
-      "ref": "tradejini_adapter.py:780 (\"mode\": subscription_mode); feed::source::Mode::data_label; lead rule 2026-11-09"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",
@@ -55,28 +49,28 @@
       "ref": "tradejini_adapter.py:828; feed::bridge::tick_update (with_oi); audit C05 (lane wire)"
     },
     {
-      "key": "change",
-      "kind": "open",
-      "reason": "The web sends Tradejini's own change (chng) in Quote and Depth for every instrument; the desktop sends the change for indices only.",
-      "ref": "tradejini_adapter.py:829, :858-866; audit C04 (lane wire)"
-    },
-    {
-      "key": "change_percent",
-      "kind": "open",
-      "reason": "As change, for Tradejini's chngPer.",
-      "ref": "tradejini_adapter.py:830, :858-866; audit C04 (lane wire)"
-    },
-    {
-      "key": "percent_change",
-      "kind": "open",
-      "reason": "As change: the web's second name for chngPer (web openalgo#2383).",
-      "ref": "tradejini_adapter.py:883-884; audit C04 (lane wire)"
-    },
-    {
       "key": "last_trade_time",
       "kind": "open",
       "reason": "The web also sends the trade time as last_trade_time (the same local-time text as its ltt, a web defect); the desktop sends no last_trade_time for Tradejini. Phase B: the dialect alias in epoch ms beside ltt, as Samco, 5paisa and mStock have it (feed::dialect, lane wire); the value then stays a declared web defect.",
       "ref": "tradejini_adapter.py:881-886 _add_reference_keys; feed::dialect"
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The desktop rounds Tradejini's change to two decimals (round2 in TradejiniFeed::tick): 0.76 where Tradejini sent 0.7625 for a currency future, whose prices carry four (divisor 1e7). The web passes the change as sent. Phase B: keep the change as Tradejini sends it.",
+      "ref": "nxtradstream.py:79 chng; brokers/tradejini/streaming.rs TradejiniFeed::tick"
+    },
+    {
+      "key": "price_change",
+      "kind": "open",
+      "reason": "Two causes: the rounding of change (0.76 for Tradejini's 0.7625), and the canonical price_change the web's Tradejini adapter never sends (follows the web adapter once wire's switch covers instruments).",
+      "ref": "brokers/tradejini/streaming.rs TradejiniFeed::tick; feed::protocol::market canonical()"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "The canonical price_change_percent the web's Tradejini adapter never sends (follows the web adapter once wire's switch covers instruments); its value, chngPer 0.09, is Tradejini's.",
+      "ref": "feed::protocol::market canonical()"
     }
   ]
 }

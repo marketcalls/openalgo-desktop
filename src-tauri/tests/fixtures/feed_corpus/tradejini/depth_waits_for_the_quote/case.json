@@ -36,12 +36,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Tradejini adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Phase B: follows the web adapter through wire's per-broker switch in the dialect table (Tradejini: the number).",
-      "ref": "tradejini_adapter.py:780 (\"mode\": subscription_mode); feed::source::Mode::data_label; lead rule 2026-11-09"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",
@@ -78,10 +72,34 @@
       "ref": "tradejini_adapter.py:888-915 _extract_depth_data; brokers/tradejini/streaming.rs pad5"
     },
     {
-      "key": "open_interest",
+      "key": "change",
+      "kind": "desktop-decision",
+      "reason": "Tradejini sent no change for INFY (its L1 has no chng); the desktop works the change out from the price and the previous close, as for every instrument whose previous close backs it (audit C04, docs/port/market-data-frames.md 'Change and open interest'); the web's Depth sends no change then.",
+      "ref": "tradejini_adapter.py:858-866; brokers::common::streaming::NormalizedTick::derive_change"
+    },
+    {
+      "key": "change_percent",
+      "kind": "desktop-decision",
+      "reason": "As change, for the percent: (1155 - 1185) / 1185 = -2.53%.",
+      "ref": "tradejini_adapter.py:858-866; NormalizedTick::derive_change"
+    },
+    {
+      "key": "percent_change",
+      "kind": "desktop-decision",
+      "reason": "As change_percent, under the web's second name for it.",
+      "ref": "tradejini_adapter.py:883-884; NormalizedTick::derive_change"
+    },
+    {
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web's Tradejini adapter sends OI as oi only; the desktop sends open_interest beside it. Phase B: follows the web adapter through wire's per-broker switch in the dialect table (Tradejini: no open_interest).",
-      "ref": "tradejini_adapter.py:851; feed::protocol::market_data; lead rule 2026-11-09"
+      "reason": "Two causes: the change is the desktop's own, from the previous close (as change, a desktop decision, audit C04), and it goes out under the canonical price_change too, which the web's Tradejini adapter never sends (as price_change in the other cases: follows the web adapter once wire's switch covers instruments).",
+      "ref": "NormalizedTick::derive_change; feed::protocol::market canonical()"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "As price_change, for price_change_percent.",
+      "ref": "NormalizedTick::derive_change; feed::protocol::market canonical()"
     }
   ]
 }

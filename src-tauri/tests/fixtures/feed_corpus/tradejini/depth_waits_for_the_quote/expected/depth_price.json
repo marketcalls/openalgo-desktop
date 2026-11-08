@@ -7,7 +7,7 @@
   "data": {
     "symbol": "INFY",
     "exchange": "NSE",
-    "mode": "full",
+    "mode": 3,
     "ltp": 1156.0,
     "timestamp": "<receipt_ms>",
     "volume": 1100000,
@@ -20,7 +20,6 @@
     "low": 1151.0,
     "close": 1185.0,
     "oi": 0,
-    "open_interest": 0,
     "depth": {
       "buy": [
         {
@@ -76,6 +75,11 @@
           "orders": 0
         }
       ]
-    }
+    },
+    "price_change": -29.0,
+    "price_change_percent": -2.45,
+    "change": -29.0,
+    "change_percent": -2.45,
+    "percent_change": -2.45
   }
 }

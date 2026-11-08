@@ -7,7 +7,7 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 810.5,
     "ltt": 1762332931000,
     "timestamp": "<receipt_ms>",
@@ -17,6 +17,11 @@
     "open": 800.0,
     "high": 815.0,
     "low": 798.0,
-    "close": 805.0
+    "close": 805.0,
+    "price_change": 5.5,
+    "price_change_percent": 0.68,
+    "change": 5.5,
+    "change_percent": 0.68,
+    "percent_change": 0.68
   }
 }

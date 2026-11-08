@@ -7,7 +7,7 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "full",
+    "mode": 3,
     "ltp": 810.75,
     "ltt": 1762332931000,
     "timestamp": "<receipt_ms>",
@@ -21,7 +21,6 @@
     "total_buy_quantity": 5200,
     "total_sell_quantity": 6900,
     "oi": 0,
-    "open_interest": 0,
     "depth": {
       "buy": [
         {
@@ -77,6 +76,11 @@
           "orders": 6
         }
       ]
-    }
+    },
+    "price_change": 5.5,
+    "price_change_percent": 0.68,
+    "change": 5.5,
+    "change_percent": 0.68,
+    "percent_change": 0.68
   }
 }
