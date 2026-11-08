@@ -19,6 +19,7 @@ corpus_cases!(
         same_token_two_segments,
         index_quote,
         future_quote_to_depth,
+        currency_segment,
         reconnect_replays,
     ]
 );

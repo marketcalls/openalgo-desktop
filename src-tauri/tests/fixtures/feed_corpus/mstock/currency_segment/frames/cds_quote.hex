@@ -1,0 +1,17 @@
+# mStock Quote packet for USDINR25NOV26FUT on the currency segment
+# (exchange type 13, token 8740).
+02                      # subscription mode 2
+0d                      # exchange type 13
+38373430000000000000000000000000000000000000000000 # token "8740", NUL-padded to 25 bytes
+1500000000000000        # sequence number
+687c1400a1010000        # exchange timestamp 1791002705000
+e920000000000000        # ltp 84.25 in paise
+0a00000000000000        # last traded quantity 10
+e420000000000000        # average price 84.20 in paise
+20cb000000000000        # volume 52000
+0000000000209c40        # total buy quantity 1800.0 (double)
+000000000068a040        # total sell quantity 2100.0 (double)
+da20000000000000        # open 84.10 in paise
+ee20000000000000        # high 84.30 in paise
+d520000000000000        # low 84.05 in paise
+df20000000000000        # close 84.15 in paise
