@@ -108,7 +108,7 @@ async fn a_refused_put_reaches_the_caller_and_its_retry_is_sent_once() {
         "{}",
         refused[0].1
     );
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    tokio::time::sleep(Duration::from_millis(3000)).await;
     assert_eq!(
         *calls.lock(),
         1,
@@ -138,5 +138,10 @@ async fn an_unanswered_put_is_refused_and_not_subscribed_is_released() {
     assert_eq!(refused.len(), 1, "{:?}", refused);
     assert!(refused[0].1.contains("did not answer"), "{}", refused[0].1);
     assert!(release(&mut f).await.is_empty());
-    assert_eq!(*calls.lock(), 2);
+    tokio::time::sleep(Duration::from_millis(3000)).await;
+    assert_eq!(
+        *calls.lock(),
+        2,
+        "a refused release is not sent again on its own"
+    );
 }
