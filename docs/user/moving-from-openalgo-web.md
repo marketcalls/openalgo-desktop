@@ -181,9 +181,13 @@ differently, it is on purpose:
   (Fyers), `change` (Fyers, Arrow, HDFC, Tradejini, Samco),
   `change_absolute` (Paytm), `change_percent` (Fyers, AliceBlue, Arrow,
   HDFC, Definedge, Paytm, Tradejini), `percent_change` (Shoonya,
-  Flattrade, Zebu, TradeSmart, Fyers, Kotak), `change_percentage`
-  (Samco), `last_trade_time` beside `ltt` (Sahi, Kotak, Upstox; Fyers
-  and Dhan in seconds). A script written for either name works. The change fields
+  Flattrade, Zebu, TradeSmart, Fyers, Kotak, Definedge, Tradejini,
+  5paisa), `change_percentage` (Samco), `last_trade_time` beside `ltt`
+  (Sahi, Kotak, Upstox, mStock, Samco, 5paisa; Fyers and Dhan in
+  seconds). A script written for either name works. Definedge's and
+  Tradejini's web adapters send `last_trade_time` as text (the exchange's
+  time of day; the web server's local date and time); the desktop sends
+  that time as `ltt`, in epoch milliseconds, and no text copy. The change fields
   come with indices only, as recorded from the web. A field your
   broker's feed does not carry is left out, as on the web, not sent as
   0.
