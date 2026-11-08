@@ -393,6 +393,37 @@ async fn a_token_is_the_account_dhan_names_for_it() {
     }
 }
 
+/// Web blueprints/brlogin.py, the Dhan redirect (marketcalls/openalgo#2337,
+/// eec700046): the redirect carries only Dhan's consent tokenId, so an
+/// access token arriving on the callback's address (a link anyone could
+/// send) is refused before Dhan is asked anything; pasted in the login
+/// form it is accepted.
+#[tokio::test]
+async fn an_access_token_is_never_taken_from_the_callback_address() {
+    let m = Mock::default();
+    m.on(
+        "GET",
+        "/v2/fundlimit",
+        200,
+        fundlimit_of(Some("1100012345")),
+    );
+    let s = serve(&m).await;
+    let b = broker(&s);
+    let jwt = format!("eyJ{}", "a".repeat(120));
+    let mut c = creds();
+    c.request_token = Some(jwt.clone());
+    let e = b.authenticate(c).await.unwrap_err();
+    assert_eq!(e.code(), "AUTH_ERROR");
+    assert!(
+        m.calls("GET", "/v2/fundlimit").is_empty(),
+        "Dhan was not asked"
+    );
+    assert!(m.calls("POST", "/auth/app/consumeApp-consent").is_empty());
+    let mut c = creds();
+    c.password = Some(jwt);
+    assert_eq!(b.authenticate(c).await.unwrap().user_id, "1100012345");
+}
+
 // ---------------------------------------------------------------------------
 // Orders
 // ---------------------------------------------------------------------------
