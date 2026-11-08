@@ -10,7 +10,7 @@
 //! carrying subscriptions (connecting, reconnecting, refused), the
 //! release is done: the next connection is sent the registry without it.
 
-use super::{Apply, Command, Delta, Routed, WebSocketManager};
+use super::{Apply, Command, Delta, FeedStatus, Routed, WebSocketManager};
 use crate::brokers::common::streaming::{FeedSubscription, ReleaseAnswer};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
@@ -95,11 +95,16 @@ impl WebSocketManager {
         deltas: Vec<Delta>,
         undo: Vec<FeedSubscription>,
     ) -> Option<Written> {
+        // A connection that is not up (connecting, reconnecting, refused)
+        // carries no subscription: its next session is sent the registry
+        // without these, so there is nothing to wait for (a wait would last
+        // a whole reconnect).
         let tx = self
             .connections
             .lock()
             .get(conn)
             .and_then(Option::as_ref)
+            .filter(|r| matches!(*r.status.borrow(), FeedStatus::Connected { .. }))
             .map(|r| r.cmd.clone())?;
         let (reply, written) = oneshot::channel();
         tx.send(Command::Apply(Apply {
