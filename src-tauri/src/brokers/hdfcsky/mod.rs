@@ -13,6 +13,7 @@
 mod auth;
 mod data;
 mod funds;
+pub(crate) mod investright;
 pub mod mapping;
 pub mod master_contract;
 mod orders;

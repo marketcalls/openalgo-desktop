@@ -9,7 +9,9 @@ use super::proto::{self, packet_type as pt};
 use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use chrono::{Datelike, NaiveDate, TimeZone, Utc};
 use prost::Message as _;
 use serde_json::{json, Value};
@@ -820,8 +822,12 @@ fn request_carries_query_auth_and_user_agent() {
     assert_eq!(req.headers()["Authorization"], "T/2");
 }
 
+/// Audit C03-C05: a tick says what its packet carries. The subscription
+/// type decides the packet (an `LTP` scrip gets the price, with the close
+/// only when sent), a cash equity's full packet has no OI, an index has no
+/// volume, order flow or OI; the band goes out as the circuits.
 #[test]
-fn ticks_follow_the_subscribed_mode() {
+fn ticks_say_what_their_packet_carries() {
     let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
     f.subscribe_frames(&[
         sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Ltp),
@@ -841,13 +847,26 @@ fn ticks_follow_the_subscribed_mode() {
         (i.symbol.as_str(), i.exchange.as_str(), i.mode),
         ("NIFTY", "NSE_INDEX", 1)
     );
-    assert_eq!((i.ltp, i.close, i.open), (25100.5, 25000.0, 0.0));
+    assert_eq!((i.ltp, i.close), (25100.5, 25000.0));
+    assert!(i.knows(QuoteField::Close) && i.knows(QuoteField::Change));
+    assert!(
+        !i.knows(QuoteField::Open),
+        "an LTP scrip's packet has no open"
+    );
     assert_eq!(i.change, 100.5);
     let FeedEvent::Tick(n) = &ev[1] else { panic!() };
-    assert_eq!((n.exchange.as_str(), n.mode), ("NSE", 3));
+    assert_eq!((n.exchange.as_str(), n.mode), ("NSE", 2));
+    assert!(
+        !n.knows(QuoteField::OpenInterest),
+        "a cash equity has no OI"
+    );
     assert_eq!(
         (n.volume, n.average_price, n.last_quantity),
         (123_456, 1407.25, 7)
+    );
+    assert_eq!(
+        (n.extras.lower_circuit, n.extras.upper_circuit),
+        (Some(1260.0), Some(1540.0))
     );
     assert_eq!(n.last_trade_time_ms, 1_759_649_999);
     let FeedEvent::Depth(d) = &ev[2] else {
@@ -859,6 +878,45 @@ fn ticks_follow_the_subscribed_mode() {
         panic!()
     };
     assert_eq!((bse.exchange.as_str(), bse.mode), ("BSE", 2));
+}
+
+/// An `ALL` future carries its OI (even a zero one: a derivative's packet
+/// has the field), an `ALL` index is a full packet at every mode with no
+/// volume, order flow or OI, and a packet without a band sends no circuit.
+#[test]
+fn derivatives_carry_oi_and_indices_no_order_flow() {
+    let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
+    f.subscribe_frames(&[
+        sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Quote),
+        sub("NIFTY27OCT26FUT", "NFO", "35001", FeedMode::Quote),
+    ]);
+    let mut fut = mbp_packet(35001, pt::NSE_FO_ALL);
+    if let Some(m) = fut.mbp_data.as_mut() {
+        m.lower_circuit_limit = 0.0;
+        m.upper_circuit_limit = 0.0;
+    }
+    let ev = f.parse(&Message::Binary(frame(vec![index_packet(), fut])));
+    let [FeedEvent::Tick(i), FeedEvent::Tick(n)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!(i.mode, 3, "an index reaches its Depth holders too");
+    for field in [
+        QuoteField::Volume,
+        QuoteField::LastQuantity,
+        QuoteField::AveragePrice,
+        QuoteField::TotalBuyQuantity,
+        QuoteField::TotalSellQuantity,
+        QuoteField::OpenInterest,
+    ] {
+        assert!(!i.knows(field), "an index has no {:?}", field);
+    }
+    assert!(i.knows(QuoteField::Open) && i.knows(QuoteField::Close));
+    assert_eq!(n.mode, 2);
+    assert!(n.knows(QuoteField::OpenInterest), "a future's OI 0 is sent");
+    assert_eq!(
+        (n.extras.lower_circuit, n.extras.upper_circuit),
+        (None, None)
+    );
 }
 
 /// BF-04: a packet is published only under the subscription of its own

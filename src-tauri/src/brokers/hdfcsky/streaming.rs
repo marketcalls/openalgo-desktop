@@ -21,7 +21,12 @@
 //!   merged into the instrument's last full packet and never published on
 //!   their own (web openalgo#2396); that baseline lives as long as the
 //!   subscription and the socket (#2397).
+//! * Each tick says what its packet carries (`investright::mark_carriage`):
+//!   an `LTP` scrip's price, an `ALL` scrip's full quote with OI on the
+//!   derivative segments, an index's levels without volume or OI; the
+//!   circuit band goes out as `upper_circuit` / `lower_circuit` in Depth.
 
+use super::investright;
 use super::mapping::ws_scrip_id;
 use super::proto::{packet_type as pt, GenericDto, GenericDtoList};
 use super::USER_AGENT;
@@ -479,24 +484,24 @@ impl HdfcSkyFeed {
         let mut tick = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
             ltp: t.ltp,
+            open: t.open,
+            high: t.high,
+            low: t.low,
             close: t.close,
+            volume: t.volume,
+            last_quantity: t.ltq,
+            average_price: t.average_price,
+            total_buy_quantity: t.total_buy_quantity,
+            total_sell_quantity: t.total_sell_quantity,
+            oi: t.oi,
             last_trade_time_ms: if t.ltt != 0 { t.ltt } else { t.timestamp },
             timestamp_ms: now,
             ..Default::default()
         };
-        if sub.mode >= FeedMode::Quote {
-            tick.open = t.open;
-            tick.high = t.high;
-            tick.low = t.low;
-            tick.volume = t.volume;
-            tick.last_quantity = t.ltq;
-            tick.average_price = t.average_price;
-            tick.total_buy_quantity = t.total_buy_quantity;
-            tick.total_sell_quantity = t.total_sell_quantity;
-            tick.oi = t.oi;
-        }
+        tick.extras.lower_circuit = investright::limit(t.lower_limit);
+        tick.extras.upper_circuit = investright::limit(t.upper_limit);
+        investright::mark_carriage(&mut tick, sub.mode, t.kind == Kind::Index);
         tick.derive_change();
         let mut out = Vec::with_capacity(2);
         let depth = (sub.mode == FeedMode::Depth && t.has_depth()).then(|| NormalizedDepth {
