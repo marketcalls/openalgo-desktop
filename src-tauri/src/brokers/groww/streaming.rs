@@ -32,8 +32,9 @@
 use super::nkeys::KeyPair;
 use super::proto;
 use crate::brokers::common::streaming::{
-    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, PrepareError, QuoteField, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, BrokerField, BrokerValue, FeedEvent, FeedMode,
+    FeedSubscription, Message, NormalizedDepth, NormalizedTick, PrepareError, QuoteField,
+    WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -305,6 +306,8 @@ struct Merged {
     low: Option<f64>,
     close: Option<f64>,
     volume: Option<i64>,
+    /// The day's traded value (`value`, rupees).
+    value: Option<f64>,
     ltt: i64,
     buy: Vec<DepthLevel>,
     sell: Vec<DepthLevel>,
@@ -437,6 +440,9 @@ fn merge(m: &mut Merged, data: &proto::LiveData) -> (bool, bool) {
         if p.volume != 0.0 {
             m.volume = Some(p.volume as i64);
         }
+        if p.value != 0.0 {
+            m.value = Some(p.value);
+        }
         if p.ts_in_millis > 0.0 {
             m.ltt = p.ts_in_millis as i64;
         }
@@ -489,6 +495,12 @@ fn merged_tick(sub: &FeedSubscription, m: &Merged, now: i64, priced: bool) -> No
                 t.mark_carried(field);
             }
         }
+    }
+    // The web's merged cache keeps the traded value with the quote
+    // (groww_adapter.py:43, :1115-1116) and sends it in every mode.
+    if let Some(v) = m.value {
+        t.broker_fields
+            .set(BrokerField::TradedValue, BrokerValue::Float(v));
     }
     t
 }

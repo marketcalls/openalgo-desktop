@@ -111,12 +111,6 @@
       "kind": "open",
       "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
-    },
-    {
-      "key": "value",
-      "kind": "open",
-      "reason": "Groww's traded value (`value`, rupees) the web forwards in every mode: BrokerField::TradedValue, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
     }
   ]
 }

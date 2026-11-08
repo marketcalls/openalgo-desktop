@@ -1668,6 +1668,41 @@ fn an_ltp_frame_carries_the_quote_the_web_sends() {
     assert_eq!(d["volume"].as_f64(), Some(5_123_400.0));
 }
 
+/// The web's merged cache keeps Groww's traded value with the quote
+/// (groww_adapter.py:43, :1115-1116): a later tick that leaves it out keeps
+/// it, as `value`, a double.
+#[test]
+fn a_quote_keeps_the_traded_value() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let tick = |ltp: f64, value: f64| {
+        proto::LiveData {
+            ltp_data: Some(proto::StocksLivePrice {
+                ts_in_millis: 1_730_790_000_000.0,
+                ltp,
+                value,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec()
+    };
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Quote)]);
+    let mut frames = Frames::new("groww");
+    let first = frames.at(
+        &f.parse(&msg_frame(1, &tick(812.5, 974_250_000.0))),
+        Mode::Quote,
+    );
+    assert_eq!(first[0]["value"], 974_250_000.0);
+    let next = frames.at(&f.parse(&msg_frame(1, &tick(812.9, 0.0))), Mode::Quote);
+    assert_eq!(next[0]["value"], 974_250_000.0);
+}
+
 // ---------------------------------------------------------------------------
 // Order poller
 // ---------------------------------------------------------------------------

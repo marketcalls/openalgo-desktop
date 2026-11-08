@@ -17,7 +17,8 @@
     "high": 815.0,
     "low": 801.0,
     "close": 803.2,
-    "volume": 1200000
+    "volume": 1200000,
+    "value": 974250000.0
   },
   "broker": "groww"
 }

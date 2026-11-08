@@ -38,12 +38,5 @@
       "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature."
     ]
   },
-  "deviations": [
-    {
-      "key": "value",
-      "kind": "open",
-      "reason": "Groww's traded value (`value`, rupees) the web forwards in every mode: BrokerField::TradedValue, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
-    }
-  ]
+  "deviations": []
 }

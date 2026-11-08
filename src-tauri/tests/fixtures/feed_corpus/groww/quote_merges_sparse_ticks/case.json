@@ -40,12 +40,6 @@
       "approved": true,
       "reason": "A Groww tick that leaves the LTP out (it did not change) is normalised by the web with ltp_data.get('ltp', 0), and the 0 replaces the cached LTP: the web publishes ltp 0 for a packet without a trade. The desktop keeps the last LTP (GrowwFeed merge).",
       "ref": "groww_adapter.py:1099 (mode 2 default 0), :53-62 (update_from_ltp keeps a 0)"
-    },
-    {
-      "key": "value",
-      "kind": "open",
-      "reason": "Groww's traded value (`value`, rupees) the web forwards in every mode: BrokerField::TradedValue, filled by the Groww feed in Phase B.",
-      "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
     }
   ]
 }

@@ -53,7 +53,8 @@
     "mode": 3,
     "broker": "groww",
     "topic": "NSE_SBIN_DEPTH",
-    "subscription_mode": 3
+    "subscription_mode": 3,
+    "value": 974250000.0
   },
   "broker": "groww"
 }

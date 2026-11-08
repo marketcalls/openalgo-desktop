@@ -33,12 +33,6 @@
   },
   "deviations": [
     {
-      "key": "value",
-      "kind": "open",
-      "reason": "follow the Groww adapter (lead 2026-11-09): it sends LTP subscribers its Quote normalisation of the tick (OHLC, volume, value).",
-      "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
-    },
-    {
       "key": "volume",
       "kind": "open",
       "reason": "The web sends an LTP subscriber Groww's volume as a float (1200000.0). The desktop's LTP frame carries it as a Groww web name, and the renderer applies Dialect::floats to the canonical keys only (feed/protocol/market.rs value()), so it goes out as an integer: a renderer change asked of the lead.",

@@ -17,7 +17,8 @@
     "mode": 2,
     "broker": "groww",
     "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
-    "subscription_mode": 2
+    "subscription_mode": 2,
+    "value": 76899375000.0
   },
   "broker": "groww"
 }
