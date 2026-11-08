@@ -62,6 +62,19 @@ pub(crate) fn pool_limits(broker: &str) -> PoolLimits {
             per_connection: 1000,
             connections: 2,
         },
+        // "Per Sahi docs": 1,000 instruments a connection and five
+        // connections a token (web broker/sahi/streaming/sahi_mapping.py:
+        // 67-69); the web's adapter refuses the 1,001st with
+        // MAX_SYMBOLS_REACHED "Sahi allows 1000 instruments per connection"
+        // (sahi_adapter.py:221-225), which its pool, moving on at 1,000,
+        // never reaches. The feed's own bound is the same number
+        // (`sahi::streaming::MAX_INSTRUMENTS`), so no instrument past it is
+        // acknowledged and then dropped; the three connections stay within
+        // the five.
+        "sahi" => PoolLimits {
+            per_connection: crate::brokers::sahi::streaming::MAX_INSTRUMENTS,
+            connections: 3,
+        },
         // XTS subscribes over REST with the market-data session's token
         // (web broker/fivepaisaxts/streaming/fivepaisaxts_websocket.py:27-29),
         // so the subscriptions belong to the session, not a socket: every
@@ -110,9 +123,27 @@ mod tests {
         assert_eq!(pool_limits("angel"), PoolLimits::WEB_DEFAULT);
         assert_eq!(pool_limits("fivepaisa").connections, 1);
         assert_eq!(pool_limits("hdfcsky").per_connection, 300);
+        assert_eq!(pool_limits("sahi").per_connection, 1000);
+        assert_eq!(pool_limits("sahi").total(), 3000);
         assert_eq!(pool_limits("compositedge"), PoolLimits::single(3000));
         assert_eq!(depth_limits("dhan"), PoolLimits::single(50));
         assert_eq!(deep_book_timeout("dhan"), Some(Duration::from_secs(30)));
         assert_eq!(deep_book_timeout("fyers"), None);
+    }
+
+    /// A feed that bounds its own connection (and logs what it leaves out)
+    /// is never handed more than that bound, so no instrument is
+    /// acknowledged and then dropped (audit C02).
+    #[test]
+    fn no_pool_hands_a_connection_more_than_its_feed_takes() {
+        use crate::brokers::{iiflcapital, kotak, rupeezy, sahi};
+        for (id, bound) in [
+            ("sahi", sahi::streaming::MAX_INSTRUMENTS),
+            ("rupeezy", rupeezy::streaming::MAX_INSTRUMENTS),
+            ("kotak", kotak::streaming::MAX_SUBSCRIPTIONS),
+            ("iiflcapital", iiflcapital::streaming::MAX_INSTRUMENTS),
+        ] {
+            assert!(pool_limits(id).per_connection <= bound, "{id}");
+        }
     }
 }
