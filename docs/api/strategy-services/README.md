@@ -317,6 +317,7 @@ The full list, with the desktop's additions, is on the
 
 - **`run_stop_requested`** (`info`): the stop is saved and new signal entries
   are gated. It is not proof that the broker is flat; wait for `run_stopped`.
+  Written once per stop, not on each retry of a pending one.
 - **`run_stop_failed`** (`critical`): a pending stop could not make progress.
   The run is still open and **still holding those positions**.
 - **`order_ack_unrecorded`** (`critical`): the broker accepted an order but its
