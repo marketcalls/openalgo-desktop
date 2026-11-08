@@ -14,6 +14,8 @@
  * - Automatically switches back to WebSocket when connection is restored
  */
 
+import { DepthFallback, type FeedSymbol } from './depthFallback'
+
 export interface DepthLevel {
   price: number
   quantity: number
@@ -132,6 +134,9 @@ export class MarketDataManager {
   private userDisconnected: boolean = false
   private connectAbortController: AbortController | null = null
   private connectionEpoch: number = 0
+  // Desktop: Depth refused by the broker, kept at Quote (depthFallback.ts).
+  private depthFallback = new DepthFallback()
+  private quoteForDepth = new Set<string>()
 
   // REST API fallback properties
   private fallbackMode: boolean = false
@@ -254,7 +259,7 @@ export class MarketDataManager {
       // this mode even when another mode still uses the symbol, and name it:
       // an unsubscribe without a mode releases Quote only.
       if (this.connectionState === 'authenticated') {
-        this.sendUnsubscribe([{ symbol, exchange }], mode)
+        this.releaseAtServer(symbol, exchange, mode)
       }
 
       // Check if any other mode still needs this symbol
@@ -325,6 +330,16 @@ export class MarketDataManager {
   /**
    * Get cached data for a symbol
    */
+  /** Desktop: whether the broker does not stream this symbol's book. */
+  isDepthUnavailable(symbol: string, exchange: string): boolean {
+    return this.depthFallback.isUnavailable(symbol, exchange)
+  }
+
+  /** Desktop: called whenever a symbol's book becomes unavailable or the broker changes. */
+  onDepthAvailabilityChange(listener: () => void): () => void {
+    return this.depthFallback.subscribe(listener)
+  }
+
   getCachedData(symbol: string, exchange: string): SymbolData | undefined {
     return this.dataCache.get(`${exchange.toUpperCase()}:${symbol.toUpperCase()}`)
   }
@@ -582,6 +597,10 @@ export class MarketDataManager {
             this.consecutiveFailures = 0 // Reset failure count on successful auth
             // Disable fallback mode now that WebSocket is working
             this.disableFallbackMode()
+            // Desktop: a new session holds nothing yet; another broker's
+            // refusals no longer apply (depthFallback.ts).
+            this.quoteForDepth.clear()
+            this.depthFallback.setBroker(data.broker)
             // Resubscribe to all active subscriptions
             this.resubscribeAll()
           } else {
@@ -621,6 +640,7 @@ export class MarketDataManager {
             ask_size: marketDataPayload.ask_size ?? newData.ask_size,
             depth: marketDataPayload.depth ?? newData.depth,
           })
+          this.fillRefusedDepth(symbol, exchange, newData, data.data || {})
 
           const updatedSymbolData: SymbolData = {
             ...existing,
@@ -643,12 +663,20 @@ export class MarketDataManager {
         }
 
         case 'subscribe':
+          // Desktop: a Depth the broker refused is kept at Quote.
+          this.subscribeQuoteForDepth(this.depthFallback.refused(data))
           // Subscription confirmed - no action needed
           break
 
-        case 'error':
+        case 'error': {
+          const refused = this.depthFallback.refused(data)
+          if (refused.length > 0) {
+            this.subscribeQuoteForDepth(refused)
+            break
+          }
           this.setError(`WebSocket error: ${data.message}`)
           break
+        }
       }
     } catch {
       // Ignore parse errors for non-JSON messages
@@ -661,13 +689,75 @@ export class MarketDataManager {
   ): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return
 
+    // Desktop: a symbol whose book the broker refused stays at Quote, and a
+    // Depth request carries an id so its refusal can be told apart.
+    let requestId: string | undefined
+    if (mode === 'Depth') {
+      const refused = symbols.filter((s) => this.depthFallback.isUnavailable(s.symbol, s.exchange))
+      this.subscribeQuoteForDepth(refused)
+      symbols = symbols.filter((s) => !this.depthFallback.isUnavailable(s.symbol, s.exchange))
+      if (symbols.length === 0) return
+      requestId = this.depthFallback.track(symbols)
+    }
+
     this.socket.send(
       JSON.stringify({
         action: 'subscribe',
         symbols,
         mode,
+        ...(requestId ? { request_id: requestId } : {}),
       })
     )
+  }
+
+  /**
+   * Desktop: keep `symbols`, whose book the broker does not stream, at Quote
+   * for their Depth consumers (once each; a Quote consumer's own
+   * subscription already does it).
+   */
+  private subscribeQuoteForDepth(symbols: FeedSymbol[]): void {
+    const wanted = symbols.filter((s) => {
+      const key = `${s.exchange.toUpperCase()}:${s.symbol.toUpperCase()}`
+      if (this.quoteForDepth.has(key)) return false
+      this.quoteForDepth.add(key)
+      return !this.subscriptions.has(`${key}:Quote`)
+    })
+    if (wanted.length > 0) this.sendSubscribe(wanted, 'Quote')
+  }
+
+  /**
+   * Desktop: what a Depth consumer of a symbol without a book receives: the
+   * quote, the best bid and ask from the quote's own fields, an empty book.
+   */
+  private fillRefusedDepth(
+    symbol: string,
+    exchange: string,
+    data: MarketData,
+    payload: Record<string, unknown>
+  ): void {
+    const num = (k: string) => (typeof payload[k] === 'number' ? (payload[k] as number) : undefined)
+    data.bid_size = data.bid_size ?? num('bid_qty') ?? num('bid_quantity')
+    data.ask_size = data.ask_size ?? num('ask_qty') ?? num('ask_quantity')
+    if (this.depthFallback.isUnavailable(symbol, exchange) && !payload.depth) {
+      data.depth = { buy: [], sell: [] }
+    }
+  }
+
+  /**
+   * Release `mode` at the server. Desktop: a Quote kept for Depth consumers
+   * of a symbol without a book goes with the last of either.
+   */
+  private releaseAtServer(symbol: string, exchange: string, mode: SubscriptionMode): void {
+    const key = `${exchange}:${symbol}`
+    const held = (m: SubscriptionMode) => this.subscriptions.has(`${key}:${m}`)
+    if (this.quoteForDepth.has(key)) {
+      if (mode === 'Quote' && held('Depth')) return
+      if (mode === 'Depth' && !held('Depth')) {
+        this.quoteForDepth.delete(key)
+        if (!held('Quote')) this.sendUnsubscribe([{ symbol, exchange }], 'Quote')
+      }
+    }
+    this.sendUnsubscribe([{ symbol, exchange }], mode)
   }
 
   private sendUnsubscribe(
