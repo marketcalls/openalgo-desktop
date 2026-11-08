@@ -86,6 +86,59 @@ fn ist_day(ts: i64) -> Option<NaiveDate> {
         .map(|d| d.with_timezone(&chrono_tz::Asia::Kolkata).date_naive())
 }
 
+/// Candles a chart accepts (web `_repair_candles` of the Shoonya, Kotak and
+/// Tradejini adapters): `/trading` refuses a whole series over one bar
+/// outside `low <= open, close <= high` ("History contains an invalid
+/// candle"). A bar whose open, high, low or close is missing (NaN) or
+/// infinite is dropped, since nothing honest can stand in for it; the high
+/// and low are widened to cover the open and close, prices that traded;
+/// a negative volume is zeroed rather than costing the bar its prices.
+/// `what` names the series in the log (`MCX:GOLDPETAL30NOV26FUT 1m`).
+pub fn repair_candles(candles: Vec<Candle>, what: &str) -> Vec<Candle> {
+    let before = candles.len();
+    let (mut widened, mut zeroed) = (0usize, 0usize);
+    let out: Vec<Candle> = candles
+        .into_iter()
+        .filter(|c| {
+            [c.open, c.high, c.low, c.close]
+                .iter()
+                .all(|v| v.is_finite())
+        })
+        .map(|mut c| {
+            let high = c.open.max(c.high).max(c.low).max(c.close);
+            let low = c.open.min(c.high).min(c.low).min(c.close);
+            if high != c.high || low != c.low {
+                widened += 1;
+                c.high = high;
+                c.low = low;
+            }
+            if c.volume < 0 {
+                zeroed += 1;
+                c.volume = 0;
+            }
+            c
+        })
+        .collect();
+    if out.len() < before {
+        tracing::warn!(
+            "History: dropped {} candle(s) with a missing price for {}",
+            before - out.len(),
+            what
+        );
+    }
+    if widened > 0 {
+        tracing::info!(
+            "History: widened {} candle(s) whose high or low left out their own open or close for {}",
+            widened,
+            what
+        );
+    }
+    if zeroed > 0 {
+        tracing::warn!("History: zeroed {} negative volume(s) for {}", zeroed, what);
+    }
+    out
+}
+
 /// Parse an ISO-8601 timestamp with offset (`2024-03-28T09:15:00+0530` or
 /// `+05:30`) to epoch seconds.
 pub fn parse_iso_epoch(s: &str) -> Option<i64> {

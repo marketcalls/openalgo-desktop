@@ -26,7 +26,9 @@
 //! 63-160). Prices are integers divided by the segment divisor (`SEG_INFO`:
 //! NSE/BSE/NFO/BFO/MCX 100, CDS 1e7, BCD/MCD/NCO/BCO 1e4); `chngPer` and
 //! `OIChngPer` are always divided by 100. L1 packets are deltas merged into a
-//! per-symbol cache keyed `"<token>_<EXCH>"`.
+//! per-symbol cache keyed `"<token>_<EXCH>"`. L5 carries only the book and
+//! its totals, so a Depth instrument rides L1 too and keeps its last book:
+//! each price tick sends its Depth view again (web openalgo#2341).
 
 use crate::brokers::common::streaming::{
     now_ms, round2, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
@@ -408,8 +410,12 @@ pub struct TradejiniFeed {
     url: Secret,
     /// `ws_key` -> subscription (ordered so frames are deterministic).
     subs: BTreeMap<String, SubInfo>,
+    /// The merged L1 quote per instrument.
     l1: HashMap<String, L1>,
-    l5_totals: HashMap<String, (i64, i64)>,
+    /// The latest L5 book per Depth instrument: L5 carries only the book
+    /// and its totals, so a price tick sends the Depth view again with it
+    /// (web openalgo#2341).
+    books: HashMap<String, L5>,
 }
 
 impl TradejiniFeed {
@@ -422,13 +428,13 @@ impl TradejiniFeed {
             )),
             subs: BTreeMap::new(),
             l1: HashMap::new(),
-            l5_totals: HashMap::new(),
+            books: HashMap::new(),
         }
     }
 
     /// Cached instruments (bounded by the subscriptions).
     pub fn cached(&self) -> usize {
-        self.l1.len() + self.l5_totals.len()
+        self.l1.len() + self.books.len()
     }
 
     /// Every instrument rides L1 (ticks for LTP, Quote and Depth clients);
@@ -469,7 +475,10 @@ impl TradejiniFeed {
     /// openalgo#2383: L1 never carries them and they read 0), and so is
     /// `ltt` until Tradejini has sent a trade time.
     fn tick(&self, sub: &SubInfo, q: &L1) -> NormalizedTick {
-        let totals = self.l5_totals.get(&q.key()).copied();
+        let totals = self
+            .books
+            .get(&q.key())
+            .map(|b| (b.tot_buy_qty, b.tot_sell_qty));
         let (tbq, tsq) = totals.unwrap_or((0, 0));
         let mut absent = AbsentFields::default();
         if totals.is_none() {
@@ -523,56 +532,72 @@ impl TradejiniFeed {
                     ));
                 }
                 Packet::Pong => out.push(FeedEvent::Heartbeat),
-                Packet::L1(d) => {
-                    let key = d.key();
-                    let Some(sub) = self.subs.get(&key).cloned() else {
-                        continue;
-                    };
-                    let entry = self.l1.entry(key).or_insert_with(|| L1 {
-                        token: d.token,
-                        exch: d.exch.clone(),
-                        ..Default::default()
-                    });
-                    entry.merge(&d);
-                    let snapshot = entry.clone();
-                    out.push(FeedEvent::Tick(self.tick(&sub, &snapshot)));
-                }
-                Packet::L5(book) => {
-                    let key = book.key();
-                    let Some(sub) = self.subs.get(&key).cloned() else {
-                        continue;
-                    };
-                    let first_book = self
-                        .l5_totals
-                        .insert(key.clone(), (book.tot_buy_qty, book.tot_sell_qty))
-                        .is_none();
-                    if sub.mode != FeedMode::Depth {
-                        continue;
-                    }
-                    // The quote sent so far left the totals out; send it
-                    // again with them, or the book's frame (built on that
-                    // quote) would leave them out too.
-                    if first_book {
-                        if let Some(q) = self.l1.get(&key) {
-                            out.push(FeedEvent::Tick(self.tick(&sub, q)));
-                        }
-                    }
-                    let ltp = self.l1.get(&key).and_then(|q| q.ltp).unwrap_or(0.0);
-                    out.push(FeedEvent::Depth(NormalizedDepth {
-                        symbol: sub.symbol,
-                        exchange: sub.exchange,
-                        ltp,
-                        buy: pad5(&book.bids),
-                        sell: pad5(&book.asks),
-                        total_buy_quantity: book.tot_buy_qty,
-                        total_sell_quantity: book.tot_sell_qty,
-                        timestamp_ms: now_ms(),
-                    }));
-                }
+                Packet::L1(d) => self.on_quote(&d, &mut out),
+                Packet::L5(book) => self.on_book(book, &mut out),
                 Packet::Other(_) => {}
             }
         }
         out
+    }
+
+    /// An L1 delta: the merged quote goes out, and a Depth instrument's
+    /// view again with its cached book (web openalgo#2341: "a price tick
+    /// refreshes the Depth view too").
+    fn on_quote(&mut self, d: &L1, out: &mut Vec<FeedEvent>) {
+        let key = d.key();
+        let Some(sub) = self.subs.get(&key).cloned() else {
+            return;
+        };
+        let entry = self.l1.entry(key.clone()).or_insert_with(|| L1 {
+            token: d.token,
+            exch: d.exch.clone(),
+            ..Default::default()
+        });
+        entry.merge(d);
+        let snapshot = entry.clone();
+        out.push(FeedEvent::Tick(self.tick(&sub, &snapshot)));
+        if sub.mode == FeedMode::Depth {
+            if let Some(book) = self.books.get(&key) {
+                out.push(FeedEvent::Depth(self.depth(&sub, book)));
+            }
+        }
+    }
+
+    /// An L5 book: cached, and a Depth instrument's view sent.
+    fn on_book(&mut self, book: L5, out: &mut Vec<FeedEvent>) {
+        let key = book.key();
+        let Some(sub) = self.subs.get(&key).cloned() else {
+            return;
+        };
+        let first_book = self.books.insert(key.clone(), book).is_none();
+        if sub.mode != FeedMode::Depth {
+            return;
+        }
+        // The quote sent so far left the totals out; send it again with
+        // them, or the book's frame (built on that quote) would leave them
+        // out too.
+        if first_book {
+            if let Some(q) = self.l1.get(&key) {
+                out.push(FeedEvent::Tick(self.tick(&sub, q)));
+            }
+        }
+        if let Some(book) = self.books.get(&key) {
+            out.push(FeedEvent::Depth(self.depth(&sub, book)));
+        }
+    }
+
+    /// The Depth view of a book, priced from the instrument's L1 quote.
+    fn depth(&self, sub: &SubInfo, book: &L5) -> NormalizedDepth {
+        NormalizedDepth {
+            symbol: sub.symbol.clone(),
+            exchange: sub.exchange.clone(),
+            ltp: self.l1.get(&book.key()).and_then(|q| q.ltp).unwrap_or(0.0),
+            buy: pad5(&book.bids),
+            sell: pad5(&book.asks),
+            total_buy_quantity: book.tot_buy_qty,
+            total_sell_quantity: book.tot_sell_qty,
+            timestamp_ms: now_ms(),
+        }
     }
 }
 
@@ -601,7 +626,7 @@ impl BrokerFeed for TradejiniFeed {
         // Subscriptions do not survive a reconnect; the manager replays them
         // through `subscribe_frames`, which re-sends each feed's full list.
         self.l1.clear();
-        self.l5_totals.clear();
+        self.books.clear();
         Vec::new()
     }
 
@@ -633,7 +658,7 @@ impl BrokerFeed for TradejiniFeed {
                 l5_changed |= old.mode == FeedMode::Depth;
             }
             self.l1.remove(&k);
-            self.l5_totals.remove(&k);
+            self.books.remove(&k);
         }
         if subs.is_empty() {
             return Vec::new();

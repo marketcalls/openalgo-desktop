@@ -33,14 +33,15 @@ use std::time::Duration;
 
 pub const BASE_URL: &str = "https://api.tradejini.com/v2";
 
-/// web `plugin.json` supported_exchanges.
+/// web `plugin.json` supported_exchanges. No BCD: Tradejini's symbol store
+/// lists no BCD contract (both currency groups are CDS only; web
+/// openalgo#2341).
 pub const SUPPORTED_EXCHANGES: &[Exchange] = &[
     Exchange::Nse,
     Exchange::Bse,
     Exchange::Nfo,
     Exchange::Bfo,
     Exchange::Cds,
-    Exchange::Bcd,
     Exchange::Mcx,
     Exchange::NseIndex,
     Exchange::BseIndex,

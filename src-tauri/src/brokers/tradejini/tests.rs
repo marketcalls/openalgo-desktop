@@ -25,8 +25,12 @@ macro_rules! fixture {
     };
 }
 
+/// Web test/test_tradejini_history_candles.py (openalgo#2341).
+mod history_candles;
 /// Web test/test_tradejini_quote_feed.py (openalgo#2383).
 mod quote_feed;
+/// Web test/test_tradejini_stream_lifecycle.py (openalgo#2341).
+mod stream_lifecycle;
 
 fn json(s: &str) -> Value {
     serde_json::from_str(s).unwrap()
@@ -130,7 +134,8 @@ fn index_rows_and_renames() {
     assert_eq!(n.brsymbol, "IDX_NIFTY_NSE");
     assert_eq!(n.brexchange, "NSE");
     assert_eq!(n.token, "26000");
-    assert_eq!(n.instrument_type, "INDEX");
+    // Web openalgo#2341 (MC-04): OpenAlgo has no INDEX type.
+    assert_eq!(n.instrument_type, "EQ");
     assert_eq!(n.name, "NIFTY 50");
     assert!(r.by_symbol("NSE_INDEX", "INDIAVIX").is_some());
     // Unlisted: uppercased, spaces removed.
@@ -937,7 +942,9 @@ fn adapter_identity_and_capabilities() {
     assert!(c.history && c.streaming && c.multiquotes_batch);
     assert!(!c.margin && !c.gtt && !c.order_feed);
     assert_eq!(b.timeframe_map(), TIMEFRAME_MAP);
-    assert!(b.supported_exchanges().contains(&Exchange::Bcd));
+    // Web openalgo#2341: the symbol store lists no BCD contract.
+    assert!(!b.supported_exchanges().contains(&Exchange::Bcd));
+    assert!(b.supported_exchanges().contains(&Exchange::Cds));
     assert!(b.create_feed(&AuthToken::new("nocolon")).is_err());
     assert!(b.create_feed(&AuthToken::new("k:t")).is_ok());
 }

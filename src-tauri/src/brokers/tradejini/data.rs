@@ -15,11 +15,12 @@
 //! * history: `GET /api/mkt-data/chart/interval-data?id=<brsymbol>&interval=
 //!   &from=<epoch s>&to=`, from 09:15:00 IST of the start date to 23:59:59
 //!   IST of the end date, one request (no chunking), bars as objects
-//!   `{time,open,high,low,close,volume}` or arrays `[t,o,h,l,c,v]`.
+//!   `{time,open,high,low,close,volume}` or arrays `[t,o,h,l,c,v]`,
+//!   repaired into bars a chart accepts (`history::repair_candles`).
 
 use super::streaming::{self, decode_message, Packet, L1, L5};
 use super::{mapping, Body, TradejiniBroker, TIMEFRAME_MAP};
-use crate::brokers::common::history::sort_dedupe;
+use crate::brokers::common::history::{repair_candles, sort_dedupe};
 use crate::brokers::common::redact::ws_error_kind;
 use crate::brokers::common::streaming::Message;
 use crate::brokers::types::*;
@@ -484,5 +485,9 @@ pub async fn get_history(
             Body::None,
         )
         .await?;
-    Ok(parse_bars(&v))
+    // Tradejini's chart API sends bars /trading refuses (MCX
+    // GOLDPETAL30NOV26FUT 1m at 2026-10-27 09:00: open 14328 under low
+    // 14334), web openalgo#2341.
+    let what = format!("{}:{} {}", req.key.exchange, req.key.symbol, req.interval);
+    Ok(repair_candles(parse_bars(&v), &what))
 }

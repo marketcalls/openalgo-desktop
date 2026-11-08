@@ -6,13 +6,17 @@
 //! comma split, header row first, rows with a different field count are
 //! dropped). Both are unauthenticated.
 //!
-//! * `Securities` (id `EQT_RELIANCE_EQ_NSE`): symbol = `dispName`, `EQ`.
+//! * `Securities` and `ETF` (id `EQT_RELIANCE_EQ_NSE`): symbol =
+//!   `dispName`, `EQ`.
 //! * `FutureContracts` / `CurrencyFuture` / `CommodityFuture`:
 //!   `{symbol}{DDMMMYY}FUT`.
 //! * `NSEOptions` / `BSEOptions` / `CurrencyOptions` / `CommodityOptions`:
 //!   `{symbol}{DDMMMYY}{strike}{CE|PE}`.
-//! * `Index`: exchange `NSE_INDEX` / `BSE_INDEX`, symbol renamed by the
-//!   tables below (unlisted: uppercased, spaces removed).
+//! * `Index`: exchange `NSE_INDEX` / `BSE_INDEX`, typed `EQ` as Zerodha's
+//!   master types an index, symbol renamed by the tables below (unlisted:
+//!   uppercased, spaces removed).
+//! * Any other group (`Spot`, or one Tradejini adds later) is skipped, not
+//!   downloaded (web openalgo#2341).
 //!
 //! `brsymbol` is the scrip id (the books and history look it up), `token`
 //! is `excToken`, the id components are read by name through `idFormat`.
@@ -25,6 +29,45 @@ use crate::error::{AppError, Result};
 use chrono::NaiveDate;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+
+/// Groups whose ids follow `instrument_symbol_series_exchange`. Tradejini
+/// added `ETF` to the symbol store (not in its published docs) with the
+/// Securities layout; parsed as no rows, it failed the whole download
+/// (web openalgo#2341).
+const SECURITIES_GROUPS: [&str; 2] = ["Securities", "ETF"];
+const FUTURE_GROUPS: [&str; 3] = ["FutureContracts", "CurrencyFuture", "CommodityFuture"];
+const OPTION_GROUPS: [&str; 4] = [
+    "NSEOptions",
+    "BSEOptions",
+    "CurrencyOptions",
+    "CommodityOptions",
+];
+
+/// How the ids of a tradable group are laid out.
+enum Layout {
+    Security,
+    Future,
+    Option,
+}
+
+fn layout(group: &str) -> Option<Layout> {
+    if SECURITIES_GROUPS.contains(&group) {
+        Some(Layout::Security)
+    } else if FUTURE_GROUPS.contains(&group) {
+        Some(Layout::Future)
+    } else if OPTION_GROUPS.contains(&group) {
+        Some(Layout::Option)
+    } else {
+        None
+    }
+}
+
+/// Whether this module turns the group into symbols. `Spot` holds the
+/// underlyings' spot prices, which OpenAlgo does not trade; it and any
+/// group Tradejini adds later are skipped rather than failing the download.
+pub fn is_supported_group(name: &str) -> bool {
+    name == "Index" || layout(name).is_some()
+}
 
 /// One scrip group from the symbol store.
 #[derive(Debug, Clone, PartialEq)]
@@ -246,7 +289,9 @@ fn index_row(
         expiry: String::new(),
         strike: 0.0,
         lot_size: 1,
-        instrument_type: "INDEX".into(),
+        // OpenAlgo has no INDEX type: an index is EQ on NSE_INDEX /
+        // BSE_INDEX, as Zerodha's master has it (web openalgo#2341).
+        instrument_type: "EQ".into(),
         tick_size: 0.05,
     })
 }
@@ -308,9 +353,9 @@ fn parse_row(r: &HashMap<&str, &str>, group: &Group) -> Option<SymbolData> {
             .or_else(|| parts.get(idx).map(|s| s.to_string()))
             .unwrap_or_default()
     };
-    match group.name.as_str() {
-        "Securities" => security_row(r, &id, token, &parts, c.get("exchange")),
-        "FutureContracts" | "CurrencyFuture" | "CommodityFuture" => {
+    match layout(&group.name)? {
+        Layout::Security => security_row(r, &id, token, &parts, c.get("exchange")),
+        Layout::Future => {
             let base = comp("symbol", "symbol", 1);
             let exchange = comp("exchange", "", 2);
             let expiry = parse_expiry(&comp("expiry", "expiry", 3))?;
@@ -332,7 +377,7 @@ fn parse_row(r: &HashMap<&str, &str>, group: &Group) -> Option<SymbolData> {
                 tick_size: tick(r),
             })
         }
-        "NSEOptions" | "BSEOptions" | "CurrencyOptions" | "CommodityOptions" => {
+        Layout::Option => {
             let base = comp("symbol", "symbol", 1);
             let exchange = comp("exchange", "", 2);
             let expiry = parse_expiry(&comp("expiry", "expiry", 3))?;
@@ -362,7 +407,6 @@ fn parse_row(r: &HashMap<&str, &str>, group: &Group) -> Option<SymbolData> {
                 tick_size: tick(r),
             })
         }
-        _ => None,
     }
 }
 
@@ -444,6 +488,10 @@ pub async fn download(b: &TradejiniBroker) -> Result<Vec<SymbolData>> {
     }
     let mut rows = Vec::new();
     for g in &groups {
+        if !is_supported_group(&g.name) {
+            tracing::info!("Skipping Tradejini scrip group {}", g.name);
+            continue;
+        }
         let csv = get_text(b, &format!("{}/{}", base, g.name))
             .await
             .map_err(|e| {

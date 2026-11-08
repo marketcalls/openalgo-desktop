@@ -51,6 +51,8 @@ struct Fake {
     down_groups: Mutex<Vec<&'static str>>,
     /// The position book instead of the fixture.
     positions: Mutex<Option<&'static str>>,
+    /// The symbol store's group list instead of the fixture.
+    symbol_store: Mutex<Option<Value>>,
 }
 
 impl Fake {
@@ -108,7 +110,17 @@ fn route(fake: &Fake, s: &Seen) -> Response {
             return (StatusCode::INTERNAL_SERVER_ERROR, "down").into_response();
         }
         return match group {
-            "symbol-store" => ok(fixture!("symbol_store.json")),
+            "symbol-store" => match fake.symbol_store.lock().clone() {
+                Some(store) => ok(store),
+                None => ok(fixture!("symbol_store.json")),
+            },
+            // Securities' layout; NIFTYBEES is also listed under Securities.
+            "ETF" => concat!(
+                "id,dispName,excToken,lot,tick,symbol,desc,asset\n",
+                "EQT_NIFTYBEES_EQ_NSE,NIFTYBEES,10576,1,0.01,NIFTYBEES,NIPPON INDIA ETF NIFTY BEES,etf\n",
+                "EQT_GOLDBEES_EQ_NSE,GOLDBEES,14428,1,0.01,GOLDBEES,NIPPON INDIA ETF GOLD BEES,etf\n",
+            )
+            .into_response(),
             // A group with nothing in it today (header only): skipped.
             "CommodityOptions" => {
                 "id,dispName,excToken,lot,tick,symbol,expiry,strike,optType,asset\n".into_response()
@@ -379,6 +391,48 @@ async fn master_contract_download() {
     assert_eq!(e.fake.calls("/CommodityOptions").len(), 1);
 }
 
+/// Web openalgo#2341: Tradejini's symbol store now lists an ETF group (not
+/// in its published docs) with the Securities id layout. It is read like
+/// Securities, and a group this adapter does not map (Spot, or one added
+/// later) is skipped without being asked for, where either failed the
+/// whole download; indices are typed EQ.
+#[tokio::test]
+async fn master_contract_reads_the_etf_group_and_skips_unmapped_groups() {
+    let fake = Arc::new(Fake::default());
+    let mut store: Value = serde_json::from_str(fixture!("symbol_store.json")).unwrap();
+    let groups = store["d"]["symbolStore"].as_array_mut().unwrap();
+    for (name, fmt) in [
+        ("ETF", "instrument_symbol_series_exchange"),
+        ("Spot", "instrument_symbol_exchange"),
+        ("SomethingNew", "instrument_symbol"),
+    ] {
+        groups.push(json!({"name": name, "idFormat": fmt, "version": 12}));
+    }
+    *fake.symbol_store.lock() = Some(store);
+    let base = serve_rest(fake.clone()).await;
+    let broker = TradejiniBroker::with_urls(SymbolResolver::new(), base, "ws://127.0.0.1:1");
+    let auth = AuthToken::new(format!("{}:{}", KEY, ACCESS));
+    let rows = broker.download_master_contract(&auth).await.unwrap();
+
+    let goldbees = rows.iter().find(|r| r.symbol == "GOLDBEES").unwrap();
+    assert_eq!(
+        (
+            goldbees.exchange.as_str(),
+            goldbees.instrument_type.as_str(),
+            goldbees.token.as_str()
+        ),
+        ("NSE", "EQ", "14428")
+    );
+    assert!(rows.iter().any(|r| r.symbol == "NIFTYBEES"));
+    assert!(fake.calls("/Spot").is_empty());
+    assert!(fake.calls("/SomethingNew").is_empty());
+    let nifty = rows
+        .iter()
+        .find(|r| r.exchange == "NSE_INDEX" && r.symbol == "NIFTY")
+        .unwrap();
+    assert_eq!(nifty.instrument_type, "EQ");
+}
+
 /// Web #2198: a scrip group that fails refuses the whole download (the
 /// stored master is kept) instead of being skipped.
 #[tokio::test]
@@ -588,6 +642,46 @@ async fn history_request_and_parse() {
     let mut bad = req.clone();
     bad.interval = "D".into();
     assert!(e.broker.get_history(&e.auth, &bad).await.is_err());
+}
+
+#[tokio::test]
+async fn a_quote_that_gives_up_on_the_handshake_closes_its_socket() {
+    // Web openalgo#2341 (test_tradejini_stream_lifecycle.py
+    // `test_request_path_close_after_connect_timeout_aborts_the_handshake`):
+    // a request that gives up on a handshake that never completes leaves
+    // no socket behind for anything to close later.
+    use tokio::io::AsyncReadExt;
+    let fake = Arc::new(Fake::default());
+    let base = serve_rest(fake.clone()).await;
+    let silent = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let ws = format!("ws://{}", silent.local_addr().unwrap());
+    let mut t = timings();
+    t.connect = Duration::from_millis(300);
+    let symbols = SymbolResolver::new();
+    let broker = TradejiniBroker::with_urls(symbols.clone(), base, ws).with_timings(t);
+    let auth = AuthToken::new(format!("{}:{}", KEY, ACCESS));
+    symbols.load(broker.download_master_contract(&auth).await.unwrap());
+    let accepted = tokio::spawn(async move { silent.accept().await.map(|(s, _)| s) });
+
+    let err = broker
+        .get_quote(&auth, &QuoteKey::new("NSE", "SBIN"))
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(err.contains("did not respond"), "{}", err);
+    let mut sock = accepted.await.unwrap().unwrap();
+    let mut buf = [0u8; 4096];
+    // The handshake request, then the end of the stream once it is closed.
+    let closed = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            match sock.read(&mut buf).await {
+                Ok(0) | Err(_) => return,
+                Ok(_) => {}
+            }
+        }
+    })
+    .await;
+    assert!(closed.is_ok(), "the request left its socket open");
 }
 
 #[tokio::test]
