@@ -1,0 +1,77 @@
+{
+  "broker": "nubra",
+  "summary": "Quote and LTP on the NIFTY index: the index channel gives the value, high, low and previous close, the day bucket the open; a Depth subscribe on the index is accepted on the desktop and refused on the web.",
+  "scenarios": [
+    "index",
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/nubra/api/nubrawebsocket.py::NubraWebSocket._decode_protobuf",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_index_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_ohlcv_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_orderbook_data"
+    ],
+    "notes": [
+      "change 50.5 = 24350.5 - 24300.0 (0.21%), then 60.0 (0.25%)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "Nubra's messages carry no trade time; the desktop sends its receipt time as ltt (NubraFeed leaves last_trade_time_ms 0, feed::bridge::ltt falls back to the tick's timestamp), the web sends no ltt. A receipt time must not pass as a trade time (audit P-08).",
+      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:737-756"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web stamps Nubra frames with the message's own timestamp (obj.timestamp, receipt time only when it is 0); the desktop stamps its receipt time (audit P-08, still open).",
+      "ref": "nubra_adapter.py:707, 822; brokers/nubra/streaming.rs tick"
+    },
+    {
+      "key": "price_change",
+      "kind": "open",
+      "reason": "The desktop's index frames add price_change and price_change_percent; the web's Nubra adapter sends no change for an index. Lead ruling 2026-11-09: not docs keys, the desktop follows the adapter (lane wire dialect, phase B).",
+      "ref": "feed::protocol::market_data (index branch); lead ruling 2026-11-09"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "The desktop's index frames add price_change and price_change_percent; the web's Nubra adapter sends no change for an index. Lead ruling 2026-11-09: not docs keys, the desktop follows the adapter (lane wire dialect, phase B).",
+      "ref": "feed::protocol::market_data (index branch); lead ruling 2026-11-09"
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Before the day bucket the web sends open 0 (ohlcv.get('open', 0)); a field the stream has not sent is left out (web openalgo#2376), as the desktop does.",
+      "ref": "nubra_adapter.py:711"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "Once the day bucket came the web sends the bucket's close (today's price) as close, ahead of prev_close (ohlcv.get('close', prev_close)); close is the previous day's close, which the desktop keeps sending (the audit's 'Nubra bucket close' note).",
+      "ref": "nubra_adapter.py:712"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The web also sends the previous close as prev_close; the desktop sends it as close only. An alias for lane wire.",
+      "ref": "nubra_adapter.py:723"
+    }
+  ]
+}

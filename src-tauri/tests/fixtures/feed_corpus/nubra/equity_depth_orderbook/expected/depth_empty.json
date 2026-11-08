@@ -1,0 +1,82 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 3,
+  "broker": "nubra",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": "full",
+    "ltp": 1301.5,
+    "ltt": "<receipt_ms>",
+    "timestamp": "<receipt_ms>",
+    "volume": 50010,
+    "last_quantity": 2,
+    "average_price": 0.0,
+    "total_buy_quantity": 0,
+    "total_sell_quantity": 0,
+    "open": 0.0,
+    "high": 0.0,
+    "low": 0.0,
+    "close": 0.0,
+    "oi": 0,
+    "open_interest": 0,
+    "depth": {
+      "buy": [
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ],
+      "sell": [
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ]
+    }
+  }
+}

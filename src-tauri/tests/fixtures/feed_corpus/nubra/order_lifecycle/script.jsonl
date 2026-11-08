@@ -1,0 +1,12 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"text": "subscribe nubra-corpus-session notifications notification"}], "note": "The order socket named by /userinfo, reached through the loopback relay."}
+{"step": "push", "frame": "frames/order_open.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "push", "frame": "frames/order_partial.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json"}
+{"step": "push", "frame": "frames/order_complete.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "push", "frame": "frames/order_rejected.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
+{"step": "push", "frame": "frames/order_cancelled.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}

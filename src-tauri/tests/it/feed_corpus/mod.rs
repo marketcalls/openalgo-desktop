@@ -23,6 +23,7 @@ mod angel;
 mod deltaexchange;
 mod dhan;
 mod fyers;
+mod nubra;
 mod samco;
 mod upstox;
 mod zerodha;
@@ -33,6 +34,7 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("deltaexchange", deltaexchange::CASES),
     ("dhan", dhan::CASES),
     ("fyers", fyers::CASES),
+    ("nubra", nubra::CASES),
     ("samco", samco::CASES),
     ("upstox", upstox::CASES),
     ("zerodha", zerodha::CASES),

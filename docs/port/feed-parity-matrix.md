@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 40. Open gaps: 165. Deviations pending approval: 56.
+Cases: 43. Open gaps: 181. Deviations pending approval: 58.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -35,7 +35,7 @@ Cases: 40. Open gaps: 165. Deviations pending approval: 56.
 | kotak | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | motilal | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | mstock | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| nubra | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
+| nubra | open gap: `index_quote_ltp_bucket` | open gap: `index_quote_ltp_bucket` | open gap: `equity_depth_orderbook`, `index_quote_ltp_bucket` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
 | paytm | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | pocketful | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | rmoney | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -58,6 +58,7 @@ Cases: 40. Open gaps: 165. Deviations pending approval: 56.
 | deltaexchange | first-full-packet, partial-packet, absent-field, depth-update, subscription-lifecycle, mode-change | book-clear, index, derivative-oi, reconnect, (order updates: not offered by the web) |
 | dhan | first-full-packet, partial-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | - |
 | fyers | first-full-packet, partial-packet, absent-field, depth-update, index, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | book-clear, derivative-oi, reconnect, subscription-lifecycle, mode-change |
+| nubra | first-full-packet, partial-packet, depth-update, book-clear, index, subscription-lifecycle, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | absent-field, derivative-oi, reconnect, mode-change |
 | samco | order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | first-full-packet, partial-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change |
 | upstox | first-full-packet, partial-packet, absent-field, depth-update, index, derivative-oi, reconnect, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | book-clear, subscription-lifecycle, mode-change |
 | zerodha | first-full-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | partial-packet |
@@ -238,6 +239,24 @@ Cases: 40. Open gaps: 165. Deviations pending approval: 56.
 | fyers | `quote_ltp_snapshot_update` | `last_trade_quantity` | open | no | The web's Fyers LTP subscribers get the whole quote mapping (LTP and Quote share the symbol-feed slot, fyers_websocket_adapter.py _SLOT_MODES), so their frames carry every quote field; the desktop's LTP frame carries the LTP alone. Lane wire to decide (LTP frame shape). |
 | fyers | `quote_ltp_snapshot_update` | `average_price` | open | no | The web's Fyers LTP subscribers get the whole quote mapping (LTP and Quote share the symbol-feed slot, fyers_websocket_adapter.py _SLOT_MODES), so their frames carry every quote field; the desktop's LTP frame carries the LTP alone. Lane wire to decide (LTP frame shape). |
 | fyers | `quote_ltp_snapshot_update` | `avg_trade_price` | open | no | The web's Fyers LTP subscribers get the whole quote mapping (LTP and Quote share the symbol-feed slot, fyers_websocket_adapter.py _SLOT_MODES), so their frames carry every quote field; the desktop's LTP frame carries the LTP alone. Lane wire to decide (LTP frame shape). |
+| nubra | `equity_depth_orderbook` | `ltt` | open | no | Nubra's messages carry no trade time; the desktop sends its receipt time as ltt (NubraFeed leaves last_trade_time_ms 0, feed::bridge::ltt falls back to the tick's timestamp), the web sends no ltt. A receipt time must not pass as a trade time (audit P-08). |
+| nubra | `equity_depth_orderbook` | `timestamp` | open | no | The web stamps Nubra frames with the message's own timestamp (obj.timestamp, receipt time only when it is 0); the desktop stamps its receipt time (audit P-08, still open). |
+| nubra | `equity_depth_orderbook` | `last_quantity` | open | no | Nubra's order book carries no last quantity; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376). |
+| nubra | `equity_depth_orderbook` | `average_price` | open | no | Nubra's order book carries no average price; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376). |
+| nubra | `equity_depth_orderbook` | `open` | open | no | Nubra's order book carries no open; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376). |
+| nubra | `equity_depth_orderbook` | `high` | open | no | Nubra's order book carries no high; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376). |
+| nubra | `equity_depth_orderbook` | `low` | open | no | Nubra's order book carries no low; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376). |
+| nubra | `equity_depth_orderbook` | `close` | open | no | Nubra's order book carries no close; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376). |
+| nubra | `equity_depth_orderbook` | `oi` | open | no | Nubra's order book carries no oi; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376). |
+| nubra | `equity_depth_orderbook` | `open_interest` | open | no | As oi (the desktop also sends open_interest beside oi; lead rule 2026-11-09: follows the web adapter). |
+| nubra | `equity_depth_orderbook` | `depth` | open | no | Both pad a short side to five levels; the web's padding levels carry price 0 (an integer), the desktop's 0.0. Lead rule 2026-11-09: number types follow the web adapter; lane wire to settle padded books for every broker. |
+| nubra | `index_quote_ltp_bucket` | `ltt` | open | no | Nubra's messages carry no trade time; the desktop sends its receipt time as ltt (NubraFeed leaves last_trade_time_ms 0, feed::bridge::ltt falls back to the tick's timestamp), the web sends no ltt. A receipt time must not pass as a trade time (audit P-08). |
+| nubra | `index_quote_ltp_bucket` | `timestamp` | open | no | The web stamps Nubra frames with the message's own timestamp (obj.timestamp, receipt time only when it is 0); the desktop stamps its receipt time (audit P-08, still open). |
+| nubra | `index_quote_ltp_bucket` | `price_change` | open | no | The desktop's index frames add price_change and price_change_percent; the web's Nubra adapter sends no change for an index. Lead ruling 2026-11-09: not docs keys, the desktop follows the adapter (lane wire dialect, phase B). |
+| nubra | `index_quote_ltp_bucket` | `price_change_percent` | open | no | The desktop's index frames add price_change and price_change_percent; the web's Nubra adapter sends no change for an index. Lead ruling 2026-11-09: not docs keys, the desktop follows the adapter (lane wire dialect, phase B). |
+| nubra | `index_quote_ltp_bucket` | `open` | web-defect | no | Before the day bucket the web sends open 0 (ohlcv.get('open', 0)); a field the stream has not sent is left out (web openalgo#2376), as the desktop does. |
+| nubra | `index_quote_ltp_bucket` | `close` | web-defect | no | Once the day bucket came the web sends the bucket's close (today's price) as close, ahead of prev_close (ohlcv.get('close', prev_close)); close is the previous day's close, which the desktop keeps sending (the audit's 'Nubra bucket close' note). |
+| nubra | `index_quote_ltp_bucket` | `prev_close` | open | no | The web also sends the previous close as prev_close; the desktop sends it as close only. An alias for lane wire. |
 | upstox | `auction_cas_fields` | `mode` | open | no | The web's Upstox adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B). |
 | upstox | `auction_cas_fields` | `token` | open | no | The web's Upstox frames carry the subscription's broker token (the instrument key); the desktop's do not. Lane wire to decide whether the carrier passes broker tokens. |
 | upstox | `auction_cas_fields` | `timestamp` | open | no | The web stamps Upstox Quote and Depth frames with the broker's currentTs; the desktop stamps its receipt time (audit P-02, still open: the Upstox decoder should carry FeedResponse.current_ts, receipt time only when it is absent). |

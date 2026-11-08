@@ -1,0 +1,25 @@
+# The day's index bucket (OHLCV) for Nifty 50.
+# Any(Any(BatchWebSocketIndexBucketMessage)), the inner message:
+#   {
+#    "indexes": [
+#     {
+#      "indexname": "Nifty 50",
+#      "exchange": "NSE",
+#      "interval": 1,
+#      "timestamp": 1740729566500,
+#      "open": 2431000,
+#      "high": 2440025,
+#      "low": 2429075,
+#      "close": 2435050,
+#      "bucket_timestamp": 1740681000000
+#     }
+#    ],
+#    "timestamp": 1740729566500
+#   }
+0a27747970652e676f6f676c65617069732e636f6d2f676f6f676c652e70726f
+746f6275662e416e79129b010a5b747970652e676f6f676c65617069732e636f
+6d2f70726f746f732e7a616e736b6172736563757269746965732e6e75627261
+66726f6e74656e642e4261746368576562536f636b6574496e6465784275636b
+65744d657373616765123c12330a084e6966747920353012034e5345180120a4
+8ac5dcd4322898b0940130d9f694013893a1940140eacf940160c0e8b0c5d432
+08a48ac5dcd432
