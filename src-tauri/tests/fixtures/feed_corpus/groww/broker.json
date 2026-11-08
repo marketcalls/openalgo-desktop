@@ -32,7 +32,7 @@
     "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter"
   ],
   "notes": [
-    "The web adapter refuses MCX, CDS and BCD (EXCHANGE_NOT_SUPPORTED, groww_adapter.py:385-390) although its capability registry lists them; Groww publishes NSE and BSE cash, F&O and indices only.",
+    "The web adapter refuses MCX, CDS and BCD (EXCHANGE_NOT_SUPPORTED, groww_adapter.py:385-390) although its capability registry lists them; Groww publishes NSE and BSE cash, F&O and indices only; the desktop refuses them with the same words (unsupported_exchanges).",
     "Indices have no book: a Depth subscribe on an index takes the price subject on both sides (index_depth_falls_back_to_price).",
     "Order updates come from polling the order book every 5 s on both sides (web PollingOrderUpdateAdapter, desktop common::order_poll::OrderPoller), reading the CASH and FNO order lists (order_book_polling)."
   ]

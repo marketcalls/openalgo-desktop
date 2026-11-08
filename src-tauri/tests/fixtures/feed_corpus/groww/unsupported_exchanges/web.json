@@ -1,0 +1,48 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "groww",
+  "inputs_sha256": "dd8dd4ab05e46048253b803f57ef5dd32b4532487d64ad738a3f6d69f4813da1",
+  "instruments": [
+    {
+      "symbol": "CRUDEOIL25NOVFUT",
+      "exchange": "MCX",
+      "token": "450001",
+      "name": "CRUDEOIL",
+      "expiry": "19-NOV-25",
+      "lotsize": 100,
+      "instrumenttype": "FUT",
+      "tick_size": 1.0
+    },
+    {
+      "symbol": "USDINR25NOVFUT",
+      "exchange": "CDS",
+      "token": "8001",
+      "name": "USDINR",
+      "expiry": "26-NOV-25",
+      "lotsize": 1000,
+      "instrumenttype": "FUT",
+      "tick_size": 0.0025
+    },
+    {
+      "symbol": "USDINR25NOVFUT",
+      "exchange": "BCD",
+      "token": "1101",
+      "name": "USDINR",
+      "expiry": "26-NOV-25",
+      "lotsize": 1000,
+      "instrumenttype": "FUT",
+      "tick_size": 0.0025
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": []
+    },
+    {
+      "line": 3,
+      "published": []
+    }
+  ]
+}

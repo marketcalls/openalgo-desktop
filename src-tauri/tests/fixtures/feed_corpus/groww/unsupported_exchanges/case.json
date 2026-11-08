@@ -1,0 +1,59 @@
+{
+  "broker": "groww",
+  "summary": "A Quote subscribe on MCX, CDS and BCD, which Groww's live feed does not publish: each is refused before any lookup with the web adapter's words (EXCHANGE_NOT_SUPPORTED, groww_adapter.py:385-390), the reply is partial as the web proxy's, and nothing goes to Groww.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "CRUDEOIL25NOVFUT",
+      "exchange": "MCX",
+      "token": "450001",
+      "name": "CRUDEOIL",
+      "expiry": "19-NOV-25",
+      "lotsize": 100,
+      "instrumenttype": "FUT",
+      "tick_size": 1.0
+    },
+    {
+      "symbol": "USDINR25NOVFUT",
+      "exchange": "CDS",
+      "token": "8001",
+      "name": "USDINR",
+      "expiry": "26-NOV-25",
+      "lotsize": 1000,
+      "instrumenttype": "FUT",
+      "tick_size": 0.0025
+    },
+    {
+      "symbol": "USDINR25NOVFUT",
+      "exchange": "BCD",
+      "token": "1101",
+      "name": "USDINR",
+      "expiry": "26-NOV-25",
+      "lotsize": 1000,
+      "instrumenttype": "FUT",
+      "tick_size": 0.0025
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_binary_nats_message",
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_market_data_msg",
+      "broker/groww/streaming/groww_protobuf.py::MiniProtobufParser.parse_market_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._on_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._normalize_market_data",
+      "broker/groww/streaming/groww_adapter.py::_GrowwMarketCache"
+    ],
+    "notes": [
+      "The fake socket does not echo the nats subprotocol, so each connect is two connections: the first asks for it and is dropped by the feed, the second goes without it (GrowwFeed::on_connect_failed, web nats_websocket.py subprotocol fallback). Connection 2 is the session.",
+      "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature."
+    ]
+  },
+  "deviations": []
+}
