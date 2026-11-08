@@ -20,6 +20,8 @@
     "close": 805.0,
     "total_buy_quantity": 5200,
     "total_sell_quantity": 6900,
+    "upper_circuit": 885.5,
+    "lower_circuit": 724.5,
     "depth": {
       "buy": [
         {

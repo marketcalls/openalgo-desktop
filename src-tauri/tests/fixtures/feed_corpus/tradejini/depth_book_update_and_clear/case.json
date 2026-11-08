@@ -41,18 +41,6 @@
       "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:815, :820, :845"
     },
     {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web sends Tradejini's upper circuit limit (L1 ucl) on Depth; the desktop decodes it (streaming.rs L1::ucl) but the common carrier drops it.",
-      "ref": "tradejini_adapter.py:852; audit appendix 'fields dropped by the common carrier' (lane wire)"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "As upper_circuit, for the lower limit (L1 lcl).",
-      "ref": "tradejini_adapter.py:853; audit appendix 'fields dropped by the common carrier' (lane wire)"
-    },
-    {
       "key": "last_trade_time",
       "kind": "open",
       "reason": "The web also sends the trade time as last_trade_time (the same local-time text as its ltt, a web defect); the desktop sends no last_trade_time for Tradejini. Phase B: the dialect alias in epoch ms beside ltt, as Samco, 5paisa and mStock have it (feed::dialect, lane wire); the value then stays a declared web defect.",

@@ -519,6 +519,10 @@ impl TradejiniFeed {
             t.change = round2(t.change);
         }
         leave_out_what_was_never_sent(&mut t, q);
+        // The price band, which the web's Depth dict carries
+        // (`tradejini_adapter.py:852-853`).
+        t.extras.upper_circuit = q.ucl;
+        t.extras.lower_circuit = q.lcl;
         t
     }
 

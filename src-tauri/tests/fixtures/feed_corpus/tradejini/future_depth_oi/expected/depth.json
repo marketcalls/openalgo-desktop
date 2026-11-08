@@ -21,6 +21,8 @@
     "oi": 12000000,
     "total_buy_quantity": 450000,
     "total_sell_quantity": 520000,
+    "upper_circuit": 26818.0,
+    "lower_circuit": 21942.0,
     "depth": {
       "buy": [
         {
