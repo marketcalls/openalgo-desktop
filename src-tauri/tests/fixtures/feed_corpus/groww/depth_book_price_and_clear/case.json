@@ -103,21 +103,21 @@
     },
     {
       "key": "ltp",
-      "kind": "open",
-      "reason": "A book before the first price: the desktop's Groww feed publishes its merged tick with an LTP of 0 (and the Depth frame frames it), where the web's merged entry has no ltp yet and leaves it out. Desktop defect: no tick before the first price; what the Depth frame then carries is CLAUDE.md's depth-before-first-tick rule (keeps ltp for the SDK's Depth callback), for the lead to confirm.",
+      "kind": "desktop-decision",
+      "reason": "A book before the first price: the web's merged entry has no ltp yet and leaves it out; the desktop's Depth frame keeps ltp and timestamp, which the SDK's Depth callback reads (1.0.6 decision, CLAUDE.md: a depth frame before its instrument's first quote). The tick the Groww feed publishes alongside it, with an LTP of 0, is a desktop defect pinned by quote_and_depth_book_first.",
       "ref": "brokers/groww/streaming.rs:553-568; groww_adapter.py:64-73, :958-962"
     },
     {
       "key": "ltt",
-      "kind": "web-defect",
-      "reason": "The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); feed timestamps are integer epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the integer.",
+      "kind": "open",
+      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); the desktop sends the integer.",
       "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
     },
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web's Groww adapter puts the subscription mode number in data.mode (1, 2, 3); the desktop sends its label (ltp, quote, full).",
+      "ref": "groww_adapter.py:983-993; feed::source::Mode::data_label"
     },
     {
       "key": "offer_price",
@@ -151,8 +151,8 @@
     },
     {
       "key": "volume",
-      "kind": "web-defect",
-      "reason": "The web sends Groww's volume as the protobuf double it decodes, a float (1200000.0); volume is an integer (docs/api/websocket-streaming/quote.md). The desktop sends the integer.",
+      "kind": "open",
+      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's volume as the protobuf double it decodes, a float (1200000.0); the desktop sends the integer.",
       "ref": "groww_protobuf.py:194 (_read_fixed64); groww_adapter.py:1113-1114"
     }
   ]

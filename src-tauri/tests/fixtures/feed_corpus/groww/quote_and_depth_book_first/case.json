@@ -1,0 +1,164 @@
+{
+  "broker": "groww",
+  "summary": "A Quote client and a Depth client on one instrument: the Depth subscribe moves Groww's subscription to the price and book subjects; a book before any price reaches the Depth client, and today also reaches the Quote client as a quote with an LTP of 0, which the web does not send; then the first price reaches both.",
+  "scenarios": [
+    "mode-change",
+    "partial-packet",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_binary_nats_message",
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_market_data_msg",
+      "broker/groww/streaming/groww_protobuf.py::MiniProtobufParser.parse_market_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._on_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._normalize_market_data",
+      "broker/groww/streaming/groww_adapter.py::_GrowwMarketCache"
+    ],
+    "notes": [
+      "The fake socket does not echo the nats subprotocol, so each connect is two connections: the first asks for it and is dropped by the feed, the second goes without it (GrowwFeed::on_connect_failed, web nats_websocket.py subprotocol fallback). Connection 2 is the session.",
+      "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ask",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "ask_price",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "ask_qty",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "ask_quantity",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "ask_size",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "bid",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "bid_price",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "bid_qty",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "bid_quantity",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "bid_size",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "broker",
+      "kind": "open",
+      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "ref": "groww_adapter.py:983-993"
+    },
+    {
+      "key": "frame",
+      "kind": "open",
+      "reason": "Desktop defect: on a book before any price the Groww feed publishes its merged tick, an LTP of 0 with nothing else, and the Quote client receives it as a quote. The web sends LTP and Quote subscribers nothing for a book tick (groww_adapter.py:966-967), and no LTP of 0 may come from a packet without a trade (rules: no invented data).",
+      "ref": "brokers/groww/streaming.rs:543-556 (on_msg), :468-501 (merged_tick)"
+    },
+    {
+      "key": "ltp",
+      "kind": "desktop-decision",
+      "reason": "The Depth frame of a book before the first price keeps ltp and timestamp, which the SDK's Depth callback reads (1.0.6 decision); the web's merged entry has no ltp yet.",
+      "ref": "CLAUDE.md (depth frame before its instrument's first tick); groww_adapter.py:64-73"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); the desktop sends the integer.",
+      "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
+    },
+    {
+      "key": "mode",
+      "kind": "open",
+      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web's Groww adapter puts the subscription mode number in data.mode (1, 2, 3); the desktop sends its label (ltp, quote, full).",
+      "ref": "groww_adapter.py:983-993; feed::source::Mode::data_label"
+    },
+    {
+      "key": "offer_price",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "offer_quantity",
+      "kind": "open",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "ref": "groww_adapter.py:1020-1048"
+    },
+    {
+      "key": "subscription_mode",
+      "kind": "open",
+      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "ref": "groww_adapter.py:983-993"
+    },
+    {
+      "key": "topic",
+      "kind": "open",
+      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "ref": "groww_adapter.py:983-993"
+    },
+    {
+      "key": "value",
+      "kind": "open",
+      "reason": "The web forwards Groww's traded value (`value`, rupees) in Quote and Depth; the desktop decodes it (brokers/groww/proto.rs StocksLivePrice.value) but the common tick has no field for it. Carrier gap for lane wire.",
+      "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
+    },
+    {
+      "key": "volume",
+      "kind": "open",
+      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's volume as the protobuf double it decodes, a float (1200000.0); the desktop sends the integer.",
+      "ref": "groww_protobuf.py:194 (_read_fixed64); groww_adapter.py:1113-1114"
+    }
+  ]
+}

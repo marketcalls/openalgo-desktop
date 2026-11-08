@@ -50,15 +50,15 @@
     },
     {
       "key": "ltt",
-      "kind": "web-defect",
-      "reason": "The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); feed timestamps are integer epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the integer.",
+      "kind": "open",
+      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); the desktop sends the integer.",
       "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
     },
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web's Groww adapter puts the subscription mode number in data.mode (1, 2, 3); the desktop sends its label (ltp, quote, full).",
+      "ref": "groww_adapter.py:983-993; feed::source::Mode::data_label"
     },
     {
       "key": "subscription_mode",
