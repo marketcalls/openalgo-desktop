@@ -17,6 +17,8 @@
     "low": 24380.25,
     "close": 24400.1,
     "price_change": 112.25,
-    "price_change_percent": 0.46
+    "price_change_percent": 0.46,
+    "change": 112.25,
+    "change_percent": 0.46
   }
 }

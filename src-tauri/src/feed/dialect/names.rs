@@ -483,11 +483,17 @@ const GROWW: &[WebName] = &[
     n("offer_quantity", S::Extra(E::AskQuantity), D),
 ];
 
+/// IIFL Capital's adapter sends no change at all; an index's change goes
+/// out under the docs' Quote keys, worked out from the previous close in
+/// IIFL's own index packet (lead decision 2026-11-09). An instrument has
+/// none (`instrument_change` is off), so these keys stay off its frames.
 const IIFLCAPITAL: &[WebName] = &[
     n("bid", S::Extra(E::BidPrice), Q),
     n("ask", S::Extra(E::AskPrice), Q),
     n("bid_quantity", S::Extra(E::BidQuantity), Q),
     n("ask_quantity", S::Extra(E::AskQuantity), Q),
+    n("change", S::Change, Q),
+    n("change_percent", S::ChangePercent, Q),
 ];
 
 const INDMONEY: &[WebName] = &[

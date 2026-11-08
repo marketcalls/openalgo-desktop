@@ -108,14 +108,28 @@
     {
       "key": "price_change",
       "kind": "open",
-      "reason": "The desktop's index Quote frame carries price_change and price_change_percent, worked out from the previous close in IIFL's own index packet; the IIFL Capital web adapter sends no change at all, and price_change is not a docs key, so it goes (lead ruling 2026-11-09). Whether the docs' change and change_percent take its place (ruling 4(b): the docs define them for Quote and they come from the packet's close) is for the lead. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/bridge/render.rs quote_fields"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an index; the IIFL Capital adapter sends no change and price_change is not a docs key, so it goes (the index change goes out as the docs' change and change_percent instead, lead 2026-11-09). Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical()"
     },
     {
       "key": "price_change_percent",
       "kind": "open",
-      "reason": "The desktop's index Quote frame carries price_change and price_change_percent, worked out from the previous close in IIFL's own index packet; the IIFL Capital web adapter sends no change at all, and price_change is not a docs key, so it goes (lead ruling 2026-11-09). Whether the docs' change and change_percent take its place (ruling 4(b): the docs define them for Quote and they come from the packet's close) is for the lead. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/bridge/render.rs quote_fields"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an index; the IIFL Capital adapter sends no change and price_change is not a docs key, so it goes (the index change goes out as the docs' change and change_percent instead, lead 2026-11-09). Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical()"
+    },
+    {
+      "key": "change",
+      "kind": "desktop-decision",
+      "reason": "The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet.",
+      "ref": "feed/dialect/names.rs IIFLCAPITAL; iiflcapital/streaming.rs ticks (derive_change)",
+      "approved": true
+    },
+    {
+      "key": "change_percent",
+      "kind": "desktop-decision",
+      "reason": "The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet.",
+      "ref": "feed/dialect/names.rs IIFLCAPITAL; iiflcapital/streaming.rs ticks (derive_change)",
+      "approved": true
     }
   ]
 }
