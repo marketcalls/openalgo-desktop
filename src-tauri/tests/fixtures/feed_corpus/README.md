@@ -314,6 +314,21 @@ difference shows any more fails the case, so remove it with the fix.
    matrix with the case.
 5. Run lane-test with `test(/feed_corpus::<broker>::/)`.
 
+A frame a client receives that is not the expected one does not stop the
+case: the case runs to its end and fails once, listing every mismatch
+(`CORPUS-MISMATCH` lines). Every frame a client received is printed too, as
+an expected frame would write it (receipt times as `"<receipt_ms>"` or
+`"<receipt_ms:N>"`):
+
+```
+CORPUS-RECORD dhan/full_depth script.jsonl:7 {"type":"market_data",...}
+```
+
+The output of a failed test is in the lane-test log, so when a change moves
+every frame of a case (a new wire field), one run gives every frame to pin
+again. Check each against the web before pinning it: a recorded frame is
+what the desktop sent, not what it should send.
+
 ## Adding a broker
 
 `tests/it/feed_corpus/<broker>.rs`: a function that builds the broker's

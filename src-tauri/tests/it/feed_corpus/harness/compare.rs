@@ -54,6 +54,33 @@ pub(crate) fn exact(want: &Value, got: &Value, times: Option<&Receipts>) -> Resu
     ))
 }
 
+/// `got` as an expected frame would write it: an integer inside the latest
+/// push's receipt window is `"<receipt_ms>"`, one inside an earlier push's
+/// `"<receipt_ms:N>"` (`N` its script line). For pinning a case's expected
+/// frames from what the desktop sent; random values are left as drawn.
+pub(crate) fn as_expected(got: &Value, times: &Receipts) -> Value {
+    match got {
+        Value::Object(o) => Value::Object(
+            o.iter()
+                .map(|(k, v)| (k.clone(), as_expected(v, times)))
+                .collect(),
+        ),
+        Value::Array(a) => Value::Array(a.iter().map(|v| as_expected(v, times)).collect()),
+        Value::Number(n) if n.is_i64() => {
+            let t = n.as_i64().unwrap_or_default();
+            let inside = |w: &Window| (w.from_ms..=w.to_ms).contains(&t);
+            if inside(&times.latest) {
+                return Value::String(RECEIPT_MS.into());
+            }
+            times.by_push.iter().find(|(_, w)| inside(w)).map_or_else(
+                || got.clone(),
+                |(line, _)| Value::String(format!("<receipt_ms:{}>", line)),
+            )
+        }
+        _ => got.clone(),
+    }
+}
+
 fn join(path: &str, key: &str) -> String {
     if path.is_empty() {
         key.to_string()
@@ -229,6 +256,21 @@ mod tests {
         assert!(check(&want, &json!({"ltt": 1_500})).is_err());
         let e = check(&json!({"ltt": "<receipt_ms:6>"}), &json!({"ltt": 700})).unwrap_err();
         assert!(e.contains("no push on script line 6"), "{}", e);
+    }
+
+    /// What a case is pinned from: receipt times as their placeholders,
+    /// everything else as sent.
+    #[test]
+    fn a_frame_as_expected_writes_receipt_times_as_placeholders() {
+        let got = json!({"ltt": 700, "timestamp": 1_500, "volume": 1_500.0, "oi": 42});
+        let want = json!({
+            "ltt": "<receipt_ms:5>",
+            "timestamp": RECEIPT_MS,
+            "volume": 1_500.0,
+            "oi": 42
+        });
+        assert_eq!(as_expected(&got, &times()), want);
+        assert!(check(&want, &got).is_ok());
     }
 
     #[test]
