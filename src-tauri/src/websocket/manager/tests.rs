@@ -37,7 +37,7 @@ fn sub(symbol: &str, mode: FeedMode) -> FeedSubscription {
 
 /// Server that records every text frame per connection index and runs
 /// `script(conn_index)`: send these frames, then close (true) or hold.
-async fn server(
+pub(super) async fn server(
     script: impl Fn(usize) -> (Vec<String>, bool) + Send + Sync + 'static,
 ) -> (String, Arc<Mutex<Vec<(usize, String)>>>, JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

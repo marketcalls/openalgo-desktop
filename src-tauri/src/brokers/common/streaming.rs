@@ -524,6 +524,17 @@ pub trait BrokerFeed: Send + Sync {
         Reconnect::Backoff
     }
 
+    /// What the feed tells the broker before the manager closes its socket
+    /// deliberately (a logout, a broker switch, quitting, or an extra
+    /// connection that carries nothing any more); never after an error or
+    /// a close the broker made. Motilal's order socket says
+    /// `{"clientid", "action":"logout"}` there, as the web's adapter does
+    /// (motilal_order_adapter.py:131-139). Sent with a short bounded wait.
+    /// Default: nothing.
+    fn farewell_frames(&self) -> Vec<Message> {
+        Vec::new()
+    }
+
     /// The trader asked to connect again after this feed answered
     /// `Reconnect::Stop` with a kind other than `Auth` (a feed client
     /// signed in, or the computer woke): start the broker's retry budget

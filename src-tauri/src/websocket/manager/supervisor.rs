@@ -54,6 +54,9 @@ const CONNECT_FAILED: SessionEnd = SessionEnd::Dropped(DropCause::ConnectFailed)
 /// frame.
 const CLOSE_AFTER_WRITE: Duration = Duration::from_millis(500);
 
+/// Longest the feed's farewell frames may take before a deliberate close.
+const FAREWELL_WAIT: Duration = Duration::from_secs(1);
+
 /// A socket that ended without a close frame (a read error, the stream's
 /// end): no code, no reason.
 const CLOSED_UNHEARD: Ended<'static> = Ended::Closed {
@@ -275,12 +278,34 @@ impl Supervisor {
         self.stats.opened();
         let (mut write, mut read) = ws.split();
         let end = self.session(broker, &mut write, &mut read).await;
+        if matches!(end, SessionEnd::Stopped) {
+            self.farewell(&mut write).await;
+        }
         // Close before reconnecting so the descriptor is released on every
         // path; bounded so a dead peer cannot hold us.
         let _ = tokio::time::timeout(Duration::from_secs(2), write.close()).await;
         drop(write);
         drop(read);
         end
+    }
+
+    /// A deliberate close: the feed's farewell first (Motilal's logout),
+    /// bounded, best effort; never after an error or the broker's close.
+    async fn farewell<S>(&self, write: &mut S)
+    where
+        S: futures_util::Sink<Message, Error = WsError> + Unpin,
+    {
+        let frames = self.feed.farewell_frames();
+        if frames.is_empty() {
+            return;
+        }
+        let send = async {
+            for f in frames {
+                write.send(f).await?;
+            }
+            Ok::<(), WsError>(())
+        };
+        let _ = tokio::time::timeout(FAREWELL_WAIT, send).await;
     }
 
     /// Send `frames` in order, all within the write timeout. An error when

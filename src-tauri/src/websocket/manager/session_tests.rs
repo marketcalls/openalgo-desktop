@@ -6,7 +6,7 @@
 //! not sent again (Kotak, run 42519352778).
 
 use super::deadline_tests::{supervisor, ScriptedFeed, StuckSink};
-use super::tests::{fast, wait_for};
+use super::tests::{fast, server, wait_for};
 use super::*;
 use crate::brokers::common::streaming::{Ended, FeedEvent, FeedMode, Message, Reconnect, StopKind};
 use crate::brokers::mock::MockFeed;
@@ -397,4 +397,59 @@ async fn a_subscription_made_while_the_login_waits_reaches_the_broker_once() {
             .sum();
         assert_eq!(times, 1, "{}: {:?}", case.broker, sent.lock());
     }
+}
+
+/// The mock feed, saying `BYE` before a deliberate close.
+struct FarewellFeed(MockFeed);
+
+impl BrokerFeed for FarewellFeed {
+    fn broker(&self) -> &'static str {
+        "mock"
+    }
+    fn ws_request(&self) -> crate::error::Result<crate::brokers::common::streaming::WsRequest> {
+        self.0.ws_request()
+    }
+    fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
+        self.0.subscribe_frames(subs)
+    }
+    fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
+        self.0.unsubscribe_frames(subs)
+    }
+    fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
+        self.0.parse(msg)
+    }
+    fn farewell_frames(&self) -> Vec<Message> {
+        vec![Message::Text("BYE".into())]
+    }
+}
+
+/// Motilal's order socket (web motilal_order_adapter.py:131-139, bk-c):
+/// the feed's farewell goes out before a deliberate close (a logout), and
+/// never on a socket the broker closed.
+#[tokio::test]
+async fn a_deliberate_close_says_the_feeds_farewell_first() {
+    // The broker closes the first connection; the second stays open.
+    let (url, seen, srv) = server(|conn| (Vec::new(), conn == 0)).await;
+    let m = WebSocketManager::with_config(fast());
+    m.connect(Box::new(FarewellFeed(MockFeed::new(url))))
+        .await
+        .unwrap();
+    wait_for(|| {
+        m.stats()
+            .connects
+            .load(std::sync::atomic::Ordering::Relaxed)
+            >= 2
+            && m.is_connected()
+    })
+    .await;
+    m.disconnect().await.unwrap();
+    wait_for(|| seen.lock().iter().any(|(_, f)| f == "BYE")).await;
+    let byes: Vec<usize> = seen
+        .lock()
+        .iter()
+        .filter(|(_, f)| f == "BYE")
+        .map(|(conn, _)| *conn)
+        .collect();
+    assert_eq!(byes, vec![1], "only the deliberate close says it");
+    srv.abort();
 }
