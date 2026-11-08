@@ -9,6 +9,8 @@
 {"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}], "connection": 2}
 {"step": "push", "frame": "frames/ck_again.json"}
 {"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NSE|2885"}}, {"json": {"t": "d", "k": "NSE|2885"}}], "connection": 2}
+{"step": "push", "frame": "frames/touchline_before_ack.json", "note": "An update before the new acknowledgement: only what this connection has sent."}
+{"step": "receive", "client": "a", "frame": "expected/quote_before_ack.json"}
 {"step": "push", "frame": "frames/touchline_ack_after.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote_after.json"}
 {"step": "push", "frame": "frames/touchline_after.json"}
