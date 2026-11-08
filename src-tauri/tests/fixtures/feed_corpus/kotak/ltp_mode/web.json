@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "kotak",
-  "inputs_sha256": "3717eb4e60dc65fa94a033fc13613e54af3037c5f46f99b526da3034694c6422",
+  "inputs_sha256": "6a3f6ff834c6a5548279e649aee3dd8425fe40fceeaab7a8e107f5f35b8a6c4a",
   "instruments": [
     {
       "symbol": "RELIANCE",

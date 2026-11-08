@@ -6,9 +6,6 @@ use openalgo_desktop_lib::brokers::kotak::order_feed::KotakOrderFeed;
 use openalgo_desktop_lib::brokers::kotak::streaming::KotakFeed;
 use openalgo_desktop_lib::brokers::kotak::KotakSession;
 
-/// The `conn_req_time` every case's auth frame carries.
-const CONNECT_TIME_MS: i64 = 1_762_650_000_000;
-
 fn feeds(env: &Env) -> Feeds {
     let session = KotakSession {
         token: "t".into(),
@@ -17,10 +14,12 @@ fn feeds(env: &Env) -> Feeds {
         access_token: String::new(),
         data_center: String::new(),
     };
-    Feeds::market(
-        KotakFeed::new(&env.url("main"), "s", "U".into(), env.symbols())
-            .with_connect_time(CONNECT_TIME_MS),
-    )
+    Feeds::market(KotakFeed::new(
+        &env.url("main"),
+        "s",
+        "U".into(),
+        env.symbols(),
+    ))
     .with_orders(KotakOrderFeed::new(&session, env.symbols()))
 }
 
