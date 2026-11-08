@@ -820,3 +820,29 @@ async fn mstock_socket_address_never_reaches_the_log() {
         out
     );
 }
+
+/// Audit C02: `admit` answers each reference. Those that fit the
+/// connection's room are taken and the rest refused with why, so a batch
+/// past the limit still starts its admissible members; an instrument
+/// already held needs no room.
+#[tokio::test]
+async fn admit_takes_what_fits_and_refuses_the_rest() {
+    let m = WebSocketManager::with_config(fast());
+    let answers = m
+        .admit(vec![
+            sub("A", FeedMode::Ltp),
+            sub("B", FeedMode::Ltp),
+            sub("C", FeedMode::Ltp),
+            sub("D", FeedMode::Ltp),
+            sub("A", FeedMode::Quote),
+        ])
+        .await;
+    assert_eq!(
+        answers.iter().map(Result::is_ok).collect::<Vec<_>>(),
+        [true, true, true, false, true]
+    );
+    assert!(answers[3]
+        .as_ref()
+        .is_err_and(|why| why.contains("at most 3 instruments")));
+    assert_eq!(m.instrument_count(), 3);
+}

@@ -289,21 +289,51 @@ impl WebSocketManager {
         }
     }
 
-    /// Add references; the broker is told only about instruments whose
-    /// effective mode changed.
+    /// What a reference past the connection's room is refused with.
+    fn no_room(&self) -> String {
+        format!(
+            "You can stream at most {} instruments at once. Unsubscribe some before adding more.",
+            self.config.max_instruments
+        )
+    }
+
+    /// Add references, all or none; the broker is told only about
+    /// instruments whose effective mode changed.
     pub async fn subscribe(&self, subs: Vec<FeedSubscription>) -> Result<()> {
         let deltas = {
             let mut reg = self.registry.lock();
             if reg.entries.len() + reg.new_instruments(&subs) > self.config.max_instruments {
-                return Err(AppError::Validation(format!(
-                    "You can stream at most {} instruments at once. Unsubscribe some before adding more.",
-                    self.config.max_instruments
-                )));
+                return Err(AppError::Validation(self.no_room()));
             }
             subs.into_iter().filter_map(|s| reg.add(s)).collect()
         };
         self.apply(deltas).await;
         Ok(())
+    }
+
+    /// Add references one by one, each while the connection has room for
+    /// another instrument, counted across every consumer of this manager
+    /// (feed clients, the sandbox, strategies, Flow): one answer each, so
+    /// a batch that crosses the limit still starts its admissible members
+    /// and refuses the rest with why (audit C02).
+    pub async fn admit(&self, subs: Vec<FeedSubscription>) -> Vec<std::result::Result<(), String>> {
+        let (answers, deltas) = {
+            let mut reg = self.registry.lock();
+            let mut answers = Vec::with_capacity(subs.len());
+            let mut deltas = Vec::new();
+            for s in subs {
+                let new = !reg.entries.contains_key(&s.instrument_key());
+                if new && reg.entries.len() >= self.config.max_instruments {
+                    answers.push(Err(self.no_room()));
+                    continue;
+                }
+                deltas.extend(reg.add(s));
+                answers.push(Ok(()));
+            }
+            (answers, deltas)
+        };
+        self.apply(deltas).await;
+        answers
     }
 
     /// Drop references; an instrument with none left is unsubscribed.

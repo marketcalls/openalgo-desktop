@@ -154,6 +154,9 @@ pub struct BrokerBridge {
     depth_manager: Arc<WebSocketManager>,
     /// Depth levels served by `depth_manager`, when it runs.
     deep: Mutex<Option<u8>>,
+    /// Depth levels whose socket did not start for this session: a Depth
+    /// subscribe at them is refused, not served 5 levels (audit C02).
+    deep_down: Mutex<Option<u8>>,
     symbols: SymbolResolver,
     tx: broadcast::Sender<Arc<MarketUpdate>>,
     state: Arc<Mutex<State>>,
@@ -193,6 +196,7 @@ impl BrokerBridge {
             manager,
             depth_manager,
             deep: Mutex::new(None),
+            deep_down: Mutex::new(None),
             symbols,
             tx,
             state: Arc::new(Mutex::new(State::default())),
@@ -227,6 +231,12 @@ impl BrokerBridge {
     /// everything on the main manager). Set before `resync`.
     pub fn set_deep_levels(&self, levels: Option<u8>) {
         *self.deep.lock() = levels;
+    }
+
+    /// The broker's socket for `levels`-level books did not start this
+    /// session: Depth subscribes at those levels say so (until `reset`).
+    pub fn set_deep_unavailable(&self, levels: u8) {
+        *self.deep_down.lock() = Some(levels);
     }
 
     /// References the bridge currently holds on the main manager.
@@ -264,6 +274,7 @@ impl BrokerBridge {
             st.generation += 1;
         }
         *self.deep.lock() = None;
+        *self.deep_down.lock() = None;
         *self.unavailable.lock() = None;
         *self.refusal.lock() = None;
         self.set_depth_capability(Arc::new(|_| vec![DEFAULT_DEPTH]));

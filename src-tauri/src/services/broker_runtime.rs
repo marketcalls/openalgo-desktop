@@ -239,19 +239,7 @@ async fn start_session(
         }
     }
 
-    let deep = broker
-        .capabilities()
-        .depth_levels
-        .iter()
-        .copied()
-        .filter(|l| *l > 5)
-        .find_map(|l| broker.create_depth_feed(&auth, l).ok().map(|f| (l, f)));
-    if let Some((levels, feed)) = deep {
-        match ctx.runtime.depth_ws.connect(feed).await {
-            Ok(()) => ctx.bridge.set_deep_levels(Some(levels)),
-            Err(e) => tracing::warn!("Market depth feed for {} not started: {}", id, e),
-        }
-    }
+    start_deep_feed(&ctx, &broker, &auth).await;
     // Feed clients that were already subscribed are applied now that the
     // master and the sockets are in place. Without a master they wait: a
     // later download or cache reload resyncs them.
@@ -273,6 +261,39 @@ async fn start_session(
         Err(e) => tracing::warn!("Order updates for {} not started: {}", id, e),
     }
     tracing::info!("Broker session for {} is streaming", id);
+}
+
+/// The broker's deeper-book socket (Fyers 50, Dhan 20), when it streams
+/// deeper books than its market feed. One that does not start leaves those
+/// depths refused with why, rather than served the market feed's 5 levels
+/// under a 20 or 50 acknowledgement (audit C02).
+async fn start_deep_feed(ctx: &AppState, broker: &Arc<dyn Broker>, auth: &AuthToken) {
+    let id = broker.id();
+    let Some(levels) = broker
+        .capabilities()
+        .depth_levels
+        .iter()
+        .copied()
+        .find(|l| *l > 5)
+    else {
+        return;
+    };
+    let started = match broker.create_depth_feed(auth, levels) {
+        Ok(feed) => ctx
+            .runtime
+            .depth_ws
+            .connect(feed)
+            .await
+            .map_err(|e| e.to_string()),
+        Err(e) => Err(e.to_string()),
+    };
+    match started {
+        Ok(()) => ctx.bridge.set_deep_levels(Some(levels)),
+        Err(e) => {
+            tracing::warn!("Market depth feed for {} not started: {}", id, e);
+            ctx.bridge.set_deep_unavailable(levels);
+        }
+    }
 }
 
 /// The web's `OrderUpdateEvent` payload, stamped with its session.

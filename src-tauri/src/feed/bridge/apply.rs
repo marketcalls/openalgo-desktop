@@ -13,7 +13,7 @@
 use super::{mode_of, BrokerBridge, DesiredKey, State};
 use crate::brokers::common::streaming::{FeedMode, FeedSubscription};
 use crate::feed::source::{Mode, SourceOutcome, DEFAULT_DEPTH};
-use crate::websocket::WebSocketManager;
+use crate::websocket::{FeedStatus, WebSocketManager};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -23,6 +23,15 @@ use tokio::time::Instant;
 /// per attempt up to `RETRY_MAX`.
 const RETRY_BASE: Duration = Duration::from_secs(1);
 const RETRY_MAX: Duration = Duration::from_secs(60);
+
+/// A Depth subscribe's error when the broker's deeper-book socket (Fyers
+/// 50, Dhan 20) did not start for this session.
+pub(super) fn deep_not_started(levels: u8) -> String {
+    format!(
+        "The broker's {levels}-level market depth feed did not start for this session, so \
+{levels}-level depth cannot be streamed. Subscribe with depth 5, or log in to your broker again."
+    )
+}
 
 /// What one desired key holds on the managers.
 #[derive(Debug, Clone)]
@@ -243,7 +252,8 @@ impl BrokerBridge {
         (*generation, add, remove)
     }
 
-    /// Ask a manager to take these references: one answer each.
+    /// Ask a manager to take these references: one answer each, so the
+    /// members of a batch that fit start and the rest are told why (C02).
     async fn take(
         &self,
         manager: &WebSocketManager,
@@ -252,10 +262,25 @@ impl BrokerBridge {
         if subs.is_empty() {
             return Vec::new();
         }
-        let n = subs.len();
-        match manager.subscribe(subs).await {
-            Ok(()) => vec![Ok(()); n],
-            Err(e) => vec![Err(e.client_message()); n],
+        manager.admit(subs).await
+    }
+
+    /// Why the deep book of `key` cannot stream now, when it cannot: the
+    /// broker's depth socket did not start for this session, or the broker
+    /// refused it, while the main feed may be fine (audit C02).
+    fn deep_refusal(&self, key: &DesiredKey) -> Option<String> {
+        if key.1 != Mode::Depth {
+            return None;
+        }
+        if *self.deep_down.lock() == Some(key.2) {
+            return Some(deep_not_started(key.2));
+        }
+        if *self.deep.lock() != Some(key.2) {
+            return None;
+        }
+        match self.depth_manager.status() {
+            FeedStatus::AuthFailed { message, .. } => Some(message),
+            _ => None,
         }
     }
 
@@ -266,7 +291,10 @@ impl BrokerBridge {
         let mut answers: Vec<(DesiredKey, SourceOutcome, Option<Applied>)> = Vec::new();
         let mut routed = Vec::new();
         for k in keys {
-            match self.applied_for(&k) {
+            match self
+                .deep_refusal(&k)
+                .map_or_else(|| self.applied_for(&k), Err)
+            {
                 Ok(a) => routed.push((k, a)),
                 Err(why) => answers.push((k, Err(why), None)),
             }

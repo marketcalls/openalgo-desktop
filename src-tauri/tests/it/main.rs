@@ -210,6 +210,7 @@ mod e2e_scripted_broker;
 mod feed_app;
 mod feed_behaviour;
 mod feed_bridge;
+mod feed_capacity;
 mod feed_budget;
 mod feed_conformance;
 mod feed_corpus;
