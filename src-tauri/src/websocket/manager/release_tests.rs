@@ -12,6 +12,7 @@ use super::*;
 use crate::brokers::common::streaming::{FeedMode, Message};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::streaming::NorenFeed;
+use serde_json::{json, Value};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio_tungstenite::tungstenite::Error as WsError;
@@ -54,6 +55,13 @@ impl futures_util::Sink<Message> for Socket {
     ) -> Poll<std::result::Result<(), WsError>> {
         Poll::Ready(Ok(()))
     }
+}
+
+/// The frames as JSON: their key order is serde's, not the protocol's.
+fn frames(sent: &[String]) -> Vec<Value> {
+    sent.iter()
+        .map(|f| serde_json::from_str(f).unwrap_or(Value::Null))
+        .collect()
 }
 
 fn reliance() -> FeedSubscription {
@@ -161,7 +169,7 @@ async fn a_release_the_socket_did_not_take_is_held_again_and_its_retry_releases_
     // The login's subscription goes out; the `u` frame finds the socket gone.
     let (end, sent, heard) = session(&registry, 3).await;
     assert_eq!(end, "closed");
-    assert_eq!(sent, vec![r#"{"t":"t","k":"NSE|2885"}"#.to_string()]);
+    assert_eq!(frames(&sent), [json!({"t": "t", "k": "NSE|2885"})]);
     assert!(matches!(heard, Some(Written::Failed)));
     assert_eq!(
         registry.lock().effective_all(),
@@ -174,10 +182,10 @@ async fn a_release_the_socket_did_not_take_is_held_again_and_its_retry_releases_
     let (end, sent, heard) = session(&registry, 10).await;
     assert_eq!(end, "still running");
     assert_eq!(
-        sent,
-        vec![
-            r#"{"t":"t","k":"NSE|2885"}"#.to_string(),
-            r#"{"t":"u","k":"NSE|2885"}"#.to_string(),
+        frames(&sent),
+        [
+            json!({"t": "t", "k": "NSE|2885"}),
+            json!({"t": "u", "k": "NSE|2885"}),
         ]
     );
     assert!(matches!(heard, Some(Written::Sent(later)) if later.is_empty()));
