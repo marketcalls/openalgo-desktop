@@ -99,12 +99,6 @@
       "approved": true
     },
     {
-      "key": "price",
-      "kind": "open",
-      "reason": "polled MARKET order carries the book's protected limit price; web sends 0.0 (shared common/order_poll.rs::to_update, bk-c Phase B)",
-      "ref": "services/orderbook_service.py:49-52; brokers/common/order_poll.rs::to_update"
-    },
-    {
       "key": "rejection_reason",
       "kind": "web-defect",
       "reason": "The web relays an empty rejection_reason: its Groww order book drops Groww's remark. The desktop sends the remark, the reason RMS gave.",

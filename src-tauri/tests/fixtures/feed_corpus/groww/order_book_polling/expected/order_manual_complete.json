@@ -8,7 +8,7 @@
   "exchange": "NSE",
   "action": "BUY",
   "quantity": 1,
-  "price": 1497.95,
+  "price": 0.0,
   "trigger_price": 0.0,
   "pricetype": "MARKET",
   "product": "CNC",
