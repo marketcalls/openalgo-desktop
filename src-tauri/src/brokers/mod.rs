@@ -583,6 +583,15 @@ pub trait Broker: Send + Sync {
     fn feed_depth_levels(&self, _exchange: &str) -> Vec<u8> {
         self.capabilities().depth_levels.to_vec()
     }
+
+    /// Why the live feed does not stream `exchange`, when it does not: a
+    /// feed subscribe on it is refused with this, for the trader, instead
+    /// of reaching a topic the broker never serves (Groww streams NSE and
+    /// BSE cash, F&O and indices only, web openalgo#2341). Default: every
+    /// exchange streams.
+    fn feed_refusal(&self, _exchange: &str) -> Option<String> {
+        None
+    }
 }
 
 /// One API plan of a broker (`Broker::rate_plans`).

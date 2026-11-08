@@ -211,6 +211,14 @@ pub trait MarketDataSource: Send + Sync + 'static {
         None
     }
 
+    /// Why the connected broker's feed does not stream `exchange`, when it
+    /// does not (`Broker::feed_refusal`): each subscribe item on it is
+    /// answered with this as its error, before the symbol is looked up, as
+    /// the web's adapter refuses it.
+    fn refusal(&self, _exchange: &str) -> Option<String> {
+        None
+    }
+
     /// Where the feed server counts what it could not deliver to its
     /// clients (NEW-REL-05); `None` when nobody reads the counts.
     fn client_losses(&self) -> Option<Arc<ClientLosses>> {

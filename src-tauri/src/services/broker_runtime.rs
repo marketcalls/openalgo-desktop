@@ -215,6 +215,11 @@ async fn start_session(
         Arc::new(move |exchange: &str| b.feed_depth_levels(exchange))
     };
     ctx.bridge.set_depth_capability(caps);
+    let refusal = {
+        let b = broker.clone();
+        Arc::new(move |exchange: &str| b.feed_refusal(exchange))
+    };
+    ctx.bridge.set_exchange_refusal(refusal);
 
     // A feed that cannot stream makes feed subscribes say why (WS-01).
     match broker.create_feed(&auth) {

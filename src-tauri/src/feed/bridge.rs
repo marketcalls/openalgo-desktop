@@ -62,6 +62,10 @@ pub type DesiredKey = (InstrumentKey, Mode, u8);
 /// Depth levels per exchange for the connected broker.
 pub type DepthCapability = Arc<dyn Fn(&str) -> Vec<u8> + Send + Sync>;
 
+/// Why the connected broker's feed does not stream an exchange, if it
+/// does not (`Broker::feed_refusal`).
+pub type ExchangeRefusal = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+
 /// What one desired key holds on the managers.
 #[derive(Debug, Clone)]
 enum Applied {
@@ -160,6 +164,8 @@ pub struct BrokerBridge {
     state: Arc<Mutex<State>>,
     changed: Arc<Notify>,
     depths: Mutex<DepthCapability>,
+    /// The exchanges the connected broker's feed refuses (none by default).
+    refusal: Mutex<Option<ExchangeRefusal>>,
     /// Why this session's feed cannot stream (it has none, or it did not
     /// start); cleared by `reset`.
     unavailable: Mutex<Option<&'static str>>,
@@ -197,6 +203,7 @@ impl BrokerBridge {
             state: Arc::new(Mutex::new(State::default())),
             changed: Arc::new(Notify::new()),
             depths: Mutex::new(Arc::new(|_| vec![DEFAULT_DEPTH])),
+            refusal: Mutex::new(None),
             unavailable: Mutex::new(None),
             tasks: Mutex::new(None),
             client_losses: Arc::new(ClientLosses::default()),
@@ -207,6 +214,12 @@ impl BrokerBridge {
     /// login; the default is 5 levels everywhere, as on the web).
     pub fn set_depth_capability(&self, f: DepthCapability) {
         *self.depths.lock() = f;
+    }
+
+    /// Install the exchanges the connected broker's feed refuses (called on
+    /// broker login; cleared by `reset`).
+    pub fn set_exchange_refusal(&self, f: ExchangeRefusal) {
+        *self.refusal.lock() = Some(f);
     }
 
     /// Record that this session's feed cannot stream ([`NO_LIVE_FEED`],
@@ -256,6 +269,7 @@ impl BrokerBridge {
         }
         *self.deep.lock() = None;
         *self.unavailable.lock() = None;
+        *self.refusal.lock() = None;
         self.set_depth_capability(Arc::new(|_| vec![DEFAULT_DEPTH]));
     }
 
@@ -630,6 +644,11 @@ impl MarketDataSource for BrokerBridge {
     fn supported_depths(&self, exchange: &str) -> Vec<u8> {
         let f = self.depths.lock().clone();
         f(exchange)
+    }
+
+    fn refusal(&self, exchange: &str) -> Option<String> {
+        let f = self.refusal.lock().clone();
+        f.and_then(|f| f(exchange))
     }
 
     /// The broker refused the feed (it stays down until the next sign-in,

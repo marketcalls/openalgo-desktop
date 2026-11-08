@@ -238,8 +238,9 @@ impl Session {
 
     /// Subscribes one instrument: the depth its acknowledgment names (see
     /// [`subscribe_depth`]; `None` is `null`), or why not. A feed known not
-    /// to stream refuses first, as the web's adapter does before it looks
-    /// the symbol up (WS-01).
+    /// to stream, or not to stream the exchange, refuses first, as the
+    /// web's adapter does before it looks the symbol up (WS-01,
+    /// openalgo#2341).
     fn subscribe_key(
         &self,
         source: &Arc<dyn MarketDataSource>,
@@ -248,6 +249,9 @@ impl Session {
         requested_depth: i64,
     ) -> Result<Option<i64>, String> {
         if let Some(reason) = source.unavailable() {
+            return Err(reason);
+        }
+        if let Some(reason) = source.refusal(&key.exchange) {
             return Err(reason);
         }
         if !source.resolve(key) {

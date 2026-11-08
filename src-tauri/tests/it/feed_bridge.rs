@@ -184,6 +184,63 @@ async fn feed_client_to_broker_and_back_through_the_manager() {
     broker_task.abort();
 }
 
+/// A broker whose feed does not stream an exchange (Groww and MCX, web
+/// openalgo#2341) answers each subscribe item on it with why, before the
+/// symbol is looked up, and nothing is held for it; the other items
+/// subscribe. A broker session's end (`reset`) drops the refusal.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_exchange_the_feed_does_not_stream_is_refused_per_item() {
+    let manager = Arc::new(WebSocketManager::new());
+    let symbols = SymbolResolver::new();
+    symbols.load(vec![row("SBIN", "NSE", "779521")]);
+    let bridge = BrokerBridge::new(manager.clone(), symbols);
+    bridge.set_exchange_refusal(Arc::new(|exchange: &str| {
+        (exchange == "MCX").then(|| format!("No live prices for {}", exchange))
+    }));
+    bridge.start();
+    let h = start(
+        FeedConfig {
+            port: 0,
+            ..FeedConfig::default()
+        },
+        FeedDeps {
+            source: bridge.clone(),
+            auth: Arc::new(StaticAuth {
+                api_key: API_KEY.into(),
+                user_id: USER_ID.into(),
+                broker: Some(BROKER.into()),
+            }),
+            orders: None,
+            supported_brokers: brokers(),
+        },
+    )
+    .await
+    .unwrap();
+    let mut c = Client::connect(&format!("ws://{}", h.local_addr())).await;
+    c.auth().await;
+    let subscribe = json!({"action": "subscribe", "mode": 2, "symbols": [
+        {"symbol": "SBIN", "exchange": "NSE"},
+        {"symbol": "CRUDEOIL19NOV26FUT", "exchange": "MCX"}]});
+
+    let ack = c.request(subscribe.clone()).await;
+    assert_eq!(ack["status"], "partial", "{}", ack);
+    assert_eq!(ack["subscriptions"][0]["status"], "success", "{}", ack);
+    let mcx = &ack["subscriptions"][1];
+    assert_eq!(mcx["status"], "error", "{}", ack);
+    assert_eq!(mcx["message"], "No live prices for MCX");
+    assert_eq!(h.stats().client_subscriptions, 1);
+
+    bridge.reset();
+    let ack = c.request(subscribe).await;
+    assert_eq!(
+        ack["subscriptions"][1]["message"],
+        "Token not found for CRUDEOIL19NOV26FUT on MCX"
+    );
+
+    h.stop().await;
+    bridge.stop().await;
+}
+
 /// WS-01: once the broker refuses the live feed (the manager stops until
 /// the trader signs in again), a subscribe is not acknowledged as success:
 /// every item is answered with the reason, the answer carries the request
