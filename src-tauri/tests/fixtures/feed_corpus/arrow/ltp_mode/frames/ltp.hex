@@ -1,0 +1,5 @@
+# Arrow: a 13-byte ltp packet for the same token.
+# 13-byte ltp packet: token, ltp, 5 ignored bytes; no close.
+00000b45                # token 2885
+00024a5e                # ltp 1501.1 (paise 150110)
+2b000003e8              # change flag and net change: ignored by both sides

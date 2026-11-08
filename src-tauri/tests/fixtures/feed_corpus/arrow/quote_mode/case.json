@@ -1,0 +1,81 @@
+{
+  "broker": "arrow",
+  "summary": "A Quote subscription: the 93-byte quote packet becomes a Quote frame with the trade time and the feed time; a packet without a trade time takes the feed time as ltt, and one without either is stamped on receipt.",
+  "scenarios": [
+    "first-full-packet",
+    "absent-field",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/arrow/streaming/arrow_websocket.py::ArrowWebSocket._parse_packet",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._on_ticks",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._normalize"
+    ],
+    "notes": []
+  },
+  "upstream_ignore": [
+    "PONG"
+  ],
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Arrow web adapter sends no data.mode.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The Arrow web adapter adds the broker's instrument token as a string to every frame; the desktop's common carrier has no place for it. Whether the desktop carries it is the lead's decision (a broker identifier, not a market field).",
+      "ref": "arrow_adapter.py:200 (_normalize); audit C06 carrier"
+    },
+    {
+      "key": "last_price",
+      "kind": "open",
+      "reason": "The Arrow web adapter repeats ltp as last_price in every frame; the desktop sends no such alias yet.",
+      "ref": "arrow_adapter.py:202; audit C06 per-broker aliases (feed::dialect)"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The Arrow web adapter repeats the previous close as prev_close wherever it sends close; the desktop sends no such alias yet.",
+      "ref": "arrow_adapter.py:206-208; audit C06 per-broker aliases (feed::dialect)"
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends the change against the previous close for every instrument whose packet carries a close (ltpc, quote, full); the desktop sends it in index Quote and Depth frames only.",
+      "ref": "arrow_adapter.py:209-212; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends the change against the previous close for every instrument whose packet carries a close (ltpc, quote, full); the desktop sends it in index Quote and Depth frames only.",
+      "ref": "arrow_adapter.py:209-212; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The web sends the packet's OI in Quote frames (Arrow's quote packet carries it); the desktop's Quote frame carries OI only when the tick came from a full packet.",
+      "ref": "arrow_adapter.py:223-225; audit C05 (quote OI)"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "The web sends the packet's OI in Quote frames (Arrow's quote packet carries it); the desktop's Quote frame carries OI only when the tick came from a full packet.",
+      "ref": "arrow_adapter.py:223-225; audit C05 (quote OI)"
+    }
+  ]
+}

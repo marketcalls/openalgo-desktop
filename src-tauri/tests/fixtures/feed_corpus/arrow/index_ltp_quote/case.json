@@ -1,0 +1,126 @@
+{
+  "broker": "arrow",
+  "summary": "NIFTY 50 on NSE_INDEX, which Arrow streams by token like any instrument: an ltpc packet as LTP, then a quote packet as an index Quote frame (no trade, book or OI fields; the change worked out from the previous close).",
+  "scenarios": [
+    "index",
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY",
+      "brexchange": "INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/arrow/streaming/arrow_websocket.py::ArrowWebSocket._parse_packet",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._on_ticks",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "An index quote packet carries zeros for quantities, OI and the trade time; no live index packet was recorded."
+    ]
+  },
+  "upstream_ignore": [
+    "PONG"
+  ],
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Arrow web adapter sends no data.mode.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The Arrow web adapter adds the broker's instrument token as a string to every frame; the desktop's common carrier has no place for it. Whether the desktop carries it is the lead's decision (a broker identifier, not a market field).",
+      "ref": "arrow_adapter.py:200 (_normalize); audit C06 carrier"
+    },
+    {
+      "key": "last_price",
+      "kind": "open",
+      "reason": "The Arrow web adapter repeats ltp as last_price in every frame; the desktop sends no such alias yet.",
+      "ref": "arrow_adapter.py:202; audit C06 per-broker aliases (feed::dialect)"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The Arrow web adapter repeats the previous close as prev_close wherever it sends close; the desktop sends no such alias yet.",
+      "ref": "arrow_adapter.py:206-208; audit C06 per-broker aliases (feed::dialect)"
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends the change against the previous close for every instrument whose packet carries a close (ltpc, quote, full); the desktop sends it in index Quote and Depth frames only.",
+      "ref": "arrow_adapter.py:209-212; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends the change against the previous close for every instrument whose packet carries a close (ltpc, quote, full); the desktop sends it in index Quote and Depth frames only.",
+      "ref": "arrow_adapter.py:209-212; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "close",
+      "kind": "open",
+      "reason": "An LTP subscription streams Arrow's ltpc packet, whose previous close the web puts in the LTP frame (with the change); the desktop's LTP frame carries ltp and the times only. For an index the web's LTP frame also carries the change.",
+      "ref": "arrow_mapping.py:54-68 (LTP -> ltpc for the close); arrow_adapter.py:206-212; audit C03"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros Arrow's quote packet carries in their place.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros Arrow's quote packet carries in their place.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros Arrow's quote packet carries in their place.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros Arrow's quote packet carries in their place.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The web sends the index quote packet's OI (0) in the Quote frame; the desktop's Quote frame carries no OI (and an index has none).",
+      "ref": "arrow_adapter.py:223-225; audit C05"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "The web sends the index quote packet's OI (0) in the Quote frame; the desktop's Quote frame carries no OI (and an index has none).",
+      "ref": "arrow_adapter.py:223-225; audit C05"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Arrow web names (change, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Arrow web names (change, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    }
+  ]
+}

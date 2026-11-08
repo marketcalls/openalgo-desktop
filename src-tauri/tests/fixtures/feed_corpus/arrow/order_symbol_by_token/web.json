@@ -1,0 +1,50 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "arrow",
+  "inputs_sha256": "667335bf4de9eb9d01835cac4897d48380c056ce25e9675848ca1c8c15fc5e69",
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52345",
+      "brsymbol": "NIFTY24NOVFUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "tick_size": 0.05
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "arrow",
+            "orderid": "25110900000105",
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "action": "BUY",
+            "quantity": 75,
+            "price": 24600.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "MIS",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 75,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    }
+  ]
+}

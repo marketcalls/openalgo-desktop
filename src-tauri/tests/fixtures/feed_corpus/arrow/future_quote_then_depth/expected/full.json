@@ -1,0 +1,82 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY24NOV26FUT",
+  "exchange": "NFO",
+  "mode": 3,
+  "broker": "arrow",
+  "data": {
+    "symbol": "NIFTY24NOV26FUT",
+    "exchange": "NFO",
+    "mode": "full",
+    "ltp": 24606.0,
+    "ltt": 1791000405000,
+    "timestamp": 1791000406000,
+    "volume": 1875150,
+    "last_quantity": 150,
+    "average_price": 24590.25,
+    "total_buy_quantity": 450000,
+    "total_sell_quantity": 375000,
+    "open": 24550.0,
+    "high": 24640.0,
+    "low": 24530.5,
+    "close": 24520.0,
+    "oi": 12346350,
+    "open_interest": 12346350,
+    "depth": {
+      "buy": [
+        {
+          "price": 24605.0,
+          "quantity": 750,
+          "orders": 5
+        },
+        {
+          "price": 24604.5,
+          "quantity": 1500,
+          "orders": 9
+        },
+        {
+          "price": 24604.0,
+          "quantity": 2250,
+          "orders": 11
+        },
+        {
+          "price": 24603.5,
+          "quantity": 300,
+          "orders": 2
+        },
+        {
+          "price": 24603.0,
+          "quantity": 825,
+          "orders": 6
+        }
+      ],
+      "sell": [
+        {
+          "price": 24606.0,
+          "quantity": 600,
+          "orders": 4
+        },
+        {
+          "price": 24606.5,
+          "quantity": 1200,
+          "orders": 8
+        },
+        {
+          "price": 24607.0,
+          "quantity": 975,
+          "orders": 7
+        },
+        {
+          "price": 24607.5,
+          "quantity": 150,
+          "orders": 1
+        },
+        {
+          "price": 24608.0,
+          "quantity": 2100,
+          "orders": 12
+        }
+      ]
+    }
+  }
+}

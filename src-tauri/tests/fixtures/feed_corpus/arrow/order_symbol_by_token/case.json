@@ -1,0 +1,43 @@
+{
+  "broker": "arrow",
+  "summary": "An order update whose trading symbol is not the master's broker symbol but whose token is: the web finds the OpenAlgo symbol by the token, the desktop passes the raw symbol on.",
+  "scenarios": [
+    "order-open"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52345",
+      "brsymbol": "NIFTY24NOVFUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "tick_size": 0.05
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/arrow/streaming/arrow_order_adapter.py::ArrowOrderUpdateAdapter.normalize",
+      "websocket_proxy/order_adapter.py::to_openalgo_symbol"
+    ],
+    "notes": [
+      "The web tries the token first, then the broker symbol (order_adapter.py:45-68)."
+    ]
+  },
+  "upstream_ignore": [
+    "PONG"
+  ],
+  "deviations": [
+    {
+      "key": "symbol",
+      "kind": "open",
+      "reason": "The web resolves an order update's OpenAlgo symbol by the instrument token first, then the broker symbol; the desktop looks up the broker symbol only and passes an unknown one on raw, so an update whose trading symbol differs from the master's names a symbol no book or strategy knows.",
+      "ref": "websocket_proxy/order_adapter.py:45-68; arrow_order_adapter.py:101-106; audit remaining brokers matrix (Arrow: no token fallback); BKD-01"
+    }
+  ]
+}

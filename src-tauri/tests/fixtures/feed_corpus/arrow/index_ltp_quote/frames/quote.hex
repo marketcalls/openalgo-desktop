@@ -1,0 +1,20 @@
+# Arrow: NIFTY 50 quote packet: an index has no trade, book or OI, so those are 0,
+# and no trade time.
+# 93-byte quote packet (>II5xIIQQIIIIQIIQQQ).
+00006590                # token 26000
+00256723                # ltp 24512.35 (paise 2451235)
+2b000003e8              # change flag and net change: ignored by both sides
+00000000                # last traded quantity 0
+00000000                # average price 0.0
+0000000000000000        # total buy quantity 0
+0000000000000000        # total sell quantity 0
+00254ec8                # open 24450.0
+002579e8                # high 24560.4
+00253b4a                # previous close 24400.1 (before low)
+00253389                # low 24380.25
+0000000000000000        # volume 0
+00000000                # last trade time 0, epoch s
+6ac07eee                # feed time 1791000302, epoch s
+0000000000000000        # open interest 0
+0000000000000000        # OI day high
+0000000000000000        # OI day low

@@ -1,0 +1,19 @@
+# Arrow: RELIANCE quote packet before the drop.
+# 93-byte quote packet (>II5xIIQQIIIIQIIQQQ).
+00000b45                # token 2885
+000249f5                # ltp 1500.05 (paise 150005)
+2b000003e8              # change flag and net change: ignored by both sides
+00000019                # last traded quantity 25
+00024974                # average price 1498.76
+000000000001d4c0        # total buy quantity 120000
+0000000000017ed0        # total sell quantity 98000
+00024702                # open 1492.5
+00024dec                # high 1510.2
+0002455e                # previous close 1488.3 (before low)
+0002441e                # low 1485.1
+000000000034bf15        # volume 3456789
+6ac07eec                # last trade time 1791000300, epoch s
+6ac07eed                # feed time 1791000301, epoch s
+0000000000000000        # open interest 0
+0000000000000000        # OI day high
+0000000000000000        # OI day low

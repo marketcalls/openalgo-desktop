@@ -1,0 +1,116 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "arrow",
+  "inputs_sha256": "6d22d899a5348eb6f8dfaaa99fadf9f98a6f06a51e30f734e34b685e692f1fba",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.05,
+            "last_price": 1500.05,
+            "ltt": 1791000300000,
+            "timestamp": 1791000301000,
+            "close": 1488.3,
+            "prev_close": 1488.3,
+            "change": 11.75,
+            "change_percent": 0.79,
+            "volume": 3456789,
+            "last_quantity": 25,
+            "average_price": 1498.76,
+            "total_buy_quantity": 120000,
+            "total_sell_quantity": 98000,
+            "open": 1492.5,
+            "high": 1510.2,
+            "low": 1485.1,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.25,
+            "last_price": 1500.25,
+            "ltt": 1791000305000,
+            "timestamp": 1791000305000,
+            "close": 1488.3,
+            "prev_close": 1488.3,
+            "change": 11.95,
+            "change_percent": 0.8,
+            "volume": 3456819,
+            "last_quantity": 30,
+            "average_price": 1498.76,
+            "total_buy_quantity": 120000,
+            "total_sell_quantity": 98000,
+            "open": 1492.5,
+            "high": 1510.2,
+            "low": 1485.1,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.3,
+            "last_price": 1500.3,
+            "ltt": "<receipt_ms>",
+            "timestamp": "<receipt_ms>",
+            "close": 1488.3,
+            "prev_close": 1488.3,
+            "change": 12.0,
+            "change_percent": 0.81,
+            "volume": 3456824,
+            "last_quantity": 5,
+            "average_price": 1498.76,
+            "total_buy_quantity": 120000,
+            "total_sell_quantity": 98000,
+            "open": 1492.5,
+            "high": 1510.2,
+            "low": 1485.1,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ]
+    }
+  ]
+}
