@@ -18,5 +18,6 @@ corpus_cases!(
         index_quote,
         derivative_oi,
         reconnect_resubscribes,
+        unsupported_exchange,
     ]
 );

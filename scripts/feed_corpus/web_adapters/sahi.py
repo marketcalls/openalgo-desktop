@@ -45,6 +45,7 @@ class Sahi(Glue):
                 "_BUILDERS", "build_payloads",
             ],
         ),
+        Source("broker/sahi/streaming/sahi_mapping.py", "SahiExchangeMapper"),
         Source("broker/sahi/streaming/sahi_adapter.py", "_Sub"),
         Source("broker/sahi/streaming/sahi_adapter.py", "SahiWebSocketAdapter", ["_on_message", "_handle_tick"]),
     ]
@@ -61,7 +62,11 @@ class Sahi(Glue):
         self.ad = self.new("SahiWebSocketAdapter", _subs={}, _keys={}, publish_market_data=self.publish)
 
     def subscribe(self, row, mode, depth):
-        # sahi_adapter.py subscribe: one _Sub per instrument id, the modes it holds.
+        # sahi_adapter.py subscribe: an exchange Sahi does not stream is
+        # refused before anything is held; otherwise one _Sub per
+        # instrument id, with the modes it holds.
+        if not self.web["SahiExchangeMapper"].is_supported(row["exchange"]):
+            return
         iid = int(row["token"])
         sub = self.ad._subs.get(iid)
         if sub is None:
