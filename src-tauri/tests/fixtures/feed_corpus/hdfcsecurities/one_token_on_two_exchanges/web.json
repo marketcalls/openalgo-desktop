@@ -30,6 +30,8 @@
         {
           "kind": "market",
           "topic": "CDS_USDINR25NOV26FUT_QUOTE",
+          "exchange": "CDS",
+          "symbol": "USDINR25NOV26FUT",
           "mode": 2,
           "data": {
             "symbol": "USDINR25NOV26FUT",
@@ -63,6 +65,8 @@
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 2,
           "data": {
             "symbol": "RELIANCE",

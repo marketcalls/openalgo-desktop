@@ -20,6 +20,8 @@
         {
           "kind": "market",
           "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
           "mode": 2,
           "data": {
             "symbol": "NIFTY",
@@ -51,6 +53,8 @@
         {
           "kind": "market",
           "topic": "NSE_INDEX_NIFTY_DEPTH",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
           "mode": 3,
           "data": {
             "symbol": "NIFTY",
@@ -77,6 +81,8 @@
         {
           "kind": "market",
           "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
           "mode": 2,
           "data": {
             "symbol": "NIFTY",
