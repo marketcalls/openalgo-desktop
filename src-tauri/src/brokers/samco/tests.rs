@@ -749,7 +749,7 @@ fn quote_frames_decode_and_merge_with_depth() {
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
     assert_eq!(
         (t.symbol.as_str(), t.exchange.as_str(), t.mode),
-        ("SBIN", "NSE", 3)
+        ("SBIN", "NSE", 2)
     );
     assert_eq!(
         (t.ltp, t.open, t.close, t.volume),
@@ -804,7 +804,7 @@ fn ltp_subscriber_gets_ticks_only_and_change_is_derived() {
     ));
     assert_eq!(ev.len(), 1);
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
-    assert_eq!((t.mode, t.change, t.change_percent), (1, 10.0, 1.25));
+    assert_eq!((t.mode, t.change, t.change_percent), (2, 10.0, 1.25));
 }
 
 #[test]

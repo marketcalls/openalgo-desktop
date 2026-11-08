@@ -317,10 +317,12 @@ fn epoch_ms(value: &str) -> Option<i64> {
     }
 }
 
-/// The tick for `sub` from the merged fields. Average price, the book
-/// totals and the trade time are marked absent until Samco sends them, so
-/// a client is not shown an invented 0 or the receive time (web
-/// openalgo#2396).
+/// The tick for `sub` from the merged fields: a quote packet, whatever
+/// the subscription, with Samco's OI when it sent one (the web reads `oI`
+/// and then drops it from every mode: lost data, kept here). Average
+/// price, the book totals and the trade time are marked absent until
+/// Samco sends them, so a client is not shown an invented 0 or the
+/// receive time (web openalgo#2396).
 fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> NormalizedTick {
     let g = |k: &str| merged.get(k);
     let tbq = first_present(merged, &["tbq", "tBQ"]);
@@ -340,7 +342,7 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
     let mut tick = NormalizedTick {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
-        mode: sub.mode.code(),
+        mode: FeedMode::Quote.code(),
         ltp: num(g("ltp")),
         open: num(g("o")),
         high: num(g("h")),
@@ -359,6 +361,9 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
         absent,
         ..Default::default()
     };
+    if g("oI").is_some() {
+        tick.mark_carried(QuoteField::OpenInterest);
+    }
     if tick.change == 0.0 && tick.change_percent == 0.0 {
         tick.derive_change();
     }

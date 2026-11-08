@@ -296,6 +296,29 @@ fn leaving_depth_drops_the_book_streams_totals() {
     );
 }
 
+/// Samco streams OI (`oI`) on its quote stream. The web reads it and then
+/// drops it from every mode (lost data, decisions 2026-11-09); the desktop
+/// sends it to Quote holders as to Depth ones, and no OI Samco did not
+/// send. A Quote holder got none: the tick took the subscription's mode.
+#[test]
+fn samcos_oi_reaches_quote_holders() {
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[quote_sub("FUT", "NFO", "35001")]);
+    let events = f.parse(&Message::Text(
+        json!({"sym": "35001_NFO", "ltp": "24610.4", "oI": "10650225", "streaming_type": "quote"})
+            .to_string(),
+    ));
+    let d = Frames::new("samco").at(&events, Mode::Quote).pop().unwrap();
+    assert_eq!(d["oi"], 10_650_225, "{}", d);
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[quote_sub("FUT", "NFO", "35001")]);
+    let d = Frames::new("samco")
+        .at(&f.parse(&tick("35001_NFO")), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert!(d.get("oi").is_none(), "{}", d);
+}
+
 /// Web test_tick_from_another_segment_is_not_routed.
 #[test]
 fn a_tick_from_another_segment_is_not_routed() {
