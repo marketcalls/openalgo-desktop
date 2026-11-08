@@ -1,0 +1,7 @@
+# A book with no level on either side (sid 2): the book is now empty.
+4d5347202f6c642f65712f6e73652f626f6f6b2e3330343520322031330d0a  # "MSG /ld/eq/nse/book.3045 2 13" CRLF
+                                                                # protobuf LiveData, 13 bytes
+18 01                                                           # exchange (3) = 1 (NSE)
+2a 09                                                           # market depth (5), 9 bytes
+09 00 80 13 f9 b1 2f 79 42                                      #   ts_in_millis (1, double) = 1730790003000.0
+0d0a                                                            # CRLF ending the message

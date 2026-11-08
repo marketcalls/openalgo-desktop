@@ -1,0 +1,9 @@
+# Groww NATS MSG, NSE index subject of NIFTY (the symbol is the token; sid 1).
+# Values from web test/test_groww_quote_feed.py::test_index_quote_omits_fields_the_tick_does_not_carry.
+4d5347202f6c642f696e64696365732f6e73652f70726963652e4e4946545920312032320d0a  # "MSG /ld/indices/nse/price.NIFTY 1 22" CRLF
+                                                                              # protobuf LiveData, 22 bytes
+18 01                                                                         # exchange (3) = 1 (NSE)
+32 12                                                                         # live index (6), 18 bytes
+09 00 00 58 f8 b1 2f 79 42                                                    #   ts_in_millis (1, double) = 1730790000000.0
+11 00 00 00 00 b0 c7 d7 40                                                    #   value (2, double) = 24350.75
+0d0a                                                                          # CRLF ending the message

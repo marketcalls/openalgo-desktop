@@ -1,0 +1,74 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "groww",
+  "inputs_sha256": "7142d1a77372ded25c3ad2b91bfc31e90658a19ab2c9d2ae0c950362d24fd9a3",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "99926000",
+      "brsymbol": "NIFTY",
+      "instrumenttype": "INDEX"
+    },
+    {
+      "symbol": "SENSEX",
+      "exchange": "BSE_INDEX",
+      "token": "14",
+      "brsymbol": "SENSEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": []
+    },
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 24350.75,
+            "ltt": 1730790000000.0,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 2,
+            "timestamp": "<receipt_ms>",
+            "broker": "groww",
+            "topic": "NSE_INDEX_NIFTY_QUOTE",
+            "subscription_mode": 2
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "BSE_INDEX_SENSEX_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 79500.25,
+            "ltt": 1730790000000.0,
+            "symbol": "SENSEX",
+            "exchange": "BSE_INDEX",
+            "mode": 1,
+            "timestamp": "<receipt_ms>",
+            "broker": "groww",
+            "topic": "BSE_INDEX_SENSEX_LTP",
+            "subscription_mode": 1
+          }
+        }
+      ]
+    }
+  ]
+}

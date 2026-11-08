@@ -1,0 +1,11 @@
+# The next price tick: only the LTP, volume and time changed, so only they are
+# on the wire (a protobuf field equal to 0 is left out).
+# Values from web test/test_groww_quote_feed.py::test_quote_keeps_ohlc_volume_from_earlier_tick.
+4d5347202f6c642f65712f6e73652f70726963652e3330343520312033310d0a  # "MSG /ld/eq/nse/price.3045 1 31" CRLF
+                                                                  # protobuf LiveData, 31 bytes
+18 01                                                             # exchange (3) = 1 (NSE)
+22 1b                                                             # stock live price (4), 27 bytes
+09 00 80 96 f8 b1 2f 79 42                                        #   ts_in_millis (1, double) = 1730790001000.0
+31 00 00 00 00 74 51 32 41                                        #   volume (6, double) = 1200500.0
+69 33 33 33 33 33 67 89 40                                        #   ltp (13, double) = 812.9
+0d0a                                                              # CRLF ending the message

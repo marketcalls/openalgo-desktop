@@ -1,0 +1,20 @@
+{
+  "type": "market_data",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "mode": 2,
+  "data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "mode": "quote",
+    "ltp": 812.5,
+    "ltt": 1730790000000,
+    "timestamp": "<receipt_ms>",
+    "volume": 1200000,
+    "open": 805.0,
+    "high": 815.0,
+    "low": 801.0,
+    "close": 803.2
+  },
+  "broker": "groww"
+}

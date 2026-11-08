@@ -1,0 +1,39 @@
+{
+  "broker": "groww",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "NSE_INDEX": [
+        5
+      ],
+      "BSE_INDEX": [
+        5
+      ]
+    },
+    "orders": "REST order-book polling"
+  },
+  "sources": [
+    "broker/groww/streaming/groww_mapping.py::GrowwCapabilityRegistry.SUPPORTED_DEPTH_LEVELS",
+    "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter.subscribe",
+    "services/order_update_service.py:98 (_POLLING_BROKERS)",
+    "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter"
+  ],
+  "notes": [
+    "The web adapter refuses MCX, CDS and BCD (EXCHANGE_NOT_SUPPORTED, groww_adapter.py:385-390) although its capability registry lists them; Groww publishes NSE and BSE cash, F&O and indices only.",
+    "Indices have no book: a Depth subscribe on an index takes the price subject on both sides (index_depth_falls_back_to_price).",
+    "Order updates come from polling the order book every 5 s on both sides (web PollingOrderUpdateAdapter, desktop common::order_poll::OrderPoller); the corpus has no REST order-book fake yet, so no order case runs."
+  ]
+}

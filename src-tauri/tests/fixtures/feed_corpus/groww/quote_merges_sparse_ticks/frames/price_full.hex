@@ -1,0 +1,16 @@
+# Groww NATS MSG, price subject of SBIN (sid 1): a full price tick.
+# Values from web test/test_groww_quote_feed.py::test_quote_keeps_ohlc_volume_from_earlier_tick.
+# value (turnover) is added; Groww sends it on the price subject.
+4d5347202f6c642f65712f6e73652f70726963652e3330343520312037360d0a  # "MSG /ld/eq/nse/price.3045 1 76" CRLF
+                                                                  # protobuf LiveData, 76 bytes
+18 01                                                             # exchange (3) = 1 (NSE)
+22 48                                                             # stock live price (4), 72 bytes
+09 00 00 58 f8 b1 2f 79 42                                        #   ts_in_millis (1, double) = 1730790000000.0
+11 00 00 00 00 00 28 89 40                                        #   open (2, double) = 805.0
+19 00 00 00 00 00 78 89 40                                        #   high (3, double) = 815.0
+21 00 00 00 00 00 08 89 40                                        #   low (4, double) = 801.0
+29 9a 99 99 99 99 19 89 40                                        #   close (5, double) = 803.2
+31 00 00 00 00 80 4f 32 41                                        #   volume (6, double) = 1200000.0
+39 00 00 00 08 f0 08 cd 41                                        #   value (7, double) = 974250000.0
+69 00 00 00 00 00 64 89 40                                        #   ltp (13, double) = 812.5
+0d0a                                                              # CRLF ending the message

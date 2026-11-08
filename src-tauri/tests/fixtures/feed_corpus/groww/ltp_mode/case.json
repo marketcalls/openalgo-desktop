@@ -1,0 +1,102 @@
+{
+  "broker": "groww",
+  "summary": "An LTP subscription: a full price tick gives the LTP and its trade time only.",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_binary_nats_message",
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_market_data_msg",
+      "broker/groww/streaming/groww_protobuf.py::MiniProtobufParser.parse_market_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._on_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._normalize_market_data",
+      "broker/groww/streaming/groww_adapter.py::_GrowwMarketCache"
+    ],
+    "notes": [
+      "The fake socket does not echo the nats subprotocol, so each connect is two connections: the first asks for it and is dropped by the feed, the second goes without it (GrowwFeed::on_connect_failed, web nats_websocket.py subprotocol fallback). Connection 2 is the session.",
+      "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "broker",
+      "kind": "open",
+      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "ref": "groww_adapter.py:983-993"
+    },
+    {
+      "key": "close",
+      "kind": "desktop-decision",
+      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
+    },
+    {
+      "key": "high",
+      "kind": "desktop-decision",
+      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
+    },
+    {
+      "key": "low",
+      "kind": "desktop-decision",
+      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); feed timestamps are integer epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the integer.",
+      "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "open",
+      "kind": "desktop-decision",
+      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
+    },
+    {
+      "key": "subscription_mode",
+      "kind": "open",
+      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "ref": "groww_adapter.py:983-993"
+    },
+    {
+      "key": "topic",
+      "kind": "open",
+      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "ref": "groww_adapter.py:983-993"
+    },
+    {
+      "key": "value",
+      "kind": "desktop-decision",
+      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
+    },
+    {
+      "key": "volume",
+      "kind": "desktop-decision",
+      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
+    }
+  ]
+}

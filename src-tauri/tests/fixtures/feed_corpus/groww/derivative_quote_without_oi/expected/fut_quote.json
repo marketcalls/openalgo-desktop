@@ -1,0 +1,20 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY25NOV25FUT",
+  "exchange": "NFO",
+  "mode": 2,
+  "data": {
+    "symbol": "NIFTY25NOV25FUT",
+    "exchange": "NFO",
+    "mode": "quote",
+    "ltp": 24412.5,
+    "ltt": 1730790000000,
+    "timestamp": "<receipt_ms>",
+    "volume": 3150000,
+    "open": 24380.0,
+    "high": 24450.0,
+    "low": 24350.5,
+    "close": 24390.25
+  },
+  "broker": "groww"
+}

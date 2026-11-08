@@ -1,0 +1,85 @@
+{
+  "broker": "groww",
+  "summary": "A future at Quote on Groww's F&O price subject: OHLC and volume come through; Groww's price message carries no open interest, so none is sent.",
+  "scenarios": [
+    "derivative-oi",
+    "first-full-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV25FUT",
+      "exchange": "NFO",
+      "token": "53001",
+      "brsymbol": "NSE-NIFTY-25Nov25-FUT",
+      "name": "NIFTY",
+      "expiry": "25-NOV-25",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "tick_size": 0.1
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_binary_nats_message",
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_market_data_msg",
+      "broker/groww/streaming/groww_protobuf.py::MiniProtobufParser.parse_market_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._on_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._normalize_market_data",
+      "broker/groww/streaming/groww_adapter.py::_GrowwMarketCache"
+    ],
+    "notes": [
+      "The fake socket does not echo the nats subprotocol, so each connect is two connections: the first asks for it and is dropped by the feed, the second goes without it (GrowwFeed::on_connect_failed, web nats_websocket.py subprotocol fallback). Connection 2 is the session.",
+      "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "broker",
+      "kind": "open",
+      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "ref": "groww_adapter.py:983-993"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); feed timestamps are integer epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the integer.",
+      "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "subscription_mode",
+      "kind": "open",
+      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "ref": "groww_adapter.py:983-993"
+    },
+    {
+      "key": "topic",
+      "kind": "open",
+      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "ref": "groww_adapter.py:983-993"
+    },
+    {
+      "key": "value",
+      "kind": "open",
+      "reason": "The web forwards Groww's traded value (`value`, rupees) in Quote and Depth; the desktop decodes it (brokers/groww/proto.rs StocksLivePrice.value) but the common tick has no field for it. Carrier gap for lane wire.",
+      "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "The web sends Groww's volume as the protobuf double it decodes, a float (1200000.0); volume is an integer (docs/api/websocket-streaming/quote.md). The desktop sends the integer.",
+      "ref": "groww_protobuf.py:194 (_read_fixed64); groww_adapter.py:1113-1114"
+    }
+  ]
+}

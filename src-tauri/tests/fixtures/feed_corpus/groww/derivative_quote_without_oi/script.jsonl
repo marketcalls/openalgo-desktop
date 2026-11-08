@@ -1,0 +1,7 @@
+{"step": "push", "frame": {"text": "INFO {\"server_id\":\"corpus\",\"version\":\"2.10.18\",\"headers\":true,\"max_payload\":1048576}\r\n"}, "connection": 2, "note": "The NATS server's INFO opens the session."}
+{"step": "upstream_receives", "frames": [{"text": "CONNECT {\"headers\":true,\"jwt\":\"socket-jwt\",\"lang\":\"python3\",\"name\":\"nats.py\",\"no_responders\":true,\"pedantic\":false,\"protocol\":1,\"tls_required\":true,\"verbose\":false,\"version\":\"2.10.18\"}\r\n"}], "connection": 2, "note": "CONNECT once per connection, with the socket token (its PING is a heartbeat, ignored)."}
+{"step": "push", "frame": {"text": "+OK\r\n"}, "connection": 2, "note": "+OK accepts the session; subscriptions follow."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"text": "SUB /ld/fo/nse/price.53001 1\r\nPING\r\n"}], "connection": 2}
+{"step": "push", "frame": "frames/fut_full.hex", "connection": 2}
+{"step": "receive", "client": "a", "frame": "expected/fut_quote.json"}

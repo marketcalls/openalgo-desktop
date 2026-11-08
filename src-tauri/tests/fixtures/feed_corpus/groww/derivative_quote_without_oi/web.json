@@ -1,0 +1,56 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "groww",
+  "inputs_sha256": "111d832e6bf288255e2dd171258b4ef7dc44d35131aaf05466b56fc547dc028f",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV25FUT",
+      "exchange": "NFO",
+      "token": "53001",
+      "brsymbol": "NSE-NIFTY-25Nov25-FUT",
+      "name": "NIFTY",
+      "expiry": "25-NOV-25",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "tick_size": 0.1
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": []
+    },
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 24412.5,
+            "open": 24380.0,
+            "high": 24450.0,
+            "low": 24350.5,
+            "close": 24390.25,
+            "volume": 3150000.0,
+            "value": 76899375000.0,
+            "ltt": 1730790000000.0,
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>",
+            "broker": "groww",
+            "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+            "subscription_mode": 2
+          }
+        }
+      ]
+    }
+  ]
+}

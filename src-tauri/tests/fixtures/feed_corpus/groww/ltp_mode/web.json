@@ -1,0 +1,51 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "groww",
+  "inputs_sha256": "bf23f39fa10feece9b583ead6c325eeba6113517a1e1b7f9b9c10a6b22bb90c7",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": []
+    },
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 812.5,
+            "ltt": 1730790000000.0,
+            "open": 805.0,
+            "high": 815.0,
+            "low": 801.0,
+            "close": 803.2,
+            "volume": 1200000.0,
+            "value": 974250000.0,
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 1,
+            "timestamp": "<receipt_ms>",
+            "broker": "groww",
+            "topic": "NSE_SBIN_LTP",
+            "subscription_mode": 1
+          }
+        }
+      ]
+    }
+  ]
+}

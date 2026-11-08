@@ -1,0 +1,37 @@
+# The next book (sid 2): three levels a side, every level moved.
+4d5347202f6c642f65712f6e73652f626f6f6b2e333034352032203135380d0a  # "MSG /ld/eq/nse/book.3045 2 158" CRLF
+                                                                  # protobuf LiveData, 158 bytes
+18 01                                                             # exchange (3) = 1 (NSE)
+2a 99 01                                                          # market depth (5), 153 bytes
+09 00 00 d5 f8 b1 2f 79 42                                        #   ts_in_millis (1, double) = 1730790002000.0
+12 16                                                             #   buy level (2), 22 bytes
+08 02                                                             #     orders (1) = 2
+12 12                                                             #     price_qty (2), 18 bytes
+09 00 00 00 00 00 64 89 40                                        #       price (1, double) = 812.5
+11 00 00 00 00 00 00 59 40                                        #       quantity (2, double) = 100.0
+12 16                                                             #   buy level (2), 22 bytes
+08 05                                                             #     orders (1) = 5
+12 12                                                             #     price_qty (2), 18 bytes
+09 9a 99 99 99 99 63 89 40                                        #       price (1, double) = 812.45
+11 00 00 00 00 00 40 6f 40                                        #       quantity (2, double) = 250.0
+12 16                                                             #   buy level (2), 22 bytes
+08 01                                                             #     orders (1) = 1
+12 12                                                             #     price_qty (2), 18 bytes
+09 33 33 33 33 33 63 89 40                                        #       price (1, double) = 812.4
+11 00 00 00 00 00 00 54 40                                        #       quantity (2, double) = 80.0
+1a 16                                                             #   sell level (3), 22 bytes
+08 03                                                             #     orders (1) = 3
+12 12                                                             #     price_qty (2), 18 bytes
+09 cd cc cc cc cc 64 89 40                                        #       price (1, double) = 812.6
+11 00 00 00 00 00 00 5e 40                                        #       quantity (2, double) = 120.0
+1a 16                                                             #   sell level (3), 22 bytes
+08 06                                                             #     orders (1) = 6
+12 12                                                             #     price_qty (2), 18 bytes
+09 33 33 33 33 33 65 89 40                                        #       price (1, double) = 812.65
+11 00 00 00 00 00 00 79 40                                        #       quantity (2, double) = 400.0
+1a 16                                                             #   sell level (3), 22 bytes
+08 02                                                             #     orders (1) = 2
+12 12                                                             #     price_qty (2), 18 bytes
+09 9a 99 99 99 99 65 89 40                                        #       price (1, double) = 812.7
+11 00 00 00 00 00 80 56 40                                        #       quantity (2, double) = 90.0
+0d0a                                                              # CRLF ending the message
