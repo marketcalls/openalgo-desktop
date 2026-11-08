@@ -296,6 +296,11 @@ earlier step is written `"<receipt_ms:N>"` in `web.json`.
 
 `approved` (true or false) records the lead's decision. A deviation no
 difference shows any more fails the case, so remove it with the fix.
+`feed_corpus::inventory::every_deviation_has_a_known_kind_and_a_reason`
+reads every `case.json` on disk and lists together each deviation without
+its key, with a key twice, of a kind not above, without a reason, or with
+an `approved` that is not true or false; `parity_matrix.py` refuses to
+write the matrix over such a deviation, so what it counts can be trusted.
 
 ## Adding a case to a broker
 

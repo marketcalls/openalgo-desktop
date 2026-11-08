@@ -51,6 +51,38 @@ def scenarios() -> list[str]:
     return re.findall(r'"([a-z-]+)"', body.group(1))
 
 
+def deviation_kinds() -> list[str]:
+    """The deviation kinds, from the harness that checks them (case.rs
+    DEVIATION_KINDS, its named constants resolved)."""
+    text = HARNESS_CASE.read_text(encoding="utf-8")
+    body = re.search(r"const DEVIATION_KINDS: &\[&str\] = &\[(.*?)\];", text, re.S)
+    if not body:
+        raise SystemExit("DEVIATION_KINDS not found in the harness's case.rs")
+    named = dict(re.findall(r'const ([A-Z_]+): &str = "([a-z-]+)";', text))
+    kinds = []
+    for item in re.findall(r'"[a-z-]+"|[A-Z_]+', body.group(1)):
+        kind = item.strip('"') if item.startswith('"') else named.get(item)
+        if kind is None:
+            raise SystemExit(f"DEVIATION_KINDS names {item}, which case.rs does not define")
+        kinds.append(kind)
+    return kinds
+
+
+def deviation_problems(name: str, case: dict, kinds: list[str]) -> list[str]:
+    """What the matrix could not count in a case's deviations (as the
+    harness's `deviation_problems` checks them)."""
+    out = []
+    for i, dv in enumerate(case.get("deviations", []), 1):
+        label = f"{name}: deviation {dv.get('key') or i}"
+        if dv.get("kind") not in kinds:
+            out.append(f"{label}: kind {dv.get('kind')!r} is not one of {', '.join(kinds)}")
+        if not str(dv.get("reason", "")).strip():
+            out.append(f"{label} gives no reason")
+        if "approved" in dv and not isinstance(dv["approved"], bool):
+            out.append(f"{label}: approved is true or false")
+    return out
+
+
 def brokers() -> list[str]:
     text = CATALOG.read_text(encoding="utf-8")
     body = re.search(r"pub const ALL_BROKERS: &\[&str\] = &\[(.*?)\];", text, re.S)
@@ -113,6 +145,8 @@ def offered(web: dict | None, col) -> bool | None:
 
 def build() -> str:
     names = scenarios()
+    kinds = deviation_kinds()
+    problems = []
     rows, devs, scen = [], [], []
     totals = {"cases": 0, "open": 0, "pending": 0}
     for broker in brokers():
@@ -124,6 +158,7 @@ def build() -> str:
         seen = set()
         for d in cases:
             case = json.loads((d / "case.json").read_text())
+            problems += deviation_problems(f"{broker}/{d.name}", case, kinds)
             res, rank = result(case, (d / "web.json").exists())
             totals["cases"] += 1
             for dv in case.get("deviations", []):
@@ -165,6 +200,8 @@ def build() -> str:
             missing.append("(order updates: not offered by the web)")
         if cases:
             scen.append((broker, sorted(seen, key=names.index), missing))
+    if problems:
+        raise SystemExit("deviations the matrix cannot count:\n  " + "\n  ".join(problems))
     out = [
         "# Feed parity matrix",
         "",

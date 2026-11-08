@@ -557,59 +557,81 @@ fn provenance(at: &str, v: Option<&Value>) -> String {
 }
 
 /// The keys the deviations cover, with their kinds, after checking each
-/// is complete.
+/// is complete (`deviation_problems`).
 fn deviations(at: &str, v: Option<&Value>) -> Vec<(String, String)> {
+    let problems = deviation_problems(v);
+    if !problems.is_empty() {
+        bad(at, problems.join("\n  "));
+    }
+    v.and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|d| {
+            let text = |k: &str| d[k].as_str().unwrap_or_default().to_string();
+            (text("key"), text("kind"))
+        })
+        .collect()
+}
+
+/// The fields a deviation may have.
+const DEVIATION_FIELDS: &[&str] = &["key", "kind", "reason", "ref", "approved", "web", "desktop"];
+
+/// Every way a `case.json`'s `deviations` fall short (none when each names
+/// its key once, a kind of `DEVIATION_KINDS`, a reason, and `approved` as
+/// true or false): what the parity matrix counts can be trusted only when
+/// every case has none.
+pub(crate) fn deviation_problems(v: Option<&Value>) -> Vec<String> {
     let Some(v) = v else {
         return Vec::new();
     };
-    let list = v
-        .as_array()
-        .unwrap_or_else(|| bad(at, "\"deviations\" is an array"));
-    let mut keys = Vec::new();
-    for d in list {
-        let o = d
-            .as_object()
-            .unwrap_or_else(|| bad(at, "a deviation is an object"));
-        allow_keys(
-            at,
-            o,
-            &["key", "kind", "reason", "ref", "approved", "web", "desktop"],
-        );
+    let Some(list) = v.as_array() else {
+        return vec!["\"deviations\" is not an array".into()];
+    };
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    for (i, d) in list.iter().enumerate() {
+        let Some(o) = d.as_object() else {
+            out.push(format!("deviation {} is not an object", i + 1));
+            continue;
+        };
         let key = o
             .get("key")
             .and_then(Value::as_str)
-            .filter(|k| !k.is_empty())
-            .unwrap_or_else(|| bad(at, "a deviation names its \"key\""));
+            .filter(|k| !k.is_empty());
+        let name = key.map_or_else(
+            || format!("deviation {}", i + 1),
+            |k| format!("deviation \"{}\"", k),
+        );
+        if key.is_none() {
+            out.push(format!("{} names no \"key\"", name));
+        }
+        for k in o.keys().filter(|k| !DEVIATION_FIELDS.contains(&k.as_str())) {
+            out.push(format!("{}: \"{}\" is not a field of a deviation", name, k));
+        }
         let kind = o.get("kind").and_then(Value::as_str).unwrap_or_default();
         if !DEVIATION_KINDS.contains(&kind) {
-            bad(
-                at,
-                format!(
-                    "deviation \"{}\": kind is one of {}",
-                    key,
-                    DEVIATION_KINDS.join(", ")
-                ),
-            );
+            out.push(format!(
+                "{}: kind \"{}\" is not one of {}",
+                name,
+                kind,
+                DEVIATION_KINDS.join(", ")
+            ));
         }
         if !o
             .get("reason")
             .and_then(Value::as_str)
             .is_some_and(|r| !r.trim().is_empty())
         {
-            bad(at, format!("deviation \"{}\" gives no reason", key));
+            out.push(format!("{} gives no reason", name));
         }
         if o.get("approved").is_some_and(|a| !a.is_boolean()) {
-            bad(
-                at,
-                format!("deviation \"{}\": approved is true or false", key),
-            );
+            out.push(format!("{}: approved is true or false", name));
         }
-        if keys.iter().any(|(k, _)| k == key) {
-            bad(at, format!("deviation \"{}\" is listed twice", key));
+        if key.is_some_and(|k| !seen.insert(k)) {
+            out.push(format!("{} is listed twice", name));
         }
-        keys.push((key.to_string(), kind.to_string()));
     }
-    keys
+    out
 }
 
 fn depth_levels(at: &str, v: Option<&Value>) -> BTreeMap<String, Vec<u8>> {
