@@ -21,7 +21,9 @@
 //! the bridge forgets what it applied; the broker's `on_logout` stops what
 //! the adapter runs itself (Groww's poller).
 
-use crate::brokers::common::streaming::{FeedEvent, MarketEvent, OrderFeed, OrderUpdate};
+use crate::brokers::common::streaming::{
+    BrokerFeed, FeedEvent, MarketEvent, OrderFeed, OrderUpdate,
+};
 use crate::brokers::types::AuthToken;
 use crate::brokers::Broker;
 use crate::error::AppError;
@@ -328,7 +330,11 @@ async fn start_deep_feed(ctx: &AppState, broker: &Arc<dyn Broker>, auth: &AuthTo
         Ok(feed) => ctx
             .runtime
             .depth_ws
-            .connect_pool(feed, Arc::new(|| None), limits::depth_limits(id))
+            .connect_pool(
+                feed,
+                Arc::new(|| None::<Box<dyn BrokerFeed>>),
+                limits::depth_limits(id),
+            )
             .await
             .map_err(|e| e.to_string()),
         Err(e) => Err(e.to_string()),
