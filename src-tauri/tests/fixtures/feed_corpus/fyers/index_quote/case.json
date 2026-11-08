@@ -73,15 +73,15 @@
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "The desktop's index frames carry the change as price_change and price_change_percent, the recorded Zerodha transcript's names, beside the Fyers names change, change_percent and percent_change (feed::dialect).",
-      "ref": "feed::protocol::market_data; feed::dialect"
+      "kind": "open",
+      "reason": "The desktop's index frames add price_change and price_change_percent. The web's Fyers adapter sends the change as change, change_percent and percent_change, which the desktop sends too. Lead ruling 2026-11-09: price_change and price_change_percent are not docs keys, so an index frame carries them only as each broker's web adapter sends them; the desktop follows the adapter (lane wire dialect, phase B).",
+      "ref": "feed::protocol::market_data; feed::dialect; lead ruling 2026-11-09"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "The desktop's index frames carry the change as price_change and price_change_percent, the recorded Zerodha transcript's names, beside the Fyers names change, change_percent and percent_change (feed::dialect).",
-      "ref": "feed::protocol::market_data; feed::dialect"
+      "kind": "open",
+      "reason": "The desktop's index frames add price_change and price_change_percent. The web's Fyers adapter sends the change as change, change_percent and percent_change, which the desktop sends too. Lead ruling 2026-11-09: price_change and price_change_percent are not docs keys, so an index frame carries them only as each broker's web adapter sends them; the desktop follows the adapter (lane wire dialect, phase B).",
+      "ref": "feed::protocol::market_data; feed::dialect; lead ruling 2026-11-09"
     },
     {
       "key": "bid_price",
