@@ -7,12 +7,9 @@
   "data": {
     "symbol": "NIFTY",
     "exchange": "NSE_INDEX",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 25012.75,
-    "ltt": "<receipt_ms>",
     "timestamp": "<receipt_ms>",
-    "volume": 0,
-    "price_change": 0.0,
-    "price_change_percent": 0.0
+    "volume": 0
   }
 }

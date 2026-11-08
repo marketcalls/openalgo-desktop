@@ -28,18 +28,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web adapter puts the subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full).",
-      "ref": "motilal_adapter.py _poll_market_data; feed::source::Mode::data_label"
-    },
-    {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "The desktop sends its receipt time as ltt: Motilal's packets carry no trade time either side reads (the packet header's time is undocumented and unused), and the web sends no ltt. A receipt time is not a trade time (lead decision 2026-11-09): mark the last trade time absent.",
-      "ref": "feed::bridge::ltt; motilal/streaming.rs MotilalFeed::events"
-    },
-    {
       "key": "volume",
       "kind": "open",
       "reason": "The web's LTP dict carries the day volume from the last-trade packet (motilal_adapter.py _normalize_ltp_data); the desktop's LTP frame carries no volume for any broker: a carrier gap for lane wire (audit RB 'Verified broker fields dropped by the common carrier').",

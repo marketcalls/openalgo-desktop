@@ -7,9 +7,8 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 1302.5,
-    "ltt": "<receipt_ms>",
     "timestamp": "<receipt_ms>",
     "volume": 41000,
     "last_quantity": 5,

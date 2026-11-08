@@ -31,18 +31,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web adapter puts the subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full).",
-      "ref": "motilal_adapter.py _poll_market_data; feed::source::Mode::data_label"
-    },
-    {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "The desktop sends its receipt time as ltt: Motilal's packets carry no trade time either side reads (the packet header's time is undocumented and unused), and the web sends no ltt. A receipt time is not a trade time (lead decision 2026-11-09): mark the last trade time absent.",
-      "ref": "feed::bridge::ltt; motilal/streaming.rs MotilalFeed::events"
-    },
-    {
       "key": "ltq",
       "kind": "web-defect",
       "reason": "An index has no trades: the web sends ltq 0 from a default (quote.get('ltq', 0)); the desktop sends no trade quantity for an index, as for every broker.",
@@ -89,12 +77,6 @@
       "kind": "open",
       "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web adapter sends no change for an index (its Quote dict has none), so Phase B drops it; until then the desktop sends 0.0 before the previous close is known and the change it works out after the G packet (212.75, 0.86%).",
       "ref": "motilal_adapter.py _normalize_quote_data; feed::bridge::quote_fields"
-    },
-    {
-      "key": "volume",
-      "kind": "web-defect",
-      "reason": "Motilal's index packet (H) carries no volume, and the web's LTP dict sends volume 0 for the index from a default (quote.get('volume', 0)), an invented zero; the desktop leaves it out (lead index ruling 2026-11-09).",
-      "ref": "motilal_adapter.py _normalize_ltp_data; MotilalWebSocket._parse_index_packet"
     }
   ]
 }

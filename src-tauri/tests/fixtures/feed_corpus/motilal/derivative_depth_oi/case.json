@@ -41,18 +41,6 @@
       "ref": "audit RB-09; motilal_adapter.py:450-455"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web adapter puts the subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full).",
-      "ref": "motilal_adapter.py _poll_market_data; feed::source::Mode::data_label"
-    },
-    {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "The desktop sends its receipt time as ltt: Motilal's packets carry no trade time either side reads (the packet header's time is undocumented and unused), and the web sends no ltt. A receipt time is not a trade time (lead decision 2026-11-09): mark the last trade time absent.",
-      "ref": "feed::bridge::ltt; motilal/streaming.rs MotilalFeed::events"
-    },
-    {
       "key": "last_quantity",
       "kind": "open",
       "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Quote dict names the last traded quantity ltq only; the desktop sends the canonical last_quantity and ltq beside it with the same value (feed::dialect, WS-05).",
@@ -93,12 +81,6 @@
       "kind": "open",
       "reason": "No circuit packet has arrived: the web sends 0 (quote.get('upper_circuit', 0)), an invented limit; the desktop's carrier drops circuits altogether (audit C06). Once the carrier has them, a limit never received is left out and this becomes a web defect.",
       "ref": "motilal_adapter.py _normalize_depth_data"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Depth dict sends oi only; the desktop adds open_interest beside it.",
-      "ref": "motilal_adapter.py _normalize_depth_data; feed::protocol::market_data"
     },
     {
       "key": "depth",

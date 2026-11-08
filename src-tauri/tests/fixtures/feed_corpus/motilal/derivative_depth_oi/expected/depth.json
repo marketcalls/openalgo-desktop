@@ -7,9 +7,8 @@
   "data": {
     "symbol": "NIFTY28OCT26FUT",
     "exchange": "NFO",
-    "mode": "full",
+    "mode": 3,
     "ltp": 25010.5,
-    "ltt": "<receipt_ms>",
     "timestamp": "<receipt_ms>",
     "volume": 150000,
     "last_quantity": 75,
@@ -21,7 +20,6 @@
     "low": 24980.0,
     "close": 24920.0,
     "oi": 1500,
-    "open_interest": 1500,
     "depth": {
       "buy": [
         {

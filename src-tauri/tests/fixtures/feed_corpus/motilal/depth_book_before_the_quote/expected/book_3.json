@@ -7,7 +7,7 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "full",
+    "mode": 3,
     "ltp": 0.0,
     "timestamp": "<receipt_ms>",
     "total_buy_quantity": 0,
