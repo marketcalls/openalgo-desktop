@@ -98,6 +98,8 @@ pub struct XtsHooks {
     /// The other members' web adapters drop it for want of a code; the
     /// desktop reads it there as the touchline its codes 110-119 are.
     pub text_1105_as_ltp: bool,
+    /// RMoney's payload variants (audit FB-04, `streaming/variants.rs`).
+    pub payload_variants: bool,
     /// A 1510 open-interest event updates the instrument's OI (jainamxts
     /// `_process_json_data` publishes 1505 and 1510 to every subscribed
     /// mode; a 1505 candle carries no trade and is not read).

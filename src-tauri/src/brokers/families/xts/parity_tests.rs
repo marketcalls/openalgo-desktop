@@ -156,6 +156,47 @@ fn twenty_levels_on_nse_and_nfo() {
     }
 }
 
+/// FB-04: RMoney's web adapter reads camelCase keys, a segment name, a book
+/// in Touchline's BidInfo/AskInfo and a book with one side; the template
+/// members' adapters do not.
+#[test]
+fn rmoney_reads_its_payload_variants() {
+    let mut camel = depth_1502();
+    let o = camel.as_object_mut().unwrap();
+    o.remove("ExchangeSegment");
+    o.remove("ExchangeInstrumentID");
+    o.insert("exchangeSegment".into(), json!(1));
+    o.insert("exchangeInstrumentID".into(), json!(2885));
+    let mut named = depth_1502();
+    named["ExchangeSegment"] = json!("NSECM");
+    let mut nested = depth_1502();
+    let o = nested.as_object_mut().unwrap();
+    o.remove("Bids");
+    o.remove("Asks");
+    nested["Touchline"]["BidInfo"] = json!([level(2500.1, 120, 3)]);
+    nested["Touchline"]["AskInfo"] = json!([level(2500.4, 95, 4)]);
+    let mut one_sided = depth_1502();
+    one_sided.as_object_mut().unwrap().remove("Asks");
+
+    for (what, payload, buy, sell) in [
+        ("camelCase", camel.clone(), 2, 1),
+        ("segment name", named.clone(), 2, 1),
+        ("nested book", nested, 1, 1),
+        ("one side", one_sided, 2, 0),
+    ] {
+        let (t, b) = decode(&mut feed(&rmoney::CONFIG), "1502-json-full", payload);
+        assert_eq!(t.len(), 1, "{}", what);
+        assert_eq!((b[0].buy.len(), b[0].sell.len()), (buy, sell), "{}", what);
+    }
+    for payload in [camel, named] {
+        assert!(
+            decode(&mut feed(&ibulls::CONFIG), "1502-json-full", payload)
+                .0
+                .is_empty()
+        );
+    }
+}
+
 /// FB-05: Jainam's and RMoney's web clients take the code of a payload
 /// without one from its event (RMoney's always); the template's adapter
 /// reads a code-less payload as a touchline.

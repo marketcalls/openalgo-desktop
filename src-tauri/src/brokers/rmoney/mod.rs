@@ -41,6 +41,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         data_stall_watchdog: false,
         event_code: EventCode::Event,
         text_1105_as_ltp: true,
+        payload_variants: true,
         oi_events: false,
     },
 };

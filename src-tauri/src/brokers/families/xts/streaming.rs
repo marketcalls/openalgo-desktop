@@ -57,6 +57,7 @@ use worker::{subscription_worker, WorkerSetup};
 
 mod normalise;
 mod release;
+mod variants;
 pub(crate) mod worker;
 
 pub use normalise::{normalise_message, xts_time_ms, XTS_EPOCH_OFFSET_SECS};
@@ -694,6 +695,13 @@ impl XtsFeed {
     /// Decode one market-data message (JSON shape) into events, routed by
     /// `(segment, instrument id)` to its subscription.
     pub fn normalise(&self, v: &Value) -> Vec<FeedEvent> {
+        let canonical;
+        let v = if self.cfg.hooks.payload_variants {
+            canonical = variants::canonical(v);
+            &canonical
+        } else {
+            v
+        };
         let seg = mapping::i(v, "ExchangeSegment");
         let id = mapping::s(v, "ExchangeInstrumentID");
         let Some(sub) = self.book.get(&(seg, id.trim().to_string())) else {
