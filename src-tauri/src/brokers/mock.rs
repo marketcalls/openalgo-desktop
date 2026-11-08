@@ -237,6 +237,10 @@ pub struct MockBroker {
     /// adapter's pacer when set: a turn more than ten seconds away is
     /// refused before anything is sent (the busy refusal).
     pub pacer: Mutex<Option<Arc<crate::brokers::common::ratelimit::Pacer>>>,
+    /// What `complete_order_update` answers for an order id (as it came
+    /// otherwise), after `completion_delay`.
+    pub order_completions: Mutex<HashMap<String, OrderUpdate>>,
+    pub completion_delay: Mutex<Option<std::time::Duration>>,
     next_id: Mutex<u64>,
 }
 
@@ -290,6 +294,8 @@ impl MockBroker {
             funds_gate: Mutex::new(None),
             on_call: Mutex::new(None),
             pacer: Mutex::new(None),
+            order_completions: Mutex::new(HashMap::new()),
+            completion_delay: Mutex::new(None),
             next_id: Mutex::new(0),
             place_gate: Mutex::new(None),
             master_gate: Mutex::new(None),
@@ -331,6 +337,14 @@ impl MockBroker {
 impl Broker for MockBroker {
     fn id(&self) -> &'static str {
         self.id
+    }
+    async fn complete_order_update(&self, update: OrderUpdate) -> OrderUpdate {
+        let delay = *self.completion_delay.lock();
+        if let Some(delay) = delay {
+            tokio::time::sleep(delay).await;
+        }
+        let done = self.order_completions.lock().get(&update.orderid).cloned();
+        done.unwrap_or(update)
     }
     fn name(&self) -> &'static str {
         "Mock"

@@ -34,11 +34,14 @@ use crate::state::{AppState, BrokerSession};
 use crate::websocket::{FeedFactory, WebSocketManager};
 use parking_lot::Mutex;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinSet;
 
 mod limits;
+#[cfg(test)]
+mod relay_tests;
 
 /// Where this session's order updates come from (health: an app asking
 /// for order updates is not the broker's order feed running).
@@ -181,13 +184,12 @@ impl BrokerRuntime {
         // Order updates: subscribe before any socket connects so none is
         // missed. Kite carries them on the market feed.
         let bus = ctx.bus.clone();
-        let id = broker.id();
         for feed in [ctx.websocket.clone(), self.order_ws.clone()] {
             let rx = feed.subscribe_ticks();
             let bus = bus.clone();
             Self::spawn(
                 &self.tasks,
-                relay_socket_orders(rx, feed, bus, (id, generation)),
+                relay_socket_orders(rx, feed, bus, (broker.clone(), generation)),
             );
         }
 
@@ -376,17 +378,38 @@ pub fn order_event(u: &OrderUpdate, broker: &str, generation: u64) -> Event {
     })
 }
 
+/// Longest an order update waits for the broker to complete it
+/// (`Broker::complete_order_update`) before it is published as it came.
+const ORDER_COMPLETION_DEADLINE: Duration = Duration::from_secs(5);
+
+/// `update` as the broker completed it, or as it came when the broker did
+/// not answer within the deadline (bk-b RB-11).
+async fn completed(broker: &dyn Broker, update: OrderUpdate) -> OrderUpdate {
+    let asked = broker.complete_order_update(update.clone());
+    match tokio::time::timeout(ORDER_COMPLETION_DEADLINE, asked).await {
+        Ok(done) => done,
+        Err(_) => {
+            tracing::warn!(
+                broker = broker.id(),
+                "The broker did not complete an order update in time; publishing it as it came"
+            );
+            update
+        }
+    }
+}
+
 async fn relay_socket_orders(
     mut rx: broadcast::Receiver<MarketEvent>,
     feed: Arc<WebSocketManager>,
     bus: Arc<EventBus>,
-    (broker, generation): (&'static str, u64),
+    (broker, generation): (Arc<dyn Broker>, u64),
 ) {
     loop {
         match rx.recv().await {
             Ok(ev) => {
                 if let FeedEvent::OrderUpdate(u) = &*ev {
-                    bus.publish(order_event(u, broker, generation));
+                    let u = completed(&*broker, u.clone()).await;
+                    bus.publish(order_event(&u, broker.id(), generation));
                 }
             }
             Err(RecvError::Lagged(n)) => {

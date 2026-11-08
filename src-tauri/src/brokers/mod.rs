@@ -601,6 +601,18 @@ pub trait Broker: Send + Sync {
     fn feed_presubscribe(&self) -> Option<common::streaming::Presubscribe> {
         None
     }
+
+    /// An update from the broker's order socket, completed before it is
+    /// published: IndMoney's stream names an order it did not see placed
+    /// by its id alone, and the web looks it up in the order book (bk-b
+    /// RB-11). The relay awaits it within a deadline and holds no lock
+    /// meanwhile. Default: as it came.
+    async fn complete_order_update(
+        &self,
+        update: common::streaming::OrderUpdate,
+    ) -> common::streaming::OrderUpdate {
+        update
+    }
 }
 
 /// One API plan of a broker (`Broker::rate_plans`).
