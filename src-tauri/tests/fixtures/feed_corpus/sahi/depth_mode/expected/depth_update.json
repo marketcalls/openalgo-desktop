@@ -21,26 +21,6 @@
           "price": 1290.5,
           "quantity": 20,
           "orders": 2
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
         }
       ],
       "sell": [

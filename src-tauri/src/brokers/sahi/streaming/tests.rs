@@ -279,8 +279,12 @@ fn depth_frame() -> Vec<u8> {
     lfield(4, &body)
 }
 
+/// Web test/test_sahi_streaming_codec.py::test_depth_tick_fans_out_to_every_mode
+/// (the book): two bids and no asks stay two bids and no asks; the web
+/// pads both sides to five rows of 0.0 (an approved web defect,
+/// decisions.md: never invent zero prices).
 #[test]
-fn depth_tick_publishes_tick_and_padded_depth_in_rupees() {
+fn depth_tick_publishes_tick_and_the_levels_sahi_sent_in_rupees() {
     let mut f = feed();
     f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
     let events = f.parse(&Message::Binary(depth_frame()));
@@ -305,7 +309,7 @@ fn depth_tick_publishes_tick_and_padded_depth_in_rupees() {
     let FeedEvent::Depth(d) = &events[1] else {
         panic!("second event is not depth")
     };
-    assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
+    assert_eq!((d.buy.len(), d.sell.len()), (2, 0));
     assert_eq!(
         d.buy[0],
         DepthLevel {
@@ -315,8 +319,6 @@ fn depth_tick_publishes_tick_and_padded_depth_in_rupees() {
         }
     );
     assert_eq!(d.buy[1].price, 1289.95);
-    assert!(d.buy[2..].iter().all(|l| *l == DepthLevel::default()));
-    assert!(d.sell.iter().all(|l| *l == DepthLevel::default()));
 }
 
 #[test]
@@ -495,6 +497,8 @@ fn a_depth_tick_frames_only_what_the_stream_carries() {
     with_book.sort();
     assert_eq!(keys(book), with_book);
     assert_eq!(book["depth"]["buy"][0]["price"], 1290.0);
+    assert_eq!(book["depth"]["buy"].as_array().map(Vec::len), Some(2));
+    assert_eq!(book["depth"]["sell"], serde_json::json!([]));
 }
 
 /// A tick that leaves the price band off (proto3 omits a 0) has none: its

@@ -23,26 +23,6 @@
           "price": 24704.5,
           "quantity": 75,
           "orders": 3
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
         }
       ],
       "sell": [
@@ -50,26 +30,6 @@
           "price": 24705.5,
           "quantity": 150,
           "orders": 2
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
         }
       ]
     }

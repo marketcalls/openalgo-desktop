@@ -168,10 +168,15 @@ pub(crate) fn is_auth_close(code: u16) -> bool {
     matches!(code, 401 | 403 | CLOSE_TOKEN_EXPIRED | CLOSE_FORBIDDEN)
 }
 
-/// A depth side in rupees, truncated and padded to 5 levels: Sahi sends
-/// only levels holding orders, OpenAlgo depth is always 5 rows.
+/// A depth side in rupees, at most 5 levels. Sahi sends only the levels
+/// that hold orders, as repeated `best_buys` / `best_sells` entries (fields
+/// 11 and 12, no fixed slots), and the side carries every one it sent, a
+/// zero one included, and no more: the web pads
+/// each side to five rows of price 0.0 (`sahi_mapping.py` `_depth_side`),
+/// prices nobody quoted (decisions.md: never invent zero prices; the docs
+/// define a side as the broker's levels, best first).
 fn depth_side(levels: &[proto::Level]) -> Vec<DepthLevel> {
-    let mut side: Vec<DepthLevel> = levels
+    levels
         .iter()
         .take(DEPTH_LEVELS)
         .map(|l| DepthLevel {
@@ -179,9 +184,7 @@ fn depth_side(levels: &[proto::Level]) -> Vec<DepthLevel> {
             quantity: l.qty,
             orders: l.orders,
         })
-        .collect();
-    side.resize(DEPTH_LEVELS, DepthLevel::default());
-    side
+        .collect()
 }
 
 fn ack_name(action: u64) -> &'static str {
