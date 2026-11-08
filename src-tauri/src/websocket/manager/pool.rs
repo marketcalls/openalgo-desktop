@@ -67,6 +67,7 @@ impl WebSocketManager {
                 config: self.config.clone(),
                 stats: self.stats.clone(),
                 conn,
+                synced: 0,
             }
             .run(),
         );

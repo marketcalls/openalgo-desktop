@@ -46,10 +46,11 @@ impl WebSocketManager {
     /// did not take, or the broker refused, stays held and answers why.
     pub async fn release(&self, subs: Vec<FeedSubscription>) -> Vec<ReleaseOutcome> {
         let epoch = self.epoch.load(Ordering::SeqCst);
-        let (conns, deltas): (Vec<Option<usize>>, Vec<Routed>) = {
+        let (conns, deltas, seq): (Vec<Option<usize>>, Vec<Routed>, u64) = {
             let mut reg = self.registry.lock();
             let conns = subs.iter().map(|s| reg.conn_of(s)).collect();
-            (conns, subs.iter().filter_map(|s| reg.remove(s)).collect())
+            let deltas = subs.iter().filter_map(|s| reg.remove(s)).collect();
+            (conns, deltas, reg.changes)
         };
         let mut answers = vec![Ok(()); subs.len()];
         let mut back = Vec::new();
@@ -64,7 +65,7 @@ impl WebSocketManager {
                 .filter(on_conn)
                 .map(|i| subs[i].clone())
                 .collect();
-            let refused = match self.send_waited(conn, mine, undo).await {
+            let refused = match self.send_waited(conn, (mine, seq), undo).await {
                 None => continue,
                 Some(Written::Failed) => {
                     for i in (0..subs.len()).filter(on_conn) {
@@ -92,7 +93,7 @@ impl WebSocketManager {
     async fn send_waited(
         &self,
         conn: usize,
-        deltas: Vec<Delta>,
+        (deltas, seq): (Vec<Delta>, u64),
         undo: Vec<FeedSubscription>,
     ) -> Option<Written> {
         // A connection that is not up (connecting, reconnecting, refused)
@@ -109,6 +110,7 @@ impl WebSocketManager {
         let (reply, written) = oneshot::channel();
         tx.send(Command::Apply(Apply {
             deltas,
+            seq,
             reply: Some(reply),
             undo,
         }))
@@ -126,14 +128,16 @@ impl WebSocketManager {
         if subs.is_empty() {
             return;
         }
-        let deltas: Vec<Routed> = {
+        let deltas = {
             let mut reg = self.registry.lock();
             if self.epoch.load(Ordering::SeqCst) != epoch {
                 return;
             }
-            subs.into_iter()
+            let added = subs
+                .into_iter()
                 .filter_map(|(s, conn)| reg.add(s, conn))
-                .collect()
+                .collect();
+            (added, reg.changes)
         };
         self.apply(deltas).await;
     }

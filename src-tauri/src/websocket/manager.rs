@@ -138,6 +138,9 @@ impl FeedStatus {
 /// A change for the socket.
 struct Apply {
     deltas: Vec<Delta>,
+    /// The registry's change count once these deltas were made: a session
+    /// sent its whole set at or after it already carries them.
+    seq: u64,
     /// A caller waits to hear what the socket did with it (a release,
     /// audit C01); dropped unanswered when no socket carried it.
     reply: Option<oneshot::Sender<Written>>,
@@ -147,9 +150,10 @@ struct Apply {
 }
 
 impl Apply {
-    fn plain(deltas: Vec<Delta>) -> Self {
+    fn plain(deltas: Vec<Delta>, seq: u64) -> Self {
         Self {
             deltas,
+            seq,
             reply: None,
             undo: Vec::new(),
         }
@@ -389,7 +393,7 @@ impl WebSocketManager {
                     deltas.extend(reg.add(s, conn));
                 }
             }
-            deltas
+            (deltas, reg.changes)
         };
         self.apply(deltas).await;
         Ok(())
@@ -416,7 +420,7 @@ impl WebSocketManager {
                     None => answers.push(Err(self.no_room(reg.limits))),
                 }
             }
-            (answers, deltas)
+            (answers, (deltas, reg.changes))
         };
         self.apply(deltas).await;
         answers
@@ -426,7 +430,8 @@ impl WebSocketManager {
     pub async fn unsubscribe(&self, subs: Vec<FeedSubscription>) -> Result<()> {
         let deltas = {
             let mut reg = self.registry.lock();
-            subs.iter().filter_map(|s| reg.remove(s)).collect()
+            let removed = subs.iter().filter_map(|s| reg.remove(s)).collect();
+            (removed, reg.changes)
         };
         self.apply(deltas).await;
         Ok(())
@@ -434,7 +439,7 @@ impl WebSocketManager {
 
     /// Drop every subscription (the feed stays connected).
     pub async fn unsubscribe_all(&self) -> Result<()> {
-        let deltas: Vec<Routed> = {
+        let deltas = {
             let mut reg = self.registry.lock();
             let all = reg
                 .entries
@@ -442,16 +447,17 @@ impl WebSocketManager {
                 .filter_map(|e| Some((e.conn, Delta::Unsubscribe(e.effective()?))))
                 .collect();
             reg.clear();
-            all
+            (all, reg.changes)
         };
         self.apply(deltas).await;
         Ok(())
     }
 
-    /// Hand each connection its changes. An extra connection that is not
-    /// open yet is opened (its first subscription sends what it carries);
-    /// one that carries nothing any more is closed.
-    async fn apply(&self, deltas: Vec<Routed>) {
+    /// Hand each connection its changes, made when the registry's change
+    /// count was `seq`. An extra connection that is not open yet is opened
+    /// (its first subscription sends what it carries); one that carries
+    /// nothing any more is closed.
+    async fn apply(&self, (deltas, seq): (Vec<Routed>, u64)) {
         if deltas.is_empty() {
             return;
         }
@@ -474,7 +480,7 @@ impl WebSocketManager {
                 // the task is gone the registry still holds the state for
                 // the next connection.
                 Some(tx) => {
-                    let _ = tx.send(Command::Apply(Apply::plain(deltas))).await;
+                    let _ = tx.send(Command::Apply(Apply::plain(deltas, seq))).await;
                 }
                 None if conn > 0 => self.open_extra(conn),
                 None => {}

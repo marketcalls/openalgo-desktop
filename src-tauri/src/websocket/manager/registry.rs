@@ -78,6 +78,9 @@ pub(super) struct Registry {
     /// Instruments each connection carries.
     pub(super) per_conn: Vec<usize>,
     pub(super) limits: PoolLimits,
+    /// Counts every change, so a session knows which changes the whole set
+    /// it was sent already carries (`Apply::seq`).
+    pub(super) changes: u64,
 }
 
 impl Default for Registry {
@@ -92,6 +95,7 @@ impl Registry {
             entries: HashMap::new(),
             per_conn: vec![0; limits.connections.max(1)],
             limits,
+            changes: 0,
         }
     }
 
@@ -105,6 +109,7 @@ impl Registry {
     }
 
     pub(super) fn clear(&mut self) {
+        self.changes += 1;
         self.entries.clear();
         self.per_conn.iter_mut().for_each(|n| *n = 0);
     }
@@ -149,6 +154,7 @@ impl Registry {
     /// Count one more reference, placing a new instrument on `conn`; the
     /// change its connection must see, if any.
     pub(super) fn add(&mut self, s: FeedSubscription, conn: usize) -> Option<Routed> {
+        self.changes += 1;
         let key = s.instrument_key();
         if !self.entries.contains_key(&key) {
             if self.per_conn.len() <= conn {
@@ -175,6 +181,7 @@ impl Registry {
     /// its connection must see, if any. The instrument goes with its last
     /// one.
     pub(super) fn remove(&mut self, s: &FeedSubscription) -> Option<Routed> {
+        self.changes += 1;
         let key = s.instrument_key();
         let entry = self.entries.get_mut(&key)?;
         if !entry.modes.contains_key(&s.mode) {

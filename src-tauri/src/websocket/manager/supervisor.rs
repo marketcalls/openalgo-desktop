@@ -76,6 +76,12 @@ pub(super) struct Supervisor {
     /// the broker's order updates (a broker that sends them on every
     /// socket is heard once).
     pub(super) conn: usize,
+    /// The registry's change count when this session was last sent its
+    /// whole set: a change made before it is already in that set, so it
+    /// is not sent again (a subscription made while the login waited for
+    /// its acknowledgement reached the broker twice; Kotak, run
+    /// 42519352778).
+    pub(super) synced: u64,
 }
 
 impl Supervisor {
@@ -511,7 +517,12 @@ impl Supervisor {
             return Ok(());
         }
         let mut plain = Vec::new();
-        for apply in batch {
+        for mut apply in batch {
+            if apply.seq <= self.synced {
+                // Made before this session was sent its whole set, which
+                // carries it already.
+                apply.deltas.clear();
+            }
             let Some(reply) = apply.reply else {
                 plain.extend(apply.deltas);
                 continue;
@@ -631,7 +642,11 @@ impl Supervisor {
     {
         // The session was just accepted: its post-login frames go first.
         let mut frames = self.feed.on_authenticated();
-        let subs = self.registry.lock().effective_on(self.conn);
+        let (subs, synced) = {
+            let reg = self.registry.lock();
+            (reg.effective_on(self.conn), reg.changes)
+        };
+        self.synced = synced;
         if !subs.is_empty() {
             frames.extend(self.feed.subscribe_frames(&subs));
         }

@@ -104,6 +104,7 @@ async fn session(
         config: FeedConfig::default(),
         stats: Arc::default(),
         conn: 0,
+        synced: 0,
     };
     let sent: Arc<Mutex<Vec<String>>> = Arc::default();
     let mut write = Socket {
@@ -127,12 +128,17 @@ async fn session(
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         // The manager's release: the last reference goes, then the change.
-        let Some((_, change)) = reg.lock().remove(&reliance()) else {
-            return;
+        let (change, seq) = {
+            let mut reg = reg.lock();
+            let Some((_, change)) = reg.remove(&reliance()) else {
+                return;
+            };
+            (change, reg.changes)
         };
         let _ = cmd_tx
             .send(Command::Apply(Apply {
                 deltas: vec![change],
+                seq,
                 reply: Some(reply),
                 undo: vec![reliance()],
             }))
