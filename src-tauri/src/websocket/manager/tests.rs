@@ -173,17 +173,26 @@ async fn subscriptions_are_reference_counted_with_effective_mode() {
     let m = WebSocketManager::with_config(fast());
     m.connect(Box::new(MockFeed::new(url))).await.unwrap();
     wait_for(|| m.is_connected()).await;
+    // Each change reaches the socket before the next: changes that land in
+    // one flush go as their net change (`registry::in_web_order`).
+    let sent = |n: usize| {
+        let seen = seen.clone();
+        move || seen.lock().len() >= n
+    };
     m.subscribe(vec![sub("SBIN", FeedMode::Ltp)]).await.unwrap();
+    wait_for(sent(1)).await;
     m.subscribe(vec![sub("SBIN", FeedMode::Ltp)]).await.unwrap();
     m.subscribe(vec![sub("SBIN", FeedMode::Quote)])
         .await
         .unwrap();
     assert_eq!(m.instrument_count(), 1);
     assert_eq!(m.subscriptions()[0].mode, FeedMode::Quote);
+    wait_for(sent(3)).await;
     m.unsubscribe(vec![sub("SBIN", FeedMode::Quote)])
         .await
         .unwrap();
     assert_eq!(m.subscriptions()[0].mode, FeedMode::Ltp);
+    wait_for(sent(5)).await;
     m.unsubscribe(vec![sub("SBIN", FeedMode::Ltp)])
         .await
         .unwrap();
@@ -245,6 +254,9 @@ async fn subscription_bursts_reach_the_feed_as_one_run() {
     ])
     .await
     .unwrap();
+    // The burst reaches the socket first; in one flush with the release
+    // below it would go as its net change.
+    wait_for(|| !seen.lock().is_empty()).await;
     m.unsubscribe(vec![sub("A", FeedMode::Ltp), sub("C", FeedMode::Ltp)])
         .await
         .unwrap();
