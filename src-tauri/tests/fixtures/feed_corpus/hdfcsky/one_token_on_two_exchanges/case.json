@@ -65,15 +65,15 @@
     },
     {
       "key": "oi",
-      "kind": "open",
-      "reason": "The web sends OI in Quote frames; the desktop's Quote frame carries OI only when a Depth client holds the instrument (audit C05, lane wire).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::tick_update"
+      "kind": "web-defect",
+      "reason": "The packet carries no OI (an equity or currency contract with no oi field); the web sends the proto3 default as OI 0 instead of leaving it out (web openalgo#2376); the desktop's Quote frame leaves it out.",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; hdfcsky_websocket.py::_parse_packet"
     },
     {
       "key": "open_interest",
-      "kind": "open",
-      "reason": "The web sends OI in Quote frames; the desktop's Quote frame carries OI only when a Depth client holds the instrument (audit C05, lane wire).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::tick_update"
+      "kind": "web-defect",
+      "reason": "The packet carries no OI (an equity or currency contract with no oi field); the web sends the proto3 default as OI 0 instead of leaving it out (web openalgo#2376); the desktop's Quote frame leaves it out.",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; hdfcsky_websocket.py::_parse_packet"
     },
     {
       "key": "prev_close",
