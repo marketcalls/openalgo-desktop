@@ -4,7 +4,7 @@
 
 use super::market_data;
 use crate::brokers::common::streaming::{
-    BrokerField, BrokerValue, Number, NumberForm, QuoteExtras, QuoteField,
+    BrokerField, BrokerValue, Number, NumberForm, QuoteExtras,
 };
 use crate::feed::dialect::names::BROKERS;
 use crate::feed::source::{DepthBook, DepthLevel, QuoteFields};

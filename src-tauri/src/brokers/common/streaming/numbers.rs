@@ -77,10 +77,6 @@ impl NumberForms {
             None
         }
     }
-
-    pub fn is_empty(&self) -> bool {
-        *self == Self::default()
-    }
 }
 
 #[cfg(test)]
