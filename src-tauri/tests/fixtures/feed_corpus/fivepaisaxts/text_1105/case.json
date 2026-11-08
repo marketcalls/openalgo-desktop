@@ -1,0 +1,58 @@
+{
+  "broker": "fivepaisaxts",
+  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) becomes, on the desktop, a Quote tick that serves both.",
+  "scenarios": [
+    "partial-packet",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fivepaisaxts/streaming/fivepaisaxts_websocket.py::FivepaisaXTSWebSocketClient._setup_socketio",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._process_json_data",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._normalize_market_data",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_websocket.py::FivepaisaXTSWebSocketClient._process_1105_data"
+    ],
+    "notes": [
+      "1105 carries the touchline codes 110-119 (families/xts/binary.rs parse_1105); it has no MessageCode and no trade time.",
+      "The 5paisa XTS web client passes it on without a MessageCode, and its adapter drops it as an unknown code (audit appendix inherited item 4).",
+      "The desktop holds one subscription per instrument at the highest mode its clients ask for (websocket::manager), so the Quote client changes the LTP subscription into a Quote one; the web adapter subscribes each mode on its own."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "The web passes a 1105 text event to its adapter without a MessageCode, and the adapter drops it as an unknown code; the desktop decodes it as a touchline (audit appendix, inherited item 4).",
+      "ref": "fivepaisaxts_websocket.py _process_1105_data; fivepaisaxts_adapter.py _process_json_data"
+    }
+  ]
+}

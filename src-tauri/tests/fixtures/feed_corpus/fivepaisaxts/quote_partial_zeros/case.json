@@ -1,0 +1,91 @@
+{
+  "broker": "fivepaisaxts",
+  "summary": "Quote on an NSE equity: a 1501-json-partial event carrying only the last price (an object payload at the root, no Touchline) becomes a Quote frame whose other fields are 0 and whose ltt is the receipt time.",
+  "scenarios": [
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fivepaisaxts/streaming/fivepaisaxts_websocket.py::FivepaisaXTSWebSocketClient._setup_socketio",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._process_json_data",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "Audit appendix (family) inherited item 1: neither side keeps a quote snapshot, so fields a partial does not carry go out as 0 on both. Pinned as today's behaviour; the desktop must leave them out (rules: no invented data).",
+      "The partial carries no LastTradedTime: the desktop sends the receipt time as ltt (feed::bridge::ltt), the web 0."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "open",
+      "reason": "The partial carries no average_price; both sides fill it with 0 because neither keeps a quote snapshot (audit appendix, inherited item 1), the web as the int 0 and the desktop as 0.0. The desktop must leave it out (rules: no invented data; audit C03).",
+      "ref": "families/xts/streaming.rs normalise_message; fivepaisaxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "close",
+      "kind": "open",
+      "reason": "The partial carries no close; both sides fill it with 0 because neither keeps a quote snapshot (audit appendix, inherited item 1), the web as the int 0 and the desktop as 0.0. The desktop must leave it out (rules: no invented data; audit C03).",
+      "ref": "families/xts/streaming.rs normalise_message; fivepaisaxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "high",
+      "kind": "open",
+      "reason": "The partial carries no high; both sides fill it with 0 because neither keeps a quote snapshot (audit appendix, inherited item 1), the web as the int 0 and the desktop as 0.0. The desktop must leave it out (rules: no invented data; audit C03).",
+      "ref": "families/xts/streaming.rs normalise_message; fivepaisaxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "low",
+      "kind": "open",
+      "reason": "The partial carries no low; both sides fill it with 0 because neither keeps a quote snapshot (audit appendix, inherited item 1), the web as the int 0 and the desktop as 0.0. The desktop must leave it out (rules: no invented data; audit C03).",
+      "ref": "families/xts/streaming.rs normalise_message; fivepaisaxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "The event carries no trade time: the web sends 0, the desktop the time it received the event (feed::bridge::ltt). A receipt time is not a trade time (rules: no invented data): the XTS feed should mark the trade time absent (QuoteField::LastTradeTime) so ltt is left out.",
+      "ref": "families/xts/streaming.rs normalise_message; feed::bridge::ltt"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "open",
+      "kind": "open",
+      "reason": "The partial carries no open; both sides fill it with 0 because neither keeps a quote snapshot (audit appendix, inherited item 1), the web as the int 0 and the desktop as 0.0. The desktop must leave it out (rules: no invented data; audit C03).",
+      "ref": "families/xts/streaming.rs normalise_message; fivepaisaxts_adapter.py _normalize_market_data"
+    }
+  ]
+}

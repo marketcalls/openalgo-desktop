@@ -1,0 +1,15 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "fivepaisaxts",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": "ltp",
+    "ltp": 2501.5,
+    "ltt": 1794199530000,
+    "timestamp": "<receipt_ms>"
+  }
+}

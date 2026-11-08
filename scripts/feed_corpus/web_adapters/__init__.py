@@ -7,6 +7,7 @@ from web_adapters.angel import Angel
 from web_adapters.compositedge import Compositedge
 from web_adapters.dhan import Dhan
 from web_adapters.firstock import Firstock
+from web_adapters.fivepaisaxts import Fivepaisaxts
 from web_adapters.flattrade import Flattrade
 from web_adapters.ibulls import Ibulls
 from web_adapters.iifl import Iifl
@@ -24,6 +25,7 @@ GLUES = {
         Compositedge,
         Dhan,
         Firstock,
+        Fivepaisaxts,
         Flattrade,
         Ibulls,
         Iifl,
