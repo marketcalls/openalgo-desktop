@@ -1,3 +1,5 @@
+{"step": "upstream_receives", "frames": [{"hex": "0025010401000968736d6b6579313233020001500300010104000c4f70656e416c676f2d48534d"}], "note": "The binary authentication request with the JWT's hsm_key, sent on connect."}
+{"step": "push", "frame": "frames/auth_ok.hex"}
 {"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
 {"step": "upstream_receives", "socket": "orders", "frames": [{"json": {"T": "SUB_ORD", "SLIST": ["orders"], "SUB_T": 1}}]}
 {"step": "upstream_connected", "socket": "orders", "connection": 1, "headers": {"authorization": "APPID-100:eyJhbGciOiJIUzI1NiJ9.eyJoc21fa2V5IjoiaHNta2V5MTIzIiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2ln"}}

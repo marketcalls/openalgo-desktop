@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fyers",
-  "inputs_sha256": "ff469278a780b9a9cbb95468591951987a07d0278f688e31b12b7bfc75b2e62b",
+  "inputs_sha256": "a8beefca594f36912c23b3bb6185df3b7d1692dce4e8a3ca1115fe4bd8ccfbdd",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -15,7 +15,7 @@
   ],
   "pushes": [
     {
-      "line": 3,
+      "line": 2,
       "published": []
     },
     {

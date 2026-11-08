@@ -50,12 +50,6 @@
       "ref": "upstox_adapter.py:902; brokers/upstox/streaming.rs parse_frame"
     },
     {
-      "key": "open_interest",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
-      "ref": "feed::protocol::market_data"
-    },
-    {
       "key": "volume",
       "kind": "desktop-decision",
       "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields.",
@@ -105,9 +99,9 @@
     },
     {
       "key": "oi",
-      "kind": "desktop-decision",
-      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields. (Before the drop the values differ as well: the web's OI is a float, see full_incremental_merge.)",
-      "ref": "brokers/upstox/streaming.rs on_connected"
+      "kind": "open",
+      "reason": "The web's Upstox Quote frames carry OI (a float); the desktop's Quote frames carry OI only for a Depth subscription (feed::bridge::quote_fields, audit C05: lane wire quote OI).",
+      "ref": "upstox_adapter.py:861; feed::bridge::tick_update"
     }
   ]
 }

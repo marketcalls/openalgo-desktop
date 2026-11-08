@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fyers",
-  "inputs_sha256": "b78534378482f90692aeb344ea24c04375b952b84ad8a23475b2420a703bec5f",
+  "inputs_sha256": "37dd7f835400067ef8137835321660c10d98795b270b9de9221c99967f807ca6",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -16,7 +16,7 @@
   ],
   "pushes": [
     {
-      "line": 3,
+      "line": 2,
       "published": []
     },
     {

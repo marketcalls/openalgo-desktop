@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fyers",
-  "inputs_sha256": "4ee3dee7f3dd8d276a64a3acd21a27a66eb3bd6e198dfe99763c76c574a52a48",
+  "inputs_sha256": "4a15426991462c458643b4bba39b9b7c1f09041b6d8fff7dcacb3cef3c076cad",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -15,11 +15,15 @@
   ],
   "pushes": [
     {
-      "line": 4,
+      "line": 2,
       "published": []
     },
     {
       "line": 6,
+      "published": []
+    },
+    {
+      "line": 8,
       "published": [
         {
           "kind": "order",
@@ -47,7 +51,7 @@
       ]
     },
     {
-      "line": 8,
+      "line": 10,
       "published": [
         {
           "kind": "order",
@@ -75,7 +79,7 @@
       ]
     },
     {
-      "line": 10,
+      "line": 12,
       "published": [
         {
           "kind": "order",
@@ -103,7 +107,7 @@
       ]
     },
     {
-      "line": 12,
+      "line": 14,
       "published": [
         {
           "kind": "order",
@@ -131,7 +135,7 @@
       ]
     },
     {
-      "line": 14,
+      "line": 16,
       "published": [
         {
           "kind": "order",
