@@ -160,17 +160,14 @@ pub fn subscription_name(s: &FeedSubscription) -> String {
 }
 
 fn levels(src: &[proto::OrderBookLevel]) -> Vec<DepthLevel> {
-    let mut v: Vec<DepthLevel> = src
-        .iter()
+    src.iter()
         .take(5)
         .map(|l| DepthLevel {
             price: l.price as f64 / 100.0,
             quantity: l.quantity,
             orders: l.orders,
         })
-        .collect();
-    v.resize(5, DepthLevel::default());
-    v
+        .collect()
 }
 
 impl NubraFeed {
@@ -281,14 +278,14 @@ impl NubraFeed {
         t
     }
 
-    /// The book as Nubra sent it, padded to five levels as the web pads
-    /// it, with the levels' sums as the totals (web `_on_orderbook_data`).
+    /// The book as Nubra sent it, with the levels' sums as the totals (web
+    /// `_on_orderbook_data`). The web pads a short side to five zero levels
+    /// Nubra never sent; the desktop does not (lead rule: levels are what
+    /// the broker's packet carried).
     fn depth(inst: &Inst) -> NormalizedDepth {
         let st = &inst.state;
-        let mut buy = st.bids.clone();
-        let mut sell = st.asks.clone();
-        buy.resize(5, DepthLevel::default());
-        sell.resize(5, DepthLevel::default());
+        let buy = st.bids.clone();
+        let sell = st.asks.clone();
         NormalizedDepth {
             symbol: inst.sub.symbol.clone(),
             exchange: inst.sub.exchange.clone(),
