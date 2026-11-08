@@ -56,23 +56,11 @@
       "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
     },
     {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); the desktop sends the integer.",
-      "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
-    },
-    {
       "key": "open",
       "kind": "web-defect",
       "approved": true,
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's open. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
       "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
-    },
-    {
-      "key": "volume",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's volume as the protobuf double it decodes, a float (1200000.0); the desktop sends the integer.",
-      "ref": "groww_protobuf.py:194 (_read_fixed64); groww_adapter.py:1113-1114"
     }
   ]
 }

@@ -73,6 +73,7 @@ fn a_quote_keeps_the_ohlc_of_an_earlier_tick() {
     assert_eq!(d["ltp"], 812.9);
     // A double, as the web passes Groww's protobuf double through.
     assert_eq!(d["volume"], 1_200_500.0);
+    assert_eq!(d["ltt"], 1_730_790_001_000.0);
     assert_eq!(
         (
             d["open"].as_f64(),

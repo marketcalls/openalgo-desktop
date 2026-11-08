@@ -7,7 +7,7 @@
     "symbol": "SBIN",
     "exchange": "NSE",
     "ltp": 0.0,
-    "ltt": 1730789999500,
+    "ltt": 1730789999500.0,
     "timestamp": "<receipt_ms>",
     "depth": {
       "buy": [

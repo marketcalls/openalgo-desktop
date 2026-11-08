@@ -652,7 +652,8 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "flattrade" => d(Number, FLATTRADE).no_ltt(),
         "zebu" => d(Number, ZEBU).no_ltt(),
         "tradesmart" => d(Number, TRADESMART).no_ltt(),
-        "groww" => d(Number, GROWW).floats(&["volume"]),
+        // groww_protobuf.py reads tsInMillis and volume as doubles.
+        "groww" => d(Number, GROWW).floats(&["ltt", "volume"]),
         "indmoney" => d(Number, INDMONEY).richer(),
         "motilal" => d(Number, MOTILAL).no_ltt(),
         "mstock" => d(Number, MSTOCK).richer(),

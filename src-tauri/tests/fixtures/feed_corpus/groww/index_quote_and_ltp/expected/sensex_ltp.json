@@ -7,7 +7,7 @@
     "symbol": "SENSEX",
     "exchange": "BSE_INDEX",
     "ltp": 79500.25,
-    "ltt": 1730790000000,
+    "ltt": 1730790000000.0,
     "timestamp": "<receipt_ms>",
     "mode": 1,
     "broker": "groww",

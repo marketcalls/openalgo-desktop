@@ -7,7 +7,7 @@
     "symbol": "NIFTY",
     "exchange": "NSE_INDEX",
     "ltp": 24350.75,
-    "ltt": 1730790000000,
+    "ltt": 1730790000000.0,
     "timestamp": "<receipt_ms>",
     "mode": 3,
     "broker": "groww",

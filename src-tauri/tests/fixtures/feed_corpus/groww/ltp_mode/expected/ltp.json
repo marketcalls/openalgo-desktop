@@ -7,7 +7,7 @@
     "symbol": "SBIN",
     "exchange": "NSE",
     "ltp": 812.5,
-    "ltt": 1730790000000,
+    "ltt": 1730790000000.0,
     "timestamp": "<receipt_ms>",
     "mode": 1,
     "broker": "groww",

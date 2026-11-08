@@ -40,22 +40,10 @@
   },
   "deviations": [
     {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); the desktop sends the integer.",
-      "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
-    },
-    {
       "key": "value",
       "kind": "open",
       "reason": "Groww's traded value (`value`, rupees) the web forwards in every mode: BrokerField::TradedValue, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
-    },
-    {
-      "key": "volume",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's volume as the protobuf double it decodes, a float (1200000.0); the desktop sends the integer.",
-      "ref": "groww_protobuf.py:194 (_read_fixed64); groww_adapter.py:1113-1114"
     }
   ]
 }

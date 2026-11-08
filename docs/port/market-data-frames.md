@@ -109,7 +109,8 @@ as the web's `server.py` sends them):
   (`NormalizedTick::numbers`: an integer for a whole value, as 5paisa's
   JSON sends 445 and 445.5; a double, as Jainam's and RMoney's 1105 text
   event parses with `float()`). A value kept from an earlier packet goes
-  out in the broker's usual form.
+  out in the broker's usual form. Groww's `ltt` and `volume` are doubles,
+  as the web's protobuf reader gives them.
 - A broker not in the table gets the master frame of 1.0.6 (both OI keys,
   `ltt` everywhere, a numeric `data.mode`); a broker lane changes its
   broker's entry when its corpus cases show otherwise.

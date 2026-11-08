@@ -51,12 +51,6 @@
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); the desktop sends the integer.",
-      "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
-    },
-    {
       "key": "open",
       "kind": "open",
       "reason": "follow the Groww adapter (lead 2026-11-09): it sends LTP subscribers its Quote normalisation of the tick (OHLC, volume, value).",
