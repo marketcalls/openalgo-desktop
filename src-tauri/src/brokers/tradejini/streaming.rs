@@ -29,8 +29,8 @@
 //! per-symbol cache keyed `"<token>_<EXCH>"`.
 
 use crate::brokers::common::streaming::{
-    now_ms, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, WsRequest,
+    now_ms, round2, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -464,8 +464,22 @@ impl TradejiniFeed {
         out
     }
 
+    /// The tick of a merged L1 quote. The book totals come only on L5, so
+    /// they are left out until a book for the instrument has come (web
+    /// openalgo#2383: L1 never carries them and they read 0), and so is
+    /// `ltt` until Tradejini has sent a trade time.
     fn tick(&self, sub: &SubInfo, q: &L1) -> NormalizedTick {
-        let (tbq, tsq) = self.l5_totals.get(&q.key()).copied().unwrap_or((0, 0));
+        let totals = self.l5_totals.get(&q.key()).copied();
+        let (tbq, tsq) = totals.unwrap_or((0, 0));
+        let mut absent = AbsentFields::default();
+        if totals.is_none() {
+            absent = absent
+                .with(QuoteField::TotalBuyQuantity)
+                .with(QuoteField::TotalSellQuantity);
+        }
+        if q.ltt.is_none() {
+            absent = absent.with(QuoteField::LastTradeTime);
+        }
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
@@ -485,7 +499,7 @@ impl TradejiniFeed {
             change_percent: q.chng_per.unwrap_or(0.0),
             last_trade_time_ms: q.ltt.unwrap_or(0) * 1000,
             timestamp_ms: now_ms(),
-            ..Default::default()
+            absent,
         };
         if q.chng.is_none() {
             t.derive_change();
@@ -528,10 +542,20 @@ impl TradejiniFeed {
                     let Some(sub) = self.subs.get(&key).cloned() else {
                         continue;
                     };
-                    self.l5_totals
-                        .insert(key.clone(), (book.tot_buy_qty, book.tot_sell_qty));
+                    let first_book = self
+                        .l5_totals
+                        .insert(key.clone(), (book.tot_buy_qty, book.tot_sell_qty))
+                        .is_none();
                     if sub.mode != FeedMode::Depth {
                         continue;
+                    }
+                    // The quote sent so far left the totals out; send it
+                    // again with them, or the book's frame (built on that
+                    // quote) would leave them out too.
+                    if first_book {
+                        if let Some(q) = self.l1.get(&key) {
+                            out.push(FeedEvent::Tick(self.tick(&sub, q)));
+                        }
                     }
                     let ltp = self.l1.get(&key).and_then(|q| q.ltp).unwrap_or(0.0);
                     out.push(FeedEvent::Depth(NormalizedDepth {

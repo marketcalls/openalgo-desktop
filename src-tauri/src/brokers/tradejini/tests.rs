@@ -25,6 +25,9 @@ macro_rules! fixture {
     };
 }
 
+/// Web test/test_tradejini_quote_feed.py (openalgo#2383).
+mod quote_feed;
+
 fn json(s: &str) -> Value {
     serde_json::from_str(s).unwrap()
 }
@@ -886,7 +889,8 @@ fn feed_ticks_depth_and_auth() {
         true,
     );
     let ev = f.parse(&Message::Binary(frame));
-    assert_eq!(ev.len(), 3);
+    // The first book sends the quote again, now with its totals.
+    assert_eq!(ev.len(), 4);
     assert_eq!(ev[0], FeedEvent::AuthOk);
     let FeedEvent::Tick(t) = &ev[1] else { panic!() };
     assert_eq!(t.symbol, "RELIANCE");
@@ -895,7 +899,9 @@ fn feed_ticks_depth_and_auth() {
     assert_eq!(t.close, 1418.0);
     assert_eq!(t.change, 6.6);
     assert_eq!(t.last_trade_time_ms, 1_759_475_100_000);
-    let FeedEvent::Depth(d) = &ev[2] else {
+    let FeedEvent::Tick(t) = &ev[2] else { panic!() };
+    assert_eq!((t.total_buy_quantity, t.total_sell_quantity), (10, 20));
+    let FeedEvent::Depth(d) = &ev[3] else {
         panic!()
     };
     assert_eq!(d.ltp, 1424.6);

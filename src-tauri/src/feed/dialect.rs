@@ -123,7 +123,8 @@ pub(crate) struct Aliases {
     pub change_percent: Option<f64>,
     /// `price_change_percent` (Shoonya, Flattrade, Zebu, TradeSmart; Kotak,
     /// and Fyers beside `change_percent`, since web openalgo#2376; 5paisa's
-    /// `ChgPcnt` since #2396; Definedge beside `change_percent`, since #2383).
+    /// `ChgPcnt` since #2396; Definedge and Tradejini beside `change_percent`,
+    /// since #2383).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub percent_change: Option<f64>,
     /// `price_change_percent` (Samco).
@@ -238,9 +239,14 @@ fn dialect(broker: &str) -> Dialect {
             last_quantity: Some(Q::Ltq),
             ..CANONICAL
         },
-        "arrow" | "hdfcsecurities" | "hdfcsky" | "rupeezy" | "tradejini" => Dialect {
+        "arrow" | "hdfcsecurities" | "hdfcsky" | "rupeezy" => Dialect {
             change: Some(C::Change),
             change_percent: &[P::ChangePercent],
+            ..CANONICAL
+        },
+        "tradejini" => Dialect {
+            change: Some(C::Change),
+            change_percent: &[P::ChangePercent, P::PercentChange],
             ..CANONICAL
         },
         "aliceblue" => Dialect {
@@ -399,6 +405,8 @@ mod tests {
             ("fyers", "avg_trade_price", "average_price"),
             ("fyers", "change", "price_change"),
             ("tradejini", "change", "price_change"),
+            ("tradejini", "change_percent", "price_change_percent"),
+            ("tradejini", "percent_change", "price_change_percent"),
             ("rupeezy", "change", "price_change"),
             ("rupeezy", "change_percent", "price_change_percent"),
             ("paytm", "change_absolute", "price_change"),
