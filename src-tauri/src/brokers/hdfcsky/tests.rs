@@ -908,6 +908,42 @@ fn packets_never_borrow_another_segments_symbol() {
     }
 }
 
+/// Web test/test_hdfcsky_quote_feed.py (openalgo#2396, #2397).
+mod quote_feed;
+
+/// fd-audit: a merge baseline is kept only for a subscribed instrument and
+/// goes with its subscription, on a new socket, and never for an
+/// instrument no one subscribed; a mode change keeps it.
+#[test]
+fn merge_baselines_are_bounded_by_the_subscriptions() {
+    let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
+    let nse = sub("SBIN", "NSE", "35001", FeedMode::Quote);
+    let nfo = sub("NIFTY27OCT2625000CE", "NFO", "35001", FeedMode::Depth);
+    f.subscribe_frames(&[nse.clone(), nfo.clone()]);
+    f.parse(&Message::Binary(frame(vec![
+        mbp_packet(35001, pt::NSE_CM_ALL),
+        mbp_packet(35001, pt::NSE_FO_ALL),
+        mbp_packet(999, pt::NSE_CM_ALL),
+    ])));
+    assert_eq!(f.baselines(), 2, "none for the unsubscribed token");
+    f.mode_change_frames(&nfo, &nfo.with_mode(FeedMode::Ltp));
+    assert_eq!(f.baselines(), 2, "a mode change keeps it");
+    f.unsubscribe_frames(&[nfo.with_mode(FeedMode::Ltp)]);
+    assert_eq!(f.baselines(), 1);
+    f.on_connected();
+    assert_eq!(f.baselines(), 0);
+    f.unsubscribe_frames(&[nse]);
+    f.parse(&Message::Binary(frame(vec![mbp_packet(
+        35001,
+        pt::NSE_CM_ALL,
+    )])));
+    assert_eq!(
+        f.baselines(),
+        0,
+        "a late packet after unsubscribe keeps nothing"
+    );
+}
+
 #[test]
 fn auth_error_text_stops_the_feed() {
     let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");

@@ -13,7 +13,14 @@
 //! * Heartbeat `{"heart_beat": true}` every 10 s.
 //! * Inbound frames are protobuf `GenericDTOList` (fallback: a bare
 //!   `GenericDTO`); `packetType` picks `indexData`, `mbpData` or
-//!   `greekData`. Prices are rupees, no scaling. No order-update stream.
+//!   `greekData`, and the OpenAlgo exchange: `instrumentId` is unique only
+//!   within an exchange, so ticks are keyed on `(exchange, token)`. Prices
+//!   are rupees, no scaling. No order-update stream.
+//! * `*_CIRC` and `*_OI` packets reuse `mbpData` for a partial refresh
+//!   (the band, or the OI; every other field a proto3 zero). They are
+//!   merged into the instrument's last full packet and never published on
+//!   their own (web openalgo#2396); that baseline lives as long as the
+//!   subscription and the socket (#2397).
 
 use super::mapping::ws_scrip_id;
 use super::proto::{packet_type as pt, GenericDto, GenericDtoList};
@@ -112,6 +119,10 @@ pub enum Kind {
     Mbp,
     Index,
     Greek,
+    /// A `*_CIRC` refresh: the circuit band only, every price a proto3 zero.
+    Circuit,
+    /// A `*_OI` refresh: the open interest only.
+    Oi,
 }
 
 /// One decoded packet (web `_parse_packet` dict).
@@ -184,6 +195,21 @@ impl RawTick {
             self.sell = o.sell.clone();
         }
     }
+
+    /// Fold a partial circuit or OI packet into this full one: only the
+    /// partial's own fields and its time (web openalgo#2396,
+    /// `_merge_partial`). Its other fields are proto3 zeros, not values.
+    pub fn merge_partial(&mut self, p: &RawTick) {
+        match p.kind {
+            Kind::Circuit => {
+                self.lower_limit = p.lower_limit;
+                self.upper_limit = p.upper_limit;
+            }
+            Kind::Oi => self.oi = p.oi,
+            Kind::Mbp | Kind::Index | Kind::Greek => return,
+        }
+        self.timestamp = p.timestamp;
+    }
 }
 
 /// OpenAlgo exchange of a packet type (used to tell apart two subscribed
@@ -202,7 +228,9 @@ pub fn packet_exchange(packet_type: i32) -> Option<&'static str> {
     })
 }
 
-fn is_mbp_packet(t: i32) -> bool {
+/// The packet types whose `mbpData` is a full quote. The `*_CIRC` and
+/// `*_OI` types reuse `mbpData` for a partial refresh (web openalgo#2396).
+fn is_quote_packet(t: i32) -> bool {
     matches!(
         t,
         pt::NSE_CM_ALL
@@ -211,12 +239,6 @@ fn is_mbp_packet(t: i32) -> bool {
             | pt::BSE_CM
             | pt::BSE_FO_ALL
             | pt::MCX_PKT
-            | pt::NSE_CM_CIRC
-            | pt::NSE_CD_CIRC
-            | pt::NSE_FO_CIRC
-            | pt::NSE_CD_OI
-            | pt::NSE_FO_OI
-            | pt::BSE_FO_OI
     )
 }
 
@@ -251,10 +273,25 @@ fn parse_packet(p: &GenericDto) -> Option<RawTick> {
         t.kind = Kind::Greek;
         return Some(t);
     }
+    if matches!(
+        p.packet_type,
+        pt::NSE_CM_CIRC | pt::NSE_CD_CIRC | pt::NSE_FO_CIRC
+    ) {
+        let m = p.mbp_data.clone().unwrap_or_default();
+        t.kind = Kind::Circuit;
+        t.lower_limit = m.lower_circuit_limit;
+        t.upper_limit = m.upper_circuit_limit;
+        return Some(t);
+    }
+    if matches!(p.packet_type, pt::NSE_CD_OI | pt::NSE_FO_OI | pt::BSE_FO_OI) {
+        t.kind = Kind::Oi;
+        t.oi = p.mbp_data.as_ref().map_or(0, |m| m.oi);
+        return Some(t);
+    }
     // Only the known market-data types (BF-04): an order, trade or unknown
     // packet carries no segment, so it could be published under another
     // instrument that shares its token number.
-    if is_mbp_packet(p.packet_type) {
+    if is_quote_packet(p.packet_type) {
         let m = p.mbp_data.clone().unwrap_or_default();
         t.kind = Kind::Mbp;
         t.ltp = m.last_traded_price;
@@ -338,6 +375,11 @@ pub struct HdfcSkyFeed {
     token: String,
     /// `(oa_exchange, token)` -> subscription.
     subs: HashMap<(String, i64), SubInfo>,
+    /// The last full packet of each subscribed instrument, the baseline a
+    /// circuit or OI packet merges into. Removed with the subscription and
+    /// on every new connection, so a partial packet never republishes a
+    /// price from an earlier subscription or socket (web openalgo#2397).
+    last: HashMap<(String, i64), RawTick>,
 }
 
 impl HdfcSkyFeed {
@@ -347,7 +389,14 @@ impl HdfcSkyFeed {
             api_key: api_key.to_string(),
             token: token.to_string(),
             subs: HashMap::new(),
+            last: HashMap::new(),
         }
+    }
+
+    /// Instruments with a merge baseline (tests: proves removal).
+    #[cfg(test)]
+    pub(crate) fn baselines(&self) -> usize {
+        self.last.len()
     }
 
     fn scrips(&mut self, subs: &[FeedSubscription], register: bool) -> Vec<(String, &'static str)> {
@@ -369,6 +418,7 @@ impl HdfcSkyFeed {
                     );
                 } else {
                     self.subs.remove(&key);
+                    self.last.remove(&key);
                 }
                 Some((ws_scrip_id(&s.exchange, &s.token), sub_type(s.mode)))
             })
@@ -379,27 +429,52 @@ impl HdfcSkyFeed {
     /// (BF-04). A packet whose segment is not subscribed (an unsubscribe
     /// still in flight, a token number shared across segments) is dropped,
     /// never published under another instrument with the same token.
-    fn lookup(&self, t: &RawTick) -> Option<&SubInfo> {
+    fn lookup(&self, t: &RawTick) -> Option<((String, i64), SubInfo)> {
         let ex = packet_exchange(t.packet_type)?;
-        let found = self.subs.get(&(ex.to_string(), t.token));
-        if found.is_none() {
+        let key = (ex.to_string(), t.token);
+        let Some(sub) = self.subs.get(&key) else {
             tracing::debug!(
                 token = t.token,
                 exchange = ex,
                 "HDFC Sky packet for an instrument not subscribed on its segment dropped"
             );
+            return None;
+        };
+        Some((key, sub.clone()))
+    }
+
+    /// The packet to publish for `t`: a full quote or index packet becomes
+    /// the instrument's new baseline; a circuit or OI packet is merged into
+    /// the baseline (web openalgo#2396, `_merge_partial`), and waits for the
+    /// first full quote when there is none, rather than being published with
+    /// ltp, OHLC and volume 0.
+    fn resolve(&mut self, key: (String, i64), t: &RawTick) -> Option<RawTick> {
+        match t.kind {
+            Kind::Circuit | Kind::Oi => {
+                let base = self.last.get_mut(&key)?;
+                base.merge_partial(t);
+                Some(base.clone())
+            }
+            Kind::Mbp | Kind::Index => {
+                self.last.insert(key, t.clone());
+                Some(t.clone())
+            }
+            Kind::Greek => None,
         }
-        found
     }
 
     /// Normalised events for one decoded packet (web `_normalize`).
-    pub fn events(&self, t: &RawTick) -> Vec<FeedEvent> {
+    pub fn events(&mut self, t: &RawTick) -> Vec<FeedEvent> {
         if t.kind == Kind::Greek {
             return Vec::new();
         }
-        let Some(sub) = self.lookup(t) else {
+        let Some((key, sub)) = self.lookup(t) else {
             return Vec::new();
         };
+        let Some(resolved) = self.resolve(key, t) else {
+            return Vec::new();
+        };
+        let t = &resolved;
         let now = now_ms();
         let mut tick = NormalizedTick {
             symbol: sub.symbol.clone(),
@@ -472,6 +547,14 @@ impl BrokerFeed for HdfcSkyFeed {
         feed_request(&self.base, &self.api_key, &self.token)
     }
 
+    /// A new socket starts from its own first full quote: nothing on it
+    /// vouches for a price from the last one (web openalgo#2397,
+    /// `_drop_snapshots`). The subscriptions stay; the manager replays them.
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.last.clear();
+        Vec::new()
+    }
+
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         let scrips = self.scrips(subs, true);
         subscribe_messages(&scrips)
@@ -493,15 +576,23 @@ impl BrokerFeed for HdfcSkyFeed {
         old: &FeedSubscription,
         new: &FeedSubscription,
     ) -> Vec<Message> {
+        // The instrument stays subscribed, so it keeps its merge baseline
+        // (web openalgo#2396 keeps the snapshot while any mode remains).
+        let scrips = self.scrips(std::slice::from_ref(new), true);
         if sub_type(old.mode) == sub_type(new.mode) {
             // Same feed type (Quote <-> Depth): only the published shape
             // changes.
-            self.scrips(std::slice::from_ref(new), true);
             return Vec::new();
         }
-        let mut v = self.unsubscribe_frames(std::slice::from_ref(old));
-        v.extend(self.subscribe_frames(std::slice::from_ref(new)));
-        v
+        let was: Vec<(String, &'static str)> = scrips
+            .iter()
+            .map(|(id, _)| (id.clone(), sub_type(old.mode)))
+            .collect();
+        unsubscribe_messages(&was)
+            .into_iter()
+            .chain(subscribe_messages(&scrips))
+            .map(Message::Text)
+            .collect()
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
