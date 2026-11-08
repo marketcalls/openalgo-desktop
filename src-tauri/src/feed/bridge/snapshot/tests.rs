@@ -115,6 +115,64 @@ fn a_packet_without_a_price_first_keeps_its_fields_for_the_price() {
     assert!(s.tick().knows(QuoteField::OpenInterest));
 }
 
+/// A packet with neither a price nor a trade time (HDFC before the first
+/// trade, bk-b's no_trade_yet) brings only what it marks as carried: a
+/// book on it carries no `ltt` and none of the zeros its mode would stand
+/// for; a real trade time from earlier in the connection stays.
+#[test]
+fn a_packet_without_a_trade_brings_only_what_it_carries() {
+    use crate::brokers::common::streaming::NormalizedDepth;
+    use crate::feed::InstrumentKey;
+    let mut t = NormalizedTick {
+        symbol: "NIFTY28NOV26FUT".into(),
+        exchange: "NFO".into(),
+        mode: 3,
+        close: 494.05,
+        timestamp_ms: 1_740_729_540_000,
+        ..Default::default()
+    };
+    t.mark_absent(QuoteField::Ltp);
+    t.mark_absent(QuoteField::LastTradeTime);
+    t.mark_carried(QuoteField::Close);
+    let s = merge(None, &t, 1);
+    let k = s.tick().known();
+    for f in [
+        QuoteField::Open,
+        QuoteField::High,
+        QuoteField::Low,
+        QuoteField::Volume,
+    ] {
+        assert!(!k.contains(f), "{:?}", f);
+    }
+    assert!(k.contains(QuoteField::Close));
+    let mut valued = t.clone();
+    valued.volume = 5;
+    assert!(
+        merge(None, &valued, 1).tick().knows(QuoteField::Volume),
+        "a value it sent"
+    );
+    let book = NormalizedDepth {
+        symbol: t.symbol.clone(),
+        exchange: t.exchange.clone(),
+        timestamp_ms: t.timestamp_ms,
+        ..Default::default()
+    };
+    let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
+    let u = crate::feed::bridge::depth_update(key, &book, Some(s.tick()), s.book_lacks());
+    assert_eq!(u.ltt, None, "not the packet's time");
+    let q = u.quote.unwrap_or_default();
+    assert_eq!((q.open, q.high, q.volume), (None, None, None));
+    assert_eq!(q.close, Some(494.05));
+
+    let s = merge(Some(&merge(None, &quote_packet(), 1)), &t, 1);
+    assert!(!s.tick().absent.contains(QuoteField::LastTradeTime));
+    assert_eq!(
+        s.tick().last_trade_time_ms,
+        1_740_729_550_000,
+        "the earlier real one"
+    );
+}
+
 /// A genuine zero replaces a value: no volume yet after a session's first
 /// packet, a total that went to 0.
 #[test]

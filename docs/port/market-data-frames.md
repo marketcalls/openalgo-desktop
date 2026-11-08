@@ -215,7 +215,8 @@ fix the Zerodha shape):
     hears what the broker's web adapter publishes: a frame without `depth`
     where the web publishes the packet on its Depth topic (HDFC and the
     default), nothing where the web is silent (Definedge's touchline,
-    5paisa's feed frame, from their web tests: `Dialect::depth_needs_book`,
+    5paisa's feed frame, Tradejini's L1 tick, from their web tests:
+    `Dialect::depth_needs_book`,
     decided by `protocol::reaches` for the registry and the feed tests);
     nothing stale is shown either way;
   - once a book exists, a Depth holder gets a frame on every full tick,
@@ -253,7 +254,7 @@ fix the Zerodha shape):
      the LTP topic: two LTP callbacks per tick. The desktop sends one.
   3. Where an adapter publishes nothing to Depth holders for a full packet
      without a book, its broker lane declares it with `depth_needs_book`
-     (Definedge and 5paisa so far); every other broker's Depth holder gets
+     (Definedge, 5paisa and Tradejini so far); every other broker's Depth holder gets
      the frame without `depth`.
 
 Draft for the web: *The proxy's listener folds each upstream message to the

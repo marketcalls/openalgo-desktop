@@ -155,12 +155,13 @@ pub(crate) struct Dialect {
     /// Whether the book carries the frame's `timestamp` inside it (Upstox:
     /// `depth: {buy, sell, timestamp}`).
     pub book_time: bool,
-    /// Whether a Depth holder gets a frame only with a book: the broker's
-    /// web adapter publishes a quote packet on its Quote topic alone, so a
-    /// Depth-only client hears nothing until the book comes (Definedge's
-    /// touchline, 5paisa's feed frame). Otherwise a full packet without a
-    /// book reaches Depth holders without `depth` (lead decision
-    /// 2026-11-09).
+    /// Whether a Depth holder waits for the instrument's first book: before
+    /// it, the broker's web adapter publishes a quote packet on its Quote
+    /// topic alone, so a Depth-only client hears nothing (Definedge's
+    /// touchline, 5paisa's feed frame, Tradejini's L1 tick). Otherwise a
+    /// full packet without a book reaches Depth holders without `depth`.
+    /// After the first book every full tick carries it, either way (lead
+    /// decision 2026-11-09).
     pub depth_needs_book: bool,
     pub names: &'static [WebName],
 }
@@ -663,7 +664,7 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .no_index_change()
             .instrument_key(Key::LastQuantity, Modes::NEVER),
         "samco" => d(Number, SAMCO).no_index_change(),
-        "tradejini" => d(Number, TRADEJINI).no_index_change(),
+        "tradejini" => d(Number, TRADEJINI).no_index_change().depth_needs_book(),
         _ => Dialect {
             keys: Keys::V106,
             ..d(Number, &[])
