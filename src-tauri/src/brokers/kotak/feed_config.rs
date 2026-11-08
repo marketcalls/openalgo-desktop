@@ -26,10 +26,10 @@ pub fn to_wss(url: &str) -> String {
 }
 
 /// The market-data URL a config answer gives a data centre, and the
-/// source (`sh` SFeed, `ks` cdtstream, `hs` legacy HSM). The legacy HSM
-/// source falls back to the default SFeed host and says so, as on the web
-/// (`kotak_feed_config.py`): OpenAlgo reads only the SFeed protocol, and
-/// nothing has selected HSM since September 2026.
+/// source (`sh` SFeed, `ks` cdtstream). The legacy HSM source (`hs`) falls
+/// back to the default SFeed host with no source, and says so, as on the
+/// web (`kotak_feed_config.py`): OpenAlgo reads only the SFeed protocol,
+/// and nothing has selected HSM since September 2026.
 pub fn feed_url_from_config(configs: &Value, data_center: &str) -> (Option<String>, String) {
     let get = |k: String| {
         configs
@@ -46,11 +46,14 @@ pub fn feed_url_from_config(configs: &Value, data_center: &str) -> (Option<Strin
             "Kotak data centre {} selects the legacy HSM feed, which OpenAlgo cannot read. Streaming from SFeed instead; if quotes do not arrive, this is why.",
             data_center
         );
+        // No source is recorded: the default SFeed host is what streams, as
+        // the warning says. The web recorded "hs" and so built its HSM
+        // client after all, until openalgo#2376.
+        return (None, DEFAULT_SFEED_URL.to_string());
     }
-    let url = match get(format!("{}_{}_broadcast_endpoint", data_center, source)) {
-        Some(u) if source != "hs" => to_wss(&u),
-        _ => DEFAULT_SFEED_URL.to_string(),
-    };
+    let url = get(format!("{}_{}_broadcast_endpoint", data_center, source))
+        .map(|u| to_wss(&u))
+        .unwrap_or_else(|| DEFAULT_SFEED_URL.to_string());
     (Some(source), url)
 }
 

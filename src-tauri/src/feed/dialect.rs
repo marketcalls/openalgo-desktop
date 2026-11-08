@@ -121,15 +121,15 @@ pub(crate) struct Aliases {
     /// Definedge, Paytm, Rupeezy, Tradejini).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percent: Option<f64>,
-    /// `price_change_percent` (Shoonya, Flattrade, Zebu, TradeSmart; Fyers
-    /// beside `change_percent` since web openalgo#2376).
+    /// `price_change_percent` (Shoonya, Flattrade, Zebu, TradeSmart; Kotak,
+    /// and Fyers beside `change_percent`, since web openalgo#2376).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub percent_change: Option<f64>,
     /// `price_change_percent` (Samco).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percentage: Option<f64>,
-    /// `ltt` (Sahi; Fyers in epoch seconds), in every mode `ltt` is sent
-    /// (web openalgo#2376).
+    /// `ltt` (Sahi, Kotak; Fyers in epoch seconds), in every mode `ltt` is
+    /// sent (web openalgo#2376).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_trade_time: Option<i64>,
 }
@@ -170,7 +170,7 @@ enum PercentKey {
 /// The unit of a broker's web `last_trade_time`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TradeTime {
-    /// Epoch milliseconds, as `ltt` (Sahi).
+    /// Epoch milliseconds, as `ltt` (Sahi, Kotak).
     Millis,
     /// Epoch seconds, HSM's own unit (Fyers, web `fyers_mapping.py`).
     Seconds,
@@ -236,6 +236,11 @@ fn dialect(broker: &str) -> Dialect {
             ..CANONICAL
         },
         "sahi" => Dialect {
+            last_trade_time: Some(TradeTime::Millis),
+            ..CANONICAL
+        },
+        "kotak" => Dialect {
+            change_percent: &[P::PercentChange],
             last_trade_time: Some(TradeTime::Millis),
             ..CANONICAL
         },
@@ -377,6 +382,7 @@ mod tests {
             ("paytm", "change_absolute", "price_change"),
             ("fyers", "change_percent", "price_change_percent"),
             ("fyers", "percent_change", "price_change_percent"),
+            ("kotak", "percent_change", "price_change_percent"),
             ("aliceblue", "change_percent", "price_change_percent"),
             ("shoonya", "percent_change", "price_change_percent"),
             ("flattrade", "percent_change", "price_change_percent"),
@@ -448,15 +454,24 @@ mod tests {
         }
     }
 
-    /// Web openalgo#2376 (`sahi_mapping.py` `build_ltp_payload`): Sahi
-    /// publishes `last_trade_time` beside `ltt`, LTP included, and neither
-    /// when the tick has no trade time; Zerodha's frames have no such key.
+    /// Web openalgo#2376 (`sahi_mapping.py` `build_ltp_payload`,
+    /// `kotak_adapter.py`): Sahi and Kotak publish `last_trade_time` beside
+    /// `ltt` (the desktop in LTP frames too), and neither when the tick has
+    /// no trade time; Zerodha's frames have no such key.
     #[test]
     fn the_trade_time_alias_goes_where_ltt_goes() {
         for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
-            let d = data(equity(), mode, "sahi");
-            assert!(d["ltt"].is_i64(), "{:?}: {}", mode, d);
-            assert_eq!(d.get("last_trade_time"), d.get("ltt"), "{:?}", mode);
+            for broker in ["sahi", "kotak"] {
+                let d = data(equity(), mode, broker);
+                assert!(d["ltt"].is_i64(), "{} {:?}: {}", broker, mode, d);
+                assert_eq!(
+                    d.get("last_trade_time"),
+                    d.get("ltt"),
+                    "{} {:?}",
+                    broker,
+                    mode
+                );
+            }
             let d = data(equity(), mode, "zerodha");
             assert!(d.get("last_trade_time").is_none(), "{:?}: {}", mode, d);
             let mut no_trade = update(index());

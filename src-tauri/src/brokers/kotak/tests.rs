@@ -57,6 +57,9 @@ fn master() -> SymbolResolver {
     r
 }
 
+/// Web test/test_kotak_quote_feed.py (openalgo#2376).
+mod quote_feed;
+
 fn session() -> AuthToken {
     AuthToken::new("tok:::sid-1:::https://cis.kotaksecurities.com/:::acc-1:::E43")
 }
@@ -1151,7 +1154,7 @@ fn feed_config_and_dividers() {
     );
     // HSM routes fall back to the SFeed default and say so, as on the web.
     let (hs, kept) = crate::services::error_log::kept_while(|| feed_url_from_config(&cfg, "E10"));
-    assert_eq!(hs, (Some("hs".into()), DEFAULT_SFEED_URL.into()));
+    assert_eq!(hs, (None, DEFAULT_SFEED_URL.into()));
     assert!(
         kept.iter()
             .any(|m| m.contains("E10 selects the legacy HSM feed")),

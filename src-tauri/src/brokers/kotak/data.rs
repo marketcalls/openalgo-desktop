@@ -71,7 +71,7 @@ pub fn index_candidates(symbol: &str) -> Vec<String> {
     list.iter().map(|s| s.to_string()).collect()
 }
 
-fn is_index(exchange: &str) -> bool {
+pub(super) fn is_index(exchange: &str) -> bool {
     exchange.to_ascii_uppercase().contains("INDEX")
 }
 
