@@ -61,6 +61,42 @@ fn feed_segment(exchange: &str) -> Option<&'static str> {
     }
 }
 
+/// An SFeed stream a subscription runs on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Stream {
+    Depth,
+    Scrips,
+    Indices,
+}
+
+impl Stream {
+    /// The streams a subscription asks for, in the web's order: an index
+    /// its index feed; Depth the depth stream and then the scrip stream for
+    /// the price (Kotak sends them apart; `subscribe` calls
+    /// `subscribe_depth` before `subscribe_quote`); the quote modes the
+    /// scrip stream.
+    fn of(index: bool, mode: FeedMode) -> &'static [Stream] {
+        if index {
+            &[Stream::Indices]
+        } else if mode == FeedMode::Depth {
+            &[Stream::Depth, Stream::Scrips]
+        } else {
+            &[Stream::Scrips]
+        }
+    }
+
+    fn event(self, add: bool) -> &'static str {
+        match (self, add) {
+            (Stream::Depth, true) => "subscribeDepth",
+            (Stream::Scrips, true) => "subscribeScrips",
+            (Stream::Indices, true) => "subscribeIndices",
+            (Stream::Depth, false) => "unsubscribeDepth",
+            (Stream::Scrips, false) => "unsubscribeScrips",
+            (Stream::Indices, false) => "unsubscribeIndices",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct SubInfo {
     symbol: String,
@@ -226,10 +262,11 @@ impl KotakFeed {
         Message::Text(v.to_string())
     }
 
+    /// The subscribe (or unsubscribe) frames for `subs`, as the web's
+    /// adapter batches them: one frame per stream, the streams in the order
+    /// their first subscription asks for them (`_process_batch_subscriptions`).
     fn frames(&mut self, subs: &[FeedSubscription], add: bool) -> Vec<Message> {
-        let mut scrips = Vec::new();
-        let mut depth = Vec::new();
-        let mut indices = Vec::new();
+        let mut batch: Vec<(Stream, Vec<String>)> = Vec::new();
         for s in subs {
             if add
                 && !self.subs.contains_key(&Self::sub_key(s))
@@ -251,36 +288,25 @@ impl KotakFeed {
             if !add && self.input_in_use(&input) {
                 continue;
             }
-            if index {
+            for stream in Stream::of(index, s.mode) {
+                let at = match batch.iter().position(|(st, _)| st == stream) {
+                    Some(i) => i,
+                    None => {
+                        batch.push((*stream, Vec::new()));
+                        batch.len() - 1
+                    }
+                };
                 // NIFTY and NIFTY50 name one index feed: one entry a frame.
-                if !indices.contains(&input) {
-                    indices.push(input);
+                let inputs = &mut batch[at].1;
+                if !inputs.contains(&input) {
+                    inputs.push(input.clone());
                 }
-            } else {
-                // Depth needs the quote stream too: Kotak sends depth and
-                // LTP separately.
-                if s.mode == FeedMode::Depth {
-                    depth.push(input.clone());
-                }
-                scrips.push(input);
             }
         }
-        let (ev_s, ev_d, ev_i) = if add {
-            ("subscribeScrips", "subscribeDepth", "subscribeIndices")
-        } else {
-            (
-                "unsubscribeScrips",
-                "unsubscribeDepth",
-                "unsubscribeIndices",
-            )
-        };
-        let mut out = Vec::new();
-        for (ev, list) in [(ev_s, scrips), (ev_d, depth), (ev_i, indices)] {
-            if !list.is_empty() {
-                out.push(Self::event_frame(ev, &list, add));
-            }
-        }
-        out
+        batch
+            .into_iter()
+            .map(|(st, inputs)| Self::event_frame(st.event(add), &inputs, add))
+            .collect()
     }
 
     /// Every subscription a packet names, by its token, else its name: an
@@ -482,29 +508,38 @@ impl BrokerFeed for KotakFeed {
         self.frames(subs, false)
     }
 
+    /// A mode change as the web's adapter makes it: a higher mode is a new
+    /// subscription, so it asks again for every stream that mode runs on
+    /// (`subscribe`: the depth stream and the scrip stream for Depth); a
+    /// lower one drops only the depth stream, the quote modes still holding
+    /// the scrip stream (`unsubscribe_depth`, `unsubscribe_quote`).
     fn mode_change_frames(
         &mut self,
         old: &FeedSubscription,
         new: &FeedSubscription,
     ) -> Vec<Message> {
         let index = is_index(&new.exchange);
-        let was_depth = old.mode == FeedMode::Depth;
-        let is_depth = new.mode == FeedMode::Depth;
         self.register(new, true);
-        if index || was_depth == is_depth {
-            return Vec::new();
-        }
         let Some(input) = self.subs.get(&Self::sub_key(new)).map(|s| s.input.clone()) else {
             return Vec::new();
         };
-        if is_depth {
-            vec![Self::event_frame("subscribeDepth", &[input], true)]
-        } else {
+        if new.mode > old.mode {
+            return Stream::of(index, new.mode)
+                .iter()
+                .map(|st| Self::event_frame(st.event(true), std::slice::from_ref(&input), true))
+                .collect();
+        }
+        if old.mode == FeedMode::Depth && !index {
             // The book goes with the depth stream; the quote stays with the
             // bridge.
             self.books.remove(&Self::sub_key(new));
-            vec![Self::event_frame("unsubscribeDepth", &[input], false)]
+            return vec![Self::event_frame(
+                Stream::Depth.event(false),
+                &[input],
+                false,
+            )];
         }
+        Vec::new()
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

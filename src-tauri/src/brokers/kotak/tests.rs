@@ -983,13 +983,18 @@ fn sfeed_handshake_subscribe_and_ticks() {
         fsub("TCS", "NSE", FeedMode::Ltp),
         fsub("NIFTY", "NSE_INDEX", FeedMode::Quote),
     ]));
+    // In the web adapter's order: SBIN's Depth asks for the depth stream
+    // before the scrip stream (`subscribe`), and each stream's frame comes
+    // where its first subscription asked for it.
     assert_eq!(frames.len(), 3);
     assert_eq!(
         frames[0],
+        json!({"event": "subscribeDepth", "inputtoken": "nse_cm|3045", "ack_symbol": true})
+    );
+    assert_eq!(
+        frames[1],
         json!({"event": "subscribeScrips", "inputtoken": "nse_cm|3045,nse_cm|11536", "ack_symbol": true})
     );
-    assert_eq!(frames[1]["event"], "subscribeDepth");
-    assert_eq!(frames[1]["inputtoken"], "nse_cm|3045");
     assert_eq!(frames[2]["inputtoken"], "nse_cm|Nifty 50");
     // Depth packet for SBIN -> a quote tick (a market picture is a Quote
     // packet with OI) and a 5-level depth.
@@ -1057,27 +1062,41 @@ fn sfeed_handshake_subscribe_and_ticks() {
         .is_empty());
     assert_eq!(f.state_len(), 1);
     let un = text_frames(&f.unsubscribe_frames(&[fsub("SBIN", "NSE", FeedMode::Depth)]));
+    assert_eq!(un[0]["event"], "unsubscribeDepth");
     assert_eq!(
-        un[0],
+        un[1],
         json!({"event": "unsubscribeScrips", "inputtoken": "nse_cm|3045"})
     );
-    assert_eq!(un[1]["event"], "unsubscribeDepth");
     assert_eq!((f.subscription_count(), f.state_len()), (2, 0));
-    // Mode changes only touch the depth stream.
+    // A higher mode subscribes again every stream it runs on, as the web's
+    // `subscribe` does; a lower one drops only the depth stream.
     let up = text_frames(&f.mode_change_frames(
         &fsub("TCS", "NSE", FeedMode::Ltp),
         &fsub("TCS", "NSE", FeedMode::Depth),
     ));
     assert_eq!(
         up,
-        vec![json!({"event": "subscribeDepth", "inputtoken": "nse_cm|11536", "ack_symbol": true})]
+        vec![
+            json!({"event": "subscribeDepth", "inputtoken": "nse_cm|11536", "ack_symbol": true}),
+            json!({"event": "subscribeScrips", "inputtoken": "nse_cm|11536", "ack_symbol": true}),
+        ]
     );
-    assert!(f
-        .mode_change_frames(
-            &fsub("TCS", "NSE", FeedMode::Ltp),
-            &fsub("TCS", "NSE", FeedMode::Quote)
-        )
-        .is_empty());
+    let down = text_frames(&f.mode_change_frames(
+        &fsub("TCS", "NSE", FeedMode::Depth),
+        &fsub("TCS", "NSE", FeedMode::Ltp),
+    ));
+    assert_eq!(
+        down,
+        vec![json!({"event": "unsubscribeDepth", "inputtoken": "nse_cm|11536"})]
+    );
+    let quote = text_frames(&f.mode_change_frames(
+        &fsub("TCS", "NSE", FeedMode::Ltp),
+        &fsub("TCS", "NSE", FeedMode::Quote),
+    ));
+    assert_eq!(
+        quote,
+        vec![json!({"event": "subscribeScrips", "inputtoken": "nse_cm|11536", "ack_symbol": true})]
+    );
     // native_fallback is a refusal.
     let fb = json!({"message_code": 1117, "format": "native_fallback"});
     assert!(matches!(

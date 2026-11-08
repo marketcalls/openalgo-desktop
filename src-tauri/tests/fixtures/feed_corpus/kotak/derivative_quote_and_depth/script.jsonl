@@ -4,7 +4,7 @@
 {"step": "upstream_receives", "frames": [{"json": {"event": "subscribeScrips", "inputtoken": "nse_fo|53001", "ack_symbol": true}}]}
 {"step": "push", "frame": {"json": {"message_code": 1109, "trading_symbols": {"nse_fo|53001": "NIFTY25NOVFUT"}}}, "note": "The subscribe acknowledgement maps the key to Kotak's trading symbol."}
 {"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
-{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeDepth", "inputtoken": "nse_fo|53001", "ack_symbol": true}}], "note": "A Depth holder joins: the depth stream is added, the scrip stream stays."}
+{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeDepth", "inputtoken": "nse_fo|53001", "ack_symbol": true}}, {"json": {"event": "subscribeScrips", "inputtoken": "nse_fo|53001", "ack_symbol": true}}], "note": "A Depth holder joins: the web's adapter subscribes Depth as a new subscription, the depth stream and the scrip stream again."}
 {"step": "push", "frame": "frames/future_depth.hex"}
 {"step": "receive", "client": "a", "frame": "expected/future_quote.json"}
 {"step": "receive", "client": "b", "frame": "expected/future_depth.json"}
