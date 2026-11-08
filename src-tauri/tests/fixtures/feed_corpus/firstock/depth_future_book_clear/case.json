@@ -31,27 +31,15 @@
     ],
     "notes": [
       "Depth mode's OI is i_total_open_interest on both (firstock_adapter.py:862; brokers/firstock/streaming.rs tick).",
-      "Firstock has no book-clear signal the web acts on: a level whose price, quantity or orders is 9223372036854775808, or with neither price nor quantity, is dropped, and a side left without a valid level keeps the previous side (firstock_adapter.py:683-744). Audit FB-02, still open: the desktop replaces the side with whatever array came (brokers/firstock/streaming.rs merge, levels), so a sentinel or zero level is published as a zero level and a sentinel between valid levels pushes the next valid level down."
+      "Firstock has no book-clear signal the web acts on: a level whose price, quantity or orders is 9223372036854775808, or with neither price nor quantity, is dropped, and a side left without a valid level keeps the previous side (firstock_adapter.py:683-744). Audit FB-02, fixed: the desktop filters a side the same way before it stores it (brokers/firstock/streaming.rs valid_level, merge)."
     ]
   },
   "deviations": [
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Firstock adapter puts its mode number in data.mode (1, 2, 3); the desktop sends its label. data.mode follows each broker's web adapter (lead rule 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "firstock_adapter.py:800-806; feed::dialect (lane wire)"
-    },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
       "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "The web's Firstock adapter sends OI as oi only; the desktop adds open_interest. open_interest beside oi follows each broker's web adapter (lead rule 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "firstock_adapter.py:854-865; feed::dialect (lane wire)"
     },
     {
       "key": "last_quantity",
@@ -76,24 +64,6 @@
       "kind": "web-defect",
       "reason": "Firstock's tick carries total_sell_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
       "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
-    },
-    {
-      "key": "depth",
-      "kind": "open",
-      "reason": "Audit FB-02: the web drops levels Firstock marks invalid (the 9223372036854775808 sentinel in price, quantity or orders, or neither price nor quantity) and keeps the previous side when none is valid; the desktop publishes them as zero levels.",
-      "ref": "audit FB-02; firstock_adapter.py:683-744"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web sends Firstock's circuit limits (i_upper_circuit_limit, i_lower_circuit_limit, /100); the desktop's common carrier drops them.",
-      "ref": "audit C06; firstock_adapter.py:850-851"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "The web sends Firstock's circuit limits (i_upper_circuit_limit, i_lower_circuit_limit, /100); the desktop's common carrier drops them.",
-      "ref": "audit C06; firstock_adapter.py:850-851"
     }
   ]
 }

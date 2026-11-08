@@ -31,12 +31,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Firstock adapter puts its mode number in data.mode (1, 2, 3); the desktop sends its label. data.mode follows each broker's web adapter (lead rule 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "firstock_adapter.py:800-806; feed::dialect (lane wire)"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
@@ -44,15 +38,21 @@
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends an index's change from the previous close, as the recorded Zerodha index transcript carries it; the web's Firstock adapter sends no change.",
-      "ref": "feed::bridge::quote_fields; tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The web's Firstock adapter sends no change for any instrument; an index's change keys follow the adapter (lead decision 2026-11-09), so they go once the per-broker index_change switch lands (lane wire).",
+      "ref": "firstock_adapter.py:838-852; feed::dialect (lane wire)"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
+      "kind": "open",
       "reason": "As price_change.",
-      "ref": "feed::bridge::quote_fields"
+      "ref": "firstock_adapter.py:838-852; feed::dialect (lane wire)"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends volume 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "firstock_adapter.py:838-852"
     },
     {
       "key": "last_quantity",

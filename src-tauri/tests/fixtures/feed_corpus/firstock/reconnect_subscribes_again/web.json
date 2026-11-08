@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "firstock",
-  "inputs_sha256": "efc245022350da2222f56d3d3ec2dd69adb08ed5a0968d3c8942bd36d9f6bf31",
+  "inputs_sha256": "768201f3ab05e5c4ac1fcaf7db4647c695e51da8d36a8a0907dab4cd9cab32ad",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -48,7 +48,7 @@
       ]
     },
     {
-      "line": 9,
+      "line": 8,
       "published": []
     },
     {

@@ -1,6 +1,6 @@
 {
   "broker": "firstock",
-  "summary": "A Quote subscription on an NSE equity made before Firstock has answered the login: the subscribe goes out at once (audit FB-01), then a V1 full tick and a V1 partial tick merged over it become Quote frames; after the unsubscribe a tick still in flight reaches nobody.",
+  "summary": "A Quote subscription on an NSE equity made before Firstock has answered the login: the subscribe waits for the answer (audit FB-01), then a V1 full tick and a V1 partial tick merged over it become Quote frames; after the unsubscribe a tick still in flight reaches nobody.",
   "scenarios": [
     "first-full-packet",
     "partial-packet",
@@ -26,16 +26,10 @@
     ],
     "notes": [
       "Prices are paise; both divide by 100. The partial tick's zero open price never overwrites the snapshot, on the web (firstock_adapter.py:655-680) and the desktop (brokers/firstock/streaming.rs merge).",
-      "Audit FB-01, still open: FirstockFeed does not wait for the login answer (no awaits_auth_ack), so the subscribe frame reaches Firstock before {\"status\":\"success\"}; the web queues it until that answer (firstock_websocket.py:498-505, _process_pending_subscriptions). web.json cannot show the order of upstream frames, so the script's upstream_receives before the login push is the evidence."
+      "Audit FB-01, fixed: FirstockFeed waits for {\"status\":\"success\"} before it subscribes, as the web's client queues subscriptions until that answer (firstock_websocket.py:498-505, _process_pending_subscriptions). The script shows it: no frame reaches Firstock before the login push."
     ]
   },
   "deviations": [
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Firstock adapter puts its mode number in data.mode (1, 2, 3); the desktop sends its label. data.mode follows each broker's web adapter (lead rule 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "firstock_adapter.py:800-806; feed::dialect (lane wire)"
-    },
     {
       "key": "ltt",
       "kind": "web-defect",
@@ -47,18 +41,6 @@
       "kind": "web-defect",
       "reason": "The web's Quote sends oi 0 for an equity whose tick carries no open interest (data.get(\"i_open_interest\", 0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md, web openalgo#2376). The desktop's Quote leaves it out.",
       "ref": "firstock_adapter.py:849"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web sends Firstock's circuit limits (i_upper_circuit_limit, i_lower_circuit_limit, /100); the desktop's common carrier drops them.",
-      "ref": "audit C06; firstock_adapter.py:850-851"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "The web sends Firstock's circuit limits (i_upper_circuit_limit, i_lower_circuit_limit, /100); the desktop's common carrier drops them.",
-      "ref": "audit C06; firstock_adapter.py:850-851"
     }
   ]
 }

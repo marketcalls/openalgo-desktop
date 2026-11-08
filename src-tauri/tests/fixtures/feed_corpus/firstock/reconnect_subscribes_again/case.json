@@ -1,6 +1,6 @@
 {
   "broker": "firstock",
-  "summary": "Firstock drops the socket: the feed connects again on the same address, subscribes again (again before the login answer, audit FB-01), and the full tick after the login answer streams to the client as before.",
+  "summary": "Firstock drops the socket: the feed connects again on the same address, waits for the login answer (audit FB-01), subscribes again, and the full tick after it streams to the client as before.",
   "scenarios": [
     "first-full-packet",
     "reconnect"
@@ -28,12 +28,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Firstock adapter puts its mode number in data.mode (1, 2, 3); the desktop sends its label. data.mode follows each broker's web adapter (lead rule 2026-11-09): closed by the per-broker dialect switch.",
-      "ref": "firstock_adapter.py:800-806; feed::dialect (lane wire)"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
@@ -44,18 +38,6 @@
       "kind": "web-defect",
       "reason": "The web's Quote sends oi 0 for an equity whose tick carries no open interest (data.get(\"i_open_interest\", 0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md, web openalgo#2376). The desktop's Quote leaves it out.",
       "ref": "firstock_adapter.py:849"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web sends Firstock's circuit limits (i_upper_circuit_limit, i_lower_circuit_limit, /100); the desktop's common carrier drops them.",
-      "ref": "audit C06; firstock_adapter.py:850-851"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "The web sends Firstock's circuit limits (i_upper_circuit_limit, i_lower_circuit_limit, /100); the desktop's common carrier drops them.",
-      "ref": "audit C06; firstock_adapter.py:850-851"
     }
   ]
 }

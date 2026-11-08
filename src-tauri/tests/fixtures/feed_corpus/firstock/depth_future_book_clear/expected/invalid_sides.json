@@ -7,7 +7,7 @@
   "data": {
     "symbol": "NIFTY24NOV26FUT",
     "exchange": "NFO",
-    "mode": "full",
+    "mode": 3,
     "ltp": 24451.0,
     "ltt": 1794302706000,
     "timestamp": "<receipt_ms>",
@@ -21,18 +21,19 @@
     "low": 24360.5,
     "close": 24380.0,
     "oi": 13457475,
-    "open_interest": 13457475,
+    "upper_circuit": 26818.0,
+    "lower_circuit": 21942.0,
     "depth": {
       "buy": [
         {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
+          "price": 24450.5,
+          "quantity": 150,
+          "orders": 2
         },
         {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
+          "price": 24449.5,
+          "quantity": 300,
+          "orders": 5
         },
         {
           "price": 0.0,
@@ -52,29 +53,29 @@
       ],
       "sell": [
         {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
+          "price": 24451.0,
+          "quantity": 150,
+          "orders": 2
         },
         {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
+          "price": 24451.5,
+          "quantity": 375,
+          "orders": 4
         },
         {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
+          "price": 24452.0,
+          "quantity": 525,
+          "orders": 5
         },
         {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
+          "price": 24452.5,
+          "quantity": 675,
+          "orders": 7
         },
         {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
+          "price": 24453.0,
+          "quantity": 900,
+          "orders": 9
         }
       ]
     }

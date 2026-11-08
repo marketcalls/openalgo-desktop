@@ -7,7 +7,7 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 1296.0,
     "ltt": 1794302705000,
     "timestamp": "<receipt_ms>",
@@ -19,6 +19,8 @@
     "open": 1288.0,
     "high": 1301.2,
     "low": 1285.1,
-    "close": 1280.0
+    "close": 1280.0,
+    "upper_circuit": 1408.0,
+    "lower_circuit": 1152.0
   }
 }
