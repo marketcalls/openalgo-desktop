@@ -1,0 +1,9 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_INDEX_26000", "type": "ALL"}]}}]}
+{"step": "push", "frame": "frames/index.hex"}
+{"step": "receive", "client": "a", "frame": "expected/index_quote.json"}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "unSubscribe": [{"scripId": "NSE_INDEX_26000", "type": "ALL"}]}}, {"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_INDEX_26000", "type": "ALL"}]}}], "note": "Quote to Depth is the same feed type (ALL); the default mode change unsubscribes and subscribes it again."}
+{"step": "push", "frame": "frames/index_next.hex"}
+{"step": "receive", "client": "a", "frame": "expected/index_quote_next.json"}
+{"step": "receive", "client": "b", "frame": "expected/index_depth.json"}

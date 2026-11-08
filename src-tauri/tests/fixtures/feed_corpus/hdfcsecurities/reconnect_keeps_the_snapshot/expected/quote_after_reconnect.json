@@ -1,0 +1,24 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY25NOV26FUT",
+  "exchange": "NFO",
+  "mode": 2,
+  "broker": "hdfcsecurities",
+  "data": {
+    "symbol": "NIFTY25NOV26FUT",
+    "exchange": "NFO",
+    "mode": "quote",
+    "ltp": 1502.0,
+    "ltt": 1700000005000,
+    "timestamp": 1700000005000,
+    "volume": 12500,
+    "last_quantity": 4,
+    "average_price": 1499.4,
+    "total_buy_quantity": 5300,
+    "total_sell_quantity": 6000,
+    "open": 1490.0,
+    "high": 1510.0,
+    "low": 1480.0,
+    "close": 1495.0
+  }
+}

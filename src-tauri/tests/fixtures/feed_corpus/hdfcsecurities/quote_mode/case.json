@@ -1,0 +1,88 @@
+{
+  "broker": "hdfcsecurities",
+  "summary": "A Quote subscription: each full MBP packet streams as a Quote frame with OHLC, volume and the book totals.",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._parse_packet",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._on_ticks",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize",
+      "test/test_hdfcsky_quote_feed.py::FULL"
+    ],
+    "notes": [
+      "Prices from the web test's FULL packet; the book, its totals and the circuit band are added."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize; feed::bridge::quote_fields"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize; feed::bridge::quote_fields"
+    },
+    {
+      "key": "last_price",
+      "kind": "open",
+      "reason": "The HDFC Securities web adapter repeats ltp as last_price in every frame; the desktop's common carrier sends ltp only (a per-broker alias for lane wire).",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, while feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms.",
+      "ref": "hdfcsecurities_websocket.py:725-726; brokers/hdfcsecurities/streaming.rs::on_packet"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts no mode in its data.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The web sends OI in Quote frames; the desktop's Quote frame carries OI only when a Depth client holds the instrument (audit C05, lane wire).",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize; feed::bridge::tick_update"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "The web sends OI in Quote frames; the desktop's Quote frame carries OI only when a Depth client holds the instrument (audit C05, lane wire).",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize; feed::bridge::tick_update"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The HDFC Securities web adapter repeats close as prev_close in every mode, LTP included; the desktop's common carrier sends close only, and in Quote and Depth only (a per-broker alias for lane wire). In an LTP frame built from an LTP-type packet the web's value is a proto3 0.0 (a web defect, see ltp_mode).",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The HDFC Securities web adapter sends the broker token as a string in every frame; the desktop's common carrier has no such field. Lead decision: carry it as a per-broker extra, or record it as a desktop decision.",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    }
+  ]
+}

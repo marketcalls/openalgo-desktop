@@ -22,6 +22,7 @@ mod inventory;
 mod angel;
 mod dhan;
 mod groww;
+mod hdfcsecurities;
 mod hdfcsky;
 mod kotak;
 mod sahi;
@@ -33,6 +34,7 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("angel", angel::CASES),
     ("dhan", dhan::CASES),
     ("groww", groww::CASES),
+    ("hdfcsecurities", hdfcsecurities::CASES),
     ("hdfcsky", hdfcsky::CASES),
     ("kotak", kotak::CASES),
     ("sahi", sahi::CASES),

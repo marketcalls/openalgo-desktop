@@ -1,0 +1,109 @@
+{
+  "broker": "hdfcsecurities",
+  "summary": "NIFTY on NSE_INDEX: an index packet at Quote, then with a Depth client too: an index has OHLC and the previous close, no volume, totals, book or OI.",
+  "scenarios": [
+    "index",
+    "absent-field",
+    "first-full-packet",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._parse_packet",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._on_ticks",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "indexData's percentChange and yearly high and low are not read by either side."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "An index packet carries no trade quantity, average price or book totals; the web sends them as 0 (tick.get(..., 0)) instead of leaving them out (web openalgo#2376); the desktop's index frame leaves them out.",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    },
+    {
+      "key": "last_price",
+      "kind": "open",
+      "reason": "The HDFC Securities web adapter repeats ltp as last_price in every frame; the desktop's common carrier sends ltp only (a per-broker alias for lane wire).",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "An index packet carries no trade quantity, average price or book totals; the web sends them as 0 (tick.get(..., 0)) instead of leaving them out (web openalgo#2376); the desktop's index frame leaves them out.",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts no mode in its data.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The HDFC Securities web adapter repeats close as prev_close in every mode, LTP included; the desktop's common carrier sends close only, and in Quote and Depth only (a per-broker alias for lane wire). In an LTP frame built from an LTP-type packet the web's value is a proto3 0.0 (a web defect, see ltp_mode).",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends an index's change under the canonical names of the recorded Zerodha transcript beside the HDFC Securities adapter's change and change_percent (feed::dialect); the web adapter sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends an index's change under the canonical names of the recorded Zerodha transcript beside the HDFC Securities adapter's change and change_percent (feed::dialect); the web adapter sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The HDFC Securities web adapter sends the broker token as a string in every frame; the desktop's common carrier has no such field. Lead decision: carry it as a per-broker extra, or record it as a desktop decision.",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "An index packet carries no trade quantity, average price or book totals; the web sends them as 0 (tick.get(..., 0)) instead of leaving them out (web openalgo#2376); the desktop's index frame leaves them out.",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "An index packet carries no trade quantity, average price or book totals; the web sends them as 0 (tick.get(..., 0)) instead of leaving them out (web openalgo#2376); the desktop's index frame leaves them out.",
+      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "An index packet carries no OI. Once a Depth client holds the index, the desktop's frames send OI 0 (the feed fills a zero and the bridge carries OI at Depth) instead of leaving it out as the web does: a desktop defect (absent OI not marked).",
+      "ref": "brokers/hdfcsecurities/streaming.rs (no AbsentFields); feed::bridge::quote_fields"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "An index packet carries no OI. Once a Depth client holds the index, the desktop's frames send OI 0 (the feed fills a zero and the bridge carries OI at Depth) instead of leaving it out as the web does: a desktop defect (absent OI not marked).",
+      "ref": "brokers/hdfcsecurities/streaming.rs (no AbsentFields); feed::bridge::quote_fields"
+    }
+  ]
+}

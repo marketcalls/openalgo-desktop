@@ -1,0 +1,8 @@
+# HDFC Securities protobuf GenericDTOList: an OI-only packet (NSE_FO_OI) before any full packet
+# Written by scripts/feed_corpus/protolite.py from the web's hdfcsecurities_market_pb2.py.
+0a13            # genericDTOList (GenericDTO, 19 bytes)
+08b99102        #   instrumentId = 35001
+1204            #   mbpData (MBPData, 4 bytes)
+88018906        #     oi = 777
+4098c895ffbc31  #   packetTimestamp = 1699999999000
+480e            #   packetType = NSE_FO_OI

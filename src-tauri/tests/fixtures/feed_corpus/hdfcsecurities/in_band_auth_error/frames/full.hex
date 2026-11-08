@@ -1,0 +1,66 @@
+# HDFC Securities protobuf GenericDTOList: a full MBP packet for RELIANCE after the error
+# Written by scripts/feed_corpus/protolite.py from the web's hdfcsecurities_market_pb2.py.
+# packetType is absent: NSE_CM_ALL is 0, the proto3 default a sender leaves out.
+0a8e02                # genericDTOList (GenericDTO, 270 bytes)
+08c516                #   instrumentId = 2885
+128102                #   mbpData (MBPData, 257 bytes)
+090000000000729740    #     lastTradedPrice = 1500.5
+1080e2cfaa06          #     lastTradeTime = 1700000000
+290000000000489740    #     openPrice = 1490.0
+310000000000989740    #     highPrice = 1510.0
+3900000000005c9740    #     closingPrice = 1495.0
+410000000000209740    #     lowPrice = 1480.0
+48b960                #     volumeTradedToday = 12345
+5003                  #     lastTradeQuantity = 3
+5900000000006c9740    #     averageTradePrice = 1499.0
+62a401                #     marketDepthDTOList (MarketDepthDTOList, 164 bytes)
+0a0f                  #       marketDepthDTO (MarketDepthDTO, 15 bytes)
+0878                  #         quantity = 120
+11cdcccccccc719740    #         price = 1500.45
+1804                  #         numberOfOrders = 4
+2001                  #         buyFlag = True
+0a10                  #       marketDepthDTO (MarketDepthDTO, 16 bytes)
+08c801                #         quantity = 200
+119a99999999719740    #         price = 1500.4
+1806                  #         numberOfOrders = 6
+2001                  #         buyFlag = True
+0a0f                  #       marketDepthDTO (MarketDepthDTO, 15 bytes)
+084b                  #         quantity = 75
+116666666666719740    #         price = 1500.35
+1802                  #         numberOfOrders = 2
+2001                  #         buyFlag = True
+0a10                  #       marketDepthDTO (MarketDepthDTO, 16 bytes)
+08b602                #         quantity = 310
+113333333333719740    #         price = 1500.3
+1809                  #         numberOfOrders = 9
+2001                  #         buyFlag = True
+0a0f                  #       marketDepthDTO (MarketDepthDTO, 15 bytes)
+0832                  #         quantity = 50
+110000000000719740    #         price = 1500.25
+1801                  #         numberOfOrders = 1
+2001                  #         buyFlag = True
+0a0d                  #       marketDepthDTO (MarketDepthDTO, 13 bytes)
+085a                  #         quantity = 90
+113333333333729740    #         price = 1500.55
+1803                  #         numberOfOrders = 3
+0a0e                  #       marketDepthDTO (MarketDepthDTO, 14 bytes)
+08b401                #         quantity = 180
+116666666666729740    #         price = 1500.6
+1805                  #         numberOfOrders = 5
+0a0d                  #       marketDepthDTO (MarketDepthDTO, 13 bytes)
+083c                  #         quantity = 60
+119a99999999729740    #         price = 1500.65
+1802                  #         numberOfOrders = 2
+0a0e                  #       marketDepthDTO (MarketDepthDTO, 14 bytes)
+089003                #         quantity = 400
+11cdcccccccc729740    #         price = 1500.7
+180b                  #         numberOfOrders = 11
+0a0d                  #       marketDepthDTO (MarketDepthDTO, 13 bytes)
+0819                  #         quantity = 25
+110000000000739740    #         price = 1500.75
+1801                  #         numberOfOrders = 1
+68982a                #     totalBuyQuantity = 5400
+70d42f                #     totalSellQuantity = 6100
+79cdcccccccc079540    #     lowerCircuitLimit = 1345.95
+81013333333333b49940  #     upperCircuitLimit = 1645.05
+4080d095ffbc31        #   packetTimestamp = 1700000000000
