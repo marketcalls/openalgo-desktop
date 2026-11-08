@@ -40,20 +40,20 @@
     },
     {
       "key": "close",
-      "kind": "desktop-decision",
-      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "kind": "open",
+      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
       "key": "high",
-      "kind": "desktop-decision",
-      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "kind": "open",
+      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
       "key": "low",
-      "kind": "desktop-decision",
-      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "kind": "open",
+      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
@@ -70,8 +70,8 @@
     },
     {
       "key": "open",
-      "kind": "desktop-decision",
-      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "kind": "open",
+      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
@@ -88,14 +88,14 @@
     },
     {
       "key": "value",
-      "kind": "desktop-decision",
-      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "kind": "open",
+      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
       "key": "volume",
-      "kind": "desktop-decision",
-      "reason": "An LTP frame carries the last price and its time only, as documented (docs/prompt/websockets-format.md:64, LTP Mode) and as every desktop broker sends it; the web's Groww adapter forwards its Quote normalisation of the tick to LTP subscribers.",
+      "kind": "open",
+      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     }
   ]
