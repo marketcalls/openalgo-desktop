@@ -331,6 +331,23 @@ pub type ReleaseRefusals = Vec<(FeedSubscription, String)>;
 /// answer (`BrokerFeed::release_frames`).
 pub type ReleaseAnswer = tokio::sync::oneshot::Receiver<ReleaseRefusals>;
 
+/// A broker's step before a new instrument is subscribed
+/// (`Broker::feed_presubscribe`): each subscription as the feed will
+/// stream it (only its broker fields, `token`, `brsymbol` and
+/// `brexchange`, may change), or why it cannot be, in the web's words, in
+/// the order asked. Samco looks an index's streaming id up over REST, as
+/// the web does when subscribing. The manager awaits it within a deadline
+/// and holds no lock meanwhile.
+pub type Presubscribe = Arc<
+    dyn Fn(
+            Vec<FeedSubscription>,
+        ) -> futures_util::future::BoxFuture<
+            'static,
+            Vec<std::result::Result<FeedSubscription, String>>,
+        > + Send
+        + Sync,
+>;
+
 /// How a broker socket ended, for `BrokerFeed::on_ended` (audit P-12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ended<'a> {

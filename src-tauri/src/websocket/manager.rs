@@ -24,7 +24,9 @@
 //! any more is stopped. The command channels are bounded; the event channel
 //! is a bounded broadcast whose slow receivers see `Lagged` and skip ahead.
 
-use crate::brokers::common::streaming::{BrokerFeed, FeedSubscription, MarketEvent, StopKind};
+use crate::brokers::common::streaming::{
+    BrokerFeed, FeedSubscription, MarketEvent, Presubscribe, StopKind,
+};
 use crate::error::{AppError, Result};
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -37,6 +39,7 @@ use tokio::task::JoinHandle;
 mod heartbeat;
 mod losses;
 mod pool;
+mod presubscribe;
 mod registry;
 mod release;
 mod stats;
@@ -191,6 +194,9 @@ pub struct WebSocketManager {
     /// Moves when `disconnect` forgets every reference, so a release
     /// answered after it puts nothing back.
     epoch: AtomicU64,
+    /// The broker session's step before a new instrument is subscribed
+    /// (`presubscribe`).
+    presubscribe: Mutex<Option<Presubscribe>>,
 }
 
 impl Default for WebSocketManager {
@@ -218,6 +224,7 @@ impl WebSocketManager {
             config,
             stats: Arc::new(FeedStats::default()),
             epoch: AtomicU64::new(0),
+            presubscribe: Mutex::new(None),
         }
     }
 
@@ -365,6 +372,7 @@ impl WebSocketManager {
         self.epoch.fetch_add(1, Ordering::SeqCst);
         self.registry.lock().clear();
         *self.factory.lock() = None;
+        *self.presubscribe.lock() = None;
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
     }
@@ -387,6 +395,12 @@ impl WebSocketManager {
     /// Add references, all or none; the broker is told only about
     /// instruments whose effective mode changed.
     pub async fn subscribe(&self, subs: Vec<FeedSubscription>) -> Result<()> {
+        let subs = self
+            .presubscribed(subs)
+            .await
+            .into_iter()
+            .collect::<std::result::Result<Vec<_>, String>>()
+            .map_err(AppError::Validation)?;
         let usable = self.usable();
         let deltas = {
             let mut reg = self.registry.lock();
@@ -417,15 +431,25 @@ impl WebSocketManager {
     /// another instrument, counted across every consumer of this manager
     /// (feed clients, the sandbox, strategies, Flow): one answer each, so
     /// a batch that crosses the limit still starts its admissible members
-    /// and refuses the rest with why (audit C02).
+    /// and refuses the rest with why (audit C02). A new instrument goes
+    /// through the broker's step first (`set_presubscribe`), and what it
+    /// refuses is refused with its words.
     pub async fn admit(&self, subs: Vec<FeedSubscription>) -> Vec<std::result::Result<(), String>> {
+        let prepared = self.presubscribed(subs).await;
         let usable = self.usable();
         let (answers, deltas) = {
             let mut reg = self.registry.lock();
             let open = |c: usize| usable.get(c).copied().unwrap_or(true);
-            let mut answers = Vec::with_capacity(subs.len());
+            let mut answers = Vec::with_capacity(prepared.len());
             let mut deltas = Vec::new();
-            for s in subs {
+            for p in prepared {
+                let s = match p {
+                    Ok(s) => s,
+                    Err(why) => {
+                        answers.push(Err(why));
+                        continue;
+                    }
+                };
                 match reg.place(&s, &open) {
                     Some(conn) => {
                         deltas.extend(reg.add(s, conn));
@@ -516,6 +540,8 @@ impl Drop for WebSocketManager {
 mod deadline_tests;
 #[cfg(test)]
 mod pool_tests;
+#[cfg(test)]
+mod presubscribe_tests;
 #[cfg(test)]
 mod release_tests;
 #[cfg(test)]

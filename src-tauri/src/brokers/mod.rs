@@ -592,6 +592,15 @@ pub trait Broker: Send + Sync {
     fn feed_refusal(&self, _exchange: &str) -> Option<String> {
         None
     }
+
+    /// The step the live feed awaits before it subscribes an instrument no
+    /// consumer holds yet (`common::streaming::Presubscribe`): Samco looks
+    /// a cold index's streaming id up over REST, as the web does when
+    /// subscribing. Default: none, every subscription streams as the master
+    /// describes it.
+    fn feed_presubscribe(&self) -> Option<common::streaming::Presubscribe> {
+        None
+    }
 }
 
 /// One API plan of a broker (`Broker::rate_plans`).
