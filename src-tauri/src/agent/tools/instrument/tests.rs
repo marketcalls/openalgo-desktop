@@ -92,6 +92,7 @@ async fn the_card_carries_every_section_and_the_model_reads_two_lines() {
         exchange: "NSE".into(),
         product: "MIS".into(),
         quantity: 10,
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: 1500.0,
         ltp: 1520.5,

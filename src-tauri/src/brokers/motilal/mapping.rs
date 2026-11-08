@@ -340,6 +340,7 @@ pub fn map_positions(rows: &[Value], symbols: &SymbolResolver) -> Vec<Position> 
                 product: reverse_map_product_type(&vs(r, "productname").unwrap_or_default())
                     .to_string(),
                 quantity: net as i32,
+                average_price_basis: None,
                 overnight_quantity: 0,
                 average_price: avg,
                 ltp: vf(r, "LTP"),

@@ -316,6 +316,7 @@ pub fn position_row(p: &Value, symbols: &SymbolResolver) -> Position {
         exchange,
         product: reverse_product(&s(p, "product")).unwrap_or("MIS").into(),
         quantity: i(p, "netQty") as i32,
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: avg,
         ltp: 0.0,

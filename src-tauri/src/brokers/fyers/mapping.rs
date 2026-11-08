@@ -454,6 +454,7 @@ pub fn map_positions(rows: Vec<FyersPosition>, symbols: &SymbolResolver) -> Vec<
                 exchange,
                 product: oa_product(&p.product_type),
                 quantity: clamp_i32(p.net_qty),
+                average_price_basis: None,
                 overnight_quantity: clamp_i32(p.cf_buy_qty - p.cf_sell_qty),
                 average_price: round2(p.net_avg),
                 ltp: round2(p.ltp),

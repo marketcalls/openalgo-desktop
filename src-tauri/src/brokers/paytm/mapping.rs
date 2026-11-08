@@ -485,6 +485,7 @@ pub fn map_positions(rows: &[PaytmPosition], symbols: &SymbolResolver) -> Vec<Po
                 exchange,
                 product: oa_product(&p.product),
                 quantity: clamp_i32(p.quantity()),
+                average_price_basis: None,
                 overnight_quantity: clamp_i32(p.cf_buy_qty - p.cf_sell_qty),
                 average_price: round2(average),
                 ltp: p.last_traded_price,

@@ -1345,6 +1345,7 @@ fn closing_a_fractional_crypto_position_sells_its_exact_size() {
             exchange: "CRYPTO".into(),
             product: product.into(),
             quantity: 0,
+            average_price_basis: None,
             overnight_quantity: 0,
             average_price: 0.0,
             ltp: 0.0,

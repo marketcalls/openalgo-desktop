@@ -498,6 +498,7 @@ pub fn map_positions(rows: Vec<KitePosition>, symbols: &SymbolResolver) -> Vec<P
                 exchange: p.exchange.clone(),
                 product: p.product.clone(),
                 quantity: units(p.quantity),
+                average_price_basis: None,
                 overnight_quantity: units(p.overnight_quantity),
                 average_price: round2(p.average_price),
                 ltp: round2(p.last_price),

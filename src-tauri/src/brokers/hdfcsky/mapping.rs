@@ -667,6 +667,7 @@ pub fn map_position(p: &Value, symbols: &SymbolResolver) -> Position {
         exchange,
         product: product_of(&s(p, "product")),
         quantity: i32_of(net),
+        average_price_basis: None,
         overnight_quantity: i32_of(i(p, "cf_buy_quantity") - i(p, "cf_sell_quantity")),
         average_price: round2(avg),
         ltp: round2(ltp),

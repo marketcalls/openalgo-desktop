@@ -568,7 +568,18 @@ pub struct Position {
     pub buy_value: f64,
     pub sell_quantity: i32,
     pub sell_value: f64,
+    /// What `average_price` and `pnl` are measured from when it is not
+    /// what the position cost (web positionbook `average_price_basis`):
+    /// `carry_forward_valuation` for a Kotak leg carried overnight at the
+    /// previous day's settlement. `None` on every row whose average is an
+    /// entry price, and then absent from the position book.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub average_price_basis: Option<String>,
 }
+
+/// The `average_price_basis` of a carried leg valued at the previous day's
+/// settlement rather than at its cost.
+pub const CARRY_FORWARD_VALUATION: &str = "carry_forward_valuation";
 
 /// Holding row.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

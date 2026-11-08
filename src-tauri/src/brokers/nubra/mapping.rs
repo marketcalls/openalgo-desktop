@@ -629,6 +629,7 @@ pub fn positions(resp: &Value, symbols: &SymbolResolver) -> Vec<Position> {
                 exchange,
                 product: product_from(&s(p, "deliveryType")).to_string(),
                 quantity: qty as i32,
+                average_price_basis: None,
                 overnight_quantity: 0,
                 average_price: num(p, "avgPrice") / 100.0,
                 ltp: first_num(p, &["ltp", "lastTradedPrice"]) / 100.0,

@@ -523,6 +523,7 @@ fn position_whole(p: &RawPosition, symbols: &SymbolResolver) -> Position {
         exchange: EXCHANGE.into(),
         product: if p.is_spot { "CNC" } else { "NRML" }.into(),
         quantity: whole(p.size),
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: p.entry_price,
         ltp: 0.0,

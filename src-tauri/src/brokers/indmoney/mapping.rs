@@ -498,6 +498,7 @@ pub fn map_position(symbols: &SymbolResolver, p: &Value) -> Position {
         exchange,
         product,
         quantity: int(net),
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: avg,
         ltp,

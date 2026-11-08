@@ -91,6 +91,7 @@ fn pos(symbol: &str, exchange: &str, product: &str, qty: i32) -> Position {
         exchange: exchange.into(),
         product: product.into(),
         quantity: qty,
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: 100.0,
         ltp: 100.0,

@@ -420,6 +420,7 @@ pub fn to_position(symbols: &SymbolResolver, row: &Value) -> Position {
         product: reverse_product(&text(row, "OrderFor"), &exchange),
         exchange,
         quantity: net as i32,
+        average_price_basis: None,
         overnight_quantity: int(row, "BodQty") as i32,
         average_price: avg,
         ltp: num(row, "LTP"),

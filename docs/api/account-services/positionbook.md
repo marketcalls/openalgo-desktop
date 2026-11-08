@@ -109,6 +109,7 @@ curl -X POST http://127.0.0.1:5000/api/v1/positionbook \
 | average_price | string (live), number (analyzer) | Average entry price; live, a string with two decimals |
 | ltp | number | Last traded price, two decimals |
 | pnl | number | Profit or loss, two decimals |
+| average_price_basis | string | Present only when `average_price` and `pnl` are not measured from what the position cost. See [When the Entry Price Is Not Available](#when-the-entry-price-is-not-available) |
 | lot_size | number | Analyzer mode, and CRYPTO rows on Delta Exchange: the contract size (0.001 for BTCUSD.P) |
 | pnlpercent, unrealized_pnl, today_realized_pnl, total_pnl_today | number | Analyzer mode only |
 
@@ -133,9 +134,18 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 - Every row carries the OpenAlgo symbol, so `/placesmartorder`, `/closeposition` and `/openposition` match it.
 - Rate limit: 100 requests per second per caller. See [Rate limiting](../rate-limiting.md).
 
+## When the Entry Price Is Not Available
+
+`average_price` is the price the position was entered at, and `pnl` is measured from it. A row whose numbers are measured from something else says so in `average_price_basis`; the key is absent on every row whose average is an entry price, as on the web.
+
+| Value | Meaning |
+|-------|---------|
+| `carry_forward_valuation` | The position was carried over from a previous day, and the broker reports the overnight leg re-valued at the previous day's settlement price rather than at what it cost. `average_price` is that settlement price and `pnl` is the move since it, the day's profit and loss, not the position's. |
+
+Only Kotak Neo sets it, when it cannot recover the cost of a carried position: OpenAlgo uses Kotak's uploaded price (`upldPrc`) first, then the matching Holdings `averagePrice` for a carried NSE or BSE cash position, and marks the row only when neither is there. A carried F&O position has no cost in Kotak's API, so it is always marked.
+
 ## In the desktop
 
-- In the desktop, rows never carry `average_price_basis`. On the web, a Kotak Neo position carried over from a previous day has `average_price_basis: "carry_forward_valuation"`, meaning its `average_price` is the previous day's settlement price, not the entry price. The desktop reports the same valuation for such a position without saying so.
 - In the desktop, `quantity`, `ltp` and `pnl` are JSON numbers for every broker, and `average_price` a two-decimal string. Some of the web's broker adapters return them all as strings. A client that parses them as numbers works with both.
 
 ---

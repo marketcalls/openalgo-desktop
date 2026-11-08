@@ -400,6 +400,7 @@ pub fn map_positions(rows: Vec<AngelPosition>, symbols: &SymbolResolver) -> Vec<
             product: oa_product(&p.exchange, &p.producttype),
             exchange: p.exchange,
             quantity: clamp(p.netqty),
+            average_price_basis: None,
             overnight_quantity: clamp(p.cfbuyqty - p.cfsellqty),
             average_price: p.avgnetprice,
             ltp: p.ltp,

@@ -454,6 +454,7 @@ pub fn map_position(p: &GrowwPosition, segment: &str, symbols: &SymbolResolver) 
         exchange,
         product: reverse_product(&p.product),
         quantity: clamp_i32(net),
+        average_price_basis: None,
         overnight_quantity: clamp_i32(
             p.carry_forward_credit_quantity - p.carry_forward_debit_quantity,
         ),

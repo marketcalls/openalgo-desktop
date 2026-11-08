@@ -98,7 +98,7 @@ pub fn trade_row(t: &Trade) -> Value {
 }
 
 pub fn position_row(p: &Position) -> Value {
-    json!({
+    let mut row = json!({
         "symbol": p.symbol,
         "exchange": p.exchange,
         "product": p.product,
@@ -106,7 +106,14 @@ pub fn position_row(p: &Position) -> Value {
         "pnl": round2(p.pnl),
         "average_price": format!("{:.2}", p.average_price),
         "ltp": round2(p.ltp),
-    })
+    });
+    // Present only when the average is not an entry price (web
+    // docs/api/account-services/positionbook.md, "When the Entry Price Is
+    // Not Available"); absent on every other row.
+    if let Some(basis) = &p.average_price_basis {
+        row["average_price_basis"] = json!(basis);
+    }
+    row
 }
 
 pub fn holding_row(h: &Holding) -> Value {

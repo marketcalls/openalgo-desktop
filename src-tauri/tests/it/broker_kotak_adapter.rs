@@ -1130,9 +1130,14 @@ async fn a_carried_equity_is_valued_at_its_holdings_cost_read_once_per_session()
     let b = broker(&s);
     let p = b.get_positions(&auth(&s)).await.unwrap();
     assert_eq!((p[0].symbol.as_str(), p[0].average_price), ("SBIN", 750.0));
+    assert_eq!(p[0].average_price_basis, None);
     assert_eq!(
         p[1].average_price, 212.8,
         "an F&O leg keeps the carried valuation"
+    );
+    assert_eq!(
+        p[1].average_price_basis.as_deref(),
+        Some("carry_forward_valuation")
     );
     b.get_positions(&auth(&s)).await.unwrap();
     assert_eq!(m.calls("GET", "/portfolio/v1/holdings").len(), 1);
@@ -1178,6 +1183,10 @@ async fn a_holdings_failure_leaves_the_carry_forward_valuation() {
     let b = broker(&s);
     let p = b.get_positions(&auth(&s)).await.unwrap();
     assert_eq!(p[0].average_price, 800.0);
+    assert_eq!(
+        p[0].average_price_basis.as_deref(),
+        Some("carry_forward_valuation")
+    );
     // Not remembered: the next read asks again.
     b.get_positions(&auth(&s)).await.unwrap();
     assert_eq!(m.calls("GET", "/portfolio/v1/holdings").len(), 2);

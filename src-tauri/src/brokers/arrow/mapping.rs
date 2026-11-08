@@ -375,6 +375,7 @@ pub fn map_positions(rows: Vec<ArrowPosition>, symbols: &SymbolResolver) -> Vec<
             exchange: p.exchange.clone(),
             product: product_from_arrow(&p.product),
             quantity: i32_of(p.qty),
+            average_price_basis: None,
             overnight_quantity: 0,
             average_price: round2(p.avg_price),
             ltp: round2(p.ltp),

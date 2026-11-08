@@ -335,6 +335,7 @@ pub fn position_from(r: &Value, symbols: &SymbolResolver) -> Position {
         exchange,
         product: reverse_product(&s(r, "product")).to_string(),
         quantity: net as i32,
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: py_round(avg, 2),
         ltp,

@@ -385,6 +385,7 @@ pub(crate) fn map_positions(rows: &[VortexPosition], symbols: &SymbolResolver) -
             let (realized, unrealized) = p.pnl_split().unwrap_or_default();
             Position {
                 quantity: clamp_i32(k.units(p.quantity)),
+                average_price_basis: None,
                 overnight_quantity: 0,
                 average_price: round2(p.average_price),
                 ltp: round2(p.ltp),

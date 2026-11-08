@@ -410,6 +410,7 @@ pub fn position(p: &Value, symbols: &SymbolResolver) -> Position {
         exchange,
         product: text(p.get("productCode")),
         quantity: signed_net(p) as i32,
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: round2(avg),
         ltp: round2(num(p.get("lastTradedPrice"))),

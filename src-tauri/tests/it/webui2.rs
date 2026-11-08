@@ -356,6 +356,7 @@ fn position(symbol: &str, qty: i32, avg: f64, pnl: f64) -> Position {
         exchange: "NSE".into(),
         product: "MIS".into(),
         quantity: qty,
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: avg,
         ltp: 100.0,

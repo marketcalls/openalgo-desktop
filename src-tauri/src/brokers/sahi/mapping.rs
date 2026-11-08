@@ -304,6 +304,7 @@ pub fn map_position(row: &Value, ltp: f64, symbols: &SymbolResolver) -> Position
         exchange,
         product: product_name(&s(row, "product")),
         quantity: net,
+        average_price_basis: None,
         overnight_quantity: int32(row.get("cf_buy_qty")) - int32(row.get("cf_sell_qty")),
         average_price: if net != 0 { avg } else { 0.0 },
         ltp,

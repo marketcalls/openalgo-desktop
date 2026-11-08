@@ -521,6 +521,7 @@ pub fn map_positions(rows: Vec<UpstoxPosition>, symbols: &SymbolResolver) -> Vec
             average_price: position_average(&p),
             exchange: p.exchange,
             quantity: clamp_i32(p.quantity),
+            average_price_basis: None,
             overnight_quantity: clamp_i32(p.overnight_quantity),
             ltp: p.last_price,
             pnl: p.pnl,

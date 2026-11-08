@@ -538,7 +538,7 @@ pub fn map_position(p: &Value, symbols: &SymbolResolver, ltp: f64) -> Position {
     let exchange = row_exchange(&s(p, "exSeg"));
     let quantity = net_quantity(p);
     let factor = price_factor(p);
-    let (cf_buy, cf_sell, _carried) = carry_forward_amounts(p, factor);
+    let (cf_buy, cf_sell, carried) = carry_forward_amounts(p, factor);
     let total_buy = cf_buy + n(p, "buyAmt");
     let total_sell = cf_sell + n(p, "sellAmt");
     let buy_qty = n(p, "flBuyQty") + n(p, "cfBuyQty");
@@ -565,6 +565,10 @@ pub fn map_position(p: &Value, symbols: &SymbolResolver, ltp: f64) -> Position {
         symbol: openalgo_symbol(symbols, p, &exchange),
         product: s(p, "prod"),
         quantity: clamp_i32(quantity as f64),
+        // Said on the row when its money is measured from Kotak's
+        // overnight re-valuation rather than its cost, closed rows
+        // included (web `transform_positions_data`).
+        average_price_basis: carried.then(|| CARRY_FORWARD_VALUATION.to_string()),
         overnight_quantity: clamp_i32(n(p, "cfBuyQty") - n(p, "cfSellQty")),
         average_price,
         ltp: py_round(ltp, 2),

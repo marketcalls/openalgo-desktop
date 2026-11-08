@@ -627,6 +627,7 @@ pub fn map_position(cfg: &NorenConfig, p: &Value, symbols: &SymbolResolver) -> P
         exchange: exch.clone(),
         product: book_product(&exch, &text(p, "prd")),
         quantity: clamp_i32(i(p, "netqty")),
+        average_price_basis: None,
         overnight_quantity: clamp_i32(i(p, "cfbuyqty") - i(p, "cfsellqty")),
         average_price: avg,
         ltp: f(p, "lp"),

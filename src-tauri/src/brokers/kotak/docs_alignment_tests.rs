@@ -7,6 +7,7 @@
 use super::funds::parse_margin;
 use super::mapping::*;
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
+use crate::services::account_service::position_row;
 use serde_json::{json, Value};
 
 fn row(symbol: &str, token: &str) -> SymToken {
@@ -137,24 +138,44 @@ fn carried_option() -> Value {
 fn a_carried_equity_is_valued_at_its_holdings_cost() {
     let mut p = carried_equity();
     p[HOLDING_AVERAGE] = json!(750.0);
-    assert_eq!(map_position(&p, &master(), 0.0).average_price, 750.0);
+    let row = map_position(&p, &master(), 0.0);
+    assert_eq!(row.average_price, 750.0);
+    assert_eq!(row.average_price_basis, None, "an entry price: no basis");
     assert!(
-        !carry_forward_amounts(&p, 1.0).2,
-        "not the carry-forward valuation"
+        !position_row(&row)
+            .as_object()
+            .unwrap()
+            .contains_key("average_price_basis"),
+        "absent from the position book"
     );
 }
 
 /// `test_carried_option_keeps_the_carry_forward_valuation` and
 /// `test_a_holdings_failure_leaves_the_carry_forward_valuation` (mapping
-/// half): without a Holdings cost the leg keeps Kotak's valuation, flagged.
+/// half): without a Holdings cost the leg keeps Kotak's valuation, and the
+/// position book says so on the row (web positionbook
+/// `average_price_basis`).
 #[test]
-fn without_a_holdings_cost_the_carry_forward_valuation_stays() {
-    let option = carried_option();
-    assert_eq!(map_position(&option, &master(), 0.0).average_price, 212.8);
-    assert!(carry_forward_amounts(&option, 1.0).2);
-    let equity = carried_equity();
-    assert_eq!(map_position(&equity, &master(), 0.0).average_price, 800.0);
-    assert!(carry_forward_amounts(&equity, 1.0).2);
+fn without_a_holdings_cost_the_carry_forward_valuation_stays_and_is_said() {
+    let option = map_position(&carried_option(), &master(), 0.0);
+    assert_eq!(option.average_price, 212.8);
+    assert_eq!(
+        position_row(&option)["average_price_basis"],
+        "carry_forward_valuation"
+    );
+    let equity = map_position(&carried_equity(), &master(), 0.0);
+    assert_eq!(equity.average_price, 800.0);
+    assert_eq!(
+        equity.average_price_basis.as_deref(),
+        Some("carry_forward_valuation")
+    );
+    // A row traded only today has an entry price.
+    let mut today = carried_equity();
+    today["cfBuyQty"] = json!("0");
+    today["flBuyQty"] = json!("100");
+    today["buyAmt"] = json!("75000.00");
+    let row = map_position(&today, &master(), 0.0);
+    assert_eq!((row.average_price, row.average_price_basis), (750.0, None));
 }
 
 /// `test_an_uploaded_price_still_wins_over_holdings` (mapping half)

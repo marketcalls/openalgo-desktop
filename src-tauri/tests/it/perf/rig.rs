@@ -517,6 +517,7 @@ pub fn position(symbol: &str, qty: i32) -> Position {
         exchange: "NSE".into(),
         product: "MIS".into(),
         quantity: qty,
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: BASE_PRICE,
         ltp: BASE_PRICE,

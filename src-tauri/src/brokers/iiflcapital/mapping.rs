@@ -659,6 +659,7 @@ pub fn position_row(row: &Value, symbols: &SymbolResolver) -> Position {
         })
         .to_string(),
         quantity: clamp_i32(quantity),
+        average_price_basis: None,
         overnight_quantity: clamp_i32(int(row.get("carryForwardQuantity"))),
         average_price: round2(avg),
         ltp: round2(ltp),

@@ -21,6 +21,7 @@ fn position(symbol: &str, quantity: i32) -> Position {
         exchange: "NSE".into(),
         product: "MIS".into(),
         quantity,
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: 100.0,
         ltp: 101.0,

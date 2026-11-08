@@ -417,6 +417,7 @@ pub fn positions(rows: &[Value], symbols: &SymbolResolver) -> Vec<Position> {
                 exchange,
                 product: s(p, "ProductType"),
                 quantity: qty as i32,
+                average_price_basis: None,
                 overnight_quantity: 0,
                 average_price: (average_price * 100.0).round() / 100.0,
                 ltp: f(p, "ltp"),

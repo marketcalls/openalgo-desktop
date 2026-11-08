@@ -400,6 +400,7 @@ pub fn map_position(p: &Value, symbols: &SymbolResolver) -> Position {
         exchange,
         product: oa_product(&s(p, "producttype")),
         quantity: clamp(i(p, "netqty")),
+        average_price_basis: None,
         overnight_quantity: clamp(i(p, "cfbuyqty") - i(p, "cfsellqty")),
         average_price: f(p, "avgnetprice"),
         ltp: f(p, "ltp"),

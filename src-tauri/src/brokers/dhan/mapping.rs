@@ -515,6 +515,7 @@ pub fn map_positions(
             Position {
                 product: book_product(&p.product_type, &exchange),
                 quantity: clamp_i32(p.net_qty),
+                average_price_basis: None,
                 overnight_quantity: clamp_i32(p.cf_buy_qty - p.cf_sell_qty),
                 average_price: p.cost_price,
                 ltp: py_round(last, 2),

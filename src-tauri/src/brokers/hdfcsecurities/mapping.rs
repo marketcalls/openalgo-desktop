@@ -661,6 +661,7 @@ pub fn map_positions(rows: &[Value], symbols: &SymbolResolver) -> Vec<Position> 
                 exchange,
                 product: row_product(r),
                 quantity: i32_of(net),
+                average_price_basis: None,
                 overnight_quantity: 0,
                 average_price: round2(average),
                 ltp: round2(ltp),

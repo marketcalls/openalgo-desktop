@@ -181,6 +181,7 @@ pub fn map_position(p: &Value, symbols: &SymbolResolver) -> Position {
         exchange: exch.clone(),
         product: book_product(&exch, &text(p, "product")),
         quantity: clamp_i32(i(p, "netQuantity")),
+        average_price_basis: None,
         overnight_quantity: 0,
         average_price: f(p, "netAveragePrice"),
         ltp: 0.0,
