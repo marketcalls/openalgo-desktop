@@ -8,9 +8,34 @@
 use crate::brokers::common::streaming::{FeedEvent, FeedMode, NormalizedTick, QuoteField};
 use serde_json::Value;
 
+/// What a full packet says beyond the quote fields its tick copies.
+pub(crate) struct PacketFacts {
+    /// The instrument's subscription mode: an `LTP` scrip's packet is its
+    /// price, an `ALL` scrip's the full quote.
+    pub subscribed: FeedMode,
+    /// An `indexData` packet.
+    pub index: bool,
+    /// `lowerCircuitLimit` and `upperCircuitLimit` as sent.
+    pub band: (f64, f64),
+    /// `lastTradeTime` as sent.
+    pub ltt: i64,
+}
+
+/// Shape a tick that copies a full packet's quote fields, as both feeds
+/// make it: the circuit band (in `extras`, Depth frames name it as the web
+/// does, hdfcsky_adapter.py:447-452), the trade time, what the packet
+/// carries, and the change from the previous close.
+pub(crate) fn finish(t: &mut NormalizedTick, p: PacketFacts) {
+    t.extras.lower_circuit = limit(p.band.0);
+    t.extras.upper_circuit = limit(p.band.1);
+    set_trade_time(t, p.ltt);
+    mark_carriage(t, p.subscribed, p.index);
+    t.derive_change();
+}
+
 /// A band limit as sent: proto3 writes 0 for a limit the packet does not
 /// carry, and no instrument has a limit of 0.
-pub(crate) fn limit(v: f64) -> Option<f64> {
+fn limit(v: f64) -> Option<f64> {
     (v != 0.0).then_some(v)
 }
 
@@ -27,7 +52,7 @@ fn has_open_interest(exchange: &str) -> bool {
 /// full packet, whose OI counts on a derivative segment only. An index
 /// packet is a full packet at every mode, Depth included (the web publishes
 /// it on the Depth topic too), with no volume, order flow or OI.
-pub(crate) fn mark_carriage(t: &mut NormalizedTick, subscribed: FeedMode, index: bool) {
+fn mark_carriage(t: &mut NormalizedTick, subscribed: FeedMode, index: bool) {
     use QuoteField as F;
     if subscribed == FeedMode::Ltp {
         t.mode = 1;

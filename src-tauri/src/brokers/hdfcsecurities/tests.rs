@@ -10,7 +10,9 @@ use super::proto::*;
 use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use prost::Message as _;
 use serde_json::{json, Value};
 
@@ -811,7 +813,11 @@ fn feed_ticks_depth_and_partial_merge() {
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
     assert_eq!(t.symbol, "NIFTY25AUG2624500CE");
     assert_eq!(t.exchange, "NFO");
-    assert_eq!((t.mode, t.ltp, t.oi, t.volume), (3, 100.5, 900, 12345));
+    assert_eq!((t.mode, t.ltp, t.oi, t.volume), (2, 100.5, 900, 12345));
+    assert!(
+        t.knows(QuoteField::OpenInterest),
+        "a future's Quote packet has OI"
+    );
     assert_eq!(t.change, -9.5);
     assert_eq!(t.last_trade_time_ms, 1_790_000_000_000);
     let FeedEvent::Depth(d) = &ev[1] else {
@@ -828,7 +834,11 @@ fn feed_ticks_depth_and_partial_merge() {
     ));
     assert_eq!(ev.len(), 1);
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
-    assert_eq!((t.symbol.as_str(), t.mode, t.volume), ("ABC", 1, 0));
+    assert_eq!((t.symbol.as_str(), t.mode), ("ABC", 1));
+    assert!(
+        !t.knows(QuoteField::Volume),
+        "an LTP scrip's packet is its price"
+    );
     // Unsubscribed instruments are forgotten, snapshots included.
     assert_eq!(f.tracked(), (2, 2));
     f.unsubscribe_frames(&[
@@ -902,6 +912,78 @@ fn an_auth_error_text_frame_stops_the_feed() {
     ] {
         assert!(f.parse(&Message::Text(text.into())).is_empty(), "{}", text);
     }
+}
+
+/// Audit C03-C06, as on HDFC Sky: a future's `ALL` packet carries its OI
+/// and the band as the circuits, a cash equity's has no OI, a packet
+/// without a band sends no circuit, and an index reaches its Depth holders
+/// without volume, order flow, OI or a trade time.
+#[test]
+fn ticks_say_what_their_packet_carries() {
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    f.subscribe_frames(&[
+        sub("NIFTY25AUG2624500CE", "NFO", "45001", FeedMode::Quote),
+        sub("SBIN", "NSE", "3045", FeedMode::Quote),
+        sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Depth),
+    ]);
+    let mut cash = mbp_packet(packet_type::NSE_CM_ALL, 3045, 800.0, 0);
+    if let Some(m) = cash.mbp_data.as_mut() {
+        m.lower_circuit_limit = 0.0;
+        m.upper_circuit_limit = 0.0;
+    }
+    let index = GenericDto {
+        instrument_id: 26000,
+        packet_type: packet_type::NSE_INDEX,
+        index_data: Some(IndexData {
+            index_value: 24510.5,
+            opening_index: 24400.0,
+            high_index_value: 24600.0,
+            low_index_value: 24390.0,
+            closing_index: 24500.0,
+            packet_time_stamp: 1_790_000_000_999,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let frame = GenericDtoList {
+        generic_dto_list: vec![
+            mbp_packet(packet_type::NSE_FO_ALL, 45001, 100.5, 900),
+            cash,
+            index,
+        ],
+    };
+    let ev = f.parse(&Message::Binary(frame.encode_to_vec()));
+    let [FeedEvent::Tick(fut), FeedEvent::Tick(eq), FeedEvent::Tick(idx)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!((fut.mode, fut.oi), (2, 900));
+    assert!(fut.knows(QuoteField::OpenInterest));
+    assert_eq!(
+        (fut.extras.lower_circuit, fut.extras.upper_circuit),
+        (Some(5.0), Some(300.0))
+    );
+    assert!(
+        !eq.knows(QuoteField::OpenInterest),
+        "a cash equity has no OI"
+    );
+    assert_eq!(
+        (eq.extras.lower_circuit, eq.extras.upper_circuit),
+        (None, None)
+    );
+    assert_eq!(idx.mode, 3, "an index reaches its Depth holders");
+    for field in [
+        QuoteField::Volume,
+        QuoteField::LastQuantity,
+        QuoteField::AveragePrice,
+        QuoteField::TotalBuyQuantity,
+        QuoteField::TotalSellQuantity,
+        QuoteField::OpenInterest,
+        QuoteField::LastTradeTime,
+    ] {
+        assert!(!idx.knows(field), "an index has no {:?}", field);
+    }
+    assert!(idx.knows(QuoteField::Open) && idx.knows(QuoteField::Close));
+    assert_eq!((idx.timestamp_ms, idx.change), (1_790_000_000_999, 10.5));
 }
 
 /// The feed's book holds the levels the broker sent, at most five a side,

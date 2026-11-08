@@ -21,7 +21,7 @@
 //!   merged into the instrument's last full packet and never published on
 //!   their own (web openalgo#2396); that baseline lives as long as the
 //!   subscription and the socket (#2397).
-//! * Each tick says what its packet carries (`investright::mark_carriage`):
+//! * Each tick says what its packet carries (`investright::finish`):
 //!   an `LTP` scrip's price, an `ALL` scrip's full quote with OI on the
 //!   derivative segments, an index's levels without volume or OI; the
 //!   circuit band goes out as `upper_circuit` / `lower_circuit` in Depth.
@@ -490,11 +490,15 @@ impl HdfcSkyFeed {
             timestamp_ms: t.timestamp,
             ..Default::default()
         };
-        investright::set_trade_time(&mut tick, t.ltt);
-        tick.extras.lower_circuit = investright::limit(t.lower_limit);
-        tick.extras.upper_circuit = investright::limit(t.upper_limit);
-        investright::mark_carriage(&mut tick, sub.mode, t.kind == Kind::Index);
-        tick.derive_change();
+        investright::finish(
+            &mut tick,
+            investright::PacketFacts {
+                subscribed: sub.mode,
+                index: t.kind == Kind::Index,
+                band: (t.lower_limit, t.upper_limit),
+                ltt: t.ltt,
+            },
+        );
         let mut out = Vec::with_capacity(2);
         let depth = (sub.mode == FeedMode::Depth && t.has_depth()).then(|| NormalizedDepth {
             symbol: tick.symbol.clone(),

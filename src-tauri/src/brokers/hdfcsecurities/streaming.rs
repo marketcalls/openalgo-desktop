@@ -17,6 +17,11 @@
 //!   other field is a proto3 zero. They are merged into the last full packet
 //!   for the instrument and never published on their own; that packet lives
 //!   as long as the subscription and the socket.
+//! * Each tick says what its packet carries (`investright::finish`, shared
+//!   with HDFC Sky): an `LTP` scrip's price, an `ALL` scrip's full quote
+//!   with OI on the derivative segments, an index's levels without volume,
+//!   order flow or OI; the circuit band goes out as `upper_circuit` /
+//!   `lower_circuit` in Depth.
 //! * A frame's `timestamp` is the packet's own time, as on the web; `ltt`
 //!   is `lastTradeTime`, sent in epoch seconds, in milliseconds, and left
 //!   out for a packet without one (`investright::set_trade_time`).
@@ -445,25 +450,29 @@ impl HdfcSecuritiesFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
             ltp: p.ltp,
+            open: p.open,
+            high: p.high,
+            low: p.low,
             close: p.close,
+            volume: p.volume,
+            last_quantity: p.ltq,
+            average_price: p.average_price,
+            total_buy_quantity: p.total_buy_quantity,
+            total_sell_quantity: p.total_sell_quantity,
+            oi: p.oi,
             timestamp_ms: p.timestamp_ms,
             ..Default::default()
         };
-        investright::set_trade_time(&mut t, p.ltt);
-        if sub.mode >= FeedMode::Quote {
-            t.open = p.open;
-            t.high = p.high;
-            t.low = p.low;
-            t.volume = p.volume;
-            t.last_quantity = p.ltq;
-            t.average_price = p.average_price;
-            t.total_buy_quantity = p.total_buy_quantity;
-            t.total_sell_quantity = p.total_sell_quantity;
-            t.oi = p.oi;
-        }
-        t.derive_change();
+        investright::finish(
+            &mut t,
+            investright::PacketFacts {
+                subscribed: sub.mode,
+                index: p.kind == Kind::Index,
+                band: (p.lower_limit, p.upper_limit),
+                ltt: p.ltt,
+            },
+        );
         let depth = (sub.mode == FeedMode::Depth)
             .then(|| p.depth.clone())
             .flatten()
