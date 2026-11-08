@@ -1,6 +1,6 @@
 {
   "broker": "definedge",
-  "summary": "A future held at Quote by one client and at Depth by another: the desktop subscribes the depth feed alone while Depth is held (the touchline goes) and both frames carry OI; once Depth is released the touchline comes back and the Quote frame keeps the last Depth packet's OI, not the one just sent.",
+  "summary": "A future held at Quote by one client and at Depth by another: the desktop subscribes the depth feed alone while Depth is held (the touchline goes) and both frames carry OI; once Depth is released the touchline comes back and the Quote frame carries the OI just sent.",
   "scenarios": [
     "derivative-oi",
     "mode-change",
@@ -109,12 +109,6 @@
       "kind": "open",
       "reason": "The web sends the upper circuit (Definedge `uc`); the desktop's common carrier drops it.",
       "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "Once the Depth holder leaves, the Quote frame carries the OI of the last Depth-mode packet: the feed marks a packet with the subscription's mode, a Quote-mode packet does not carry OI, and the bridge's snapshot keeps the earlier value (14250000 against the 14262000 Definedge sent). Phase B: the packet's own mode, OI marked carried in Quote (phase-b.md rules 1 and 3).",
-      "ref": "streaming.rs DefinedgeFeed::tick (mode: sub.mode); feed/bridge/snapshot.rs merge"
     }
   ]
 }

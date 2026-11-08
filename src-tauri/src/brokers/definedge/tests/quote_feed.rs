@@ -295,3 +295,31 @@ fn a_trade_clock_is_placed_on_the_day_it_was_heard() {
     );
     assert_eq!(clock_on_day_of("2:25 PM", heard), None);
 }
+
+/// Web `_QUOTE_FIELDS` sends `oi` in Quote whenever Definedge sent it: a
+/// Quote packet carries its OI (the packet's mode, not the
+/// subscription's), so a Quote holder never keeps an older OI.
+#[test]
+fn a_quote_carries_the_oi_definedge_sent() {
+    let mut f = DefinedgeFeed::new("wss://x/NorenWSTRTP/", "UID1", "suser");
+    f.subscribe_frames(&[sub(
+        "NIFTY25NOV25FUT",
+        "NFO",
+        "NFO",
+        "52345",
+        FeedMode::Quote,
+    )]);
+    let ev = f.parse_text(r#"{"t":"tf","e":"NFO","tk":"52345","lp":"24415.00","oi":"14262000"}"#);
+    let quote = last(Frames::new("definedge").at(&ev, Mode::Quote));
+    assert_eq!(quote["oi"], 14_262_000);
+}
+
+/// A message without a price publishes nothing, never an LTP of 0 (the
+/// web leaves `ltp` out of such a Quote; the desktop's frame always has
+/// one, so it waits for the first price).
+#[test]
+fn a_quote_without_a_price_publishes_nothing() {
+    let mut f = feed(FeedMode::Quote);
+    let ev = f.parse_text(r#"{"t":"tk","e":"NSE","tk":"2885","o":"1382.60","c":"1391.00"}"#);
+    assert!(Frames::new("definedge").at(&ev, Mode::Quote).is_empty());
+}

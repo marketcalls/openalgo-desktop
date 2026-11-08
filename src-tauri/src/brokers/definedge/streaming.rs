@@ -118,8 +118,10 @@ const DEPTH_ONLY_KEYS: [&str; 8] = ["tbq", "tsq", "bp2", "sp2", "bq2", "sq2", "l
 /// A Quote is built once the snapshot holds a price, OHLC or volume.
 const QUOTE_KEYS: [&str; 6] = ["lp", "o", "h", "l", "c", "v"];
 
-/// The quote fields and the raw keys that carry them.
-const QUOTE_SOURCES: [(QuoteField, &str); 10] = [
+/// The quote fields and the raw keys that carry them. A message without a
+/// price (`lp`) publishes nothing: no LTP of 0.
+const QUOTE_SOURCES: [(QuoteField, &str); 11] = [
+    (QuoteField::Ltp, "lp"),
     (QuoteField::Open, "o"),
     (QuoteField::High, "h"),
     (QuoteField::Low, "l"),
@@ -286,7 +288,12 @@ impl DefinedgeFeed {
     /// The tick for a subscriber at `sub.mode`, from what the snapshot
     /// holds; `None` when that mode has nothing to send yet (LTP without a
     /// price, a Quote before any price, OHLC or volume; web
-    /// `_normalize_raw_data`).
+    /// `_normalize_raw_data`). Its mode is the packet's, not the
+    /// subscription's: every touchline and depth message carries the quote
+    /// (Quote), and OI rides it whenever Definedge sent one, as the web's
+    /// Quote sends `oi` (`_QUOTE_FIELDS`). With the subscription's mode a
+    /// Quote packet carried no OI, and the bridge kept a Depth packet's
+    /// stale OI once the Depth holder left.
     fn tick(sub: &SubInfo, d: &Map<String, Value>) -> Option<NormalizedTick> {
         let ready = match sub.mode {
             FeedMode::Ltp => sent(d, "lp"),
@@ -301,7 +308,7 @@ impl DefinedgeFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
+            mode: FeedMode::Quote.code(),
             ltp: f(&v, "lp"),
             open: f(&v, "o"),
             high: f(&v, "h"),
@@ -320,6 +327,9 @@ impl DefinedgeFeed {
             absent: absent(d, trade_time),
             ..Default::default()
         };
+        if sent(d, "oi") {
+            t.mark_carried(QuoteField::OpenInterest);
+        }
         let pc = t.change_percent;
         t.derive_change();
         if t.change == 0.0 && pc != 0.0 {
