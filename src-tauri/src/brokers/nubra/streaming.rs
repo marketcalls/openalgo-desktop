@@ -85,6 +85,9 @@ struct State {
     seen: AbsentFields,
     /// The broker's time of the last message, epoch ms (0: none sent).
     ts: i64,
+    /// Whether an order-book message has come (its totals are the sums of
+    /// its levels, which the web publishes with the book).
+    book_seen: bool,
 }
 
 /// The quote fields Nubra's channels can send; what a tick has not been
@@ -100,12 +103,10 @@ const NUBRA_FIELDS: [QuoteField; 8] = [
     QuoteField::OpenInterest,
     QuoteField::Change,
 ];
-const NEVER_SENT: AbsentFields = AbsentFields::of(&[
-    QuoteField::AveragePrice,
-    QuoteField::TotalBuyQuantity,
-    QuoteField::TotalSellQuantity,
-    QuoteField::LastTradeTime,
-]);
+const NEVER_SENT: AbsentFields =
+    AbsentFields::of(&[QuoteField::AveragePrice, QuoteField::LastTradeTime]);
+const BOOK_TOTALS: AbsentFields =
+    AbsentFields::of(&[QuoteField::TotalBuyQuantity, QuoteField::TotalSellQuantity]);
 
 /// The broker's message time, else the receipt time (web `obj.timestamp
 /// if obj.timestamp else time.time()`, audit P-08).
@@ -256,8 +257,14 @@ impl NubraFeed {
             volume: st.volume,
             last_quantity: st.ltq,
             oi: st.oi,
+            total_buy_quantity: st.bids.iter().map(|l| l.quantity).sum(),
+            total_sell_quantity: st.asks.iter().map(|l| l.quantity).sum(),
             timestamp_ms: message_time(st.ts),
-            absent: NEVER_SENT,
+            absent: if st.book_seen {
+                NEVER_SENT
+            } else {
+                NEVER_SENT.union(BOOK_TOTALS)
+            },
             ..Default::default()
         };
         for f in NUBRA_FIELDS {
@@ -419,6 +426,7 @@ impl NubraFeed {
             };
             let st = &mut inst.state;
             st.ts = x.timestamp;
+            st.book_seen = true;
             if x.ltp != 0 {
                 st.ltp = x.ltp as f64 / 100.0;
             }
