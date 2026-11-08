@@ -29,7 +29,12 @@
       "broker/sahi/streaming/sahi_mapping.py::build_payloads",
       "test/test_sahi_streaming_codec.py::test_adapter_multi_mode_upgrade_and_downgrade"
     ],
-    "notes": []
+    "notes": [
+      "Broker-facing frames: every Subscribe, ModeChange and Unsubscribe the case expects is byte for byte the web adapter's (sahi_adapter.py _flush_locked, _on_open), 500 ids a frame at most.",
+      "accepted (lead 2026-11-09): inside one batch the web sorts the ids and the modes (sorted(adds.items()), sorted(ids)); the desktop keeps their arrival order, which Sahi cannot observe.",
+      "accepted (lead 2026-11-09): the web holds subscription changes for 0.5 s (BATCH_DELAY), so a subscribe undone inside that window sends nothing; the desktop sends the subscribe and the unsubscribe, extra traffic only.",
+      "The web sends one window's changes as unsubscribes, then mode changes, then subscribes (_flush_locked), which frees Sahi's 1000-instrument cap first; lane life matches that order in the shared manager."
+    ]
   },
   "deviations": [
     {
