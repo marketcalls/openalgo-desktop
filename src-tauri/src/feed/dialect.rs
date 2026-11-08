@@ -122,15 +122,16 @@ pub(crate) struct Aliases {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percent: Option<f64>,
     /// `price_change_percent` (Shoonya, Flattrade, Zebu, TradeSmart; Kotak,
-    /// and Fyers beside `change_percent`, since web openalgo#2376).
+    /// and Fyers beside `change_percent`, since web openalgo#2376; 5paisa's
+    /// `ChgPcnt` since #2396).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub percent_change: Option<f64>,
     /// `price_change_percent` (Samco).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percentage: Option<f64>,
-    /// `ltt` (Sahi, Kotak, Samco; Fyers in epoch seconds), in every mode `ltt`
-    /// is sent (web openalgo#2376, Samco since #2396); Upstox, and Dhan in
-    /// epoch seconds (openalgo#2377).
+    /// `ltt` (Sahi, Kotak, Samco, 5paisa; Fyers in epoch seconds), in every
+    /// mode `ltt` is sent (web openalgo#2376, Samco and 5paisa since #2396);
+    /// Upstox, and Dhan in epoch seconds (openalgo#2377).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_trade_time: Option<i64>,
 }
@@ -171,7 +172,7 @@ enum PercentKey {
 /// The unit of a broker's web `last_trade_time`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TradeTime {
-    /// Epoch milliseconds, as `ltt` (Sahi, Kotak, Samco; Upstox, web
+    /// Epoch milliseconds, as `ltt` (Sahi, Kotak, Samco, 5paisa; Upstox, web
     /// `upstox_adapter.py`).
     Millis,
     /// Epoch seconds, the feed's own unit (Fyers, web `fyers_mapping.py`;
@@ -199,12 +200,18 @@ fn dialect(broker: &str) -> Dialect {
             change_percent: &[P::ChangePercent, P::PercentChange],
             last_trade_time: Some(TradeTime::Seconds),
         },
-        "angel" | "fivepaisa" | "mstock" | "pocketful" => Dialect {
+        "angel" | "mstock" | "pocketful" => Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
             ..CANONICAL
         },
         "upstox" => Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
+            last_trade_time: Some(TradeTime::Millis),
+            ..CANONICAL
+        },
+        "fivepaisa" => Dialect {
+            last_quantity: Some(Q::LastTradeQuantity),
+            change_percent: &[P::PercentChange],
             last_trade_time: Some(TradeTime::Millis),
             ..CANONICAL
         },

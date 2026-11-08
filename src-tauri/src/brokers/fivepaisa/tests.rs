@@ -599,6 +599,9 @@ fn text_of(m: &Message) -> Value {
     }
 }
 
+/// Web test/test_fivepaisa_quote_feed.py (openalgo#2396, #2397).
+mod quote_feed;
+
 #[test]
 fn feed_host_and_handshake() {
     assert_eq!(redirect_server(JWT), "B");
