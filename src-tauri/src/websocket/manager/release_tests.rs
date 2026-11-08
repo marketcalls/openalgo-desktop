@@ -85,7 +85,6 @@ fn noren() -> Box<dyn BrokerFeed> {
 async fn session(
     registry: &Arc<Mutex<Registry>>,
     take: usize,
-    deltas: Vec<Delta>,
 ) -> (&'static str, Vec<String>, Option<Written>) {
     let (cmd_tx, cmd) = mpsc::channel(4);
     let mut sup = Supervisor {
@@ -108,6 +107,7 @@ async fn session(
     }));
     let (reply, written) = oneshot::channel();
     let logged_in = sent.clone();
+    let reg = registry.clone();
     let driver = tokio::spawn(async move {
         let _ = broker
             .send(Message::Text(r#"{"t":"ak","s":"OK"}"#.into()))
@@ -117,9 +117,13 @@ async fn session(
         while logged_in.lock().len() < 3 {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
+        // The manager's release: the last reference goes, then the change.
+        let Some(change) = reg.lock().remove(&reliance()) else {
+            return;
+        };
         let _ = cmd_tx
             .send(Command::Apply(Apply {
-                deltas,
+                deltas: vec![change],
                 reply: Some(reply),
                 undo: vec![reliance()],
             }))
@@ -152,13 +156,9 @@ async fn session(
 async fn a_release_the_socket_did_not_take_is_held_again_and_its_retry_releases_it_once() {
     let registry: Arc<Mutex<Registry>> = Arc::default();
     registry.lock().add(reliance());
-    let release = registry
-        .lock()
-        .remove(&reliance())
-        .expect("the last reference goes");
 
     // The login's subscription goes out; the `u` frame finds the socket gone.
-    let (end, sent, heard) = session(&registry, 3, vec![release]).await;
+    let (end, sent, heard) = session(&registry, 3).await;
     assert_eq!(end, "closed");
     assert_eq!(sent, vec![r#"{"t":"t","k":"NSE|2885"}"#.to_string()]);
     assert!(matches!(heard, Some(Written::Failed)));
@@ -170,8 +170,7 @@ async fn a_release_the_socket_did_not_take_is_held_again_and_its_retry_releases_
     assert!(RELEASE_NOT_TAKEN.contains("stays subscribed"));
 
     // The next socket subscribes it again; the retry releases it there.
-    let release = registry.lock().remove(&reliance()).expect("still held");
-    let (end, sent, heard) = session(&registry, 10, vec![release]).await;
+    let (end, sent, heard) = session(&registry, 10).await;
     assert_eq!(end, "still running");
     assert_eq!(
         sent,
