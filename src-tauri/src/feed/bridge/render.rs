@@ -31,8 +31,10 @@ fn quote_fields(key: &InstrumentKey, t: &NormalizedTick, known: AbsentFields) ->
         oi: int(F::OpenInterest, t.oi),
         price_change: has(F::Change).then_some(t.change),
         price_change_percent: has(F::Change).then_some(t.change_percent),
+        trade_time: has(F::LastTradeTime).then_some(t.last_trade_time_ms),
         extras: t.extras,
         broker_fields: t.broker_fields.clone(),
+        numbers: t.numbers,
     }
 }
 
@@ -50,19 +52,18 @@ fn ltt(t: &NormalizedTick, known: AbsentFields) -> Option<i64> {
 }
 
 /// A tick, or nothing when no traded price is known for it (a packet
-/// without a trade, before the instrument's first price). A non-index full
-/// tick is served at Quote: its book follows as a separate `Depth` event.
+/// without a trade, before the instrument's first price). It reaches every
+/// mode up to its own: a full tick reaches Depth holders too, with no
+/// `depth` key when its book does not come with it (lead decision
+/// 2026-11-09: one frame per held mode per tick; the web publishes such a
+/// packet on its Depth topic without a book). A book right behind its tick
+/// goes out with it instead (`bridge::pairing`).
 pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> Option<MarketUpdate> {
     let known = t.known();
     if !known.contains(QuoteField::Ltp) {
         return None;
     }
-    let raw = Mode::from_u8(t.mode).unwrap_or(Mode::Ltp);
-    let mode = if raw == Mode::Depth && !key.is_index() {
-        Mode::Quote
-    } else {
-        raw
-    };
+    let mode = Mode::from_u8(t.mode).unwrap_or(Mode::Ltp);
     Some(MarketUpdate {
         quote: Some(quote_fields(&key, t, known)),
         key,

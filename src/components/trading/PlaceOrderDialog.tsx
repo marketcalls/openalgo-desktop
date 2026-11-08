@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { tradingApi } from '@/api/trading'
+import { DepthUnavailableNote } from '@/components/desktop/DepthUnavailableNote'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -415,6 +416,7 @@ export function PlaceOrderDialog({
             onToggle={() => setIsDepthExpanded(!isDepthExpanded)}
             maxLevels={5}
           />
+          <DepthUnavailableNote symbol={symbol} exchange={exchange_} />
 
           {/* Action Toggle */}
           <div className="space-y-2">

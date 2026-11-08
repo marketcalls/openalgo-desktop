@@ -11,7 +11,7 @@
 //! Production wires the broker streaming manager through `feed::bridge`;
 //! tests use [`FakeSource`].
 
-use crate::brokers::common::streaming::{BrokerFields, QuoteExtras};
+use crate::brokers::common::streaming::{BrokerFields, NumberForms, QuoteExtras};
 use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
@@ -149,11 +149,16 @@ pub struct QuoteFields {
     /// Change since the previous close.
     pub price_change: Option<f64>,
     pub price_change_percent: Option<f64>,
+    /// The exchange's trade time the broker sent, epoch ms (`ltt` falls back
+    /// to the receive time; this does not).
+    pub trade_time: Option<i64>,
     /// The optional shared fields (circuits, 52-week range, best bid and
     /// ask, ...), sent under the broker's web names only.
     pub extras: QuoteExtras,
     /// The broker-only fields of the packet.
     pub broker_fields: BrokerFields,
+    /// The number forms the packet marked (`NormalizedTick::numbers`).
+    pub numbers: NumberForms,
 }
 
 /// A normalized update from the broker feed.

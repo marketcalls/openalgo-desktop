@@ -13,6 +13,7 @@ use serde_json::Value;
 
 mod market;
 pub use market::market_data;
+pub(crate) use market::reaches;
 
 /// Error codes the web server sends.
 pub mod code {

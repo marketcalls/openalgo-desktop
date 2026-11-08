@@ -85,10 +85,11 @@ struct Feed {
     bridge: Arc<BrokerBridge>,
     registry: Registry,
     outboxes: BTreeMap<u64, Arc<Outbox>>,
+    broker: &'static str,
 }
 
 impl Feed {
-    fn new() -> Self {
+    fn new(broker: &'static str) -> Self {
         let manager = Arc::new(WebSocketManager::new());
         // The instruments are in the master: the bridge streams only what
         // the broker connection took (audit C02).
@@ -123,28 +124,29 @@ impl Feed {
             bridge,
             registry,
             outboxes: BTreeMap::new(),
+            broker,
         }
     }
 
     fn client(&mut self, id: u64, key: &InstrumentKey, modes: &[Mode]) {
         let o = Arc::new(Outbox::new(64, 64));
         self.registry.add_client(id, o.clone());
-        self.registry.set_identity(id, "u", "zerodha");
+        self.registry.set_identity(id, "u", self.broker);
         for m in modes {
             assert!(self.registry.subscribe(id, key, *m, 5).is_ok());
         }
         self.outboxes.insert(id, o);
     }
 
-    /// Emit `events` on the broker feed and fan each resulting update out,
-    /// as the feed server's loop does.
-    async fn tick(&self, events: Vec<FeedEvent>) {
+    /// Emit one packet's `events` on the broker feed (back to back, as the
+    /// manager sends them) and fan out the `updates` the bridge makes of
+    /// them, as the feed server's loop does.
+    async fn tick(&self, events: Vec<FeedEvent>, updates: usize) {
         let mut rx = self.bridge.updates();
-        let n = events.len();
         for e in events {
             self.manager.emit(Arc::new(e));
         }
-        for _ in 0..n {
+        for _ in 0..updates {
             match tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv()).await {
                 Ok(Ok(u)) => self.registry.dispatch(&u),
                 other => panic!("no update relayed: {:?}", other.is_ok()),
@@ -164,14 +166,18 @@ impl Feed {
 #[tokio::test]
 async fn each_mode_a_client_holds_gets_one_frame_per_tick() {
     let key = InstrumentKey::new("RELIANCE", "NSE");
-    let mut feed = Feed::new();
+    let mut feed = Feed::new("zerodha");
     feed.client(1, &key, &[Mode::Ltp, Mode::Quote, Mode::Depth]);
     feed.client(2, &key, &[Mode::Ltp]);
     feed.client(3, &key, &[Mode::Quote, Mode::Depth]);
-    feed.tick(vec![
-        FeedEvent::Tick(tick("RELIANCE", "NSE")),
-        FeedEvent::Depth(book("RELIANCE", "NSE")),
-    ])
+    // The tick and its book make one update (`bridge::pairing`).
+    feed.tick(
+        vec![
+            FeedEvent::Tick(tick("RELIANCE", "NSE")),
+            FeedEvent::Depth(book("RELIANCE", "NSE")),
+        ],
+        1,
+    )
     .await;
 
     let all = feed.frames(1).await;
@@ -228,9 +234,9 @@ async fn each_mode_a_client_holds_gets_one_frame_per_tick() {
 #[tokio::test]
 async fn an_index_tick_reaches_every_held_mode_once() {
     let key = InstrumentKey::new("NIFTY", "NSE_INDEX");
-    let mut feed = Feed::new();
+    let mut feed = Feed::new("zerodha");
     feed.client(1, &key, &[Mode::Ltp, Mode::Quote, Mode::Depth]);
-    feed.tick(vec![FeedEvent::Tick(tick("NIFTY", "NSE_INDEX"))])
+    feed.tick(vec![FeedEvent::Tick(tick("NIFTY", "NSE_INDEX"))], 1)
         .await;
     let frames = feed.frames(1).await;
     let mut modes: Vec<u64> = frames.iter().filter_map(|f| f["mode"].as_u64()).collect();
@@ -252,11 +258,11 @@ async fn an_index_tick_reaches_every_held_mode_once() {
 #[tokio::test]
 async fn a_lower_mode_packet_reaches_only_the_modes_it_fills() {
     let key = InstrumentKey::new("RELIANCE", "NSE");
-    let mut feed = Feed::new();
+    let mut feed = Feed::new("zerodha");
     feed.client(1, &key, &[Mode::Ltp, Mode::Quote, Mode::Depth]);
     let mut quote = tick("RELIANCE", "NSE");
     quote.mode = 2;
-    feed.tick(vec![FeedEvent::Tick(quote)]).await;
+    feed.tick(vec![FeedEvent::Tick(quote)], 1).await;
     assert_eq!(
         sdk(&feed.frames(1).await),
         Callbacks {
@@ -267,13 +273,80 @@ async fn a_lower_mode_packet_reaches_only_the_modes_it_fills() {
     );
     let mut ltp = tick("RELIANCE", "NSE");
     ltp.mode = 1;
-    feed.tick(vec![FeedEvent::Tick(ltp)]).await;
+    feed.tick(vec![FeedEvent::Tick(ltp)], 1).await;
     assert_eq!(
         sdk(&feed.frames(1).await),
         Callbacks {
             ltp: 1,
             ..Default::default()
         }
+    );
+    feed.bridge.stop().await;
+}
+
+/// A book on its own (a deep book from its own socket, or one that did not
+/// come with its tick) reaches Depth holders only, so no lower holder gets
+/// a packet twice.
+#[tokio::test]
+async fn a_book_on_its_own_reaches_depth_holders_only() {
+    let key = InstrumentKey::new("RELIANCE", "NSE");
+    let mut feed = Feed::new("arrow");
+    feed.client(1, &key, &[Mode::Ltp, Mode::Quote, Mode::Depth]);
+    let mut quote = tick("RELIANCE", "NSE");
+    quote.mode = 2;
+    feed.tick(vec![FeedEvent::Tick(quote)], 1).await;
+    feed.frames(1).await;
+    feed.tick(vec![FeedEvent::Depth(book("RELIANCE", "NSE"))], 1)
+        .await;
+    let frames = feed.frames(1).await;
+    assert_eq!(frames.len(), 1, "{:?}", frames);
+    assert_eq!(frames[0]["mode"], 3);
+    feed.bridge.stop().await;
+}
+
+/// Lead decision 2026-11-09 for a broker whose web adapter publishes one
+/// dict per packet (Arrow here; web `arrow_adapter.py` publishes a full
+/// packet on its Depth topic only): each mode a client holds still gets
+/// its own frame, and a lower mode's frame carries the whole packet, its
+/// book and circuits included, as the web sends it to a lower holder.
+#[tokio::test]
+async fn a_one_dict_broker_sends_lower_holders_the_whole_packet() {
+    let key = InstrumentKey::new("RELIANCE", "NSE");
+    let mut feed = Feed::new("arrow");
+    feed.client(1, &key, &[Mode::Ltp, Mode::Quote, Mode::Depth]);
+    feed.client(2, &key, &[Mode::Quote]);
+    let mut full = tick("RELIANCE", "NSE");
+    full.extras.upper_circuit = Some(1300.0);
+    feed.tick(
+        vec![
+            FeedEvent::Tick(full),
+            FeedEvent::Depth(book("RELIANCE", "NSE")),
+        ],
+        1,
+    )
+    .await;
+    let all = feed.frames(1).await;
+    assert_eq!(
+        sdk(&all),
+        Callbacks {
+            ltp: 1,
+            quote: 1,
+            depth: 1
+        }
+    );
+    for f in &all {
+        let data = &f["data"];
+        assert!(data.get("depth").is_some(), "mode {}: {}", f["mode"], data);
+        assert_eq!(data["upper_circuit"], 1300.0, "mode {}", f["mode"]);
+    }
+    let quote_only = feed.frames(2).await;
+    assert_eq!(quote_only.len(), 1);
+    assert_eq!(quote_only[0]["mode"], 2);
+    assert_eq!(
+        quote_only[0]["data"]["depth"]["buy"]
+            .as_array()
+            .map(Vec::len),
+        Some(5)
     );
     feed.bridge.stop().await;
 }

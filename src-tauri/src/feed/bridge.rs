@@ -47,11 +47,13 @@ use tokio::task::JoinSet;
 
 mod apply;
 mod deep;
+pub(super) mod pairing;
 mod render;
 pub(super) mod snapshot;
 use apply::{Applied, Ops};
 pub use apply::{Operations, Refused};
 use deep::DeepBooks;
+use pairing::Next;
 pub(crate) use render::{depth_update, tick_update};
 use snapshot::Snapshot;
 
@@ -371,28 +373,78 @@ impl BrokerBridge {
     }
 
     async fn relay(&self, mut rx: broadcast::Receiver<MarketEvent>, from: &WebSocketManager) {
+        // The deep-book socket's books keep its instruments watched (P-10).
+        let deep = std::ptr::eq(from, self.depth_manager.as_ref());
         let mut skipped: u64 = 0;
+        let mut lagged = |n: u64| {
+            skipped += n;
+            from.stats().note_skipped(Reader::FeedClients, n);
+            tracing::warn!(
+                "Market data relay fell behind the broker feed; skipped {} events ({} total)",
+                n,
+                skipped
+            );
+        };
         loop {
             match rx.recv().await {
                 Ok(ev) => {
-                    if std::ptr::eq(from, self.depth_manager.as_ref()) {
-                        self.note_deep_book(&ev);
-                    }
-                    if let Some(u) = self.convert(&ev) {
-                        let _ = self.tx.send(Arc::new(u));
+                    if !self.relay_event(ev, &mut rx, &mut lagged, deep) {
+                        return;
                     }
                 }
-                Err(RecvError::Lagged(n)) => {
-                    skipped += n;
-                    from.stats().note_skipped(Reader::FeedClients, n);
-                    tracing::warn!(
-                        "Market data relay fell behind the broker feed; skipped {} events ({} total)",
-                        n,
-                        skipped
-                    );
-                }
+                Err(RecvError::Lagged(n)) => lagged(n),
                 Err(RecvError::Closed) => return,
             }
+        }
+    }
+
+    /// Send `ev` on; a full tick whose book already waits behind it goes
+    /// out with the book as one update (`pairing`). False once the feed has
+    /// closed.
+    fn relay_event(
+        &self,
+        mut ev: MarketEvent,
+        rx: &mut broadcast::Receiver<MarketEvent>,
+        lagged: &mut dyn FnMut(u64),
+        deep: bool,
+    ) -> bool {
+        loop {
+            if deep {
+                self.note_deep_book(&ev);
+            }
+            let Some(tick) = pairing::awaits_book(&ev) else {
+                self.publish(self.convert(&ev));
+                return true;
+            };
+            let next = pairing::next_event(tick, rx);
+            if let Next::Book(book) = &next {
+                if deep {
+                    self.note_deep_book(book);
+                }
+                self.convert(&ev);
+                let both = self.convert(book).map(|u| MarketUpdate {
+                    exact_mode: false,
+                    ..u
+                });
+                self.publish(both);
+                return true;
+            }
+            self.publish(self.convert(&ev));
+            match next {
+                Next::Other(other) => ev = other,
+                Next::Lagged(n) => {
+                    lagged(n);
+                    return true;
+                }
+                Next::Closed => return false,
+                Next::Book(_) | Next::Nothing => return true,
+            }
+        }
+    }
+
+    fn publish(&self, update: Option<MarketUpdate>) {
+        if let Some(u) = update {
+            let _ = self.tx.send(Arc::new(u));
         }
     }
 

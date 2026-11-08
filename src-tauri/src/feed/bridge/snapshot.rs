@@ -63,7 +63,6 @@ const BOOK_TOTALS: AbsentFields =
 /// connection (then `t` alone).
 pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch: u64) -> Snapshot {
     use QuoteField as F;
-    let incoming = t.known();
     let prev = prev.filter(|p| p.of_epoch(epoch));
     let token = prev.and_then(Snapshot::token);
     let (mut s, mut known) = match prev {
@@ -77,74 +76,15 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
             AbsentFields::default(),
         ),
     };
-    take(incoming, &mut known, F::Ltp, &mut s.ltp, t.ltp);
-    take(incoming, &mut known, F::Open, &mut s.open, t.open);
-    take(incoming, &mut known, F::High, &mut s.high, t.high);
-    take(incoming, &mut known, F::Low, &mut s.low, t.low);
-    take(incoming, &mut known, F::Close, &mut s.close, t.close);
-    take(incoming, &mut known, F::Volume, &mut s.volume, t.volume);
-    let (avg, ltq) = (t.average_price, t.last_quantity);
-    take(
-        incoming,
-        &mut known,
-        F::AveragePrice,
-        &mut s.average_price,
-        avg,
-    );
-    take(
-        incoming,
-        &mut known,
-        F::LastQuantity,
-        &mut s.last_quantity,
-        ltq,
-    );
-    let (buy, sell) = (t.total_buy_quantity, t.total_sell_quantity);
-    take(
-        incoming,
-        &mut known,
-        F::TotalBuyQuantity,
-        &mut s.total_buy_quantity,
-        buy,
-    );
-    take(
-        incoming,
-        &mut known,
-        F::TotalSellQuantity,
-        &mut s.total_sell_quantity,
-        sell,
-    );
-    take(incoming, &mut known, F::OpenInterest, &mut s.oi, t.oi);
-
-    // The trade time goes with the price: a new price without one has no
-    // known trade time (the frame falls back as for any packet without).
-    let mut trade_time_absent = s.absent.contains(F::LastTradeTime);
-    if incoming.contains(F::Ltp) || incoming.contains(F::LastTradeTime) {
-        s.last_trade_time_ms = if incoming.contains(F::LastTradeTime) {
-            t.last_trade_time_ms
-        } else {
-            0
-        };
-        trade_time_absent = t.absent.contains(F::LastTradeTime);
-    }
-
-    if incoming.contains(F::Change) {
-        s.change = t.change;
-        s.change_percent = t.change_percent;
-        known = known.with(F::Change);
-    } else if incoming.contains(F::Ltp) || incoming.contains(F::Close) {
-        // A moved price or close makes the old change wrong.
-        if known.contains(F::Close) && s.close > 0.0 && s.ltp > 0.0 {
-            s.derive_change();
-            known = known.with(F::Change);
-        } else {
-            known = known.without(F::Change);
-        }
-    }
-
+    take_values(&mut s, &mut known, t);
+    known = known.minus(t.cleared);
+    let trade_time_absent = take_trade_time(&mut s, t);
+    known = take_change(&mut s, known, t);
     s.mode = t.mode;
     s.timestamp_ms = t.timestamp_ms;
     s.extras = s.extras.overlay(t.extras);
     s.broker_fields = t.broker_fields.clone();
+    s.numbers = t.numbers;
     let known = known.without(F::LastTradeTime).without(F::Orders);
     s.carried = known;
     s.absent = AbsentFields::ALL
@@ -159,6 +99,89 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
         epoch,
         book_lacks: t.absent.minus(AbsentFields::ALL.minus(BOOK_TOTALS)),
         token,
+    }
+}
+
+/// Every field `t` carries, over the snapshot's.
+fn take_values(s: &mut NormalizedTick, known: &mut AbsentFields, t: &NormalizedTick) {
+    use QuoteField as F;
+    let incoming = t.known();
+    take(incoming, known, F::Ltp, &mut s.ltp, t.ltp);
+    take(incoming, known, F::Open, &mut s.open, t.open);
+    take(incoming, known, F::High, &mut s.high, t.high);
+    take(incoming, known, F::Low, &mut s.low, t.low);
+    take(incoming, known, F::Close, &mut s.close, t.close);
+    take(incoming, known, F::Volume, &mut s.volume, t.volume);
+    take(
+        incoming,
+        known,
+        F::AveragePrice,
+        &mut s.average_price,
+        t.average_price,
+    );
+    take(
+        incoming,
+        known,
+        F::LastQuantity,
+        &mut s.last_quantity,
+        t.last_quantity,
+    );
+    let (buy, sell) = (t.total_buy_quantity, t.total_sell_quantity);
+    take(
+        incoming,
+        known,
+        F::TotalBuyQuantity,
+        &mut s.total_buy_quantity,
+        buy,
+    );
+    take(
+        incoming,
+        known,
+        F::TotalSellQuantity,
+        &mut s.total_sell_quantity,
+        sell,
+    );
+    take(incoming, known, F::OpenInterest, &mut s.oi, t.oi);
+}
+
+/// The trade time goes with the price: a new price without one has no
+/// known trade time (the frame falls back as for any packet without one).
+/// Whether the stream marks it absent.
+fn take_trade_time(s: &mut NormalizedTick, t: &NormalizedTick) -> bool {
+    use QuoteField as F;
+    let incoming = t.known();
+    if !(incoming.contains(F::Ltp) || incoming.contains(F::LastTradeTime)) {
+        return s.absent.contains(F::LastTradeTime);
+    }
+    s.last_trade_time_ms = if incoming.contains(F::LastTradeTime) {
+        t.last_trade_time_ms
+    } else {
+        0
+    };
+    t.absent.contains(F::LastTradeTime)
+}
+
+/// The change: the packet's own, none where its stream has none, else
+/// worked out again when the price or the close moved (the old change is
+/// then wrong).
+fn take_change(s: &mut NormalizedTick, known: AbsentFields, t: &NormalizedTick) -> AbsentFields {
+    use QuoteField as F;
+    let incoming = t.known();
+    if incoming.contains(F::Change) {
+        s.change = t.change;
+        s.change_percent = t.change_percent;
+        known.with(F::Change)
+    } else if t.absent.contains(F::Change) {
+        known.without(F::Change)
+    } else if incoming.contains(F::Ltp) || incoming.contains(F::Close) {
+        if known.contains(F::Close) && s.close > 0.0 && s.ltp > 0.0 {
+            s.derive_change();
+            known.with(F::Change)
+        } else {
+            known.without(F::Change)
+        }
+    } else {
+        known
     }
 }
 

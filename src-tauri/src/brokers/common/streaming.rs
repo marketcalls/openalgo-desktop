@@ -40,7 +40,16 @@
 //! * **Optional shared fields** ([`QuoteExtras`], C06): `t.extras.
 //!   upper_circuit = Some(v)`, likewise the 52-week range, the best bid and
 //!   ask, previous OI, OI change, total OI, the day's close and the packet's
-//!   exchange time. Leave `None` what the packet did not carry.
+//!   exchange time. Leave `None` what the packet did not carry (the
+//!   bridge keeps the last value); `t.extras.clear(ExtraField::BidPrice)` or
+//!   `clear_best_bid_ask()` for what the packet says is gone (an emptied
+//!   book). The exchange time belongs to its packet alone and is never
+//!   kept.
+//! * **Gone:** `t.mark_cleared(QuoteField::TotalBuyQuantity)` drops a quote
+//!   field from what the bridge keeps (`mark_absent` keeps it).
+//! * **Number form:** `t.numbers.set(Number::Ltp, NumberForm::Integer)` (a
+//!   whole value as an integer, as 5paisa's JSON sends it) or
+//!   `NumberForm::Double` (Jainam's 1105 text event), for this packet.
 //! * **Broker-only fields** ([`BrokerField`]): `t.broker_fields.set(
 //!   BrokerField::IndicativeEquilibriumPrice, BrokerValue::Float(v))`. The
 //!   set of keys is fixed in `fields.rs`, so a broker field can never
@@ -67,7 +76,12 @@ pub use tokio_tungstenite::tungstenite::handshake::client::Request as WsRequest;
 pub use tokio_tungstenite::tungstenite::Message;
 
 mod fields;
-pub use fields::{AbsentFields, BrokerField, BrokerFields, BrokerValue, QuoteExtras, QuoteField};
+mod numbers;
+pub use fields::{
+    AbsentFields, BrokerField, BrokerFields, BrokerValue, ClearedExtras, ExtraField, QuoteExtras,
+    QuoteField,
+};
+pub use numbers::{Number, NumberForm, NumberForms};
 
 /// Longest a feed waits for a required login acknowledgement
 /// (`BrokerFeed::auth_ack_deadline`).
@@ -183,6 +197,14 @@ pub struct NormalizedTick {
     /// The broker-only fields this packet carried.
     #[serde(skip_serializing_if = "BrokerFields::is_empty")]
     pub broker_fields: BrokerFields,
+    /// The JSON number form of this packet's values where the broker's own
+    /// JSON decides it (`numbers.rs`), for this packet only; canonical keys
+    /// and the broker's names alike.
+    #[serde(skip)]
+    pub numbers: NumberForms,
+    /// What this packet says is gone (`mark_cleared`).
+    #[serde(skip_serializing_if = "AbsentFields::is_empty")]
+    pub cleared: AbsentFields,
 }
 
 impl NormalizedTick {
@@ -201,6 +223,16 @@ impl NormalizedTick {
     }
 
     /// This packet carries `field` although its mode would not.
+    /// `field` is gone: not in this packet, and dropped from what the
+    /// bridge keeps for the instrument until a packet carries it again
+    /// (web Tradejini and Samco prune the book's totals when the Depth
+    /// holder leaves). `mark_absent` keeps the last value instead. Not for
+    /// the price or the trade time, which go with each packet anyway.
+    pub fn mark_cleared(&mut self, field: QuoteField) {
+        self.mark_absent(field);
+        self.cleared = self.cleared.with(field);
+    }
+
     pub fn mark_carried(&mut self, field: QuoteField) {
         self.carried = self.carried.with(field);
         self.absent = self.absent.without(field);
