@@ -24,6 +24,7 @@ use chrono::NaiveDate;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
+mod order_ids;
 mod quote_feed;
 
 macro_rules! fixture {

@@ -15,6 +15,7 @@ use crate::brokers::common::book_read::{self, Book};
 use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product, Validity};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price, py_round};
 use crate::brokers::common::outcome;
+use crate::brokers::common::streaming::OrderUpdate;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -239,6 +240,41 @@ pub async fn raw_order_book(b: &IndmoneyBroker, auth: &AuthToken) -> Result<Vec<
             .filter_map(|o| o.get("id").and_then(Value::as_str)),
     );
     Ok(rows)
+}
+
+/// An order update whose bare stream id no placement or book read has
+/// mapped (an order placed outside the desktop), with its canonical
+/// `EQ-`/`DRV-` id read from the order book, as the web's
+/// `_canonical_order_id` reads it (indmoney_order_adapter.py:69-126): at
+/// most once per order in 5 s, learning every id the book lists. A book
+/// that cannot be read leaves the bare id: an unresolved id is better than
+/// a dropped update.
+pub(crate) async fn complete_order_update(
+    b: &IndmoneyBroker,
+    auth: &AuthToken,
+    mut u: OrderUpdate,
+) -> OrderUpdate {
+    let raw = u.orderid.trim().to_string();
+    if raw.is_empty() || raw.contains('-') {
+        return u;
+    }
+    let mapped = b.order_id_map().lock().canonical(&raw);
+    if mapped != raw {
+        u.orderid = mapped;
+        return u;
+    }
+    if !b.claim_book_read(&raw) {
+        return u;
+    }
+    match raw_order_book(b, auth).await {
+        Ok(_) => u.orderid = b.order_id_map().lock().canonical(&raw),
+        Err(e) => tracing::warn!(
+            "INDmoney order {} kept its stream id: the order book could not be read ({})",
+            raw,
+            e.code()
+        ),
+    }
+    u
 }
 
 /// Whether `order_id` belongs to the smart-order book (web

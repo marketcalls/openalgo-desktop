@@ -1,6 +1,6 @@
 {
   "broker": "indmoney",
-  "summary": "An update for an order placed outside the desktop (the INDmoney app): its bare stream id is in no placement or book the desktop has read, so the desktop sends it bare while the web reads the order book and sends the canonical EQ- id (audit RB-11).",
+  "summary": "An update for an order placed outside the desktop (the INDmoney app): its bare stream id is in no placement or book the desktop has read, so the broker reads the order book on the fake broker API, as the web does, and sends the canonical EQ- id (audit RB-11).",
   "scenarios": [
     "order-complete"
   ],
@@ -29,12 +29,5 @@
       "_canonical_order_id reads the REST order book on a miss; offline the glue serves it the book in scripts/feed_corpus/web_adapters/indmoney.py (ORDER_BOOK)."
     ]
   },
-  "deviations": [
-    {
-      "key": "orderid",
-      "kind": "open",
-      "reason": "The stream names the order by its bare number; the desktop maps it to the canonical EQ- id only for orders it placed or read in a book (OrderIdMap), while the web reads the REST order book on a miss (_canonical_order_id, one read per order in 5 s) and sends EQ-96057999. Lead decision: IndMoney reads the book on Broker::complete_order_update, lane life's relay hook; open until that hook is on base.",
-      "ref": "audit RB-11; indmoney_order_adapter.py:69-126; brokers/indmoney/streaming.rs normalize_order"
-    }
-  ]
+  "deviations": []
 }

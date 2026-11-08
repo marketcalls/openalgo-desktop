@@ -1,22 +1,25 @@
-//! INDmoney (INDstocks): the price socket, from the broker as a session
-//! builds it (`IndmoneyBroker::create_feed`, with its exchange refusals),
-//! and the order-update socket (`IndmoneyOrderFeed`), which maps the
-//! stream's bare order numbers to canonical `EQ-` ids through the
-//! adapter's `OrderIdMap`.
+//! INDmoney (INDstocks): the price socket and the order-update socket,
+//! both from the broker as a session builds them (`create_feed`, with its
+//! exchange refusals, and `order_socket`). The order socket names an order
+//! by its bare number; the broker maps it to the canonical `EQ-` id from
+//! what it placed or read, else from the order book on the fake broker API
+//! (`Broker::complete_order_update`, audit RB-11).
 
 use super::harness::{corpus_cases, Env, Feeds};
-use openalgo_desktop_lib::brokers::indmoney::streaming::IndmoneyOrderFeed;
-use openalgo_desktop_lib::brokers::indmoney::{Endpoints, IndmoneyBroker, OrderIdMap};
+use openalgo_desktop_lib::brokers::common::streaming::OrderFeed;
+use openalgo_desktop_lib::brokers::indmoney::{Endpoints, IndmoneyBroker};
 use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
-use parking_lot::Mutex;
+use serde_json::json;
 use std::sync::Arc;
 
-/// The orders the desktop placed (or read in an order book) before the
-/// case's updates arrive, as `orders::place_order` and `raw_order_book`
-/// remember them. `96057999` (case `order_unknown_id`) is not among them:
-/// it was placed outside the desktop (audit RB-11).
-const KNOWN_ORDERS: &[&str] = &["EQ-96057848", "EQ-96057849", "EQ-96057850"];
+/// The account's order book as INDmoney's REST API answers it: the
+/// orders of the cases, `96057999` (case `order_unknown_id`) among them,
+/// placed outside the desktop.
+fn order_book() -> serde_json::Value {
+    let ids = ["EQ-96057848", "EQ-96057849", "EQ-96057850", "EQ-96057999"];
+    json!({"status": "success", "data": ids.map(|id| json!({"id": id}))})
+}
 
 fn feeds(env: &Env) -> Feeds {
     let broker = Arc::new(IndmoneyBroker::with_endpoints(
@@ -29,17 +32,15 @@ fn feeds(env: &Env) -> Feeds {
     ));
     let auth = AuthToken::new("t");
     let market = broker.create_feed(&auth).expect("INDmoney's price feed");
-    let mut ids = OrderIdMap::default();
-    for id in KNOWN_ORDERS {
-        ids.remember(id);
+    let feeds = Feeds::boxed(market).with_broker(broker.clone(), &auth);
+    if !env.orders() {
+        return feeds;
     }
-    Feeds::boxed(market)
-        .with_orders(IndmoneyOrderFeed::new(
-            &env.url("orders"),
-            "t",
-            Arc::new(Mutex::new(ids)),
-        ))
-        .with_broker(broker, &auth)
+    env.serve_json("/order-book", order_book());
+    let orders = broker
+        .order_socket(&auth)
+        .expect("INDmoney's order-update socket");
+    feeds.with_order_feed(OrderFeed::Socket(orders))
 }
 
 corpus_cases!(
