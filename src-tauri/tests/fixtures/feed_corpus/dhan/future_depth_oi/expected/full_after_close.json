@@ -1,0 +1,83 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY25NOV26FUT",
+  "exchange": "NFO",
+  "mode": 3,
+  "broker": "dhan",
+  "data": {
+    "symbol": "NIFTY25NOV26FUT",
+    "exchange": "NFO",
+    "mode": "full",
+    "ltp": 24452.0,
+    "ltt": 1794303000000,
+    "timestamp": "<receipt_ms>",
+    "volume": 1520000,
+    "last_quantity": 75,
+    "average_price": 24432.0,
+    "total_buy_quantity": 450000,
+    "total_sell_quantity": 400000,
+    "open": 24410.0,
+    "high": 24500.0,
+    "low": 24380.0,
+    "close": 24400.0,
+    "oi": 9520000,
+    "open_interest": 9520000,
+    "depth": {
+      "buy": [
+        {
+          "price": 24450.0,
+          "quantity": 150,
+          "orders": 3
+        },
+        {
+          "price": 24449.5,
+          "quantity": 300,
+          "orders": 5
+        },
+        {
+          "price": 24449.0,
+          "quantity": 450,
+          "orders": 6
+        },
+        {
+          "price": 24448.5,
+          "quantity": 600,
+          "orders": 8
+        },
+        {
+          "price": 24448.0,
+          "quantity": 750,
+          "orders": 9
+        }
+      ],
+      "sell": [
+        {
+          "price": 24451.0,
+          "quantity": 75,
+          "orders": 1
+        },
+        {
+          "price": 24451.5,
+          "quantity": 225,
+          "orders": 2
+        },
+        {
+          "price": 24452.0,
+          "quantity": 375,
+          "orders": 4
+        },
+        {
+          "price": 24452.5,
+          "quantity": 525,
+          "orders": 5
+        },
+        {
+          "price": 24453.0,
+          "quantity": 675,
+          "orders": 7
+        }
+      ]
+    },
+    "last_trade_time": 1794303000
+  }
+}

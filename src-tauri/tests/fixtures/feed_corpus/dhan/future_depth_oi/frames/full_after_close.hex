@@ -1,0 +1,24 @@
+# Dhan binary frame: a full packet after the market closed, carrying the day close.
+08                      # response code 8 (full)
+a200                    # message length 162, header included
+02                      # exchange segment 2 (NSE_FNO)
+cfcb0000                # security id 52175
+0008bf46                # ltp 24452.0
+4b00                    # last traded quantity 75
+18e4f26a                # last trade time, epoch s
+00e0be46                # average traded price 24432.0
+80311700                # volume 1520000
+801a0600                # total sell quantity 400000
+d0dd0600                # total buy quantity 450000
+80439100                # OI 9520000
+007c9200                # OI high 9600000
+40548900                # OI low 9000000
+00b4be46                # open 24410.0
+0008bf46                # day close 24452.0 (after the market closed)
+0068bf46                # high 24500.0
+0078be46                # low 24380.0
+960000004b000000030001000004bf460006bf46# level 1: bid qty 150, ask qty 75, bid orders 3, ask orders 1, bid 24450.0, ask 24451.0
+2c010000e1000000050002000003bf460007bf46# level 2: bid qty 300, ask qty 225, bid orders 5, ask orders 2, bid 24449.5, ask 24451.5
+c201000077010000060004000002bf460008bf46# level 3: bid qty 450, ask qty 375, bid orders 6, ask orders 4, bid 24449.0, ask 24452.0
+580200000d020000080005000001bf460009bf46# level 4: bid qty 600, ask qty 525, bid orders 8, ask orders 5, bid 24448.5, ask 24452.5
+ee020000a3020000090007000000bf46000abf46# level 5: bid qty 750, ask qty 675, bid orders 9, ask orders 7, bid 24448.0, ask 24453.0

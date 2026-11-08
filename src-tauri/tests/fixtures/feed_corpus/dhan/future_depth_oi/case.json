@@ -1,0 +1,84 @@
+{
+  "broker": "dhan",
+  "summary": "A Depth subscription on an NFO future: the full packet gives the OI and the five-level book with the previous close; an empty book clears every level; a packet after the close keeps close as the previous close.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "52175",
+      "brsymbol": "NIFTY-Nov2026-FUT",
+      "brexchange": "NSE_FNO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket._parse_regular_message",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._on_data_5depth",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._normalize_5depth_data",
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket._parse_full_packet",
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket._parse_prev_close_packet"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does.",
+      "ref": "dhan_adapter.py:900; feed::dialect (Dhan last_trade_time in seconds, openalgo#2377)"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "oi_high",
+      "kind": "open",
+      "reason": "The web sends Dhan's OI day high; the desktop's common carrier drops it.",
+      "ref": "dhan_adapter.py:925; audit P-11"
+    },
+    {
+      "key": "oi_low",
+      "kind": "open",
+      "reason": "The web sends Dhan's OI day low; the desktop's common carrier drops it.",
+      "ref": "dhan_adapter.py:926; audit P-11"
+    },
+    {
+      "key": "prev_oi",
+      "kind": "open",
+      "reason": "The web sends Dhan's previous OI from the previous-close packet; the desktop's common carrier drops it.",
+      "ref": "dhan_adapter.py:931; audit P-11"
+    },
+    {
+      "key": "depth_level",
+      "kind": "open",
+      "reason": "The web sends Dhan's book depth (5); the desktop's common carrier drops it.",
+      "ref": "dhan_adapter.py:928"
+    },
+    {
+      "key": "day_close",
+      "kind": "open",
+      "reason": "The web sends the packet's day close (nonzero only after the market closes) as day_close beside the previous close; the desktop's common carrier drops it.",
+      "ref": "dhan_adapter.py:917-919; audit P-03, P-11"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "broker": "dhan",
+  "summary": "Quote, then Depth on the same equity: Dhan's quote stream is swapped for its full stream; releasing Quote leaves the full stream, and releasing Depth unsubscribes it. An equity without OI sends oi 0 in Depth, as the web does.",
+  "scenarios": [
+    "mode-change",
+    "subscription-lifecycle",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket._parse_regular_message",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._on_data_5depth",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._normalize_5depth_data"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does.",
+      "ref": "dhan_adapter.py:900; feed::dialect (Dhan last_trade_time in seconds, openalgo#2377)"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "oi_high",
+      "kind": "open",
+      "reason": "The web sends Dhan's OI day high; the desktop's common carrier drops it.",
+      "ref": "dhan_adapter.py:925; audit P-11"
+    },
+    {
+      "key": "oi_low",
+      "kind": "open",
+      "reason": "The web sends Dhan's OI day low; the desktop's common carrier drops it.",
+      "ref": "dhan_adapter.py:926; audit P-11"
+    },
+    {
+      "key": "depth_level",
+      "kind": "open",
+      "reason": "The web sends Dhan's book depth (5); the desktop's common carrier drops it.",
+      "ref": "dhan_adapter.py:928"
+    }
+  ]
+}

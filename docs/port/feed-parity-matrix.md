@@ -7,17 +7,17 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 20. Open gaps: 12. Deviations pending approval: 34.
+Cases: 29. Open gaps: 31. Deviations pending approval: 62.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | aliceblue | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| angel | deviation pending approval: `ltp_mode` | deviation pending approval: `quote_mode` | open gap: `snap_quote_depth` | not offered by the web | not offered by the web | not offered by the web | **no case** |
+| angel | deviation pending approval: `ltp_mode` | open gap: `index_quote_reconnect`, `quote_depth_mode_change`, `quote_mode` | open gap: `future_snap_oi`, `quote_depth_mode_change`, `snap_quote_depth` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
 | arrow | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | compositedge | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | definedge | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | deltaexchange | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| dhan | **no case** | deviation pending approval: `quote_before_previous_close`, `quote_previous_close`, `reconnect_forgets_previous_close` | open gap: `full_depth` | open gap: `depth_20_before_and_after_the_quote` | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
+| dhan | deviation pending approval: `ltp_ticker` | open gap: `index_quote`, `quote_before_previous_close`, `quote_previous_close`, `quote_to_depth_mode_change`, `reconnect_forgets_previous_close` | open gap: `full_depth`, `future_depth_oi`, `quote_to_depth_mode_change` | open gap: `depth_20_before_and_after_the_quote` | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
 | dhan_sandbox | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | firstock | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | fivepaisa | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -48,14 +48,14 @@ Cases: 20. Open gaps: 12. Deviations pending approval: 34.
 | upstox | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | wisdom | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | zebu | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| zerodha | deviation pending approval: `ltp_mode`, `two_clients_mode_change` | deviation pending approval: `deliberate_disconnect` (by hand), `index_quote`, `quote_mode`, `reconnect_replays`, `refused_reconnect`, `two_clients_mode_change` | open gap: `full_depth_future`, `index_full` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_postbacks` |
+| zerodha | deviation pending approval: `ltp_mode`, `two_clients_mode_change` | deviation pending approval: `cds_quote_currency_unit`, `deliberate_disconnect` (by hand), `index_quote`, `quote_mode`, `reconnect_replays`, `refused_reconnect`, `two_clients_mode_change` | open gap: `full_depth_future`, `index_full` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_postbacks` |
 
 ## Scenarios covered
 
 | Broker | Covered | Not yet |
 | --- | --- | --- |
-| angel | first-full-packet, depth-update | partial-packet, absent-field, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled |
-| dhan | first-full-packet, partial-packet, absent-field, depth-update, reconnect, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | book-clear, index, derivative-oi, subscription-lifecycle, mode-change |
+| angel | first-full-packet, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | partial-packet, absent-field |
+| dhan | first-full-packet, partial-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | - |
 | samco | order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | first-full-packet, partial-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change |
 | zerodha | first-full-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | partial-packet |
 
@@ -63,7 +63,24 @@ Cases: 20. Open gaps: 12. Deviations pending approval: 34.
 
 | Broker | Case | Key | Kind | Approved | Reason |
 | --- | --- | --- | --- | --- | --- |
+| angel | `future_snap_oi` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
+| angel | `future_snap_oi` | `open_interest` | desktop-decision | no | The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only. |
+| angel | `future_snap_oi` | `total_buy_quantity` | web-defect | no | Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are. |
+| angel | `future_snap_oi` | `total_sell_quantity` | web-defect | no | Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are. |
+| angel | `future_snap_oi` | `upper_circuit` | open | no | The web sends the circuit limits from the SNAP_QUOTE packet; the desktop's common carrier drops them (lane wire: optional circuit fields; then the Angel decoder fills them). |
+| angel | `future_snap_oi` | `lower_circuit` | open | no | The web sends the circuit limits from the SNAP_QUOTE packet; the desktop's common carrier drops them (lane wire: optional circuit fields; then the Angel decoder fills them). |
+| angel | `index_quote_reconnect` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
+| angel | `index_quote_reconnect` | `last_quantity` | open | no | The web's index quote carries Angel's (zero) last_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field). |
+| angel | `index_quote_reconnect` | `last_trade_quantity` | open | no | The web's index quote carries Angel's (zero) last_trade_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field). |
+| angel | `index_quote_reconnect` | `average_price` | open | no | The web's index quote carries Angel's (zero) average_price; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field). |
+| angel | `index_quote_reconnect` | `total_buy_quantity` | open | no | The web's index quote carries Angel's (zero) total_buy_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field). |
+| angel | `index_quote_reconnect` | `total_sell_quantity` | open | no | The web's index quote carries Angel's (zero) total_sell_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field). |
+| angel | `index_quote_reconnect` | `price_change` | desktop-decision | no | The desktop's index frames carry the change since the previous close, as the recorded Zerodha index transcript does; the web's Angel adapter sends no change. |
+| angel | `index_quote_reconnect` | `price_change_percent` | desktop-decision | no | The desktop's index frames carry the change since the previous close, as the recorded Zerodha index transcript does; the web's Angel adapter sends no change. |
 | angel | `ltp_mode` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
+| angel | `quote_depth_mode_change` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
+| angel | `quote_depth_mode_change` | `total_buy_quantity` | web-defect | no | Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are. |
+| angel | `quote_depth_mode_change` | `total_sell_quantity` | web-defect | no | Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are. |
 | angel | `quote_mode` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
 | angel | `quote_mode` | `total_buy_quantity` | web-defect | no | Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are. |
 | angel | `quote_mode` | `total_sell_quantity` | web-defect | no | Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are. |
@@ -95,12 +112,42 @@ Cases: 20. Open gaps: 12. Deviations pending approval: 34.
 | dhan | `full_depth` | `oi_low` | open | no | The web sends Dhan's OI day low; the desktop's common carrier drops it. |
 | dhan | `full_depth` | `prev_oi` | open | no | The web sends Dhan's previous OI; the desktop's common carrier drops it. |
 | dhan | `full_depth` | `depth_level` | open | no | The web sends Dhan's book depth (5); the desktop's common carrier drops it. |
+| dhan | `future_depth_oi` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
+| dhan | `future_depth_oi` | `ltt` | web-defect | no | The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does. |
+| dhan | `future_depth_oi` | `open_interest` | desktop-decision | no | The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only. |
+| dhan | `future_depth_oi` | `oi_high` | open | no | The web sends Dhan's OI day high; the desktop's common carrier drops it. |
+| dhan | `future_depth_oi` | `oi_low` | open | no | The web sends Dhan's OI day low; the desktop's common carrier drops it. |
+| dhan | `future_depth_oi` | `prev_oi` | open | no | The web sends Dhan's previous OI from the previous-close packet; the desktop's common carrier drops it. |
+| dhan | `future_depth_oi` | `depth_level` | open | no | The web sends Dhan's book depth (5); the desktop's common carrier drops it. |
+| dhan | `future_depth_oi` | `day_close` | open | no | The web sends the packet's day close (nonzero only after the market closes) as day_close beside the previous close; the desktop's common carrier drops it. |
+| dhan | `index_quote` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
+| dhan | `index_quote` | `ltt` | web-defect | no | The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does. |
+| dhan | `index_quote` | `last_quantity` | open | no | The web's index quote carries Dhan's (zero) last_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field). |
+| dhan | `index_quote` | `average_price` | open | no | The web's index quote carries Dhan's (zero) average_price; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field). |
+| dhan | `index_quote` | `total_buy_quantity` | open | no | The web's index quote carries Dhan's (zero) total_buy_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field). |
+| dhan | `index_quote` | `total_sell_quantity` | open | no | The web's index quote carries Dhan's (zero) total_sell_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field). |
+| dhan | `index_quote` | `price_change` | desktop-decision | no | The desktop's index frames carry the change since the previous close, as the recorded Zerodha index transcript does; the web's Dhan adapter sends no change. |
+| dhan | `index_quote` | `price_change_percent` | desktop-decision | no | The desktop's index frames carry the change since the previous close, as the recorded Zerodha index transcript does; the web's Dhan adapter sends no change. |
+| dhan | `ltp_ticker` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
+| dhan | `ltp_ticker` | `ltt` | web-defect | no | The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does. |
 | dhan | `quote_before_previous_close` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
 | dhan | `quote_before_previous_close` | `ltt` | web-defect | no | The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does. |
 | dhan | `quote_previous_close` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
 | dhan | `quote_previous_close` | `ltt` | web-defect | no | The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does. |
+| dhan | `quote_to_depth_mode_change` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
+| dhan | `quote_to_depth_mode_change` | `ltt` | web-defect | no | The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does. |
+| dhan | `quote_to_depth_mode_change` | `open_interest` | desktop-decision | no | The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only. |
+| dhan | `quote_to_depth_mode_change` | `oi_high` | open | no | The web sends Dhan's OI day high; the desktop's common carrier drops it. |
+| dhan | `quote_to_depth_mode_change` | `oi_low` | open | no | The web sends Dhan's OI day low; the desktop's common carrier drops it. |
+| dhan | `quote_to_depth_mode_change` | `depth_level` | open | no | The web sends Dhan's book depth (5); the desktop's common carrier drops it. |
 | dhan | `reconnect_forgets_previous_close` | `mode` | desktop-decision | no | data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there. |
 | dhan | `reconnect_forgets_previous_close` | `ltt` | web-defect | no | The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does. |
+| zerodha | `cds_quote_currency_unit` | `ltp` | web-defect | no | Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet). |
+| zerodha | `cds_quote_currency_unit` | `average_price` | web-defect | no | Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet). |
+| zerodha | `cds_quote_currency_unit` | `open` | web-defect | no | Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet). |
+| zerodha | `cds_quote_currency_unit` | `high` | web-defect | no | Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet). |
+| zerodha | `cds_quote_currency_unit` | `low` | web-defect | no | Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet). |
+| zerodha | `cds_quote_currency_unit` | `close` | web-defect | no | Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet). |
 | zerodha | `full_depth_future` | `ltt` | web-defect | no | The web reads the exchange timestamp (byte 60) as ltt and sends it in epoch seconds; the packet's last trade time is at byte 44, and feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms. |
 | zerodha | `full_depth_future` | `oi` | web-defect | no | The web reads OI from byte 180, inside the last ask level, so it sends that level's order count and padding as OI; OI is at byte 48. |
 | zerodha | `full_depth_future` | `open_interest` | web-defect | no | As oi: the web's value comes from byte 180. |

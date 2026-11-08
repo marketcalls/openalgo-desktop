@@ -25,5 +25,9 @@ corpus_cases!(
         depth_20_before_and_after_the_quote,
         reconnect_forgets_previous_close,
         order_lifecycle,
+        ltp_ticker,
+        index_quote,
+        future_depth_oi,
+        quote_to_depth_mode_change,
     ]
 );

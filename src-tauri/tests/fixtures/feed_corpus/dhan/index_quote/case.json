@@ -1,0 +1,80 @@
+{
+  "broker": "dhan",
+  "summary": "A Quote subscription on the NIFTY index: the quote packet gives an index frame with the previous close from Dhan's previous-close packet and the change worked out against it.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "13",
+      "brsymbol": "NIFTY",
+      "brexchange": "IDX_I",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket._parse_regular_message",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._on_data_5depth",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._normalize_5depth_data"
+    ],
+    "notes": [
+      "price_change 50.5 = 24350.5 - 24300.0; price_change_percent 0.21 = 50.5 / 24300 * 100, rounded to 2 places (NormalizedTick::derive_change)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does.",
+      "ref": "dhan_adapter.py:900; feed::dialect (Dhan last_trade_time in seconds, openalgo#2377)"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "open",
+      "reason": "The web's index quote carries Dhan's (zero) last_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field).",
+      "ref": "dhan_adapter.py:905-921; feed::protocol::market_data (index branch)"
+    },
+    {
+      "key": "average_price",
+      "kind": "open",
+      "reason": "The web's index quote carries Dhan's (zero) average_price; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field).",
+      "ref": "dhan_adapter.py:905-921; feed::protocol::market_data (index branch)"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "open",
+      "reason": "The web's index quote carries Dhan's (zero) total_buy_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field).",
+      "ref": "dhan_adapter.py:905-921; feed::protocol::market_data (index branch)"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "open",
+      "reason": "The web's index quote carries Dhan's (zero) total_sell_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field).",
+      "ref": "dhan_adapter.py:905-921; feed::protocol::market_data (index branch)"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop's index frames carry the change since the previous close, as the recorded Zerodha index transcript does; the web's Dhan adapter sends no change.",
+      "ref": "feed::protocol::market_data (index branch); NormalizedTick::derive_change"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop's index frames carry the change since the previous close, as the recorded Zerodha index transcript does; the web's Dhan adapter sends no change.",
+      "ref": "feed::protocol::market_data (index branch); NormalizedTick::derive_change"
+    }
+  ]
+}

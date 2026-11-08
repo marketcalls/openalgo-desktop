@@ -1,0 +1,7 @@
+# Dhan binary frame: the previous-close packet for the NIFTY index (segment 0).
+06                      # response code 6 (previous close)
+1000                    # message length 16, header included
+00                      # exchange segment 0 (IDX_I)
+0d000000                # security id 13
+00d8bd46                # previous close 24300.0 (f32)
+00000000                # previous OI

@@ -1,0 +1,10 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 21, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_FNO", "SecurityId": "52175"}]}}]}
+{"step": "push", "frame": "frames/prev_close.hex"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/full.json"}
+{"step": "push", "frame": "frames/full_empty_book.hex"}
+{"step": "receive", "client": "a", "frame": "expected/full_empty_book.json", "note": "Dhan sends an empty book as five zero levels per side; both pass them on."}
+{"step": "push", "frame": "frames/full_after_close.hex"}
+{"step": "receive", "client": "a", "frame": "expected/full_after_close.json", "note": "close stays the previous close; the web also sends the packet's day close as day_close."}

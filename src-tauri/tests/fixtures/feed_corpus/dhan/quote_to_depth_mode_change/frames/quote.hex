@@ -1,0 +1,16 @@
+# Dhan binary frame: a quote packet (code 4) for RELIANCE.
+04                      # response code 4 (quote)
+3200                    # message length 50, header included
+01                      # exchange segment 1 (NSE_EQ)
+450b0000                # security id 2885
+00a8a244                # ltp 1301.25
+0a00                    # last traded quantity 10
+ece2f26a                # last trade time, epoch s
+0070a244                # average traded price 1299.5
+50c30000                # volume 50000
+401f0000                # total sell quantity 8000
+28230000                # total buy quantity 9000
+0040a144                # open 1290.0
+00000000                # day close (0 until the market closes)
+00c0a344                # high 1310.0
+00a0a044                # low 1285.0

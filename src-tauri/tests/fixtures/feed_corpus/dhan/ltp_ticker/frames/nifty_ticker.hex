@@ -1,0 +1,7 @@
+# Dhan binary frame: one ticker packet (code 2) for the NIFTY index (segment 0).
+02                      # response code 2 (ticker)
+1000                    # message length 16, header included
+00                      # exchange segment 0 (IDX_I)
+0d000000                # security id 13
+003dbe46                # ltp 24350.5
+ede2f26a                # last trade time, epoch s

@@ -1,0 +1,131 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "dhan",
+  "inputs_sha256": "a198bd6f5e30968e260b6c0f5b5c7cfd62e10a2f719af5ed98fbf3e491defda7",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>",
+            "mode": 2,
+            "ltp": 1301.25,
+            "ltt": 1794302700,
+            "last_trade_time": 1794302700,
+            "volume": 50000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "last_quantity": 10,
+            "average_price": 1299.5,
+            "total_buy_quantity": 9000,
+            "total_sell_quantity": 8000
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>",
+            "mode": 3,
+            "ltp": 1301.5,
+            "ltt": 1794302705,
+            "last_trade_time": 1794302705,
+            "volume": 50100,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "last_quantity": 5,
+            "average_price": 1299.75,
+            "total_buy_quantity": 9100,
+            "total_sell_quantity": 8100,
+            "oi": 0,
+            "oi_high": 0,
+            "oi_low": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1301.0,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 1300.5,
+                  "quantity": 11,
+                  "orders": 1
+                },
+                {
+                  "price": 1300.0,
+                  "quantity": 12,
+                  "orders": 1
+                },
+                {
+                  "price": 1299.5,
+                  "quantity": 13,
+                  "orders": 1
+                },
+                {
+                  "price": 1299.0,
+                  "quantity": 14,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1301.5,
+                  "quantity": 20,
+                  "orders": 2
+                },
+                {
+                  "price": 1302.0,
+                  "quantity": 21,
+                  "orders": 2
+                },
+                {
+                  "price": 1302.5,
+                  "quantity": 22,
+                  "orders": 2
+                },
+                {
+                  "price": 1303.0,
+                  "quantity": 23,
+                  "orders": 2
+                },
+                {
+                  "price": 1303.5,
+                  "quantity": 24,
+                  "orders": 2
+                }
+              ]
+            },
+            "depth_level": 5
+          }
+        }
+      ]
+    }
+  ]
+}
