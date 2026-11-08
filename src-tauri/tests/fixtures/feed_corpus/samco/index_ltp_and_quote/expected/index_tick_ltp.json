@@ -1,0 +1,16 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 1,
+  "broker": "samco",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "mode": "ltp",
+    "ltp": 24510.4,
+    "ltt": 1791002702000,
+    "timestamp": "<receipt_ms>",
+    "last_trade_time": 1791002702000
+  }
+}

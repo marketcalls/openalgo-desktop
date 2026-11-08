@@ -1,0 +1,79 @@
+{
+  "broker": "samco",
+  "summary": "A Quote subscription on an NSE stock: Samco's documented quote frame, then a partial one merged into it (the trade time from lTrdT, the totals and average price kept); after the unsubscribe a late frame reaches nobody.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present",
+      "test/test_samco_quote_feed.py::test_exchange_trade_time_is_published_as_ltt",
+      "test/test_samco_quote_feed.py::test_average_price_and_totals_published_in_quote_and_depth"
+    ],
+    "notes": [
+      "The first frame is DOC_QUOTE of web test/test_samco_quote_feed.py (Samco docs 13-streaming-data.md)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "best_ask_price",
+      "kind": "open",
+      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
+      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
+    },
+    {
+      "key": "best_ask_quantity",
+      "kind": "open",
+      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
+      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
+    },
+    {
+      "key": "best_bid_price",
+      "kind": "open",
+      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
+      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
+    },
+    {
+      "key": "best_bid_quantity",
+      "kind": "open",
+      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
+      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
+      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "change_percentage",
+      "kind": "open",
+      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
+      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    }
+  ]
+}

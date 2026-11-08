@@ -1,0 +1,91 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "samco",
+  "inputs_sha256": "c211207efa7a24f4cd52cf8499529997ac2413a0e395dc6f671f28d157cfff3a",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 44554.0,
+            "ltt": 1569935823000,
+            "last_trade_time": 1569935823000,
+            "volume": 782763833,
+            "open": 44105.0,
+            "high": 44786.0,
+            "low": 43969.0,
+            "close": 44119.0,
+            "last_trade_quantity": 1,
+            "change": 435.0,
+            "change_percentage": 0.99,
+            "best_bid_price": 44554.0,
+            "best_bid_quantity": 1,
+            "best_ask_price": 44561.0,
+            "best_ask_quantity": 1,
+            "last_quantity": 1,
+            "average_price": 44371.85,
+            "total_buy_quantity": 973,
+            "total_sell_quantity": 610,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 44560.5,
+            "ltt": 1569935830000,
+            "last_trade_time": 1569935830000,
+            "volume": 782763900,
+            "open": 44105.0,
+            "high": 44786.0,
+            "low": 43969.0,
+            "close": 44119.0,
+            "last_trade_quantity": 5,
+            "change": 435.0,
+            "change_percentage": 0.99,
+            "best_bid_price": 44554.0,
+            "best_bid_quantity": 1,
+            "best_ask_price": 44561.0,
+            "best_ask_quantity": 1,
+            "last_quantity": 5,
+            "average_price": 44371.85,
+            "total_buy_quantity": 973,
+            "total_sell_quantity": 610,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": []
+    }
+  ]
+}

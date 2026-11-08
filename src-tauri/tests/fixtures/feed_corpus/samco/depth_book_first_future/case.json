@@ -1,0 +1,81 @@
+{
+  "broker": "samco",
+  "summary": "A Depth subscription on an NFO future whose book (quote2) comes before its first quote; the quote then brings the price, OHLC and OI, and the next book carries them.",
+  "scenarios": [
+    "derivative-oi",
+    "partial-packet",
+    "depth-update",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY26NOVFUT",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present"
+    ],
+    "notes": [
+      "Samco names an NFO contract scripCode_NFO (samcoWebSocket.py subscribe)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
+      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "change_percentage",
+      "kind": "open",
+      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
+      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "The desktop sends a Depth client a fresh frame for every quote frame (new price, volume, OI) once its book exists; the web publishes to Depth subscribers only on quote2 frames, so a Depth-only client's price stands still until Samco's next book update.",
+      "ref": "samco_adapter.py _on_data (target_modes [3] for quote2, [1, 2] for quote)"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends Samco's web name for last_quantity (last_trade_quantity, which the web's Quote frames carry) in Depth frames too, beside last_quantity; the web's Depth frames carry last_quantity only.",
+      "ref": "feed::dialect (WS-05): aliases in Quote and Depth alike"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "Before Samco's first quote frame the desktop sends oi 0, a value Samco did not send (the quote2 stream carries no OI): it must be left out with the other quote fields. After the quote, samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, so a Depth client of a derivative never sees OI; the desktop sends it.",
+      "ref": "streaming.rs quote_tick (int of a missing oI); feed::bridge depth_update; samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "As oi: 0 before the first quote, then the OI the web drops.",
+      "ref": "streaming.rs quote_tick (int of a missing oI); feed::bridge depth_update; samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data"
+    }
+  ]
+}

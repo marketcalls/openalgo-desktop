@@ -1,0 +1,116 @@
+{
+  "broker": "samco",
+  "summary": "One client at Quote and one at Depth on the same stock: a book before the first quote, then the Depth client leaves and a quote reaches the Quote client.",
+  "scenarios": [
+    "mode-change",
+    "subscription-lifecycle",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter.subscribe",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter.unsubscribe",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unsubscribe_locked"
+    ],
+    "notes": [
+      "The web adapter's unsubscribe looks the Depth subscription up as RELIANCE_NSE_3 while subscribe stored it as RELIANCE_NSE_3_5, so the adapter keeps it; its client then drops the symbol from both streams and its merged fields, though the Quote client still holds it (samco_adapter.py subscribe/unsubscribe; samcoWebSocket.py _unsubscribe_locked)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "open",
+      "reason": "A quote2 frame (a book only) before Samco's first quote reaches the Quote client as a Quote frame with ltp 0.0 and zero OHLC, volume and OI the stream never sent; the web sends quote2 frames to Depth subscribers only.",
+      "ref": "streaming.rs event() (a Tick for every frame); samco_adapter.py _on_data (target_modes)"
+    },
+    {
+      "key": "best_ask_price",
+      "kind": "open",
+      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
+      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
+    },
+    {
+      "key": "best_ask_quantity",
+      "kind": "open",
+      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
+      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
+    },
+    {
+      "key": "best_bid_price",
+      "kind": "open",
+      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
+      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
+    },
+    {
+      "key": "best_bid_quantity",
+      "kind": "open",
+      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
+      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
+      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "change_percentage",
+      "kind": "open",
+      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
+      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends Samco's web name for last_quantity (last_trade_quantity, which the web's Quote frames carry) in Depth frames too, beside last_quantity; the web's Depth frames carry last_quantity only.",
+      "ref": "feed::dialect (WS-05): aliases in Quote and Depth alike"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "Before Samco's first quote frame the desktop sends oi 0, a value Samco did not send (the quote2 stream carries no OI): it must be left out with the other quote fields.",
+      "ref": "streaming.rs quote_tick (int of a missing oI); feed::bridge depth_update"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "As oi: 0 before the first quote.",
+      "ref": "streaming.rs quote_tick (int of a missing oI); feed::bridge depth_update"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "open",
+      "reason": "When the Depth client leaves, the desktop keeps the quote2 stream's book totals (tbq/taq) merged and prefers them to the quote stream's fresh tBQ/tSQ, so the Quote client is shown the totals of a book it no longer streams; the web's client drops the symbol's merged fields on that unsubscribe and sends the quote's own totals.",
+      "ref": "streaming.rs mode_change_frames (state kept) and first_present; samcoWebSocket.py _unsubscribe_locked"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "open",
+      "reason": "As total_buy_quantity: taq from the quote2 stream the client left wins over the quote's tSQ.",
+      "ref": "streaming.rs mode_change_frames and first_present"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "broker": "samco",
+  "summary": "A Depth subscription whose first frame is a quote (no book yet), then a five-level quote2 book, a thinner book with numeric zero totals, and a cleared book.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present",
+      "test/test_samco_quote_feed.py::test_depth_frame_totals_tbq_taq_published",
+      "test/test_samco_quote_feed.py::test_a_zero_depth_total_is_kept_not_replaced_by_the_quote_total"
+    ],
+    "notes": [
+      "The web publishes to Depth subscribers only on quote2 frames (samco_adapter.py _on_data: target_modes [3] for subscription_mode 3, [1, 2] otherwise).",
+      "The thin book sends tbq/taq as the numbers 0: real zero totals (web _first_present, openalgo#2397)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "open",
+      "reason": "The desktop sends a Depth client a frame for Samco's first quote frame, before any quote2 book, with five invented zero levels a side; the web publishes to Depth subscribers only on quote2 frames, so its first Depth frame carries a real book.",
+      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, samco row (all-zero book on quote before the first quote2); streaming.rs book()"
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
+      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "change_percentage",
+      "kind": "open",
+      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
+      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "depth",
+      "kind": "open",
+      "reason": "The desktop pads each side to five levels: a three-level bid and two-level ask show as five with zero levels, and a cleared book as five zero levels a side, levels Samco never sent; the web sends the levels Samco sent and leaves depth out when both sides are empty.",
+      "ref": "streaming.rs book() (resize to 5); samcoWebSocket.py _normalize_market_data (depth only when a side has levels)"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends Samco's web name for last_quantity (last_trade_quantity, which the web's Quote frames carry) in Depth frames too, beside last_quantity; the web's Depth frames carry last_quantity only.",
+      "ref": "feed::dialect (WS-05): aliases in Quote and Depth alike"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, so a Depth client of a derivative never sees OI; the desktop sends it.",
+      "ref": "samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "Samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, so a Depth client of a derivative never sees OI; the desktop sends it.",
+      "ref": "samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data"
+    }
+  ]
+}

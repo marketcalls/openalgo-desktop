@@ -1,0 +1,27 @@
+{
+  "broker": "samco",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [5],
+      "BSE": [5],
+      "NFO": [5],
+      "BFO": [5],
+      "MCX": [5],
+      "MFO": [5],
+      "CDS": [5]
+    },
+    "orders": "REST order-book polling (web PollingOrderUpdateAdapter)"
+  },
+  "sources": [
+    "broker/samco/streaming/samco_mapping.py::SamcoCapabilityRegistry",
+    "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter.subscribe",
+    "services/order_update_service.py:_POLLING_BROKERS"
+  ],
+  "notes": [
+    "One socket, two streams: quote (price, OHLC, volume, OI, best bid and ask) for every subscription, quote2 (the five-level book and its totals) for Depth subscriptions; the fields of both are merged per symbol.",
+    "Indices stream by Samco's listingId (-23), fetched by the web at subscribe from /quote/indexQuote; the desktop learns it from a REST index quote (audit RB-05).",
+    "Order updates: Samco has no order stream; the web and the desktop poll the order book (web PollingOrderUpdateAdapter, desktop brokers::common::order_poll). No corpus case until the harness can serve a scripted order book (lead decision, 2026-11-09)."
+  ]
+}

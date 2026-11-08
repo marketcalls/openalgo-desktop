@@ -1,0 +1,93 @@
+{
+  "broker": "samco",
+  "summary": "NIFTY at LTP and at Quote, its streaming id (-23) known from an earlier index quote: an index quote frame, then a partial one with a new price and change.",
+  "scenarios": [
+    "index",
+    "first-full-packet",
+    "partial-packet",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "NIFTY_50",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE",
+      "name": "Nifty 50",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._get_index_listing_id"
+    ],
+    "notes": [
+      "Indices subscribe by Samco's listingId with no segment suffix (samcoWebSocket.py subscribe). The case's feed knows NIFTY's id as the desktop learns it from a REST index quote (brokers/samco/data.rs index_details); the web glue answers _get_index_listing_id with the same id."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "best_ask_price",
+      "kind": "web-defect",
+      "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628"
+    },
+    {
+      "key": "best_ask_quantity",
+      "kind": "web-defect",
+      "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628"
+    },
+    {
+      "key": "best_bid_price",
+      "kind": "web-defect",
+      "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628"
+    },
+    {
+      "key": "best_bid_quantity",
+      "kind": "web-defect",
+      "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's index frames carry no last_quantity, average price or book totals, as the recorded Zerodha index transcript does; the web sends a last_quantity of 0 Samco never sent for an index.",
+      "ref": "feed::protocol market_data (index branch); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "desktop-decision",
+      "reason": "As last_quantity: its Samco alias goes with it.",
+      "ref": "feed::dialect; feed::protocol market_data (index branch)"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends an index's change under its canonical name price_change, as the recorded Zerodha index transcript does, beside Samco's web name change with the same value.",
+      "ref": "feed::dialect (canonical names always); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "As price_change, beside Samco's web name change_percentage.",
+      "ref": "feed::dialect; tests/fixtures/web/websocket transcripts"
+    }
+  ]
+}

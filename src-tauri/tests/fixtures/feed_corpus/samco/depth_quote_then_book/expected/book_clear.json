@@ -1,0 +1,84 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 3,
+  "broker": "samco",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": "full",
+    "ltp": 44554.0,
+    "ltt": 1569935823000,
+    "timestamp": "<receipt_ms>",
+    "volume": 782763833,
+    "last_quantity": 1,
+    "average_price": 44371.85,
+    "total_buy_quantity": 0,
+    "total_sell_quantity": 0,
+    "open": 44105.0,
+    "high": 44786.0,
+    "low": 43969.0,
+    "close": 44119.0,
+    "oi": 361290,
+    "open_interest": 361290,
+    "depth": {
+      "buy": [
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ],
+      "sell": [
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ]
+    },
+    "last_trade_quantity": 1,
+    "last_trade_time": 1569935823000
+  }
+}

@@ -1,0 +1,1 @@
+{"response":{"data":{"symbol":"2885_NSE","tbq":0,"taq":0,"bidValues":[{"price":"44555","qty":"2","no":"1"},{"price":"44554.5","qty":"3","no":"1"},{"price":"44554","qty":"4","no":"2"}],"askValues":[{"price":"44560","qty":"5","no":"1"},{"price":"44560.5","qty":"6","no":"1"}]},"streaming_type":"quote2"}}

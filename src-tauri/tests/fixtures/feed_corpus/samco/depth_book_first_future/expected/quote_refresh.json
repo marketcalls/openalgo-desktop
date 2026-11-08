@@ -1,0 +1,84 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY24NOV26FUT",
+  "exchange": "NFO",
+  "mode": 3,
+  "broker": "samco",
+  "data": {
+    "symbol": "NIFTY24NOV26FUT",
+    "exchange": "NFO",
+    "mode": "full",
+    "ltp": 24610.4,
+    "ltt": 1791002701000,
+    "timestamp": "<receipt_ms>",
+    "volume": 1250475,
+    "last_quantity": 75,
+    "average_price": 24598.65,
+    "total_buy_quantity": 15000,
+    "total_sell_quantity": 18000,
+    "open": 24550.0,
+    "high": 24650.0,
+    "low": 24520.1,
+    "close": 24580.0,
+    "oi": 10650225,
+    "open_interest": 10650225,
+    "depth": {
+      "buy": [
+        {
+          "price": 24610.0,
+          "quantity": 75,
+          "orders": 1
+        },
+        {
+          "price": 24609.95,
+          "quantity": 150,
+          "orders": 2
+        },
+        {
+          "price": 24609.9,
+          "quantity": 225,
+          "orders": 3
+        },
+        {
+          "price": 24609.85,
+          "quantity": 300,
+          "orders": 4
+        },
+        {
+          "price": 24609.8,
+          "quantity": 375,
+          "orders": 5
+        }
+      ],
+      "sell": [
+        {
+          "price": 24610.5,
+          "quantity": 150,
+          "orders": 1
+        },
+        {
+          "price": 24610.55,
+          "quantity": 225,
+          "orders": 2
+        },
+        {
+          "price": 24610.6,
+          "quantity": 300,
+          "orders": 3
+        },
+        {
+          "price": 24610.65,
+          "quantity": 375,
+          "orders": 4
+        },
+        {
+          "price": 24610.7,
+          "quantity": 450,
+          "orders": 5
+        }
+      ]
+    },
+    "last_trade_quantity": 75,
+    "last_trade_time": 1791002701000
+  }
+}

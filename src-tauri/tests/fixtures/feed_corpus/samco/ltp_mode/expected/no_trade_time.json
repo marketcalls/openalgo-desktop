@@ -1,0 +1,14 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "samco",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": "ltp",
+    "ltp": 44554.0,
+    "timestamp": "<receipt_ms>"
+  }
+}

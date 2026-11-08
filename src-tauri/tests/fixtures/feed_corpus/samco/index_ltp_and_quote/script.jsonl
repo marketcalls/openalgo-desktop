@@ -1,0 +1,10 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "-23"}]}, "request_type": "subscribe", "response_format": "json"}}}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "-23"}]}, "request_type": "subscribe", "response_format": "json"}}}]}
+{"step": "push", "frame": "frames/index_quote.json"}
+{"step": "receive", "client": "a", "frame": "expected/index_ltp.json"}
+{"step": "receive", "client": "b", "frame": "expected/index_quote.json"}
+{"step": "push", "frame": "frames/index_tick.json"}
+{"step": "receive", "client": "a", "frame": "expected/index_tick_ltp.json"}
+{"step": "receive", "client": "b", "frame": "expected/index_tick_quote.json"}
