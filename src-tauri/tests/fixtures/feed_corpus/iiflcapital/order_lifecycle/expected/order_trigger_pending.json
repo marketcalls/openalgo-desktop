@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "iiflcapital",
+  "orderid": "26110900000104",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "SELL",
+  "quantity": 10,
+  "price": 0.0,
+  "trigger_price": 1482.5,
+  "pricetype": "SL-M",
+  "product": "NRML",
+  "order_status": "trigger pending",
+  "filled_quantity": 0,
+  "pending_quantity": 10,
+  "average_price": 0.0,
+  "rejection_reason": ""
+}

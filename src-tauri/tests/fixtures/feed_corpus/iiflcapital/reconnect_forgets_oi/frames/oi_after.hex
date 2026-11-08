@@ -1,0 +1,7 @@
+# The first OI packet on the new connection.
+0021                    # relay PUBLISH: topic length 33 (big-endian)
+70726f642f6d61726b6574666565642f6f692f76312f6e7365666f2f3335303031  # topic prod/marketfeed/oi/v1/nsefo/35001
+3072bc00                # open interest 12350000
+8035bd00                # day high OI 12400000
+a0a1b800                # day low OI 12100000
+001bb700                # previous OI 12000000

@@ -1,0 +1,16 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "push", "frame": {"text": "{\"openalgo_relay\":\"ready\"}"}, "socket": "orders", "note": "The relay's ready frame: the broker side is open."}
+{"step": "push", "frame": "frames/order_open.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "push", "frame": "frames/order_partial.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json"}
+{"step": "push", "frame": "frames/trade_fill.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/trade_fill.json"}
+{"step": "push", "frame": "frames/order_complete.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "push", "frame": "frames/order_rejected.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
+{"step": "push", "frame": "frames/order_cancelled.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}
+{"step": "push", "frame": "frames/order_trigger_pending.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_trigger_pending.json"}

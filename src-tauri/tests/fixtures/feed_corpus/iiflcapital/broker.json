@@ -1,0 +1,21 @@
+{
+  "broker": "iiflcapital",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": "order and trade topics on a dedicated MQTT connection (prod/updates/order/v1, prod/updates/trade/v1)"
+  },
+  "sources": [
+    "broker/iiflcapital/streaming/iiflcapital_adapter.py::IiflcapitalWebSocketAdapter.subscribe",
+    "broker/iiflcapital/streaming/iiflcapital_websocket.py",
+    "broker/iiflcapital/streaming/iiflcapital_order_adapter.py",
+    "services/order_update_service.py:61-64"
+  ],
+  "notes": [
+    "IIFL streams five levels; every subscribe is acknowledged with depth 5 in every mode (iiflcapital_adapter.py:303), as the desktop does (feed::dialect, DepthAck::Five).",
+    "The desktop reaches IIFL's MQTT bridge through a loopback relay (brokers/iiflcapital/mqtt_relay.rs); the corpus plays the relay's side, so the MQTT session itself (credentials, clean session, keepalive) is covered by the broker's unit tests, not here."
+  ]
+}

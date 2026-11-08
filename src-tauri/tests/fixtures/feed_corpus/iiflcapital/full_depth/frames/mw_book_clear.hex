@@ -1,0 +1,31 @@
+# A packet whose ten depth entries are all zero (no book).
+0020                    # relay PUBLISH: topic length 32 (big-endian)
+70726f642f6d61726b6574666565642f6d772f76312f6e736565712f32383835  # topic prod/marketfeed/mw/v1/nseeq/2885
+f5490200                # ltp 1500.05 (x100)
+00000000                # last traded quantity 0
+47bf3400                # traded volume 3456839
+ec4d0200                # high 1510.2
+1e440200                # low 1485.1
+02470200                # open 1492.5
+5e450200                # previous close 1488.3
+74490200                # average traded price 1498.76
+0000                    # reserved
+00000000                # best bid quantity 0
+00000000                # best bid price 0.0
+00000000                # best ask quantity 0
+00000000                # best ask price 0.0
+00000000                # total bid quantity 0
+00000000                # total ask quantity 0
+64000000                # price divisor 100
+f67ec06a                # last traded time 1791000310, epoch s
+000000000000000000000100# bid 1: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000100# bid 2: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000100# bid 3: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000100# bid 4: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000100# bid 5: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000200# ask 1: qty 0, price 0.0, orders 0, transactionType 2
+000000000000000000000200# ask 2: qty 0, price 0.0, orders 0, transactionType 2
+000000000000000000000200# ask 3: qty 0, price 0.0, orders 0, transactionType 2
+000000000000000000000200# ask 4: qty 0, price 0.0, orders 0, transactionType 2
+000000000000000000000200# ask 5: qty 0, price 0.0, orders 0, transactionType 2
+0000                    # 2 trailing slack bytes the bridge publishes (188-byte frames)

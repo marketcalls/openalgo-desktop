@@ -1,0 +1,110 @@
+{
+  "broker": "iiflcapital",
+  "summary": "NIFTY 50 (NSE_INDEX) at Quote takes the index topic; its packet becomes an index Quote frame with the change worked out from the previous close.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSEEQ",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::_decode_market_feed",
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::IiflcapitalWebSocket._dispatch_feed",
+      "broker/iiflcapital/streaming/iiflcapital_adapter.py::IiflcapitalWebSocketAdapter._handle_ticks"
+    ],
+    "notes": [
+      "No live index packet was recorded; an index packet carries zero trades, book and totals."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386"
+    },
+    {
+      "key": "ltp",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros IIFL's index packet carries in their place.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros IIFL's index packet carries in their place.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros IIFL's index packet carries in their place.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros IIFL's index packet carries in their place.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop's index Quote and Depth frames carry the change worked out from the previous close, as the recorded Zerodha index frames do; the IIFL Capital web adapter sends no change.",
+      "ref": "feed::bridge::quote_fields (index change); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop's index Quote and Depth frames carry the change worked out from the previous close, as the recorded Zerodha index frames do; the IIFL Capital web adapter sends no change.",
+      "ref": "feed::bridge::quote_fields (index change); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+    },
+    {
+      "key": "bid",
+      "kind": "open",
+      "reason": "The web sends the index packet's best bid and ask (zeros: an index has no book); the desktop's carrier drops bid and ask for every instrument (audit C06). Whether an index frame carries them once C06 lands is the wire lane's call (an index has none).",
+      "ref": "iiflcapital_adapter.py:408-411; audit C06"
+    },
+    {
+      "key": "ask",
+      "kind": "open",
+      "reason": "The web sends the index packet's best bid and ask (zeros: an index has no book); the desktop's carrier drops bid and ask for every instrument (audit C06). Whether an index frame carries them once C06 lands is the wire lane's call (an index has none).",
+      "ref": "iiflcapital_adapter.py:408-411; audit C06"
+    },
+    {
+      "key": "bid_quantity",
+      "kind": "open",
+      "reason": "The web sends the index packet's best bid and ask (zeros: an index has no book); the desktop's carrier drops bid and ask for every instrument (audit C06). Whether an index frame carries them once C06 lands is the wire lane's call (an index has none).",
+      "ref": "iiflcapital_adapter.py:408-411; audit C06"
+    },
+    {
+      "key": "ask_quantity",
+      "kind": "open",
+      "reason": "The web sends the index packet's best bid and ask (zeros: an index has no book); the desktop's carrier drops bid and ask for every instrument (audit C06). Whether an index frame carries them once C06 lands is the wire lane's call (an index has none).",
+      "ref": "iiflcapital_adapter.py:408-411; audit C06"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "iiflcapital",
+  "orderid": "26110900000101",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 10,
+  "price": 1500.5,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "CNC",
+  "order_status": "open",
+  "filled_quantity": 4,
+  "pending_quantity": 6,
+  "average_price": 1500.45,
+  "rejection_reason": ""
+}

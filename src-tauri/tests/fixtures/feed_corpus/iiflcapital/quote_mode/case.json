@@ -1,0 +1,65 @@
+{
+  "broker": "iiflcapital",
+  "summary": "A Quote subscription on an equity: the market-feed topic only (no OI stream for NSE cash); the packet becomes a Quote frame with OHLC, volume, last quantity, average price and book totals.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSEEQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::_decode_market_feed",
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::IiflcapitalWebSocket._dispatch_feed",
+      "broker/iiflcapital/streaming/iiflcapital_adapter.py::IiflcapitalWebSocketAdapter._handle_ticks"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386"
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)"
+    },
+    {
+      "key": "bid",
+      "kind": "open",
+      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
+      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
+    },
+    {
+      "key": "ask",
+      "kind": "open",
+      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
+      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
+    },
+    {
+      "key": "bid_quantity",
+      "kind": "open",
+      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
+      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
+    },
+    {
+      "key": "ask_quantity",
+      "kind": "open",
+      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
+      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
+    }
+  ]
+}

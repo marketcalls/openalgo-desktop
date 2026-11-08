@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "iiflcapital",
+  "orderid": "26110900000102",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "SELL",
+  "quantity": 5,
+  "price": 0.0,
+  "trigger_price": 0.0,
+  "pricetype": "MARKET",
+  "product": "MIS",
+  "order_status": "rejected",
+  "filled_quantity": 0,
+  "pending_quantity": 0,
+  "average_price": 0.0,
+  "rejection_reason": "RMS: Margin Exceeds"
+}

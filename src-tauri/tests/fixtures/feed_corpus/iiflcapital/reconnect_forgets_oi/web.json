@@ -1,0 +1,304 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "iiflcapital",
+  "inputs_sha256": "24b9644407448010501ee8b09f4ac895725ba12bdfd0199f16724d30a0b7d983",
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY24NOV26FUT",
+      "brexchange": "NSEFO",
+      "name": "NIFTY",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": []
+    },
+    {
+      "line": 4,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "ltp": 24605.5,
+            "ltt": 1791000400,
+            "timestamp": "<receipt_ms>",
+            "open": 24550.0,
+            "high": 24640.0,
+            "low": 24530.5,
+            "close": 24520.0,
+            "volume": 1875000,
+            "last_quantity": 75,
+            "average_price": 24590.25,
+            "total_buy_quantity": 450000,
+            "total_sell_quantity": 375000,
+            "bid": 24605.0,
+            "ask": 24606.0,
+            "bid_quantity": 750,
+            "ask_quantity": 600,
+            "oi": 12345600,
+            "open_interest": 12345600,
+            "mode": "full",
+            "depth": {
+              "buy": [
+                {
+                  "quantity": 750,
+                  "price": 24605.0,
+                  "orders": 5
+                },
+                {
+                  "quantity": 1500,
+                  "price": 24604.5,
+                  "orders": 9
+                },
+                {
+                  "quantity": 2250,
+                  "price": 24604.0,
+                  "orders": 11
+                },
+                {
+                  "quantity": 300,
+                  "price": 24603.5,
+                  "orders": 2
+                },
+                {
+                  "quantity": 825,
+                  "price": 24603.0,
+                  "orders": 6
+                }
+              ],
+              "sell": [
+                {
+                  "quantity": 600,
+                  "price": 24606.0,
+                  "orders": 4
+                },
+                {
+                  "quantity": 1200,
+                  "price": 24606.5,
+                  "orders": 8
+                },
+                {
+                  "quantity": 975,
+                  "price": 24607.0,
+                  "orders": 7
+                },
+                {
+                  "quantity": 150,
+                  "price": 24607.5,
+                  "orders": 1
+                },
+                {
+                  "quantity": 2100,
+                  "price": 24608.0,
+                  "orders": 12
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": []
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "ltp": 24608.0,
+            "ltt": 1791000500,
+            "timestamp": "<receipt_ms>",
+            "open": 24550.0,
+            "high": 24640.0,
+            "low": 24530.5,
+            "close": 24520.0,
+            "volume": 1876000,
+            "last_quantity": 150,
+            "average_price": 24590.25,
+            "total_buy_quantity": 450000,
+            "total_sell_quantity": 375000,
+            "bid": 24605.0,
+            "ask": 24606.0,
+            "bid_quantity": 750,
+            "ask_quantity": 600,
+            "oi": 12345600,
+            "open_interest": 12345600,
+            "mode": "full",
+            "depth": {
+              "buy": [
+                {
+                  "quantity": 750,
+                  "price": 24605.0,
+                  "orders": 5
+                },
+                {
+                  "quantity": 1500,
+                  "price": 24604.5,
+                  "orders": 9
+                },
+                {
+                  "quantity": 2250,
+                  "price": 24604.0,
+                  "orders": 11
+                },
+                {
+                  "quantity": 300,
+                  "price": 24603.5,
+                  "orders": 2
+                },
+                {
+                  "quantity": 825,
+                  "price": 24603.0,
+                  "orders": 6
+                }
+              ],
+              "sell": [
+                {
+                  "quantity": 600,
+                  "price": 24606.0,
+                  "orders": 4
+                },
+                {
+                  "quantity": 1200,
+                  "price": 24606.5,
+                  "orders": 8
+                },
+                {
+                  "quantity": 975,
+                  "price": 24607.0,
+                  "orders": 7
+                },
+                {
+                  "quantity": 150,
+                  "price": 24607.5,
+                  "orders": 1
+                },
+                {
+                  "quantity": 2100,
+                  "price": 24608.0,
+                  "orders": 12
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "published": []
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "ltp": 24608.5,
+            "ltt": 1791000505,
+            "timestamp": "<receipt_ms>",
+            "open": 24550.0,
+            "high": 24640.0,
+            "low": 24530.5,
+            "close": 24520.0,
+            "volume": 1876075,
+            "last_quantity": 75,
+            "average_price": 24590.25,
+            "total_buy_quantity": 450000,
+            "total_sell_quantity": 375000,
+            "bid": 24605.0,
+            "ask": 24606.0,
+            "bid_quantity": 750,
+            "ask_quantity": 600,
+            "oi": 12350000,
+            "open_interest": 12350000,
+            "mode": "full",
+            "depth": {
+              "buy": [
+                {
+                  "quantity": 750,
+                  "price": 24605.0,
+                  "orders": 5
+                },
+                {
+                  "quantity": 1500,
+                  "price": 24604.5,
+                  "orders": 9
+                },
+                {
+                  "quantity": 2250,
+                  "price": 24604.0,
+                  "orders": 11
+                },
+                {
+                  "quantity": 300,
+                  "price": 24603.5,
+                  "orders": 2
+                },
+                {
+                  "quantity": 825,
+                  "price": 24603.0,
+                  "orders": 6
+                }
+              ],
+              "sell": [
+                {
+                  "quantity": 600,
+                  "price": 24606.0,
+                  "orders": 4
+                },
+                {
+                  "quantity": 1200,
+                  "price": 24606.5,
+                  "orders": 8
+                },
+                {
+                  "quantity": 975,
+                  "price": 24607.0,
+                  "orders": 7
+                },
+                {
+                  "quantity": 150,
+                  "price": 24607.5,
+                  "orders": 1
+                },
+                {
+                  "quantity": 2100,
+                  "price": 24608.0,
+                  "orders": 12
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
