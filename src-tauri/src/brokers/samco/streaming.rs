@@ -319,10 +319,11 @@ fn epoch_ms(value: &str) -> Option<i64> {
 
 /// The tick for `sub` from the merged fields: a quote packet, whatever
 /// the subscription, with Samco's OI when it sent one (the web reads `oI`
-/// and then drops it from every mode: lost data, kept here). Average
-/// price, the book totals and the trade time are marked absent until
-/// Samco sends them, so a client is not shown an invented 0 or the
-/// receive time (web openalgo#2396).
+/// and then drops it from every mode: lost data, kept here). Every field
+/// Samco has not sent yet (the price, OHLC, volume, last quantity, average
+/// price, book totals, trade time) is marked absent, so a client is not
+/// shown an invented 0 or the receive time (web openalgo#2396; the web
+/// still sends 0 for some).
 fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> NormalizedTick {
     let g = |k: &str| merged.get(k);
     let tbq = first_present(merged, &["tbq", "tBQ"]);
@@ -330,6 +331,13 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
     let ltt = trade_time_ms(merged);
     let mut absent = AbsentFields::default();
     for (missing, field) in [
+        (g("ltp").is_none(), QuoteField::Ltp),
+        (g("o").is_none(), QuoteField::Open),
+        (g("h").is_none(), QuoteField::High),
+        (g("l").is_none(), QuoteField::Low),
+        (g("c").is_none(), QuoteField::Close),
+        (g("vol").is_none(), QuoteField::Volume),
+        (g("ltq").is_none(), QuoteField::LastQuantity),
         (g("avgPr").is_none(), QuoteField::AveragePrice),
         (tbq.is_none(), QuoteField::TotalBuyQuantity),
         (tsq.is_none(), QuoteField::TotalSellQuantity),
@@ -364,7 +372,11 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
     if g("oI").is_some() {
         tick.mark_carried(QuoteField::OpenInterest);
     }
-    if tick.change == 0.0 && tick.change_percent == 0.0 {
+    // Samco's own change, a 0 included; else the one the previous close
+    // gives (none without a close).
+    if g("ch").is_some() || g("chPer").is_some() {
+        tick.mark_carried(QuoteField::Change);
+    } else {
         tick.derive_change();
     }
     tick

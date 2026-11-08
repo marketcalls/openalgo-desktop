@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 55. Open gaps: 161. Deviations pending approval: 105.
+Cases: 55. Open gaps: 161. Deviations pending approval: 106.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -217,6 +217,7 @@ Cases: 55. Open gaps: 161. Deviations pending approval: 105.
 | samco | `index_ltp_and_quote` | `last_trade_quantity` | web-defect | no | As last_quantity: the web sends last_trade_quantity 0 for an index frame without ltq; the desktop leaves it out. |
 | samco | `index_ltp_and_quote` | `price_change` | open | no | The desktop sends an index's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change). |
 | samco | `index_ltp_and_quote` | `price_change_percent` | open | no | As price_change: Samco's web adapter sends change_percentage only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change_percent). |
+| samco | `index_ltp_and_quote` | `volume` | web-defect | no | Samco's index quote carries no vol; the web sends volume 0, a value it never received (samcoWebSocket._normalize_market_data defaults vol to 0); the desktop leaves it out. |
 | samco | `order_book_polling` | `exchange` | web-defect | no | Samco books MCX contracts on its MFO segment; the web relays MFO and the broker's trading symbol because its symbol lookup asks the master for exchange MFO, which holds no row, so the update names no OpenAlgo contract. The desktop maps MFO to MCX and the symbol to the OpenAlgo one (brokers/samco/mapping.rs oa_exchange). |
 | samco | `order_book_polling` | `symbol` | web-defect | no | As exchange: the web sends Samco's trading symbol NATURALGAS26NOVFUT for an MCX order, not the OpenAlgo symbol. |
 | samco | `order_book_polling` | `frame` | web-defect | no | The web publishes no update for an order whose price carries Samco's thousands comma (5,412.00): the order book path leaves orderPrice as Samco's text and PollingOrderUpdateAdapter._publish_order's float() raises, which it logs and drops; the desktop parses the price and sends the update (open, then cancelled). |

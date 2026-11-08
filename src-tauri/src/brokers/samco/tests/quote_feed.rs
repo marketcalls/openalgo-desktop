@@ -176,7 +176,9 @@ fn a_depth_frame_publishes_its_tbq_and_taq_totals() {
 
 /// Web test_fields_not_sent_are_left_out: a stream that has not reported
 /// the average price, the totals or a trade time publishes none of them,
-/// in Quote or Depth, rather than 0 or the receive time.
+/// in Quote or Depth, rather than 0 or the receive time. Nor the volume,
+/// OHLC or last quantity it has not reported (the web sends those as 0, a
+/// value it never received; the desktop did too).
 #[test]
 fn fields_samco_did_not_send_are_left_out() {
     let (mut f, _) = feed();
@@ -194,11 +196,17 @@ fn fields_samco_did_not_send_are_left_out() {
             "total_sell_quantity",
             "ltt",
             "last_trade_time",
+            "volume",
+            "open",
+            "high",
+            "low",
+            "close",
+            "last_quantity",
+            "last_trade_quantity",
         ] {
             assert!(d.get(k).is_none(), "{:?} {}: {}", mode, k, d);
         }
         assert_eq!(d["ltp"], 10.0, "{}", d);
-        assert_eq!(d["volume"], 0, "volume is on Samco's stream: {}", d);
     }
 }
 
