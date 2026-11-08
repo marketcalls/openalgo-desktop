@@ -1,0 +1,41 @@
+{
+  "broker": "sahi",
+  "summary": "Sahi refuses the reconnect's upgrade with HTTP 429 (5 a second, 250 a minute per user): the feed waits 30 s, the web's backoff cap, before it tries again.",
+  "scenarios": [
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/sahi/streaming/sahi_websocket.py::SahiWebSocket._run",
+      "broker/sahi/streaming/sahi_websocket.py::SahiWebSocket._connect_once"
+    ],
+    "notes": [
+      "sahi_websocket.py:_run: code 429 waits BACKOFF_CAP (30 s)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Sahi sent no open interest for this instrument (open_interest, a proto3 optional, is off its ticks); the web publishes oi 0 for it (sahi_mapping.py build_quote_payload), a number the exchange never sent. The desktop leaves it out (docs: a field the stream does not carry is left out; decisions.md).",
+      "ref": "sahi_mapping.py:129",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "The web's alias of oi, sent as 0 with it for an instrument whose ticks carry no open interest; left out with oi (see oi).",
+      "ref": "sahi_mapping.py:130",
+      "approved": true
+    }
+  ]
+}

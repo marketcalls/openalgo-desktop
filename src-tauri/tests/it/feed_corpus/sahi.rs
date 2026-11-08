@@ -33,6 +33,10 @@ corpus_cases!(
         index_depth,
         derivative_oi,
         reconnect_resubscribes,
+        close_token_expired_stops,
+        close_too_many_connections_waits,
+        close_rate_limited_upgrade_waits,
+        close_ping_timeout_reconnects,
         unsupported_exchange,
     ]
 );

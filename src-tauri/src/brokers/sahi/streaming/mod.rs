@@ -22,21 +22,19 @@
 //!   pings also keep the manager's stall watchdog quiet.
 //! * A token Sahi no longer accepts (expired, or its key revoked) is
 //!   refused at the upgrade with HTTP 401 or 403 (docs.sahi.com), which
-//!   stops the feed until the trader logs in again. A socket Sahi closes
-//!   (4401 or 4403 for a token revoked mid-session, 4408 ping timeout,
-//!   4429 too many connections) is reconnected with the manager's capped
-//!   backoff, since the manager does not read close codes; after a
-//!   revocation that next upgrade is the 401 or 403 that stops it. The web
-//!   (`sahi_websocket.py`) stops on the close code itself and waits 60 to
-//!   300 s after a 4429.
+//!   stops the feed until the trader logs in again. A socket Sahi closes is
+//!   answered by its close code, as the web's `sahi_websocket.py` does
+//!   (`close.rs`, audit P-12): 4401 and 4403 stop for a new login, 4429
+//!   waits 60 to 300 s and then stops with what the trader has to close.
 
+mod close;
 mod proto;
 #[cfg(test)]
 mod tests;
 
 use crate::brokers::common::streaming::{
-    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, Ended, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, QuoteField, Reconnect, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -92,6 +90,8 @@ pub struct SahiFeed {
     /// Sahi instrument id -> the OpenAlgo instrument it was subscribed for.
     /// Removed on unsubscribe; never larger than `MAX_INSTRUMENTS`.
     subs: HashMap<i64, SubInfo>,
+    /// How Sahi closing a connection is answered (the 4429 count).
+    close: close::ClosePolicy,
 }
 
 impl std::fmt::Debug for SahiFeed {
@@ -162,8 +162,8 @@ fn band(paise: i64) -> Option<f64> {
     (paise != 0).then(|| rupees(paise))
 }
 
-/// Whether a handshake status (or, should the manager pass one, a close
-/// code) means the token is dead.
+/// Whether a handshake status or a close code means the token is dead
+/// (web `_AUTH_CODES`).
 pub(crate) fn is_auth_close(code: u16) -> bool {
     matches!(code, 401 | 403 | CLOSE_TOKEN_EXPIRED | CLOSE_FORBIDDEN)
 }
@@ -219,6 +219,7 @@ impl SahiFeed {
             symbols,
             url,
             subs: HashMap::new(),
+            close: close::ClosePolicy::default(),
         }
     }
 
@@ -397,6 +398,11 @@ impl BrokerFeed for SahiFeed {
         feed_request(&self.url, &self.access_token)
     }
 
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.close.opened();
+        Vec::new()
+    }
+
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         self.register(subs)
             .into_iter()
@@ -450,5 +456,13 @@ impl BrokerFeed for SahiFeed {
 
     fn is_auth_failure(&self, http_status: Option<u16>) -> bool {
         http_status.is_some_and(is_auth_close)
+    }
+
+    fn on_ended(&mut self, ended: Ended<'_>) -> Reconnect {
+        self.close.ended(ended)
+    }
+
+    fn on_resume(&mut self) {
+        self.close.resume();
     }
 }

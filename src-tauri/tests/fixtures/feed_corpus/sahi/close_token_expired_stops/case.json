@@ -1,0 +1,41 @@
+{
+  "broker": "sahi",
+  "summary": "Sahi closes the socket with 4401 (token expired or revoked): the feed does not connect again until the trader logs in again, as the web's _run stops on an auth close whose stored token has not changed.",
+  "scenarios": [
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/sahi/streaming/sahi_websocket.py::SahiWebSocket._run",
+      "broker/sahi/streaming/sahi_websocket.py::SahiWebSocket._connect_once"
+    ],
+    "notes": [
+      "sahi_websocket.py:_run: 4401/4403 re-read the stored token and give up when it has not changed; a desktop feed's token cannot change under it."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Sahi sent no open interest for this instrument (open_interest, a proto3 optional, is off its ticks); the web publishes oi 0 for it (sahi_mapping.py build_quote_payload), a number the exchange never sent. The desktop leaves it out (docs: a field the stream does not carry is left out; decisions.md).",
+      "ref": "sahi_mapping.py:129",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "The web's alias of oi, sent as 0 with it for an instrument whose ticks carry no open interest; left out with oi (see oi).",
+      "ref": "sahi_mapping.py:130",
+      "approved": true
+    }
+  ]
+}
