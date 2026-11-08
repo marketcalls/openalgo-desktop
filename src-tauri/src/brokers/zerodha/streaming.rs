@@ -7,7 +7,8 @@
 //!   `{"a":"mode","v":["full",[..]]}`, batches of 200 tokens.
 //! * Binary frames are big-endian: `u16` packet count, then `u16` length +
 //!   packet. Packet sizes: 8 (LTP), 28/32 (index quote/full), 44 (quote),
-//!   184 (full with 5-level depth).
+//!   184 (full with 5-level depth). A tick's mode is its packet's, read
+//!   from the size, as the web reads it.
 //! * The exchange of a tick comes from the subscription map, never from the
 //!   token, so `NSE_INDEX:NIFTY` stays `NSE_INDEX`.
 //! * Prices are paise (/100), CDS /10^7 and BCD /10^4 by segment.
@@ -15,8 +16,9 @@
 
 use super::mapping::{from_kite_quantity, instrument_token, map_status};
 use crate::brokers::common::streaming::{
-    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest, WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
+    now_ms, ping, round2, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest, WEB_PING_INTERVAL,
+    WEB_PING_TIMEOUT,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -29,6 +31,32 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 pub const WS_URL: &str = "wss://ws.kite.trade";
 /// Tokens per subscribe frame.
 pub const BATCH: usize = 200;
+
+/// What Kite's index packet does not carry (web openalgo#2347): no trade
+/// quantities, average price, book totals or OI, so they are left out
+/// rather than sent as 0. Volume stays, as 0, as the web's adapter sends
+/// it for an index.
+const NOT_IN_AN_INDEX_PACKET: AbsentFields = AbsentFields::of(&[
+    QuoteField::LastQuantity,
+    QuoteField::AveragePrice,
+    QuoteField::TotalBuyQuantity,
+    QuoteField::TotalSellQuantity,
+    QuoteField::OpenInterest,
+]);
+
+/// The mode a packet's size says it was sent in (web `_parse_packet`): 8
+/// bytes LTP, 28 (index) and 44 quote, 32 (index) and 184 full. A packet
+/// carries what its mode carries, whatever the subscription asked for
+/// last, so a mode change in flight never publishes a quote of zeros.
+fn packet_mode(len: usize, subscribed: FeedMode) -> FeedMode {
+    match len {
+        8 => FeedMode::Ltp,
+        28 | 44 => FeedMode::Quote,
+        32 => FeedMode::Depth,
+        n if n >= 184 => FeedMode::Depth,
+        _ => subscribed,
+    }
+}
 
 #[derive(Debug, Clone)]
 struct SubInfo {
@@ -163,7 +191,7 @@ impl KiteFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
+            mode: packet_mode(p.len(), sub.mode).code(),
             ltp: price(4),
             timestamp_ms: now,
             ..Default::default()
@@ -171,15 +199,21 @@ impl KiteFeed {
         let mut depth = None;
         match p.len() {
             28 | 32 => {
-                // Index packet: ltp, high, low, open, close, change[, ts].
+                // Index packet (Kite docs "Index packet structure"): ltp,
+                // high, low, open, close, change, then the exchange time in
+                // full mode. Its order is not the quote packet's.
                 t.high = price(8);
                 t.low = price(12);
                 t.open = price(16);
                 t.close = price(20);
+                t.change = price(24);
+                if t.close > 0.0 {
+                    t.change_percent = round2(t.change / t.close * 100.0);
+                }
                 if p.len() == 32 {
                     t.last_trade_time_ms = i64::from(be_u32(p, 28)) * 1000;
                 }
-                t.derive_change();
+                t.absent = NOT_IN_AN_INDEX_PACKET;
             }
             n if n >= 44 => {
                 t.last_quantity = qty(8);

@@ -45,6 +45,9 @@ fn broker() -> ZerodhaBroker {
     ZerodhaBroker::new(master())
 }
 
+/// Web test/test_zerodha_index_packets.py (openalgo#2347).
+mod index_packets;
+
 // ---------------------------------------------------------------------------
 // Master contract
 // ---------------------------------------------------------------------------
