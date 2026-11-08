@@ -83,6 +83,10 @@
       ]
     },
     "total_buy_qty": 312000,
-    "total_sell_qty": 298500
+    "total_sell_qty": 298500,
+    "bid": 24409.0,
+    "bid_qty": 150,
+    "ask": 24411.0,
+    "ask_qty": 225
   }
 }

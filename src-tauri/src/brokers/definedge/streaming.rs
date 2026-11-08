@@ -30,7 +30,7 @@ use super::mapping;
 use super::DefinedgeSession;
 use crate::brokers::common::streaming::{
     now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
+    NormalizedDepth, NormalizedTick, QuoteExtras, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::streaming::merge;
@@ -98,6 +98,29 @@ fn f(v: &Value, k: &str) -> f64 {
 
 fn i(v: &Value, k: &str) -> i64 {
     super::int(v, k)
+}
+
+/// A price Definedge has sent, `None` until it has.
+fn price_of(d: &Map<String, Value>, v: &Value, k: &str) -> Option<f64> {
+    sent(d, k).then(|| f(v, k))
+}
+
+/// A quantity Definedge has sent, `None` until it has.
+fn qty_of(d: &Map<String, Value>, v: &Value, k: &str) -> Option<i64> {
+    sent(d, k).then(|| i(v, k))
+}
+
+/// The fields beyond the canonical quote that the web's Definedge
+/// payloads carry (`_QUOTE_FIELDS`, `_DEPTH_EXTRA_FIELDS`), each only once
+/// Definedge has sent it.
+fn extras(d: &Map<String, Value>, v: &Value) -> QuoteExtras {
+    QuoteExtras {
+        bid_price: price_of(d, v, "bp1"),
+        bid_quantity: qty_of(d, v, "bq1"),
+        ask_price: price_of(d, v, "sp1"),
+        ask_quantity: qty_of(d, v, "sq1"),
+        ..Default::default()
+    }
 }
 
 /// Whether Definedge has sent `k` (web `_present_fields`: a blank or `-`
@@ -325,6 +348,7 @@ impl DefinedgeFeed {
             last_trade_time_ms: trade_time.unwrap_or(0),
             timestamp_ms: received,
             absent: absent(d, trade_time),
+            extras: extras(d, &v),
             ..Default::default()
         };
         if sent(d, "oi") {

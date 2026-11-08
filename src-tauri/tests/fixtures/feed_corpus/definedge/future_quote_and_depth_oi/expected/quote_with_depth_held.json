@@ -25,6 +25,10 @@
     "price_change": 97.3,
     "price_change_percent": 0.4,
     "change_percent": 0.4,
-    "percent_change": 0.4
+    "percent_change": 0.4,
+    "bid": 24409.0,
+    "bid_qty": 150,
+    "ask": 24411.0,
+    "ask_qty": 225
   }
 }

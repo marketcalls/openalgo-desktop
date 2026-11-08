@@ -82,6 +82,10 @@
       ]
     },
     "total_buy_qty": 0,
-    "total_sell_qty": 0
+    "total_sell_qty": 0,
+    "bid": 0.0,
+    "bid_qty": 0,
+    "ask": 0.0,
+    "ask_qty": 0
   }
 }

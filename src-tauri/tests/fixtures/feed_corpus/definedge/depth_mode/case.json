@@ -48,30 +48,6 @@
       "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
     },
     {
-      "key": "ask",
-      "kind": "open",
-      "reason": "The web sends the best ask price (Definedge `sp1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "ask_qty",
-      "kind": "open",
-      "reason": "The web sends the best ask quantity (Definedge `sq1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "bid",
-      "kind": "open",
-      "reason": "The web sends the best bid price (Definedge `bp1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "bid_qty",
-      "kind": "open",
-      "reason": "The web sends the best bid quantity (Definedge `bq1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
       "key": "lower_circuit",
       "kind": "open",
       "reason": "The web sends the lower circuit (Definedge `lc`); the desktop's common carrier drops it.",

@@ -42,30 +42,6 @@
       "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms"
     },
     {
-      "key": "ask",
-      "kind": "open",
-      "reason": "The web sends the best ask price (Definedge `sp1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "ask_qty",
-      "kind": "open",
-      "reason": "The web sends the best ask quantity (Definedge `sq1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "bid",
-      "kind": "open",
-      "reason": "The web sends the best bid price (Definedge `bp1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "bid_qty",
-      "kind": "open",
-      "reason": "The web sends the best bid quantity (Definedge `bq1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
       "key": "ltq",
       "kind": "open",
       "reason": "Definedge's web adapter sends ltq (its name for last_quantity) in Depth only (_DEPTH_EXTRA_FIELDS); the desktop's names table sends it from Quote. Phase B: from Depth, in Definedge's entry of feed/dialect/names.rs.",

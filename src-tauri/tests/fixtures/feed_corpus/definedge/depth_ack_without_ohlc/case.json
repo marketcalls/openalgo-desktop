@@ -35,19 +35,36 @@
       "key": "frame",
       "kind": "web-defect",
       "reason": "The web drops a depth acknowledgement without OHLC before caching it, so a Depth subscriber gets nothing for the book Definedge sent; the desktop frames it.",
-      "ref": "definedge_adapter.py:809-821"
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
     },
     {
-      "key": "bid_qty",
-      "kind": "open",
-      "reason": "The web sends the best bid quantity (Definedge `bq1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+      "key": "ask",
+      "kind": "web-defect",
+      "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best ask price; the desktop keeps it.",
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
+    },
+    {
+      "key": "ask_qty",
+      "kind": "web-defect",
+      "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best ask quantity; the desktop keeps it.",
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
+    },
+    {
+      "key": "bid",
+      "kind": "web-defect",
+      "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best bid price; the desktop keeps it.",
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821), so it builds the next Depth frame from the update alone: every level but the one updated quantity reads 0 (price 0.0 at level one), zeros Definedge never sent. The desktop keeps the acknowledged book and applies the update to it.",
-      "ref": "definedge_adapter.py:809-821, :1148-1193"
+      "ref": "definedge_adapter.py:809-821, :1148-1193",
+      "approved": true
     },
     {
       "key": "ltt",
@@ -59,13 +76,15 @@
       "key": "total_sell_qty",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the sell total (its Depth name); the desktop keeps it.",
-      "ref": "definedge_adapter.py:809-821"
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the sell total; the desktop keeps it.",
-      "ref": "definedge_adapter.py:809-821"
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
     }
   ]
 }
