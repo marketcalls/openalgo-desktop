@@ -3,11 +3,9 @@
   "symbol": "NIFTY25NOV26FUT",
   "exchange": "NFO",
   "mode": 3,
-  "broker": "hdfcsecurities",
   "data": {
     "symbol": "NIFTY25NOV26FUT",
     "exchange": "NFO",
-    "mode": "full",
     "ltp": 1500.5,
     "ltt": 1700000000000,
     "timestamp": 1700000000100,
@@ -20,6 +18,8 @@
     "high": 1510.0,
     "low": 1480.0,
     "close": 1495.0,
+    "price_change": 5.5,
+    "price_change_percent": 0.37,
     "oi": 700,
     "open_interest": 700,
     "depth": {
@@ -77,6 +77,14 @@
           "orders": 1
         }
       ]
-    }
-  }
+    },
+    "token": "35001",
+    "last_price": 1500.5,
+    "prev_close": 1495.0,
+    "change": 5.5,
+    "change_percent": 0.37,
+    "upper_circuit": 1650.0,
+    "lower_circuit": 1350.0
+  },
+  "broker": "hdfcsecurities"
 }

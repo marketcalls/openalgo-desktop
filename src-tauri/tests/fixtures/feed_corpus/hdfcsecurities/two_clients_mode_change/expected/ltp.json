@@ -3,13 +3,18 @@
   "symbol": "RELIANCE",
   "exchange": "NSE",
   "mode": 1,
-  "broker": "hdfcsecurities",
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "ltp",
     "ltp": 1501.0,
     "ltt": 1700000003000,
-    "timestamp": 1700000003000
-  }
+    "timestamp": 1700000003000,
+    "token": "2885",
+    "last_price": 1501.0,
+    "close": 1495.0,
+    "prev_close": 1495.0,
+    "change": 6.0,
+    "change_percent": 0.4
+  },
+  "broker": "hdfcsecurities"
 }

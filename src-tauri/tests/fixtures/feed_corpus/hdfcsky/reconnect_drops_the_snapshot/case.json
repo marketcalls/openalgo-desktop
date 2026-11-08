@@ -37,58 +37,23 @@
   },
   "deviations": [
     {
-      "key": "change",
-      "kind": "open",
-      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::quote_fields"
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Sky sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsky_websocket.py:764-765; hdfcsky_adapter.py:421",
+      "approved": true
     },
     {
-      "key": "change_percent",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::quote_fields"
+      "reason": "The HDFC Sky web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
+      "ref": "hdfcsky_adapter.py:425-432; feed/dialect/names.rs"
     },
     {
-      "key": "last_price",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The HDFC Sky web adapter repeats ltp as last_price in every frame; the desktop's common carrier sends ltp only (a per-broker alias for lane wire).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "Follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The HDFC Sky web adapter puts no mode in its data; the desktop sends the label (ltp, quote, full).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::source::Mode::data_label"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "The web sends OI in Quote frames; the desktop's Quote frame carries OI only when a Depth client holds the instrument (audit C05, lane wire).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::tick_update"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "The web sends OI in Quote frames; the desktop's Quote frame carries OI only when a Depth client holds the instrument (audit C05, lane wire).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::tick_update"
-    },
-    {
-      "key": "prev_close",
-      "kind": "open",
-      "reason": "The HDFC Sky web adapter repeats close as prev_close in every mode, LTP included; the desktop's common carrier sends close only, and in Quote and Depth only (a per-broker alias for lane wire). In an LTP frame built from an LTP-type packet the web's value is a proto3 0.0 (a web defect, see ltp_mode).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
-    },
-    {
-      "key": "timestamp",
-      "kind": "open",
-      "reason": "The web sends the packet's own time (packetTimestamp, or the index's packetTimeStamp) as timestamp; HdfcSkyFeed::events stamps the receipt time instead and uses the packet time only as the trade-time fallback (HDFC Securities' feed sends the packet time). A desktop defect.",
-      "ref": "brokers/hdfcsky/streaming.rs::HdfcSkyFeed::events; hdfcsky_websocket.py:685"
-    },
-    {
-      "key": "token",
-      "kind": "open",
-      "reason": "The HDFC Sky web adapter sends the broker token as a string in every frame; the desktop's common carrier has no such field. Lead decision: carry it as a per-broker extra, or record it as a desktop decision.",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+      "reason": "The HDFC Sky web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
+      "ref": "hdfcsky_adapter.py:425-432; feed/dialect/names.rs"
     }
   ]
 }

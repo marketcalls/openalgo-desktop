@@ -32,38 +32,23 @@
     {
       "key": "close",
       "kind": "web-defect",
-      "reason": "As prev_close: the web sends a close of 0.0 the LTP-type packet never carried.",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+      "reason": "The LTP-type packet carries no close (proto3 writes closingPrice 0); the web sends close and prev_close as 0.0 instead of leaving them out (web openalgo#2376). Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsky_adapter.py:425-432",
+      "approved": true
     },
     {
-      "key": "last_price",
-      "kind": "open",
-      "reason": "The HDFC Sky web adapter repeats ltp as last_price in every frame; the desktop's common carrier sends ltp only (a per-broker alias for lane wire).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "Follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The HDFC Sky web adapter puts no mode in its data; the desktop sends the label (ltp, quote, full).",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::source::Mode::data_label"
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Sky sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsky_websocket.py:764-765; hdfcsky_adapter.py:421",
+      "approved": true
     },
     {
       "key": "prev_close",
       "kind": "web-defect",
-      "reason": "The LTP-type packet carries no close; the web sends close and prev_close as 0.0 (proto3 default) instead of leaving them out (web openalgo#2376); the desktop's LTP frame has neither.",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
-    },
-    {
-      "key": "timestamp",
-      "kind": "open",
-      "reason": "The web sends the packet's own time (packetTimestamp, or the index's packetTimeStamp) as timestamp; HdfcSkyFeed::events stamps the receipt time instead and uses the packet time only as the trade-time fallback (HDFC Securities' feed sends the packet time). A desktop defect.",
-      "ref": "brokers/hdfcsky/streaming.rs::HdfcSkyFeed::events; hdfcsky_websocket.py:685"
-    },
-    {
-      "key": "token",
-      "kind": "open",
-      "reason": "The HDFC Sky web adapter sends the broker token as a string in every frame; the desktop's common carrier has no such field. Lead decision: carry it as a per-broker extra, or record it as a desktop decision.",
-      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+      "reason": "The LTP-type packet carries no close (proto3 writes closingPrice 0); the web sends close and prev_close as 0.0 instead of leaving them out (web openalgo#2376). Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsky_adapter.py:425-432",
+      "approved": true
     }
   ]
 }

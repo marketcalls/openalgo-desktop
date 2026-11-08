@@ -31,58 +31,37 @@
   },
   "deviations": [
     {
-      "key": "change",
-      "kind": "open",
-      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
-      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize; feed::bridge::quote_fields"
-    },
-    {
-      "key": "change_percent",
-      "kind": "open",
-      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
-      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize; feed::bridge::quote_fields"
-    },
-    {
-      "key": "last_price",
-      "kind": "open",
-      "reason": "The HDFC Securities web adapter repeats ltp as last_price in every frame; the desktop's common carrier sends ltp only (a per-broker alias for lane wire).",
-      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "HDFC sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, while feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms.",
-      "ref": "hdfcsecurities_websocket.py:725-726; brokers/hdfcsecurities/streaming.rs::on_packet"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "Follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The HDFC Securities web adapter puts no mode in its data; the desktop sends the label (ltp, quote, full).",
-      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize; feed::source::Mode::data_label"
+      "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
+      "approved": true
     },
     {
       "key": "oi",
       "kind": "web-defect",
-      "reason": "The packet carries no OI (an equity or currency contract with no oi field); the web sends the proto3 default as OI 0 instead of leaving it out (web openalgo#2376); the desktop's Quote frame leaves it out.",
-      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize; hdfcsecurities_websocket.py::_parse_packet"
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approved": true
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
-      "reason": "The packet carries no OI (an equity or currency contract with no oi field); the web sends the proto3 default as OI 0 instead of leaving it out (web openalgo#2376); the desktop's Quote frame leaves it out.",
-      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize; hdfcsecurities_websocket.py::_parse_packet"
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approved": true
     },
     {
-      "key": "prev_close",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The HDFC Securities web adapter repeats close as prev_close in every mode, LTP included; the desktop's common carrier sends close only, and in Quote and Depth only (a per-broker alias for lane wire). In an LTP frame built from an LTP-type packet the web's value is a proto3 0.0 (a web defect, see ltp_mode).",
-      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
+      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
     },
     {
-      "key": "token",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The HDFC Securities web adapter sends the broker token as a string in every frame; the desktop's common carrier has no such field. Lead decision: carry it as a per-broker extra, or record it as a desktop decision.",
-      "ref": "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
+      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
     }
   ]
 }

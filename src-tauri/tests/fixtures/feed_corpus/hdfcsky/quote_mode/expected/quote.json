@@ -3,14 +3,12 @@
   "symbol": "RELIANCE",
   "exchange": "NSE",
   "mode": 2,
-  "broker": "hdfcsky",
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "quote",
     "ltp": 1500.5,
-    "ltt": 1700000000,
-    "timestamp": "<receipt_ms>",
+    "ltt": 1700000000000,
+    "timestamp": 1700000000000,
     "volume": 12345,
     "last_quantity": 3,
     "average_price": 1499.0,
@@ -19,6 +17,14 @@
     "open": 1490.0,
     "high": 1510.0,
     "low": 1480.0,
-    "close": 1495.0
-  }
+    "close": 1495.0,
+    "price_change": 5.5,
+    "price_change_percent": 0.37,
+    "token": "2885",
+    "last_price": 1500.5,
+    "prev_close": 1495.0,
+    "change": 5.5,
+    "change_percent": 0.37
+  },
+  "broker": "hdfcsky"
 }

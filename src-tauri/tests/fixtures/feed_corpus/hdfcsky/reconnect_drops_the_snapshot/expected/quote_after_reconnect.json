@@ -3,14 +3,12 @@
   "symbol": "NIFTY25NOV26FUT",
   "exchange": "NFO",
   "mode": 2,
-  "broker": "hdfcsky",
   "data": {
     "symbol": "NIFTY25NOV26FUT",
     "exchange": "NFO",
-    "mode": "quote",
     "ltp": 1502.0,
-    "ltt": 1700000005,
-    "timestamp": "<receipt_ms>",
+    "ltt": 1700000005000,
+    "timestamp": 1700000005000,
     "volume": 12500,
     "last_quantity": 4,
     "average_price": 1499.4,
@@ -19,6 +17,16 @@
     "open": 1490.0,
     "high": 1510.0,
     "low": 1480.0,
-    "close": 1495.0
-  }
+    "close": 1495.0,
+    "price_change": 7.0,
+    "price_change_percent": 0.47,
+    "oi": 777,
+    "open_interest": 777,
+    "token": "35001",
+    "last_price": 1502.0,
+    "prev_close": 1495.0,
+    "change": 7.0,
+    "change_percent": 0.47
+  },
+  "broker": "hdfcsky"
 }

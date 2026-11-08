@@ -3,11 +3,9 @@
   "symbol": "RELIANCE",
   "exchange": "NSE",
   "mode": 3,
-  "broker": "hdfcsecurities",
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "full",
     "ltp": 1500.5,
     "ltt": 1700000000000,
     "timestamp": 1700000000000,
@@ -20,8 +18,8 @@
     "high": 1510.0,
     "low": 1480.0,
     "close": 1495.0,
-    "oi": 0,
-    "open_interest": 0,
+    "price_change": 5.5,
+    "price_change_percent": 0.37,
     "depth": {
       "buy": [
         {
@@ -77,6 +75,14 @@
           "orders": 1
         }
       ]
-    }
-  }
+    },
+    "token": "2885",
+    "last_price": 1500.5,
+    "prev_close": 1495.0,
+    "change": 5.5,
+    "change_percent": 0.37,
+    "upper_circuit": 1645.05,
+    "lower_circuit": 1345.95
+  },
+  "broker": "hdfcsecurities"
 }

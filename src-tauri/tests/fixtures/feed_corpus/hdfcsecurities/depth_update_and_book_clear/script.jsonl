@@ -5,4 +5,4 @@
 {"step": "push", "frame": "frames/full_three_two.hex"}
 {"step": "receive", "client": "a", "frame": "expected/depth_three_two.json"}
 {"step": "push", "frame": "frames/full_no_book.hex"}
-{"step": "silence", "client": "a", "note": "Today's desktop sends a Depth frame only for a packet with a book, so a book that empties is never sent and the client keeps the last one (open; the web publishes the Depth topic without a depth key)."}
+{"step": "silence", "client": "a", "note": "The packet carries no book: the web publishes the Depth topic without a depth key; the desktop sends no Depth frame for a packet without a book. Lane wire makes a Depth holder get a Depth frame per tick with the depth key left out (decisions.md), declared with the corpus's missing-frame deviation (not on the base yet); until then this silence pins today's desktop."}

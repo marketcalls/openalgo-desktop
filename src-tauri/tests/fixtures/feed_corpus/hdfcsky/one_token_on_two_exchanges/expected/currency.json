@@ -3,14 +3,12 @@
   "symbol": "USDINR25NOV26FUT",
   "exchange": "CDS",
   "mode": 2,
-  "broker": "hdfcsky",
   "data": {
     "symbol": "USDINR25NOV26FUT",
     "exchange": "CDS",
-    "mode": "quote",
     "ltp": 88.4525,
-    "ltt": 1700000000,
-    "timestamp": "<receipt_ms>",
+    "ltt": 1700000000000,
+    "timestamp": 1700000000000,
     "volume": 150000,
     "last_quantity": 10,
     "average_price": 88.44,
@@ -19,6 +17,16 @@
     "open": 88.4,
     "high": 88.5,
     "low": 88.35,
-    "close": 88.39
-  }
+    "close": 88.39,
+    "price_change": 0.06,
+    "price_change_percent": 0.07,
+    "oi": 0,
+    "open_interest": 0,
+    "token": "2885",
+    "last_price": 88.4525,
+    "prev_close": 88.39,
+    "change": 0.06,
+    "change_percent": 0.07
+  },
+  "broker": "hdfcsky"
 }
