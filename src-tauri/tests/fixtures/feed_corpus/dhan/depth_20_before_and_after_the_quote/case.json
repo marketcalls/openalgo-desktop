@@ -34,9 +34,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The web's Dhan adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts; lead rule 2026-11-09"
     },
     {
       "key": "ltp",
@@ -76,9 +76,9 @@
     },
     {
       "key": "ltt",
-      "kind": "desktop-decision",
-      "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
-      "ref": "feed::bridge::depth_update"
+      "kind": "open",
+      "reason": "Whether and how a frame carries ltt (in LTP frames, or beside the broker's own trade-time name) follows the web's Dhan adapter; the desktop always sends ltt in ms. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "feed::bridge::depth_update; lead rule 2026-11-09"
     },
     {
       "key": "volume",

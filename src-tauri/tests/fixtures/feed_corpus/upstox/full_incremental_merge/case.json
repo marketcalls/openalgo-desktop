@@ -36,9 +36,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the web's Upstox payload has no mode key.",
-      "ref": "feed::source::Mode::data_label (docs-7)"
+      "kind": "open",
+      "reason": "The web's Upstox adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "feed::source::Mode::data_label (docs-7); lead rule 2026-11-09"
     },
     {
       "key": "token",
@@ -54,15 +54,15 @@
     },
     {
       "key": "oi",
-      "kind": "web-defect",
-      "reason": "Upstox sends OI as a double; the web passes it on as a float (98765.0), the desktop sends the whole contract count (98765), as every other broker's OI and the docs' integer OI are.",
-      "ref": "upstox_adapter.py:828 (float(ff['oi']))"
+      "kind": "open",
+      "reason": "Upstox sends OI as a double and the web passes it on as a float (98765.0); the desktop sends an integer (98765). A JSON number type is not a web defect: Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "upstox_adapter.py:828 (float(ff['oi'])); lead rule 2026-11-09"
     },
     {
       "key": "open_interest",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
-      "ref": "feed::protocol::market_data"
+      "kind": "open",
+      "reason": "The desktop sends OI as both oi and open_interest; the web's Upstox adapter sends oi only. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "feed::protocol::market_data; lead rule 2026-11-09"
     },
     {
       "key": "depth",

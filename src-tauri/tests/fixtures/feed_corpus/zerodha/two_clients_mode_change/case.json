@@ -29,9 +29,9 @@
   "deviations": [
     {
       "key": "ltt",
-      "kind": "desktop-decision",
-      "reason": "The web's LTP copy of a quote tick has no ltt (zerodha_adapter.py:549); the desktop's LTP frames always carry it, as its other LTP frames and the web's own LTP-mode packets do.",
-      "ref": "tests/it/feed_conformance.rs (the ltt tolerance); zerodha_adapter.py:549"
+      "kind": "open",
+      "reason": "Whether and how a frame carries ltt (in LTP frames, or beside the broker's own trade-time name) follows the web's Zerodha adapter; the desktop always sends ltt in ms. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "tests/it/feed_conformance.rs (the ltt tolerance); zerodha_adapter.py:549; lead rule 2026-11-09"
     }
   ]
 }

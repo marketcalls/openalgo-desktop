@@ -31,9 +31,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full); the web's Fyers adapter sends no mode key (its subscription_mode is the number).",
-      "ref": "feed::source::Mode::data_label (docs-7)"
+      "kind": "open",
+      "reason": "The web's Fyers adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "feed::source::Mode::data_label (docs-7); lead rule 2026-11-09"
     },
     {
       "key": "timestamp",
@@ -43,9 +43,9 @@
     },
     {
       "key": "ltt",
-      "kind": "desktop-decision",
-      "reason": "Every desktop frame carries the trade time as ltt in epoch ms (the recorded transcripts' key); the web's Fyers adapter names it last_trade_time (seconds), which the desktop sends beside it (feed::dialect).",
-      "ref": "feed::dialect (Fyers last_trade_time in seconds)"
+      "kind": "open",
+      "reason": "Whether and how a frame carries ltt (in LTP frames, or beside the broker's own trade-time name) follows the web's Fyers adapter; the desktop always sends ltt in ms. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "feed::dialect (Fyers last_trade_time in seconds); lead rule 2026-11-09"
     },
     {
       "key": "token",

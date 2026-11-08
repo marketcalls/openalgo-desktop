@@ -39,9 +39,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the web's Upstox payload has no mode key.",
-      "ref": "feed::source::Mode::data_label (docs-7)"
+      "kind": "open",
+      "reason": "The web's Upstox adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "feed::source::Mode::data_label (docs-7); lead rule 2026-11-09"
     },
     {
       "key": "token",
@@ -81,9 +81,9 @@
     },
     {
       "key": "last_trade_time",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends Upstox's web name for the trade time beside ltt in every mode (feed::dialect); the web's LTP payload has ltt only.",
-      "ref": "feed::dialect (Upstox last_trade_time)"
+      "kind": "open",
+      "reason": "The desktop sends Upstox's last_trade_time beside ltt in LTP frames too; the web's LTP payload has ltt only. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "feed::dialect (Upstox last_trade_time); lead rule 2026-11-09"
     }
   ]
 }

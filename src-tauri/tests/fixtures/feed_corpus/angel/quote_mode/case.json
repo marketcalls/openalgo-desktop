@@ -30,21 +30,21 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The web's Angel adapter sends data.mode its own way (the subscription mode number, or no key); the desktop sends its label (ltp, quote, full). Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts; lead rule 2026-11-09"
     },
     {
       "key": "total_buy_quantity",
-      "kind": "web-defect",
-      "reason": "Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are.",
-      "ref": "smartWebSocketV2.py:_parse_binary_data ('<d' at bytes 75 and 83)"
+      "kind": "open",
+      "reason": "Angel sends the book totals as doubles and the web passes the double on (1000.0); the desktop sends an integer (1000). A JSON number type is not a web defect: Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "smartWebSocketV2.py:_parse_binary_data ('<d' at bytes 75 and 83); lead rule 2026-11-09"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "web-defect",
-      "reason": "Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are.",
-      "ref": "smartWebSocketV2.py:_parse_binary_data ('<d' at bytes 75 and 83)"
+      "kind": "open",
+      "reason": "Angel sends the book totals as doubles and the web passes the double on (1000.0); the desktop sends an integer (1000). A JSON number type is not a web defect: Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
+      "ref": "smartWebSocketV2.py:_parse_binary_data ('<d' at bytes 75 and 83); lead rule 2026-11-09"
     }
   ]
 }
