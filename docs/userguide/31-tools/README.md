@@ -6,9 +6,10 @@ The **Tools** page (`/tools`, **Tools** in the top bar) holds OpenAlgo
 Desktop's options and market analysis tools. Each card opens one tool. They
 read your broker's option chains, quotes, history and live feed, so a broker
 must be logged in, and a tool shows data only for the exchanges, expiries and
-fields your broker supplies.
+fields your broker supplies. Sector Rotation can also read Historify, with no
+broker logged in.
 
-OpenAlgo Desktop has 16 tools. OpenAlgo web also has the Portfolio
+OpenAlgo Desktop has 17 tools. OpenAlgo web also has the Portfolio
 Backtester, SIP Backtester and Portfolio Analyzer; they need Python (pandas)
 and are not in the desktop.
 
@@ -18,6 +19,7 @@ and are not in the desktop.
 | --- | --- | --- |
 | Strategy Builder | `/strategybuilder` | Build multi-leg option strategies with live Greeks, a payoff diagram and what-if simulators |
 | Strategy Portfolio | `/strategybuilder/portfolio` | Saved strategies in two watchlists, **MyTrades** and **Simulation** |
+| Sector Rotation | `/sector-rotation` | Which NSE sectors, stocks and indices are leading, weakening, lagging or improving against a benchmark, with daily or weekly trails, from Historify or your broker ([API](../../api/analytics-services/sectorrotation.md)) |
 | Option Chain | `/optionchain` | Live option chain with Greeks, OI, volume and quick order placement |
 | Option Greeks | `/ivchart` | Historical IV, Delta, Theta, Vega and Gamma of ATM options |
 | OI Tracker | `/oitracker` | CE and PE open interest by strike, with PCR and the ATM strike |
