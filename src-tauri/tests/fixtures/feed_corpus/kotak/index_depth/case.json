@@ -36,7 +36,8 @@
       "key": "volume",
       "kind": "web-defect",
       "reason": "An SFeed index packet carries no volume; the web's index normaliser writes volume 0 (sfeed_websocket.py::_to_index) and publishes it, a zero the exchange never sent. The desktop leaves it out (web openalgo#2376).",
-      "ref": "sfeed_websocket.py:670"
+      "ref": "sfeed_websocket.py:670",
+      "approved": true
     },
     {
       "key": "price_change",
@@ -60,13 +61,15 @@
       "key": "totalbuyqty",
       "kind": "web-defect",
       "reason": "An index has no book; the web sends its book totals as 0 under the Kotak name (extras.get(..., 0)), numbers the exchange never sent. The desktop leaves them out.",
-      "ref": "kotak_adapter.py:668"
+      "ref": "kotak_adapter.py:668",
+      "approved": true
     },
     {
       "key": "totalsellqty",
       "kind": "web-defect",
       "reason": "An index has no book; the web sends its book totals as 0 under the Kotak name (extras.get(..., 0)), numbers the exchange never sent. The desktop leaves them out.",
-      "ref": "kotak_adapter.py:668"
+      "ref": "kotak_adapter.py:668",
+      "approved": true
     }
   ]
 }
