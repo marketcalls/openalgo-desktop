@@ -159,6 +159,12 @@ A path answers with its current answer, as many times as it is read:
 - or a scripted sequence: each `http_serve` step replaces the answer from
   then on, and `http_polled` waits until the poller has read it.
 
+A route's `path` without a query answers that path whatever the query; a
+`path` with a query (`/v1/order/list?segment=CASH&page=0&page_size=100`)
+answers exactly that path and query, so a poller that reads one path per
+segment (Groww: CASH, then FNO) gets each segment's own book. `http_serve`
+and `http_polled` name the route by the same string.
+
 An answer's `body` is a file of the case (a `.json` file is served
 compact), `{"json": ...}` or `{"text": ...}`; `{ws:main}`, `{ws:depth}`,
 `{ws:orders}` and `{http}` in it become the fakes' addresses. `status`

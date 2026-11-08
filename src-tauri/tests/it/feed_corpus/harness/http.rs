@@ -50,8 +50,18 @@ impl Route {
         }
     }
 
-    fn answers(&self, method: &Method, path: &str) -> bool {
-        self.path == path && self.method.as_deref().is_none_or(|m| m == method.as_str())
+    /// Whether this route answers a request: a route whose path has a
+    /// query answers exactly that path and query (Groww reads one path
+    /// per segment, `?segment=CASH&..` then `?segment=FNO&..`); one
+    /// without answers its path with any query.
+    fn answers(&self, method: &Method, uri: &Uri) -> bool {
+        let wanted = if self.path.contains('?') {
+            uri.path_and_query()
+                .map_or_else(|| uri.path(), |p| p.as_str())
+        } else {
+            uri.path()
+        };
+        self.path == wanted && self.method.as_deref().is_none_or(|m| m == method.as_str())
     }
 
     /// Whether this route and one for `method` and `path` answer the same
@@ -189,7 +199,7 @@ async fn answer(
             .routes
             .iter_mut()
             .rev()
-            .find(|r| r.answers(&method, uri.path()));
+            .find(|r| r.answers(&method, &uri));
         let reply = route.map(|r| {
             r.hits += 1;
             (r.status, r.body.clone(), r.record)
@@ -239,5 +249,46 @@ impl std::fmt::Display for HttpRequestExpect {
             Some(HttpBody::Text(t)) => write!(f, "{} {} {}", self.method, self.path, t),
             Some(HttpBody::Json(v)) => write!(f, "{} {} {}", self.method, self.path, v),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn get(fake: &HttpFake, path_and_query: &str) -> (u16, String) {
+        let resp = reqwest::Client::new()
+            .get(format!("{}{}", fake.url(), path_and_query))
+            .send()
+            .await
+            .expect("the fake broker API answers");
+        let status = resp.status().as_u16();
+        (status, resp.text().await.unwrap_or_default())
+    }
+
+    /// Groww reads one path once per segment: a route with a query answers
+    /// that query alone, so each segment gets its own book; a route without
+    /// one answers its path whatever the query.
+    #[tokio::test]
+    async fn two_queries_of_one_path_get_their_own_answers() {
+        let fake = HttpFake::bind().await;
+        let cash = "/v1/order/list?segment=CASH&page=0&page_size=100";
+        let fno = "/v1/order/list?segment=FNO&page=0&page_size=100";
+        fake.serve(Route::new(Some("GET"), cash, 200, "cash".into()));
+        fake.serve(Route::new(Some("GET"), fno, 200, "fno".into()));
+        fake.serve(Route::new(None, "/v1/token", 200, "token".into()));
+        assert_eq!(get(&fake, cash).await, (200, "cash".to_string()));
+        assert_eq!(get(&fake, fno).await, (200, "fno".to_string()));
+        assert_eq!(
+            get(&fake, "/v1/token?any=1").await,
+            (200, "token".to_string())
+        );
+        assert!(fake.polled(Some("GET"), cash, 1).await);
+        assert!(fake.polled(Some("GET"), fno, 1).await);
+        assert!(fake.leftover().is_empty());
+        let other = "/v1/order/list?segment=COMMODITY&page=0&page_size=100";
+        assert_eq!(get(&fake, other).await.0, 404);
+        let kept: Vec<String> = fake.leftover().iter().map(|r| r.path.clone()).collect();
+        assert_eq!(kept, vec![other.to_string()]);
     }
 }
