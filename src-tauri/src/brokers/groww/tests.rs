@@ -1510,6 +1510,9 @@ fn msg_frame(sid: u64, payload: &[u8]) -> Message {
     Message::Binary(b)
 }
 
+/// Web test/test_groww_quote_feed.py (openalgo#2377).
+mod quote_feed;
+
 #[test]
 fn protobuf_decodes_hand_built_messages() {
     let d = proto::decode(&ltp_payload(812.35)).unwrap();
