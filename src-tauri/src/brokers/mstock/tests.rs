@@ -22,6 +22,9 @@ macro_rules! fixture {
     };
 }
 
+/// Web test/test_mstock_quote_feed.py (openalgo#2383).
+mod quote_feed;
+
 fn fx(text: &str) -> Value {
     serde_json::from_str(text).unwrap()
 }

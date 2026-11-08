@@ -31,8 +31,8 @@
 //! mStock has no order-update stream.
 
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedSubscription, Message, NormalizedDepth, NormalizedTick,
-    WsRequest,
+    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedSubscription, Message, NormalizedDepth,
+    NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -193,6 +193,28 @@ pub fn parse_frame(data: &[u8]) -> Vec<Packet> {
         .collect()
 }
 
+/// The trade time a packet carries, epoch ms (web `_normalize_market_data`,
+/// openalgo#2383): a full packet's last traded timestamp, or the exchange
+/// timestamp of the shorter ones, which have no other. The packet's own
+/// mode decides, since a Quote subscriber is sent the full packet while
+/// Depth is open on the instrument. A full packet with no trade yet (0) has
+/// none, rather than its feed time passed off as one. The last traded
+/// timestamp is epoch seconds as the SmartAPI layout mStock follows sends
+/// it; one already in milliseconds is kept.
+fn trade_time_ms(q: &Packet) -> Option<i64> {
+    let raw = if q.mode == 3 {
+        q.last_traded_timestamp
+    } else {
+        q.exchange_timestamp
+    };
+    let raw = i64::try_from(raw).ok().filter(|t| *t > 0)?;
+    Some(if raw < 1_000_000_000_000 {
+        raw * 1000
+    } else {
+        raw
+    })
+}
+
 /// `{"action": 1|0, "params": {"mode", "tokenList"}}` per mode.
 pub fn sub_frames(subs: &[(u8, u8, String)], subscribe: bool) -> Vec<Message> {
     let mut by_mode: BTreeMap<u8, BTreeMap<u8, Vec<String>>> = BTreeMap::new();
@@ -298,13 +320,19 @@ impl MstockFeed {
             let Some(sub) = self.subs.get(&(q.exchange_type, q.token.clone())) else {
                 continue;
             };
+            let trade_time = trade_time_ms(&q);
             let mut t = NormalizedTick {
                 symbol: sub.symbol.clone(),
                 exchange: sub.exchange.clone(),
                 mode: q.mode.clamp(1, 3),
                 ltp: q.ltp,
-                last_trade_time_ms: i64::try_from(q.exchange_timestamp).unwrap_or(0),
+                last_trade_time_ms: trade_time.unwrap_or(0),
                 timestamp_ms: now,
+                absent: if trade_time.is_none() {
+                    AbsentFields::of(&[QuoteField::LastTradeTime])
+                } else {
+                    AbsentFields::default()
+                },
                 ..Default::default()
             };
             if q.mode >= 2 {

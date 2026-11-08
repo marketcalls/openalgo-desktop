@@ -129,9 +129,10 @@ pub(crate) struct Aliases {
     /// `price_change_percent` (Samco).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percentage: Option<f64>,
-    /// `ltt` (Sahi, Kotak, Samco, 5paisa; Fyers in epoch seconds), in every
-    /// mode `ltt` is sent (web openalgo#2376, Samco and 5paisa since #2396);
-    /// Upstox, and Dhan in epoch seconds (openalgo#2377).
+    /// `ltt` (Sahi, Kotak, Samco, 5paisa, mStock; Fyers in epoch seconds), in
+    /// every mode `ltt` is sent (web openalgo#2376, Samco and 5paisa since
+    /// #2396, mStock since #2383); Upstox, and Dhan in epoch seconds
+    /// (openalgo#2377).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_trade_time: Option<i64>,
 }
@@ -172,8 +173,8 @@ enum PercentKey {
 /// The unit of a broker's web `last_trade_time`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TradeTime {
-    /// Epoch milliseconds, as `ltt` (Sahi, Kotak, Samco, 5paisa; Upstox, web
-    /// `upstox_adapter.py`).
+    /// Epoch milliseconds, as `ltt` (Sahi, Kotak, Samco, 5paisa, mStock;
+    /// Upstox, web `upstox_adapter.py`).
     Millis,
     /// Epoch seconds, the feed's own unit (Fyers, web `fyers_mapping.py`;
     /// Dhan, web `dhan_adapter.py`).
@@ -200,11 +201,11 @@ fn dialect(broker: &str) -> Dialect {
             change_percent: &[P::ChangePercent, P::PercentChange],
             last_trade_time: Some(TradeTime::Seconds),
         },
-        "angel" | "mstock" | "pocketful" => Dialect {
+        "angel" | "pocketful" => Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
             ..CANONICAL
         },
-        "upstox" => Dialect {
+        "upstox" | "mstock" => Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
             last_trade_time: Some(TradeTime::Millis),
             ..CANONICAL
@@ -482,7 +483,7 @@ mod tests {
     #[test]
     fn the_trade_time_alias_goes_where_ltt_goes() {
         for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
-            for broker in ["sahi", "kotak"] {
+            for broker in ["sahi", "kotak", "mstock"] {
                 let d = data(equity(), mode, broker);
                 assert!(d["ltt"].is_i64(), "{} {:?}: {}", broker, mode, d);
                 assert_eq!(
