@@ -160,14 +160,22 @@ fn trade_time_ms(ltt: &str, feed_secs: Option<i64>, now_ms: i64) -> i64 {
     at * 1000
 }
 
-/// The five-level book of a scrip's merged snapshot `d`, received at
-/// `now_ms`; it says which of its totals and LTP the snapshot never held.
+/// The book of a scrip's merged snapshot `d`, received at `now_ms`: the
+/// levels of Noren's five fixed slots (`bp1`..`bp5`, `sp1`..`sp5`) the
+/// broker has sent, a slot sent as 0 included; a slot it never sent is not
+/// a level (the web pads it with `safe_float`'s 0). It says which of its
+/// totals and LTP the snapshot never held.
 pub(super) fn depth(sub: Instrument<'_>, d: &Map<String, Value>, now_ms: i64) -> NormalizedDepth {
     let v = Value::Object(d.clone());
-    let lvl = |p: &str, q: &str, o: &str, n: usize| DepthLevel {
-        price: f(&v, &format!("{}{}", p, n)),
-        quantity: i(&v, &format!("{}{}", q, n)),
-        orders: i(&v, &format!("{}{}", o, n)),
+    let side = |p: &str, q: &str, o: &str| -> Vec<DepthLevel> {
+        (1..=5)
+            .filter(|n| d.contains_key(&format!("{}{}", p, n)))
+            .map(|n| DepthLevel {
+                price: f(&v, &format!("{}{}", p, n)),
+                quantity: i(&v, &format!("{}{}", q, n)),
+                orders: i(&v, &format!("{}{}", o, n)),
+            })
+            .collect()
     };
     let mut absent = AbsentFields::default();
     for (key, field) in [
@@ -183,8 +191,8 @@ pub(super) fn depth(sub: Instrument<'_>, d: &Map<String, Value>, now_ms: i64) ->
         symbol: sub.symbol.to_string(),
         exchange: sub.exchange.to_string(),
         ltp: f(&v, "lp"),
-        buy: (1..=5).map(|n| lvl("bp", "bq", "bo", n)).collect(),
-        sell: (1..=5).map(|n| lvl("sp", "sq", "so", n)).collect(),
+        buy: side("bp", "bq", "bo"),
+        sell: side("sp", "sq", "so"),
         total_buy_quantity: i(&v, "tbq"),
         total_sell_quantity: i(&v, "tsq"),
         timestamp_ms: now_ms,

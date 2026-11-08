@@ -225,6 +225,15 @@ fn a_key_the_snapshot_never_held_is_not_carried() {
         (d.buy[0].price, d.buy[0].quantity, d.buy[0].orders),
         (25479.9, 150, 2)
     );
+    // Only the slots Noren sent are levels, a slot sent as 0 included; the
+    // web pads a slot that never came with safe_float's 0.
+    assert_eq!(d.buy.len(), 1);
+    assert!(d.sell.is_empty());
+    let ev = f.parse_text(r#"{"t":"df","e":"NFO","tk":"59182","sp1":"0.00","sq1":"0","so1":"0"}"#);
+    let [FeedEvent::Tick(_), FeedEvent::Depth(d)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!((d.buy.len(), d.sell.len(), d.sell[0].price), (1, 1, 0.0));
 }
 
 static NOW: AtomicI64 = AtomicI64::new(0);
