@@ -6,7 +6,8 @@
 //!   them, not the doc's `c`/`susertoken`).
 //! * touchline `{"t":"t","k":"NSE|22#NSE|2885"}` / `{"t":"u"}`, depth
 //!   `{"t":"d"}` / `{"t":"ud"}`, batches of at most 100 scrips.
-//! * heartbeat `{"t":"h"}` every 30 s.
+//! * heartbeat `{"t":"h"}` every 30 s; a session that keeps answering it
+//!   while no market data comes is reconnected (`liveness`, FB-03).
 //! * frames `tk`/`tf` (touchline snapshot/update), `dk`/`df` (depth),
 //!   `om` (order update after `{"t":"o","actid"}`).
 //! * updates carry only changed fields: each scrip keeps a snapshot, new
@@ -22,10 +23,15 @@ use crate::brokers::common::streaming::{
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
+use liveness::Liveness;
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+
+mod liveness;
+#[cfg(test)]
+mod tests;
 
 /// Scrips per subscribe frame.
 pub const BATCH: usize = 100;
@@ -46,6 +52,9 @@ pub struct NorenFeed {
     symbols: SymbolResolver,
     subs: HashMap<String, SubInfo>,
     cache: HashMap<String, Map<String, Value>>,
+    liveness: Liveness,
+    /// Epoch milliseconds now (a fake clock in tests).
+    clock: fn() -> i64,
 }
 
 /// `EXCH|token` scrip key.
@@ -91,12 +100,19 @@ impl NorenFeed {
             symbols,
             subs: HashMap::new(),
             cache: HashMap::new(),
+            liveness: Liveness::default(),
+            clock: now_ms,
         }
     }
 
     /// Cached scrips (bounded by the subscriptions).
     pub fn cached(&self) -> usize {
         self.cache.len()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_clock(&mut self, clock: fn() -> i64) {
+        self.clock = clock;
     }
 
     fn frames(t: &str, keys: &[String]) -> Vec<Message> {
@@ -189,6 +205,7 @@ impl NorenFeed {
                 &self.symbols,
             ))],
             "tk" | "tf" | "dk" | "df" => {
+                self.liveness.note_data((self.clock)());
                 let key = format!(
                     "{}|{}",
                     m.get("e").and_then(Value::as_str).unwrap_or(""),
@@ -225,6 +242,7 @@ impl BrokerFeed for NorenFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         self.cache.clear();
+        self.liveness.reset();
         vec![Message::Text(
             json!({
                 "t": "a",
@@ -299,6 +317,12 @@ impl BrokerFeed for NorenFeed {
             Message::Text(t) => self.parse_text(t),
             _ => Vec::new(),
         }
+    }
+
+    /// Web `_check_connection_health`'s data silence (FB-03): armed by
+    /// market data over time, then 180 s without any.
+    fn data_stalled(&mut self) -> bool {
+        self.liveness.stalled_at((self.clock)())
     }
 
     fn heartbeat(&self) -> Option<(Duration, Message)> {
