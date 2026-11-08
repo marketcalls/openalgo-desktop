@@ -14,8 +14,12 @@
 //! The feed speaks Engine.IO through `FeedEvent::Reply`: the Socket.IO
 //! connect `40` after the server's open, pongs to server pings (with a
 //! heartbeat so a quiet market is not mistaken for a stall); the connect
-//! ack accepts the session and `44` refuses it. Subscriptions are REST, not
-//! socket frames: `POST {subscription_path}/instruments/subscription`
+//! ack accepts the session and `44` refuses it. A server that ends the
+//! session while the socket stays open (an Engine.IO close `1` or a
+//! namespace disconnect `41`) ends the connection: the feed closes the
+//! socket and the manager reconnects (audit appendix item 6).
+//! Subscriptions are REST, not socket frames:
+//! `POST {subscription_path}/instruments/subscription`
 //! (`PUT` to unsubscribe) with `Authorization: <socket token>`, at most 50
 //! instruments per call, 0.5 s apart, run in order by one worker task the
 //! feed owns (`worker`: aborted on reconnect and when the feed is dropped;
@@ -767,10 +771,12 @@ impl XtsFeed {
                 ]
             }
             Some(EioPacket::Message(m)) => m,
+            Some(EioPacket::Close) => return self.server_ended("closed"),
             _ => return Vec::new(),
         };
         let (name, args) = match socketio::decode_sio(m) {
             Some(SioPacket::Connect(_)) => return vec![FeedEvent::AuthOk],
+            Some(SioPacket::Disconnect) => return self.server_ended("disconnected"),
             Some(SioPacket::ConnectError(v)) => {
                 tracing::warn!(
                     broker = self.cfg.id,
@@ -806,6 +812,23 @@ impl XtsFeed {
         args.first()
             .map(|a| self.handle_payload(Some(name.as_str()), a))
             .unwrap_or_default()
+    }
+
+    /// The server ended the Engine.IO session (`1`) or the Socket.IO
+    /// namespace (`41`) and left the socket open, so no more market data
+    /// comes on it (audit appendix item 6). The feed closes the socket:
+    /// the server's answer to the close ends the session, and the manager
+    /// reconnects with its backoff and subscribes the book again. The
+    /// resync flag bounds a server that never answers the close: the
+    /// manager's stall watchdog reads it.
+    fn server_ended(&self, how: &str) -> Vec<FeedEvent> {
+        tracing::warn!(
+            broker = self.cfg.id,
+            "Market data server {} the session; reconnecting",
+            how
+        );
+        self.resync.store(true, std::sync::atomic::Ordering::SeqCst);
+        vec![FeedEvent::Reply(Message::Close(None))]
     }
 
     /// A binary attachment announced by an `xts-binary-packet` event.

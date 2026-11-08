@@ -25,6 +25,7 @@ corpus_cases!(
         quote_root,
         quote_touchline,
         reconnect_replays,
+        server_disconnect_reconnects,
         text_1105,
         unsubscribe_keeps_the_others,
     ]

@@ -1,0 +1,73 @@
+{
+  "broker": "jainamxts",
+  "summary": "Quote on an NSE equity when the server disconnects the Socket.IO namespace (41) and leaves the socket open: the desktop takes it as the connection ending, closes the socket and connects again (Engine.IO open, Socket.IO connect), subscribes its book again over REST, and the next 1501 event reaches the client.",
+  "scenarios": [
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apibinarymarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/jainamxts/streaming/jainamxts_websocket.py::JainamXTSWebSocketClient._setup_socketio",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._process_json_data",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._normalize_market_data",
+      "broker/jainamxts/streaming/jainamxts_websocket.py::JainamXTSWebSocketClient._on_disconnect",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._on_close"
+    ],
+    "notes": [
+      "Audit appendix item 6. No more market data comes on a socket whose namespace the server ended. The desktop answers the 41 (and an Engine.IO close, 1) by closing the socket; the server's answer to the close ends the session and the manager reconnects with its backoff, 250 to 500 ms on a first reconnect (families/xts/streaming.rs server_ended; websocket::manager). Should the close go unanswered, the resync flag ends the session at the stall watchdog's next look.",
+      "The web's frames are not compared here: its glue reads 42 events only, and the 1501 after the reconnect matches. The web's own handling is python-socketio's: a server 41 fires the client's disconnect handler (_on_disconnect, then the adapter's _on_close), which starts the adapter's reconnect when it is running; whether that reconnect races python-socketio's own teardown is for a live check."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltq",
+      "kind": "desktop-decision",
+      "reason": "ltq is this web adapter's LTP name for the last quantity; the desktop sends a web key from the lowest mode it appears in upward (feed/dialect/names.rs rules), so Quote and Depth frames carry ltq beside last_quantity, where the web's Quote and Depth dicts name it last_quantity only.",
+      "ref": "feed/dialect/names.rs XTS; jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "jainamxts_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+    }
+  ]
+}

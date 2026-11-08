@@ -265,3 +265,25 @@ fn jainam_keeps_the_oi_of_a_1510() {
         .0
         .is_empty());
 }
+
+/// Audit appendix item 6: a server that ends the namespace (`41`) or the
+/// Engine.IO session (`1`) with the socket still open ends the connection.
+/// The feed closes the socket, whose answered close ends the session, and
+/// asks the stall watchdog to reconnect should the close go unanswered.
+/// A ping is still only a pong.
+#[test]
+fn a_server_disconnect_ends_the_connection() {
+    for frame in ["41", "1"] {
+        let mut f = feed(&ibulls::CONFIG);
+        assert_eq!(
+            f.parse(&Message::Text(frame.into())),
+            vec![FeedEvent::Reply(Message::Close(None))],
+            "{frame}"
+        );
+        assert!(f.data_stalled(), "{frame}");
+        assert!(!f.data_stalled(), "{frame}: asked once");
+    }
+    let mut f = feed(&ibulls::CONFIG);
+    f.parse(&Message::Text("2".into()));
+    assert!(!f.data_stalled());
+}
