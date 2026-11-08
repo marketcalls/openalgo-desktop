@@ -1,0 +1,80 @@
+{
+  "broker": "tradesmart",
+  "summary": "A touchline frame without its exchange (e): the web routes it when its token names exactly one subscribed scrip and drops it when two exchanges share the token; the desktop drops both (audit FB-08).",
+  "scenarios": [
+    "subscription-lifecycle",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "USDINR25NOV26FUT",
+      "exchange": "CDS",
+      "token": "2885",
+      "brsymbol": "USDINR25NOV26F",
+      "brexchange": "CDS",
+      "expiry": "25-NOV-26",
+      "instrumenttype": "FUTCUR"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._process_market_message",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._normalize_market_data",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::MarketDataCache"
+    ],
+    "notes": [
+      "Audit FB-08, open: the web publishes the first frame (web.json, the push at line 5) and the desktop sends nothing. The harness compares only frames the desktop sends, so this difference cannot be declared as a deviation; the silence pins today's behaviour.",
+      "The second token-2885 subscription (CDS) makes the token ambiguous: the web drops that frame too."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "last_trade_time",
+      "kind": "open",
+      "reason": "The web's TradeSmart adapter forwards Noren's trade time ltt (HH:MM:SS, null when the frame has none) as last_trade_time; the desktop's carrier has no place for it.",
+      "ref": "audit FB-07, C06; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "The desktop sends Noren's feed time ft, in ms, as ltt: a packet time, not the trade time. Noren's trade time is its ltt (HH:MM:SS, IST), which the web forwards raw as last_trade_time; the web's TradeSmart adapter sends no ltt key in any mode, LTP included. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "audit FB-07; brokers/families/noren/streaming.rs NorenFeed::tick (ft * 1000)"
+    },
+    {
+      "key": "mode",
+      "kind": "open",
+      "reason": "The web's TradeSmart adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full) for every broker. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
+      "ref": "feed::source::Mode::data_label; broker/tradesmart/streaming/tradesmart_adapter.py Config.MODE_*"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends oi 0, the desktop leaves it out (web openalgo#2376).",
+      "ref": "tradesmart_adapter.py:741"
+    },
+    {
+      "key": "percent_change",
+      "kind": "open",
+      "reason": "The web's TradeSmart adapter forwards Noren's pc as percent_change for every instrument; the desktop sends the change fields for indices only.",
+      "ref": "audit C04; feed/bridge.rs quote_fields; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
+    },
+    {
+      "key": "tradesmart_timestamp",
+      "kind": "open",
+      "reason": "The web forwards Noren's feed time ft (epoch seconds) as tradesmart_timestamp; the desktop drops it.",
+      "ref": "audit FB-07, C06; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
+    }
+  ]
+}

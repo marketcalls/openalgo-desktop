@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "tradesmart",
+  "orderid": "26110900000101",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 100,
+  "price": 1410.5,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "MIS",
+  "order_status": "open",
+  "filled_quantity": 40,
+  "pending_quantity": 60,
+  "average_price": 1410.5,
+  "rejection_reason": ""
+}
