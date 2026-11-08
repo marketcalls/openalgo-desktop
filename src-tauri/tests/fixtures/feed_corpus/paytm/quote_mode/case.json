@@ -27,9 +27,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Paytm web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Paytm web adapter puts the subscription mode number there (1, 2, 3). Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
+      "ref": "paytm_adapter.py:674; feed::dialect (per-broker switch, lane wire)"
     },
     {
       "key": "ltt",

@@ -33,13 +33,6 @@
       "approved": true
     },
     {
-      "key": "low",
-      "kind": "web-defect",
-      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
-      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
-      "approved": true
-    },
-    {
       "key": "bid",
       "kind": "open",
       "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",

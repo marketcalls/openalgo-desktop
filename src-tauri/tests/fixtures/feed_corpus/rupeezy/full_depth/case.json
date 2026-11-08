@@ -31,9 +31,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Rupeezy web adapter sends no data.mode.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Rupeezy web adapter sends no data.mode. Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
+      "ref": "feed::source::Mode::data_label; feed::dialect (per-broker switch, lane wire)"
     },
     {
       "key": "token",

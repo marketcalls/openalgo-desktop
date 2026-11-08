@@ -36,20 +36,6 @@
       "approved": true
     },
     {
-      "key": "ltp",
-      "kind": "web-defect",
-      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
-      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
-      "approved": true
-    },
-    {
-      "key": "close",
-      "kind": "web-defect",
-      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
-      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
-      "approved": true
-    },
-    {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: IIFL's index packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
