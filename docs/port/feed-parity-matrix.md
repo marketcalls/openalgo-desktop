@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 78. Open gaps: 92. Deviations pending approval: 135.
+Cases: 78. Open gaps: 92. Deviations pending approval: 132.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -340,9 +340,6 @@ Cases: 78. Open gaps: 92. Deviations pending approval: 135.
 | tradejini | `depth_waits_for_the_quote` | `upper_circuit` | web-defect | no | This L1 (the web test's L1_TICK) carries no circuit limits; the web sends upper_circuit 0 (message.get("ucl", 0)). The desktop leaves it out. |
 | tradejini | `depth_waits_for_the_quote` | `lower_circuit` | web-defect | no | As upper_circuit, for lcl. |
 | tradejini | `depth_waits_for_the_quote` | `oi` | web-defect | no | An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get("OI", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data). |
-| tradejini | `depth_waits_for_the_quote` | `change` | desktop-decision | no | Tradejini sent no change for INFY (its L1 has no chng); the desktop works the change out from the price and the previous close, as for every instrument whose previous close backs it (audit C04, docs/port/market-data-frames.md 'Change and open interest'); the web's Depth sends no change then. |
-| tradejini | `depth_waits_for_the_quote` | `change_percent` | desktop-decision | no | As change, for the percent: (1155 - 1185) / 1185 = -2.53%. |
-| tradejini | `depth_waits_for_the_quote` | `percent_change` | desktop-decision | no | As change_percent, under the web's second name for it. |
 | tradejini | `future_depth_oi` | `ltt` | web-defect | no | Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as "2025-11-05 14:25:31" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or "" (LTP). |
 | tradejini | `future_quote_oi` | `ltt` | web-defect | no | Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as "2025-11-05 14:25:31" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or "" (LTP). |
 | tradejini | `index_quote_and_ltp` | `ltt` | web-defect | no | Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as "2025-11-05 14:25:31" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or "" (LTP). |

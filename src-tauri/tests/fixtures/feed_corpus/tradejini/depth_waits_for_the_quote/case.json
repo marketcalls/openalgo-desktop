@@ -58,24 +58,6 @@
       "kind": "web-defect",
       "reason": "An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get(\"OI\", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data).",
       "ref": "tradejini_adapter.py:851"
-    },
-    {
-      "key": "change",
-      "kind": "desktop-decision",
-      "reason": "Tradejini sent no change for INFY (its L1 has no chng); the desktop works the change out from the price and the previous close, as for every instrument whose previous close backs it (audit C04, docs/port/market-data-frames.md 'Change and open interest'); the web's Depth sends no change then.",
-      "ref": "tradejini_adapter.py:858-866; brokers::common::streaming::NormalizedTick::derive_change"
-    },
-    {
-      "key": "change_percent",
-      "kind": "desktop-decision",
-      "reason": "As change, for the percent: (1155 - 1185) / 1185 = -2.53%.",
-      "ref": "tradejini_adapter.py:858-866; NormalizedTick::derive_change"
-    },
-    {
-      "key": "percent_change",
-      "kind": "desktop-decision",
-      "reason": "As change_percent, under the web's second name for it.",
-      "ref": "tradejini_adapter.py:883-884; NormalizedTick::derive_change"
     }
   ]
 }

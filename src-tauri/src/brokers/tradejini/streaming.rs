@@ -514,10 +514,12 @@ impl TradejiniFeed {
             ..Default::default()
         };
         // Tradejini's own change goes out as sent, as the web passes it (a
-        // currency's carries four decimals: 0.7625, not 0.76); without one
-        // it is worked out from the previous close (audit C04).
+        // currency's carries four decimals: 0.7625, not 0.76). Without one
+        // there is none: the web's change keys only forward `chng`
+        // (`tradejini_adapter.py:829-830`, `:858-866`), so the desktop does
+        // not work one out from the previous close (lead ruling 2026-11-09).
         if q.chng.is_none() {
-            t.derive_change();
+            t.mark_absent(QuoteField::Change);
         }
         leave_out_what_was_never_sent(&mut t, q);
         // The price band, which the web's Depth dict carries
