@@ -14,8 +14,11 @@
 
 import type { WsControlMessage } from 'openalgo-charts'
 
+// Any refusal of the Depth subscription leads here (the server's answer
+// names no reason a page can rely on), so the sentence says what the trader
+// sees rather than guessing why.
 export const DEPTH_UNAVAILABLE =
-  'Your broker does not stream market depth, so the chart follows the quote and the book stays empty.'
+  'Market depth is not available for this symbol from your broker, so the chart follows the quote and the book stays empty.'
 
 const keyOf = (symbol: string, exchange: string) =>
   `${exchange.toUpperCase()}:${symbol.toUpperCase()}`
