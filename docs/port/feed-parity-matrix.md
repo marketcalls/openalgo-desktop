@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 73. Open gaps: 217. Deviations pending approval: 138.
+Cases: 73. Open gaps: 216. Deviations pending approval: 139.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -369,6 +369,7 @@ Cases: 73. Open gaps: 217. Deviations pending approval: 138.
 | tradejini | `depth_book_update_and_clear` | `price_change` | open | no | The desktop sends a non-index instrument's change under the canonical price_change and price_change_percent as well (feed/dialect/names.rs instrument_change, docs/port/market-data-frames.md 'Change and open interest'); the web's Tradejini adapter sends it only as change, change_percent and percent_change. Follows the web adapter once wire's per-broker switch covers instruments (lead to confirm; ruling 4 named the index). |
 | tradejini | `depth_book_update_and_clear` | `price_change_percent` | open | no | As price_change, for price_change_percent. |
 | tradejini | `depth_book_update_and_clear` | `oi` | web-defect | no | An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get("OI", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data). |
+| tradejini | `depth_book_update_and_clear` | `depth` | web-defect | no | Tradejini sent an empty book (nDepth 0, no levels); the web pads each empty side with five zero levels (_extract_depth_data), a book that was never there. The desktop sends an empty side as an empty array (lead decision 2026-11-09: zero-padded levels or sides are a web defect). |
 | tradejini | `depth_to_quote_and_back` | `ltt` | web-defect | no | Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as "2025-11-05 14:25:31" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or "" (LTP). |
 | tradejini | `depth_to_quote_and_back` | `upper_circuit` | open | no | The web sends Tradejini's upper circuit limit (L1 ucl) on Depth; the desktop decodes it (streaming.rs L1::ucl) but the common carrier drops it. |
 | tradejini | `depth_to_quote_and_back` | `lower_circuit` | open | no | As upper_circuit, for the lower limit (L1 lcl). |
@@ -382,7 +383,6 @@ Cases: 73. Open gaps: 217. Deviations pending approval: 138.
 | tradejini | `depth_waits_for_the_quote` | `upper_circuit` | web-defect | no | This L1 (the web test's L1_TICK) carries no circuit limits; the web sends upper_circuit 0 (message.get("ucl", 0)). The desktop leaves it out. |
 | tradejini | `depth_waits_for_the_quote` | `lower_circuit` | web-defect | no | As upper_circuit, for lcl. |
 | tradejini | `depth_waits_for_the_quote` | `oi` | web-defect | no | An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get("OI", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data). |
-| tradejini | `depth_waits_for_the_quote` | `depth` | open | no | Tradejini sent one level a side; the web sends that one level (it pads only an empty side to five), the desktop pads each side to five levels with zeros (streaming.rs pad5), a book that was never there. |
 | tradejini | `depth_waits_for_the_quote` | `change` | desktop-decision | no | Tradejini sent no change for INFY (its L1 has no chng); the desktop works the change out from the price and the previous close, as for every instrument whose previous close backs it (audit C04, docs/port/market-data-frames.md 'Change and open interest'); the web's Depth sends no change then. |
 | tradejini | `depth_waits_for_the_quote` | `change_percent` | desktop-decision | no | As change, for the percent: (1155 - 1185) / 1185 = -2.53%. |
 | tradejini | `depth_waits_for_the_quote` | `percent_change` | desktop-decision | no | As change_percent, under the web's second name for it. |

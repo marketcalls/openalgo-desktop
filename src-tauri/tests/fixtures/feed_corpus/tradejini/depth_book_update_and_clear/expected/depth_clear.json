@@ -21,60 +21,8 @@
     "total_buy_quantity": 0,
     "total_sell_quantity": 0,
     "depth": {
-      "buy": [
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        }
-      ],
-      "sell": [
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        },
-        {
-          "price": 0.0,
-          "quantity": 0,
-          "orders": 0
-        }
-      ]
+      "buy": [],
+      "sell": []
     },
     "price_change": 5.5,
     "price_change_percent": 0.68,

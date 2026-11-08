@@ -913,7 +913,8 @@ fn feed_ticks_depth_and_auth() {
     assert_eq!(d.ltp, 1424.6);
     assert_eq!(d.buy[0].price, 1424.55);
     assert_eq!(d.sell[0].orders, 2);
-    assert_eq!(d.buy.len(), 5);
+    // The one level Tradejini sent, not padded to five.
+    assert_eq!(d.buy.len(), 1);
     assert_eq!(d.total_sell_quantity, 20);
     // A delta carrying only ltp keeps the cached open/close.
     let delta = build::frame(

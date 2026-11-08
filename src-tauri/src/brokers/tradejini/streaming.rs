@@ -594,14 +594,20 @@ impl TradejiniFeed {
         out.push(FeedEvent::Depth(self.depth(&sub, book)));
     }
 
-    /// The Depth view of a book, priced from the instrument's L1 quote.
+    /// The Depth view of a book, priced from the instrument's L1 quote: the
+    /// levels Tradejini sent, up to five a side, and an empty side as an
+    /// empty one. The web sends the levels as they came but pads an empty
+    /// side with five zero levels (`_extract_depth_data`), a book that was
+    /// never there.
     fn depth(&self, sub: &SubInfo, book: &L5) -> NormalizedDepth {
+        let side =
+            |levels: &[DepthLevel]| -> Vec<DepthLevel> { levels.iter().take(5).copied().collect() };
         NormalizedDepth {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
             ltp: self.l1.get(&book.key()).and_then(|q| q.ltp).unwrap_or(0.0),
-            buy: pad5(&book.bids),
-            sell: pad5(&book.asks),
+            buy: side(&book.bids[..]),
+            sell: side(&book.asks[..]),
             total_buy_quantity: book.tot_buy_qty,
             total_sell_quantity: book.tot_sell_qty,
             timestamp_ms: now_ms(),
@@ -638,7 +644,8 @@ fn leave_out_what_was_never_sent(t: &mut NormalizedTick, q: &L1) {
     }
 }
 
-/// Five levels, padded with empty ones (web `_extract_depth_data`).
+/// Five levels, padded with empty ones, for the REST depth (web
+/// `api/data.py` `_format_depth`).
 pub fn pad5(levels: &[DepthLevel]) -> Vec<DepthLevel> {
     let mut v: Vec<DepthLevel> = levels.iter().take(5).copied().collect();
     while v.len() < 5 {

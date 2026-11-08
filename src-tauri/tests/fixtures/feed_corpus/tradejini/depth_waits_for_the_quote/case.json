@@ -60,12 +60,6 @@
       "ref": "tradejini_adapter.py:851"
     },
     {
-      "key": "depth",
-      "kind": "open",
-      "reason": "Tradejini sent one level a side; the web sends that one level (it pads only an empty side to five), the desktop pads each side to five levels with zeros (streaming.rs pad5), a book that was never there.",
-      "ref": "tradejini_adapter.py:888-915 _extract_depth_data; brokers/tradejini/streaming.rs pad5"
-    },
-    {
       "key": "change",
       "kind": "desktop-decision",
       "reason": "Tradejini sent no change for INFY (its L1 has no chng); the desktop works the change out from the price and the previous close, as for every instrument whose previous close backs it (audit C04, docs/port/market-data-frames.md 'Change and open interest'); the web's Depth sends no change then.",
