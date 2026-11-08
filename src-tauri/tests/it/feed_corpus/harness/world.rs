@@ -47,10 +47,11 @@ impl Env {
     }
 }
 
-/// The feeds a broker session runs: market data, and the order-update
-/// socket where the broker has one.
+/// The feeds a broker session runs: market data, and the deep-book and
+/// order-update sockets where the broker has them.
 pub(crate) struct Feeds {
     market: Box<dyn BrokerFeed>,
+    depth: Option<(u8, Box<dyn BrokerFeed>)>,
     orders: Option<Box<dyn BrokerFeed>>,
 }
 
@@ -58,8 +59,18 @@ impl Feeds {
     pub(crate) fn market(feed: impl BrokerFeed + 'static) -> Feeds {
         Feeds {
             market: Box::new(feed),
+            depth: None,
             orders: None,
         }
+    }
+
+    /// The broker's separate socket for books of `levels` levels (Dhan 20,
+    /// Fyers 50), as `Broker::create_depth_feed` gives it: a Depth
+    /// subscription at those levels goes there, with a Quote subscription
+    /// on the market feed for its price (`BrokerBridge::set_deep_levels`).
+    pub(crate) fn with_depth(mut self, levels: u8, feed: impl BrokerFeed + 'static) -> Feeds {
+        self.depth = Some((levels, Box::new(feed)));
+        self
     }
 
     pub(crate) fn with_orders(mut self, feed: impl BrokerFeed + 'static) -> Feeds {
@@ -136,8 +147,17 @@ impl World {
             .connect(feeds.market)
             .await
             .expect("the market data feed starts");
-        // A case that never names the order socket leaves it closed, so
-        // its login frames do not have to be expected.
+        // A case that never names the deep-book or order socket leaves it
+        // closed, so its frames need not be expected and its books do not
+        // move off the market feed.
+        if let Some((levels, feed)) = feeds
+            .depth
+            .filter(|_| case.sockets.contains(&Socket::Depth))
+        {
+            bridge.set_deep_levels(Some(levels));
+            deep.connect(feed).await.expect("the depth feed starts");
+            connected.push(Socket::Depth);
+        }
         if let Some(feed) = feeds
             .orders
             .filter(|_| case.sockets.contains(&Socket::Orders))

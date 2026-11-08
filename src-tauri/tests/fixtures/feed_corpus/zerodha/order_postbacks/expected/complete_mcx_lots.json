@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "zerodha",
+  "orderid": "261109000000104",
+  "symbol": "CRUDEOIL19NOV26FUT",
+  "exchange": "MCX",
+  "action": "BUY",
+  "quantity": 200,
+  "price": 0.0,
+  "trigger_price": 0.0,
+  "pricetype": "MARKET",
+  "product": "NRML",
+  "order_status": "complete",
+  "filled_quantity": 200,
+  "pending_quantity": 0,
+  "average_price": 6145.5,
+  "rejection_reason": ""
+}

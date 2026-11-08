@@ -301,6 +301,15 @@ class Glue:
 
     # -- what a glue uses -----------------------------------------------
 
+    def to_openalgo_symbol(self, broker_symbol: str, exchange: str, token=None) -> str:
+        """`websocket_proxy/order_adapter.py::to_openalgo_symbol` on the
+        case's master in place of the database: the broker token first,
+        then the broker symbol, else the raw symbol."""
+        row = (token is not None and self.master.by_token(token, exchange)) or self.master.by_brsymbol(
+            broker_symbol, exchange
+        )
+        return row["symbol"] if row else broker_symbol
+
     def new(self, cls: str, **attrs) -> Any:
         """An instance of lifted class `cls` without its `__init__`, with
         a quiet logger, a real lock and `attrs`."""

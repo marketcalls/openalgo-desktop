@@ -1,0 +1,195 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "zerodha",
+  "inputs_sha256": "e34436da371c1b6c5637888b65281d53408f7943dc941888d3ef697092a8c7f4",
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "CRUDEOIL19NOV26FUT",
+      "exchange": "MCX",
+      "token": "60417543",
+      "brsymbol": "CRUDEOIL26NOVFUT",
+      "brexchange": "MCX",
+      "expiry": "19-NOV-26",
+      "lotsize": 100,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "zerodha",
+            "orderid": "261109000000101",
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1500.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 10,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 4,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "zerodha",
+            "orderid": "261109000000101",
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1500.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 4,
+            "pending_quantity": 6,
+            "average_price": 1500.4,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "zerodha",
+            "orderid": "261109000000101",
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1500.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "complete",
+            "filled_quantity": 10,
+            "pending_quantity": 0,
+            "average_price": 1500.45,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "zerodha",
+            "orderid": "261109000000102",
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 100,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "MARKET",
+            "product": "MIS",
+            "order_status": "rejected",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": "RMS:Margin Exceeds, Required:150000.00, Available:12000.00"
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "zerodha",
+            "orderid": "261109000000103",
+            "symbol": "CRUDEOIL19NOV26FUT",
+            "exchange": "MCX",
+            "action": "BUY",
+            "quantity": 200,
+            "price": 6150.0,
+            "trigger_price": 6140.0,
+            "pricetype": "SL",
+            "product": "NRML",
+            "order_status": "cancelled",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "zerodha",
+            "orderid": "261109000000104",
+            "symbol": "CRUDEOIL19NOV26FUT",
+            "exchange": "MCX",
+            "action": "BUY",
+            "quantity": 200,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "MARKET",
+            "product": "NRML",
+            "order_status": "complete",
+            "filled_quantity": 200,
+            "pending_quantity": 0,
+            "average_price": 6145.5,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    }
+  ]
+}

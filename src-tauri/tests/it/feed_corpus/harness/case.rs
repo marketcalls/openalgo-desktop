@@ -680,7 +680,7 @@ fn decode_hex(at: &str, text: &str) -> Vec<u8> {
         .flat_map(str::chars)
         .filter(|c| !c.is_whitespace())
         .collect();
-    hex::decode(&digits).unwrap_or_else(|e| bad(at, format!("hex: {}", e)))
+    hex::decode(digits).unwrap_or_else(|e| bad(at, format!("hex: {}", e)))
 }
 
 /// A frame the fake broker sends: a file (`.hex` and `.bin` binary,

@@ -1,0 +1,44 @@
+{
+  "broker": "zerodha",
+  "summary": "Kite's order postbacks on the ticker socket: an order open, partly filled and complete, one rejected with Kite's RMS text, an MCX stop cancelled and an MCX market order filled, its quantities from Kite's contracts to OpenAlgo units by the lot size.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "CRUDEOIL19NOV26FUT",
+      "exchange": "MCX",
+      "token": "60417543",
+      "brsymbol": "CRUDEOIL26NOVFUT",
+      "brexchange": "MCX",
+      "expiry": "19-NOV-26",
+      "lotsize": 100,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/zerodha/streaming/zerodha_order_adapter.py::ZerodhaOrderUpdateAdapter.normalize",
+      "broker/zerodha/mapping/order_data.py::map_order_status",
+      "broker/zerodha/mapping/mcx_contract_size.py::from_kite_quantity",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Worked by hand from zerodha_order_adapter.py:59-112 and order_data.py:34-54; MCX quantities are Kite contracts times the master's lot size (mcx_contract_size.py:376).",
+      "The desktop reads the postbacks from the market data ticker; the web opens a dedicated ticker connection for them. The frames are the same."
+    ]
+  }
+}

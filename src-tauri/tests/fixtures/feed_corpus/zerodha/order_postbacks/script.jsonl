@@ -1,0 +1,13 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "push", "frame": "frames/open.json"}
+{"step": "receive", "client": "a", "frame": "expected/open.json"}
+{"step": "push", "frame": "frames/partial.json"}
+{"step": "receive", "client": "a", "frame": "expected/partial.json"}
+{"step": "push", "frame": "frames/complete.json"}
+{"step": "receive", "client": "a", "frame": "expected/complete.json"}
+{"step": "push", "frame": "frames/rejected.json"}
+{"step": "receive", "client": "a", "frame": "expected/rejected.json"}
+{"step": "push", "frame": "frames/cancelled.json"}
+{"step": "receive", "client": "a", "frame": "expected/cancelled.json"}
+{"step": "push", "frame": "frames/complete_mcx_lots.json"}
+{"step": "receive", "client": "a", "frame": "expected/complete_mcx_lots.json"}
