@@ -101,11 +101,14 @@ Deliberate differences, each a web defect or a desktop rule:
 - A key whose value is not known is left out, where the web sends a default
   (`.get(x, 0)`) or a placeholder (Delta Exchange's `average_price` and
   `oi_change`, always 0).
-- A text copy of a time is not sent (Definedge `ltt_time` and text
-  `last_trade_time`, Tradejini's text `ltt`, the Noren `last_trade_time`):
-  `ltt` carries it in milliseconds. The web's mixed or raw units (Zerodha's
-  `ltt` in seconds on full packets, XTS's raw `LastTradedTime`, Paytm's and
-  IIFL Capital's seconds) are not copied.
+- The docs' keys `ltt` and `timestamp` are epoch milliseconds for every
+  broker; the web's mixed or raw units under those names (Zerodha's `ltt`
+  in seconds on full packets, XTS's raw `LastTradedTime`, Paytm's and IIFL
+  Capital's seconds, Tradejini's text `ltt`) are not copied. A broker's own
+  name of a time follows its adapter's unit, type and format (since 1.0.6:
+  Fyers' and Dhan's `last_trade_time` in seconds; Tradejini's text
+  `last_trade_time` as Python's `str(datetime.fromtimestamp(s))` in the
+  machine's local time, `Unit::PythonLocalText`).
 - A web key that holds a wrong value is not copied with that value: Pocketful
   publishes the average price as Depth's `ltp`, Zerodha web reads OI from the
   wrong offset; the desktop decoders keep the right values.

@@ -186,3 +186,16 @@ fn extras_stay_and_broker_fields_last_one_packet() {
     );
     assert!(s.tick().broker_fields.is_empty());
 }
+
+/// A packet that marks the change absent (its stream has none) gets none
+/// worked out from the price and the close, which an adapter could not
+/// otherwise leave out.
+#[test]
+fn a_change_marked_absent_is_not_worked_out() {
+    let s = merge(None, &quote_packet(), 1);
+    assert!(s.tick().knows(QuoteField::Change));
+    let mut next = ltpc_packet(221.0);
+    next.mark_absent(QuoteField::Change);
+    let s = merge(Some(&s), &next, 1);
+    assert!(!s.tick().knows(QuoteField::Change));
+}

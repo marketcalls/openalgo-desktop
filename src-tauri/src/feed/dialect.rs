@@ -19,8 +19,10 @@
 
 use super::source::{Mode, DEFAULT_DEPTH};
 
+mod keys;
 pub(super) mod names;
-pub(crate) use names::{dialect, DataMode, Dialect, Extra, Ltt, Source, Unit};
+pub(crate) use keys::Key;
+pub(crate) use names::{dialect, DataMode, Dialect, Extra, Fold, Source, Unit};
 
 /// How a broker's web adapter fills `actual_depth`, which the web's proxy
 /// puts in a subscribe acknowledgment (`websocket_proxy/server.py`:

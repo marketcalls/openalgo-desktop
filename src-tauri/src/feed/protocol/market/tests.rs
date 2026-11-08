@@ -56,6 +56,13 @@ fn data(key: InstrumentKey, mode: Mode, broker: &str) -> Value {
     render(&update(key), mode, broker)
 }
 
+/// A frame of an update of the frame's own mode (a packet of that mode).
+fn data_at(key: InstrumentKey, mode: Mode, broker: &str) -> Value {
+    let mut u = update(key);
+    u.mode = mode;
+    render(&u, mode, broker)
+}
+
 fn equity() -> InstrumentKey {
     InstrumentKey::new("SBIN", "NSE")
 }
@@ -64,9 +71,25 @@ fn index() -> InstrumentKey {
     InstrumentKey::new("NIFTY", "NSE_INDEX")
 }
 
-/// WS-05: every alias family carries exactly its canonical key's value, in
-/// Quote and in Depth, on an equity as on an index (C04: the change goes
-/// with every instrument of a broker whose web adapter sends one).
+/// The value each canonical name has in `update()`.
+fn canonical_value(name: &str) -> Value {
+    let q = update(equity()).quote.unwrap();
+    match name {
+        "last_quantity" => q.last_quantity.into(),
+        "average_price" => q.average_price.into(),
+        "price_change" => q.price_change.into(),
+        "price_change_percent" => q.price_change_percent.into(),
+        "close" => q.close.into(),
+        "total_buy_quantity" => q.total_buy_quantity.into(),
+        "oi" => q.oi.into(),
+        other => panic!("no canonical {}", other),
+    }
+}
+
+/// WS-05: every alias family carries exactly its canonical value, in Quote
+/// and in Depth, on an equity as on an index, whether the canonical key
+/// itself goes out or not (C04: no web adapter sends `price_change` on an
+/// equity, so the change goes under the broker's own names there).
 #[test]
 fn each_alias_carries_its_canonical_value() {
     let families = [
@@ -109,11 +132,10 @@ fn each_alias_carries_its_canonical_value() {
                 if depth_only && mode == Mode::Quote {
                     continue;
                 }
-                let d = data(key.clone(), mode, broker);
-                assert!(d.get(canonical).is_some(), "{} {:?}: {}", broker, mode, d);
+                let d = data_at(key.clone(), mode, broker);
                 assert_eq!(
                     d.get(alias),
-                    d.get(canonical),
+                    Some(&canonical_value(canonical)),
                     "{} {} {:?}: {}",
                     broker,
                     alias,
@@ -125,23 +147,40 @@ fn each_alias_carries_its_canonical_value() {
     }
 }
 
-/// C04 (audit): an equity's change goes out where the broker's web adapter
-/// publishes one for it, under the canonical and the broker's names; where
-/// it publishes none (Zerodha's recorded frames, Angel, Upstox) the
-/// equity's frame carries none, and an index's always does.
+/// C04 (audit): the change goes with an equity under the names the
+/// broker's web adapter uses for it; the canonical `price_change`, which no
+/// web adapter sends on an equity, goes on an index only, and only where
+/// the broker's adapter sends it there.
 #[test]
-fn an_instruments_change_goes_where_the_web_sends_one() {
-    for broker in ["fyers", "arrow", "paytm", "samco", "shoonya", "kotak"] {
-        let d = data(equity(), Mode::Quote, broker);
-        assert_eq!(d["price_change"], 1.25, "{}: {}", broker, d);
+fn an_instruments_change_goes_under_the_brokers_names() {
+    let names = [
+        ("fyers", "change"),
+        ("arrow", "change"),
+        ("paytm", "change_absolute"),
+        ("samco", "change"),
+        ("shoonya", "percent_change"),
+        ("kotak", "percent_change"),
+        ("pocketful", "change"),
+    ];
+    for (broker, name) in names {
+        let d = data_at(equity(), Mode::Quote, broker);
+        assert_eq!(d[name], 1.25, "{}: {}", broker, d);
+        assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
     }
-    for broker in ["zerodha", "angel", "upstox", "dhan", "compositedge"] {
+    for broker in [
+        "zerodha",
+        "angel",
+        "upstox",
+        "dhan",
+        "compositedge",
+        "unknown",
+    ] {
         for mode in [Mode::Quote, Mode::Depth] {
-            let d = data(equity(), mode, broker);
+            let d = data_at(equity(), mode, broker);
             for k in ["price_change", "price_change_percent", "change"] {
                 assert!(d.get(k).is_none(), "{} {:?} {}: {}", broker, mode, k, d);
             }
-            assert_eq!(data(index(), mode, broker)["price_change"], 1.25);
+            assert_eq!(data_at(index(), mode, broker)["price_change"], 1.25);
         }
     }
 }
@@ -182,7 +221,7 @@ fn aliases_appear_only_where_the_web_sends_them() {
         }
     }
     for broker in ["angel", "samco", "kotak", "shoonya", "definedge"] {
-        let d = data(equity(), Mode::Ltp, broker);
+        let d = data_at(equity(), Mode::Ltp, broker);
         for k in d.as_object().unwrap().keys() {
             let allowed = ["symbol", "exchange", "mode", "ltp", "ltt", "timestamp"];
             let extra_ok = ["last_trade_time", "shoonya_timestamp"];
@@ -285,7 +324,7 @@ fn the_canonical_keys_follow_each_brokers_web_adapter() {
     assert!(data(equity(), Mode::Quote, "zerodha")["total_buy_quantity"].is_i64());
 
     for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
-        let d = data(equity(), mode, "aliceblue");
+        let d = data_at(equity(), mode, "aliceblue");
         for k in ["symbol", "exchange", "mode"] {
             assert!(d.get(k).is_none(), "{:?} {}: {}", mode, k, d);
         }
@@ -342,8 +381,8 @@ fn data_mode_follows_the_broker() {
     let d = data(equity(), Mode::Depth, "zerodha");
     assert_eq!(d["mode"], "full");
     assert_eq!(data(equity(), Mode::Quote, "sahi")["mode"], "quote");
-    assert_eq!(data(equity(), Mode::Quote, "angel")["mode"], 2);
-    assert_eq!(data(equity(), Mode::Ltp, "dhan")["mode"], 1);
+    assert_eq!(data_at(equity(), Mode::Quote, "angel")["mode"], 2);
+    assert_eq!(data_at(equity(), Mode::Ltp, "dhan")["mode"], 1);
     for broker in ["upstox", "kotak", "hdfcsky", "arrow", "rupeezy", "fyers"] {
         assert!(
             data(equity(), Mode::Quote, broker).get("mode").is_none(),
@@ -376,7 +415,9 @@ fn shared_fields_go_out_under_the_brokers_names() {
             ..Default::default()
         };
     }
-    let angel_quote = render(&u, Mode::Quote, "angel");
+    let mut at_quote = u.clone();
+    at_quote.mode = Mode::Quote;
+    let angel_quote = render(&at_quote, Mode::Quote, "angel");
     assert!(
         angel_quote.get("upper_circuit").is_none(),
         "Depth only: {}",
@@ -393,7 +434,7 @@ fn shared_fields_go_out_under_the_brokers_names() {
     let samco = render(&u, Mode::Quote, "samco");
     assert_eq!(samco["best_bid_price"], 101.2);
     assert_eq!(samco["best_ask_quantity"], 50);
-    let paytm = render(&u, Mode::Quote, "paytm");
+    let paytm = render(&at_quote, Mode::Quote, "paytm");
     assert_eq!(paytm["52_week_high"], 130.0);
     assert!(paytm.get("oi_change").is_none(), "Depth only");
     assert_eq!(render(&u, Mode::Depth, "paytm")["oi_change"], 200);
@@ -526,7 +567,7 @@ fn meta_keys_follow_the_frame() {
     assert_eq!(d["subscription_mode"], 2);
     assert_eq!(d["broker"], "groww");
     assert_eq!(data(equity(), Mode::Depth, "dhan")["depth_level"], 5);
-    assert!(data(equity(), Mode::Quote, "dhan")
+    assert!(data_at(equity(), Mode::Quote, "dhan")
         .get("depth_level")
         .is_none());
     assert_eq!(data(equity(), Mode::Ltp, "fyers")["data_type"], "Quote");
@@ -586,4 +627,79 @@ fn the_broker_token_goes_where_the_web_sends_it() {
     let no_token = render(&update(equity()), Mode::Ltp, "arrow");
     assert!(no_token.get("token").is_none());
     assert_eq!(render(&u, Mode::Ltp, "paytm")["close"], 100.0);
+}
+
+/// Audit C08, lead decision 2026-11-09: a broker whose web adapter
+/// publishes one dict per packet sends a lower holder the whole packet
+/// (book, quote, the dict's own `mode`) under the holder's envelope mode;
+/// one that publishes a dict per mode trims each frame to its holder's.
+#[test]
+fn a_lower_holder_gets_the_packet_as_the_brokers_web_adapter_sends_it() {
+    let u = update(equity());
+    let paytm = serde_json::from_str::<Value>(&market_data(&u, Mode::Ltp, 0, "paytm")).unwrap();
+    assert_eq!(paytm["mode"], 1, "the holder's mode");
+    let d = &paytm["data"];
+    assert_eq!(d["mode"], 3, "the dict's own mode, as the web forwards it");
+    assert_eq!(d["volume"], 1000);
+    assert_eq!(d["depth"]["buy"].as_array().map(Vec::len), Some(5));
+    let quote = render(&u, Mode::Quote, "arrow");
+    assert!(quote.get("depth").is_some() && quote.get("open").is_some());
+
+    let zerodha = render(&u, Mode::Ltp, "zerodha");
+    for k in ["volume", "depth", "open"] {
+        assert!(zerodha.get(k).is_none(), "{}: {}", k, zerodha);
+    }
+    assert!(render(&u, Mode::Quote, "zerodha").get("depth").is_none());
+}
+
+/// A web name of a time in Python's local text form (Tradejini's
+/// `last_trade_time`, `str(datetime.fromtimestamp(s))`).
+#[test]
+fn a_time_can_go_out_as_python_local_text() {
+    use chrono::TimeZone;
+    let ms = 1_791_000_000_000_i64;
+    let want = chrono::Local
+        .timestamp_millis_opt(ms)
+        .single()
+        .unwrap()
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
+    assert_eq!(
+        super::time(ms, crate::feed::dialect::Unit::PythonLocalText),
+        Value::from(want)
+    );
+    let frac = super::time(ms + 250, crate::feed::dialect::Unit::PythonLocalText);
+    assert!(frac.as_str().unwrap().ends_with(".250000"), "{}", frac);
+}
+
+/// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,
+/// Tradejini, Kotak and Pocketful send no canonical change on an index;
+/// the broker's own names still go where it sends them (AliceBlue's
+/// `change_percent`); Zerodha's index frames carry the canonical ones.
+#[test]
+fn the_canonical_index_change_follows_the_broker() {
+    for broker in [
+        "firstock",
+        "aliceblue",
+        "samco",
+        "tradejini",
+        "kotak",
+        "pocketful",
+    ] {
+        let d = data_at(index(), Mode::Quote, broker);
+        assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
+        assert!(d.get("price_change_percent").is_none(), "{}", broker);
+    }
+    assert_eq!(
+        data_at(index(), Mode::Quote, "aliceblue")["change_percent"],
+        1.25
+    );
+    assert_eq!(
+        data_at(index(), Mode::Quote, "kotak")["percent_change"],
+        1.25
+    );
+    assert_eq!(
+        data_at(index(), Mode::Quote, "zerodha")["price_change"],
+        1.25
+    );
 }

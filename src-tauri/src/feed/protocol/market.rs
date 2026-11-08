@@ -4,7 +4,7 @@
 //! left out, never sent as 0 (web openalgo#2376, audit C03).
 
 use super::to_json;
-use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Ltt, Source, Unit};
+use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Fold, Key, Source, Unit};
 use crate::feed::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
 use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
@@ -152,19 +152,17 @@ struct MarketDataOut<'a> {
     broker: &'a str,
 }
 
-/// What the frame may show, in any mode: the update's quote without an
-/// index's order-flow fields (the web's index dicts have none) and without
-/// an instrument's change where the broker's web adapter publishes none.
-fn shown_quote(update: &MarketUpdate, instrument_change: bool) -> QuoteFields {
+/// The values a frame may show, under any name: the update's quote without
+/// an index's order-flow fields (no web adapter's index dict has them).
+/// Which canonical keys carry them is the broker's `Keys`; a web name reads
+/// the value whatever its canonical key does.
+fn shown_quote(update: &MarketUpdate) -> QuoteFields {
     let mut q = update.quote.clone().unwrap_or_default();
     if update.key.is_index() {
         q.last_quantity = None;
         q.average_price = None;
         q.total_buy_quantity = None;
         q.total_sell_quantity = None;
-    } else if !instrument_change {
-        q.price_change = None;
-        q.price_change_percent = None;
     }
     q
 }
@@ -173,7 +171,12 @@ fn shown_quote(update: &MarketUpdate, instrument_change: bool) -> QuoteFields {
 struct Frame<'a> {
     update: &'a MarketUpdate,
     q: &'a QuoteFields,
+    /// The holder's mode (the envelope's).
     mode: Mode,
+    /// The mode whose keys the frame carries: the holder's, or the
+    /// packet's for a broker whose web adapter sends lower holders the
+    /// whole packet (`Fold::Richer`).
+    content: Mode,
     depth: u8,
     broker: &'a str,
 }
@@ -195,14 +198,23 @@ fn extra(e: Extra, q: &QuoteFields) -> Option<Value> {
         Extra::OiChange => i(x.oi_change),
         Extra::TotalOi => i(x.total_oi),
         Extra::DayClose => f(x.day_close),
-        Extra::ExchangeTime(unit) => i(x.exchange_time_ms.map(|ms| in_unit(ms, unit))),
+        Extra::ExchangeTime(unit) => x.exchange_time_ms.map(|ms| time(ms, unit)),
     }
 }
 
-fn in_unit(ms: i64, unit: Unit) -> i64 {
+/// An epoch-millisecond time in the unit and form a broker's web name uses.
+fn time(ms: i64, unit: Unit) -> Value {
+    use chrono::TimeZone;
     match unit {
-        Unit::Millis => ms,
-        Unit::Seconds => ms / 1000,
+        Unit::Millis => ms.into(),
+        Unit::Seconds => (ms / 1000).into(),
+        Unit::PythonLocalText => match chrono::Local.timestamp_millis_opt(ms).single() {
+            Some(t) if t.timestamp_subsec_micros() == 0 => {
+                t.format("%Y-%m-%d %H:%M:%S").to_string().into()
+            }
+            Some(t) => t.format("%Y-%m-%d %H:%M:%S%.6f").to_string().into(),
+            None => Value::Null,
+        },
     }
 }
 
@@ -225,10 +237,10 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::Oi => i(q.oi),
         Source::Change => f(q.price_change),
         Source::ChangePercent => f(q.price_change_percent),
-        Source::TradeTime(unit) => i(fr.update.ltt.map(|ms| in_unit(ms, unit))),
+        Source::TradeTime(unit) => fr.update.ltt.map(|ms| time(ms, unit)),
         Source::Extra(e) => extra(e, q),
         Source::DepthLevels => {
-            let book = fr.mode == Mode::Depth && !fr.update.key.is_index();
+            let book = fr.content == Mode::Depth && !fr.update.key.is_index();
             book.then(|| Value::from(fr.depth))
         }
         Source::SubscriptionMode => Some(Value::from(fr.mode.as_u8())),
@@ -252,7 +264,7 @@ fn web_keys(d: &DataOut<'_>, fr: &Frame<'_>) -> WebKeys {
     let taken =
         |out: &[(&'static str, Value)], key: &str| d.has(key) || out.iter().any(|(k, _)| *k == key);
     for name in dialect(fr.broker).names {
-        if fr.mode < name.from || taken(&out, name.key) {
+        if fr.content < name.from || fr.content > name.to || taken(&out, name.key) {
             continue;
         }
         if let Some(v) = value(name.source, fr) {
@@ -260,7 +272,7 @@ fn web_keys(d: &DataOut<'_>, fr: &Frame<'_>) -> WebKeys {
         }
     }
     for (field, v) in fr.q.broker_fields.iter() {
-        if fr.mode.as_u8() < field.from_mode().code() || taken(&out, field.name()) {
+        if fr.content.as_u8() < field.from_mode().code() || taken(&out, field.name()) {
             continue;
         }
         if let Ok(v) = serde_json::to_value(v) {
@@ -275,24 +287,20 @@ fn web_keys(d: &DataOut<'_>, fr: &Frame<'_>) -> WebKeys {
 pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -> String {
     let key: &InstrumentKey = &update.key;
     let dia = dialect(broker);
-    let q = shown_quote(update, dia.instrument_change);
-    let mut d = canonical(update, &q, mode, &dia);
-    if mode == Mode::Depth && !key.is_index() {
-        let n = depth as usize;
-        let book = update.depth.as_ref();
-        d.depth = Some(BookOut {
-            buy: book
-                .map(|b| b.buy.iter().take(n).map(LevelOut::from).collect())
-                .unwrap_or_default(),
-            sell: book
-                .map(|b| b.sell.iter().take(n).map(LevelOut::from).collect())
-                .unwrap_or_default(),
-        });
+    let q = shown_quote(update);
+    let content = match dia.fold {
+        Fold::PerMode => mode,
+        Fold::Richer => update.mode.max(mode),
+    };
+    let mut d = canonical(update, &q, mode, content, &dia);
+    if dia.keys.has(Key::Depth, key.is_index(), content) {
+        d.depth = book(update, mode, depth);
     }
     let frame = Frame {
         update,
         q: &q,
         mode,
+        content,
         depth,
         broker,
     };
@@ -307,13 +315,39 @@ pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -
     })
 }
 
-/// The canonical keys of `data` for a frame at `mode`, shaped as the
-/// broker's web adapter shapes them: which identity, time and OI keys it
-/// writes, how it writes `data.mode`, which integers it sends as doubles.
+/// The book a frame carries: the levels the broker sent, up to the depth
+/// the holder streams (a lower holder of a richer packet gets them all);
+/// none for a full tick without its book; an empty one on an index whose
+/// broker's web adapter sends one. Never padded.
+fn book(update: &MarketUpdate, mode: Mode, depth: u8) -> Option<BookOut> {
+    let n = if mode == Mode::Depth {
+        depth as usize
+    } else {
+        usize::MAX
+    };
+    match &update.depth {
+        Some(b) => Some(BookOut {
+            buy: b.buy.iter().take(n).map(LevelOut::from).collect(),
+            sell: b.sell.iter().take(n).map(LevelOut::from).collect(),
+        }),
+        None if update.key.is_index() => Some(BookOut {
+            buy: Vec::new(),
+            sell: Vec::new(),
+        }),
+        None => None,
+    }
+}
+
+/// The canonical keys of `data` for a holder at `mode` of a frame carrying
+/// `content`'s keys, shaped as the broker's web adapter shapes them: which
+/// identity, time and OI keys it writes, how it writes `data.mode` (the
+/// dict's own mode, as the web forwards it), which integers it sends as
+/// doubles.
 fn canonical<'a>(
     update: &'a MarketUpdate,
     qf: &QuoteFields,
     mode: Mode,
+    content: Mode,
     dia: &Dialect,
 ) -> DataOut<'a> {
     let key = &update.key;
@@ -327,46 +361,48 @@ fn canonical<'a>(
         })
     };
     let ltp_copy = mode == Mode::Ltp && update.mode > Mode::Ltp;
-    let ltt = match dia.ltt {
-        Ltt::Always => update.ltt,
-        Ltt::NotOnLtpCopies if ltp_copy => None,
-        Ltt::NotOnLtpCopies => update.ltt,
-        Ltt::Never => None,
-    };
-    let quote = mode >= Mode::Quote;
+    let on = |k: Key| dia.keys.has(k, key.is_index(), content);
+    let ltt = update
+        .ltt
+        .filter(|_| on(Key::Ltt) && (dia.ltt_on_ltp_copies || !ltp_copy));
     DataOut {
-        symbol: dia.data_identity.then_some(key.symbol.as_str()),
-        exchange: dia.data_identity.then_some(key.exchange.as_str()),
-        mode: match dia.data_mode {
-            DataMode::Label => Some(ModeOut::Label(mode.data_label())),
-            DataMode::Number => Some(ModeOut::Number(mode.as_u8())),
-            DataMode::Absent => None,
-        },
+        symbol: on(Key::Symbol).then_some(key.symbol.as_str()),
+        exchange: on(Key::Exchange).then_some(key.exchange.as_str()),
+        mode: on(Key::Mode)
+            .then_some(match dia.data_mode {
+                DataMode::Label => Some(ModeOut::Label(content.data_label())),
+                DataMode::Number => Some(ModeOut::Number(content.as_u8())),
+                DataMode::Absent => None,
+            })
+            .flatten(),
         ltp: update.ltp,
         ltt: num("ltt", ltt),
-        timestamp: (mode >= dia.timestamp_from).then_some(update.timestamp),
-        volume: num("volume", qf.volume.filter(|_| quote)),
-        last_quantity: num("last_quantity", qf.last_quantity.filter(|_| quote)),
-        average_price: qf.average_price.filter(|_| quote),
+        timestamp: on(Key::Timestamp).then_some(update.timestamp),
+        volume: num("volume", qf.volume.filter(|_| on(Key::Volume))),
+        last_quantity: num(
+            "last_quantity",
+            qf.last_quantity.filter(|_| on(Key::LastQuantity)),
+        ),
+        average_price: qf.average_price.filter(|_| on(Key::AveragePrice)),
         total_buy_quantity: num(
             "total_buy_quantity",
-            qf.total_buy_quantity.filter(|_| quote),
+            qf.total_buy_quantity.filter(|_| on(Key::TotalBuyQuantity)),
         ),
         total_sell_quantity: num(
             "total_sell_quantity",
-            qf.total_sell_quantity.filter(|_| quote),
+            qf.total_sell_quantity
+                .filter(|_| on(Key::TotalSellQuantity)),
         ),
-        open: qf.open.filter(|_| quote),
-        high: qf.high.filter(|_| quote),
-        low: qf.low.filter(|_| quote),
-        close: qf.close.filter(|_| quote),
-        price_change: qf.price_change.filter(|_| quote),
-        price_change_percent: qf.price_change_percent.filter(|_| quote),
-        oi: num("oi", qf.oi.filter(|_| quote)),
-        open_interest: num(
-            "open_interest",
-            qf.oi.filter(|_| quote && dia.open_interest),
-        ),
+        open: qf.open.filter(|_| on(Key::Open)),
+        high: qf.high.filter(|_| on(Key::High)),
+        low: qf.low.filter(|_| on(Key::Low)),
+        close: qf.close.filter(|_| on(Key::Close)),
+        price_change: qf.price_change.filter(|_| on(Key::PriceChange)),
+        price_change_percent: qf
+            .price_change_percent
+            .filter(|_| on(Key::PriceChangePercent)),
+        oi: num("oi", qf.oi.filter(|_| on(Key::Oi))),
+        open_interest: num("open_interest", qf.oi.filter(|_| on(Key::OpenInterest))),
         depth: None,
         web: WebKeys::default(),
     }

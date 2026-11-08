@@ -19,14 +19,21 @@ pub(in crate::feed::bridge) fn full_tick(symbol: &str, exchange: &str) -> Normal
     }
 }
 
+/// A full tick reaches every mode, Depth holders included, with no book
+/// of its own (lead decision 2026-11-09); its book, sent on its own, reaches
+/// Depth holders only.
 #[test]
-fn full_equity_tick_serves_quote_and_depth_serves_depth_holders() {
+fn full_equity_tick_serves_every_mode_and_depth_serves_depth_holders() {
     let k = InstrumentKey::new("RELIANCE", "NSE");
     let t = full_tick("RELIANCE", "NSE");
     let u = tick_update(k.clone(), &t).expect("a price");
-    assert_eq!(u.mode, Mode::Quote);
-    assert!(!u.exact_mode);
+    assert_eq!(u.mode, Mode::Depth);
+    assert!(!u.exact_mode && u.depth.is_none());
     assert_eq!(u.quote.as_ref().and_then(|q| q.oi), Some(0));
+    let frame = crate::feed::protocol::market_data(&u, Mode::Depth, 5, "hdfcsky");
+    let v: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert!(v["data"].get("depth").is_none(), "{}", v);
+    assert_eq!(v["data"]["ltp"], 1167.7);
     let d = NormalizedDepth {
         symbol: "RELIANCE".into(),
         exchange: "NSE".into(),
