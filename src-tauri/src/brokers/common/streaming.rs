@@ -91,7 +91,63 @@ impl FeedSubscription {
     }
 }
 
-/// A normalised tick. Fields a mode does not carry are zero.
+/// A quote field a broker's stream may not carry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum QuoteField {
+    Open = 1 << 0,
+    High = 1 << 1,
+    Low = 1 << 2,
+    /// Previous close.
+    Close = 1 << 3,
+    Volume = 1 << 4,
+    AveragePrice = 1 << 5,
+    LastQuantity = 1 << 6,
+    TotalBuyQuantity = 1 << 7,
+    TotalSellQuantity = 1 << 8,
+    OpenInterest = 1 << 9,
+    /// The change since the previous close, absolute and in percent.
+    Change = 1 << 10,
+    /// The exchange's last trade time (an index tick may have none): `ltt`
+    /// is then left out in every mode, LTP included.
+    LastTradeTime = 1 << 11,
+}
+
+/// The quote fields a tick's stream did not carry. A `market_data` frame
+/// leaves them out instead of sending 0 (web openalgo#2376: a client
+/// computing the change against a close of 0 showed the whole LTP as the
+/// change). Empty by default: every field is sent, a zero included.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct AbsentFields(u16);
+
+impl AbsentFields {
+    pub const fn of(fields: &[QuoteField]) -> Self {
+        let mut bits = 0;
+        let mut i = 0;
+        while i < fields.len() {
+            bits |= fields[i] as u16;
+            i += 1;
+        }
+        Self(bits)
+    }
+
+    pub const fn contains(self, field: QuoteField) -> bool {
+        self.0 & field as u16 != 0
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.0 == 0
+    }
+
+    /// This set and `field`: an adapter that learns field by field what a
+    /// message lacks.
+    pub const fn with(self, field: QuoteField) -> Self {
+        Self(self.0 | field as u16)
+    }
+}
+
+/// A normalised tick. Fields a mode does not carry are zero; a field the
+/// broker's stream does not carry at all is also named in `absent`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct NormalizedTick {
     pub symbol: String,
@@ -116,6 +172,11 @@ pub struct NormalizedTick {
     pub last_trade_time_ms: i64,
     /// When this tick was produced, epoch ms.
     pub timestamp_ms: i64,
+    /// What the stream did not carry: left out of Quote and Depth frames,
+    /// and of a depth frame built on this tick, so an adapter marks a total
+    /// only when its depth messages lack it too.
+    #[serde(skip_serializing_if = "AbsentFields::is_empty")]
+    pub absent: AbsentFields,
 }
 
 impl NormalizedTick {

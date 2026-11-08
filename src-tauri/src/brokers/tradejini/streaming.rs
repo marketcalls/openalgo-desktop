@@ -485,6 +485,7 @@ impl TradejiniFeed {
             change_percent: q.chng_per.unwrap_or(0.0),
             last_trade_time_ms: q.ltt.unwrap_or(0) * 1000,
             timestamp_ms: now_ms(),
+            ..Default::default()
         };
         if q.chng.is_none() {
             t.derive_change();

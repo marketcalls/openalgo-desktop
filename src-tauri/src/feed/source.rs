@@ -9,6 +9,7 @@
 //! Production wires the broker streaming manager through `feed::bridge`;
 //! tests use [`FakeSource`].
 
+use crate::brokers::common::streaming::AbsentFields;
 use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::AtomicU64;
@@ -110,7 +111,8 @@ pub struct DepthBook {
 }
 
 /// Quote-mode fields. OHLC is optional because an index outside market
-/// hours has none; for other instruments a missing value is sent as `0.0`.
+/// hours has none; for other instruments a missing value is sent as `0.0`,
+/// unless `absent` says the broker's stream does not carry it.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct QuoteFields {
     pub volume: i64,
@@ -127,6 +129,9 @@ pub struct QuoteFields {
     /// Change since previous close (index instruments).
     pub price_change: Option<f64>,
     pub price_change_percent: Option<f64>,
+    /// Fields the broker's stream did not carry: left out of the frame, and
+    /// their alias names with them (web openalgo#2376).
+    pub absent: AbsentFields,
 }
 
 /// A normalized update from the broker feed.

@@ -9,6 +9,7 @@
 
 use super::dialect::{aliases, Aliases, Canonical};
 use super::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode};
+use crate::brokers::common::streaming::{AbsentFields, QuoteField};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -414,6 +415,30 @@ struct MarketDataOut<'a> {
     broker: &'a str,
 }
 
+/// Leave out what the broker's stream did not carry rather than send it as
+/// 0 (web openalgo#2376); an alias goes with its canonical key.
+fn leave_out(d: &mut DataOut<'_>, absent: AbsentFields) {
+    fn drop_if<T>(slot: &mut Option<T>, absent: AbsentFields, field: QuoteField) {
+        if absent.contains(field) {
+            *slot = None;
+        }
+    }
+    use QuoteField as F;
+    drop_if(&mut d.open, absent, F::Open);
+    drop_if(&mut d.high, absent, F::High);
+    drop_if(&mut d.low, absent, F::Low);
+    drop_if(&mut d.close, absent, F::Close);
+    drop_if(&mut d.volume, absent, F::Volume);
+    drop_if(&mut d.average_price, absent, F::AveragePrice);
+    drop_if(&mut d.last_quantity, absent, F::LastQuantity);
+    drop_if(&mut d.total_buy_quantity, absent, F::TotalBuyQuantity);
+    drop_if(&mut d.total_sell_quantity, absent, F::TotalSellQuantity);
+    drop_if(&mut d.oi, absent, F::OpenInterest);
+    drop_if(&mut d.open_interest, absent, F::OpenInterest);
+    drop_if(&mut d.price_change, absent, F::Change);
+    drop_if(&mut d.price_change_percent, absent, F::Change);
+}
+
 /// Render `update` for a subscriber at `mode` (which must not exceed
 /// `update.mode`), with each depth side truncated to `depth` levels.
 pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -> String {
@@ -471,6 +496,7 @@ pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -
             d.oi = Some(0);
             d.open_interest = Some(0);
         }
+        leave_out(&mut d, q.absent);
     }
     d.aliases = aliases(
         broker,

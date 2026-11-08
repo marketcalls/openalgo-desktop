@@ -130,6 +130,7 @@ impl NorenFeed {
             change_percent: f(&v, "pc"),
             last_trade_time_ms: i(&v, "ft") * 1000,
             timestamp_ms: now_ms(),
+            ..Default::default()
         };
         let pc = t.change_percent;
         t.derive_change();

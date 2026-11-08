@@ -216,6 +216,7 @@ impl SamcoFeed {
             change_percent: round2(num(g("chPer"))),
             last_trade_time_ms: 0,
             timestamp_ms: ts,
+            ..Default::default()
         };
         if tick.change == 0.0 && tick.change_percent == 0.0 {
             tick.derive_change();

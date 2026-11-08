@@ -214,6 +214,7 @@ fn update_from(frame: &Value) -> MarketUpdate {
         oi: int(&d["oi"]),
         price_change: num(&d["price_change"]),
         price_change_percent: num(&d["price_change_percent"]),
+        ..Default::default()
     });
     let side = |s: &str| -> Vec<DepthLevel> {
         d["depth"][s]

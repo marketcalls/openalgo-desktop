@@ -300,6 +300,7 @@ mod tests {
                 oi: None,
                 price_change: change,
                 price_change_percent: change,
+                ..Default::default()
             }),
             depth: Some(DepthBook {
                 buy: vec![level; 5],
