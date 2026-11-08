@@ -26,12 +26,5 @@
       "Worked by hand from zerodha_adapter.py:530-559 (a quote tick is published on the QUOTE topic, and an LTP copy is published when mode 1 is held)."
     ]
   },
-  "deviations": [
-    {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "Whether and how a frame carries ltt (in LTP frames, or beside the broker's own trade-time name) follows the web's Zerodha adapter; the desktop always sends ltt in ms. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "tests/it/feed_conformance.rs (the ltt tolerance); zerodha_adapter.py:549; lead rule 2026-11-09"
-    }
-  ]
+  "deviations": []
 }

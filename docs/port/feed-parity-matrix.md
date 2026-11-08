@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 43. Open gaps: 181. Deviations pending approval: 58.
+Cases: 43. Open gaps: 179. Deviations pending approval: 58.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -48,7 +48,7 @@ Cases: 43. Open gaps: 181. Deviations pending approval: 58.
 | upstox | open gap: `ltpc_ltp_and_index_quote` | open gap: `auction_cas_fields`, `full_incremental_merge`, `ltpc_ltp_and_index_quote`, `reconnect_fresh_authorize` | open gap: `full_incremental_merge` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
 | wisdom | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | zebu | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| zerodha | open gap: `ltp_mode`, `two_clients_mode_change` | open gap: `cds_quote_currency_unit`, `deliberate_disconnect` (by hand), `index_quote`, `quote_mode`, `reconnect_replays`, `refused_reconnect`, `two_clients_mode_change` | open gap: `full_depth_future`, `index_full` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_postbacks` |
+| zerodha | matches web: `ltp_mode`, `two_clients_mode_change` | deviation pending approval: `cds_quote_currency_unit`, `deliberate_disconnect` (by hand), `index_quote`, `quote_mode`, `reconnect_replays`, `refused_reconnect`, `two_clients_mode_change` | deviation pending approval: `full_depth_future`, `index_full` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_postbacks` |
 
 ## Scenarios covered
 
@@ -303,6 +303,4 @@ Cases: 43. Open gaps: 181. Deviations pending approval: 58.
 | zerodha | `full_depth_future` | `open_interest` | web-defect | no | As oi: the web's value comes from byte 180. |
 | zerodha | `index_full` | `price_change_percent` | web-defect | no | Kite's index packet carries the change but not the percent; the web sends 0 (zerodha_adapter.py:626, tick.get('price_change_percent', 0)), the desktop works it out from the change and the previous close (200.10 / 24300 = 0.82%). |
 | zerodha | `index_full` | `ltt` | web-defect | no | The web sends the exchange time in epoch seconds as ltt (zerodha_adapter.py:620); feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends it. |
-| zerodha | `index_full` | `exchange_timestamp` | open | no | The web also sends Kite's exchange time under its own name (epoch seconds) for an index full packet; the desktop's common carrier has no such field. |
 | zerodha | `index_quote` | `price_change_percent` | web-defect | no | Kite's index packet carries the change but not the percent; the web sends 0 (zerodha_adapter.py:626, tick.get('price_change_percent', 0)), the desktop works it out from the change and the previous close (200.10 / 24300 = 0.82%). |
-| zerodha | `two_clients_mode_change` | `ltt` | open | no | Whether and how a frame carries ltt (in LTP frames, or beside the broker's own trade-time name) follows the web's Zerodha adapter; the desktop always sends ltt in ms. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B). |

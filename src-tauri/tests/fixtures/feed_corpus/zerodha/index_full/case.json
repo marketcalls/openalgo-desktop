@@ -38,12 +38,6 @@
       "kind": "web-defect",
       "reason": "The web sends the exchange time in epoch seconds as ltt (zerodha_adapter.py:620); feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends it.",
       "ref": "zerodha_adapter.py:620"
-    },
-    {
-      "key": "exchange_timestamp",
-      "kind": "open",
-      "reason": "The web also sends Kite's exchange time under its own name (epoch seconds) for an index full packet; the desktop's common carrier has no such field.",
-      "ref": "audit C06; zerodha_adapter.py:652"
     }
   ]
 }
