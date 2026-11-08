@@ -42,18 +42,6 @@
       "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, samco row (all-zero book on quote before the first quote2); streaming.rs book()"
     },
     {
-      "key": "change",
-      "kind": "open",
-      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
-      "ref": "audit C04; samco_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "change_percentage",
-      "kind": "open",
-      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
-      "ref": "audit C04; samco_adapter.py _normalize_market_data"
-    },
-    {
       "key": "depth",
       "kind": "open",
       "reason": "The desktop pads each side to five levels: a three-level bid and two-level ask show as five with zero levels, and a cleared book as five zero levels a side, levels Samco never sent; the web sends the levels Samco sent and leaves depth out when both sides are empty.",
@@ -66,22 +54,22 @@
       "ref": "feed::dialect (WS-05): aliases in Quote and Depth alike"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Samco adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Follows the web adapter in Phase B through wire's per-broker switch in the dialect table (Samco: the number).",
-      "ref": "samco_adapter.py _on_data (market_data mode); feed::dialect; lead rule 2026-11-09"
-    },
-    {
       "key": "oi",
       "kind": "web-defect",
       "reason": "Samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, so a Depth client of a derivative never sees OI; the desktop sends it.",
       "ref": "samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data"
     },
     {
-      "key": "open_interest",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web's Samco adapter sends no open_interest key beside oi; the desktop sends both. Follows the web adapter in Phase B through wire's per-broker switch in the dialect table (Samco: no open_interest).",
-      "ref": "samco_adapter.py _normalize_market_data; feed::dialect; lead rule 2026-11-09"
+      "reason": "The desktop sends Samco's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Open until wire's per-broker canonical-key switch.",
+      "ref": "lead Q1 2026-11-09; feed::dialect per-broker canonical-key switch (lane wire)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "As price_change: Samco's web adapter sends change_percentage only. Open until wire's per-broker canonical-key switch.",
+      "ref": "lead Q1 2026-11-09; feed::dialect per-broker canonical-key switch (lane wire)"
     }
   ]
 }

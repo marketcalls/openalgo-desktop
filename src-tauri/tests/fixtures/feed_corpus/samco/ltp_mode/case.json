@@ -31,12 +31,5 @@
       "Audit RB-06 (trade time): the web and the desktop read lTrdT, ltt (IST) and lttUTC (UTC) the same way since web openalgo#2396."
     ]
   },
-  "deviations": [
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Samco adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Follows the web adapter in Phase B through wire's per-broker switch in the dialect table (Samco: the number).",
-      "ref": "samco_adapter.py _on_data (market_data mode); feed::dialect; lead rule 2026-11-09"
-    }
-  ]
+  "deviations": []
 }

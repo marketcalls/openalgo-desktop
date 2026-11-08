@@ -34,16 +34,16 @@
   },
   "deviations": [
     {
-      "key": "change",
-      "kind": "open",
-      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
-      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+      "kind": "web-defect",
+      "reason": "Before Samco's first quote the web sends change and change_percentage as 0.0, values the book stream never carried (samcoWebSocket._normalize_market_data defaults ch and chPer to 0); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data; decisions 2026-11-09 (web zeros for values the stream did not send)",
+      "key": "change"
     },
     {
-      "key": "change_percentage",
-      "kind": "open",
-      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
-      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+      "kind": "web-defect",
+      "reason": "Before Samco's first quote the web sends change and change_percentage as 0.0, values the book stream never carried (samcoWebSocket._normalize_market_data defaults ch and chPer to 0); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data; decisions 2026-11-09 (web zeros for values the stream did not send)",
+      "key": "change_percentage"
     },
     {
       "key": "frame",
@@ -59,22 +59,10 @@
       "ref": "feed::dialect (WS-05): aliases in Quote and Depth alike"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Samco adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Follows the web adapter in Phase B through wire's per-broker switch in the dialect table (Samco: the number).",
-      "ref": "samco_adapter.py _on_data (market_data mode); feed::dialect; lead rule 2026-11-09"
-    },
-    {
       "key": "oi",
       "kind": "open",
       "reason": "Before Samco's first quote frame the desktop sends oi 0, a value Samco did not send (the quote2 stream carries no OI): it must be left out with the other quote fields.",
       "ref": "streaming.rs quote_tick (int of a missing oI); feed::bridge depth_update"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "The web's Samco adapter sends no open_interest key beside oi; the desktop sends both. Follows the web adapter in Phase B through wire's per-broker switch in the dialect table (Samco: no open_interest).",
-      "ref": "samco_adapter.py _normalize_market_data; feed::dialect; lead rule 2026-11-09"
     }
   ]
 }

@@ -7,7 +7,7 @@
   "data": {
     "symbol": "NIFTY24NOV26FUT",
     "exchange": "NFO",
-    "mode": "full",
+    "mode": 3,
     "ltp": 0.0,
     "timestamp": "<receipt_ms>",
     "volume": 0,
@@ -19,7 +19,6 @@
     "low": 0.0,
     "close": 0.0,
     "oi": 0,
-    "open_interest": 0,
     "depth": {
       "buy": [
         {

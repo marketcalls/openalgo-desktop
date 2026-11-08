@@ -7,7 +7,7 @@
   "data": {
     "symbol": "NIFTY24NOV26FUT",
     "exchange": "NFO",
-    "mode": "full",
+    "mode": 3,
     "ltp": 24610.4,
     "ltt": 1791002701000,
     "timestamp": "<receipt_ms>",
@@ -20,8 +20,9 @@
     "high": 24650.0,
     "low": 24520.1,
     "close": 24580.0,
+    "price_change": 30.4,
+    "price_change_percent": 0.12,
     "oi": 10650225,
-    "open_interest": 10650225,
     "depth": {
       "buy": [
         {
@@ -78,7 +79,9 @@
         }
       ]
     },
+    "last_trade_time": 1791002701000,
     "last_trade_quantity": 75,
-    "last_trade_time": 1791002701000
+    "change": 30.4,
+    "change_percentage": 0.12
   }
 }

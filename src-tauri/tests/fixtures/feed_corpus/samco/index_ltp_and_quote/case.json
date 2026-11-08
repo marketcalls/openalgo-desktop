@@ -72,12 +72,6 @@
       "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Samco adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Follows the web adapter in Phase B through wire's per-broker switch in the dialect table (Samco: the number).",
-      "ref": "samco_adapter.py _on_data (market_data mode); feed::dialect; lead rule 2026-11-09"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "The desktop sends an index's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change).",

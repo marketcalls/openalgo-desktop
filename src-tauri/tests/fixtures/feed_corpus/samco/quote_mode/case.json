@@ -58,22 +58,16 @@
       "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
     },
     {
-      "key": "change",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
-      "ref": "audit C04; samco_adapter.py _normalize_market_data"
+      "reason": "The desktop sends Samco's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Open until wire's per-broker canonical-key switch.",
+      "ref": "lead Q1 2026-11-09; feed::dialect per-broker canonical-key switch (lane wire)"
     },
     {
-      "key": "change_percentage",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The web sends Samco's ch and chPer as change and change_percentage for every instrument; the desktop sends a change for indices only (common carrier, audit C04).",
-      "ref": "audit C04; samco_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Samco adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Follows the web adapter in Phase B through wire's per-broker switch in the dialect table (Samco: the number).",
-      "ref": "samco_adapter.py _on_data (market_data mode); feed::dialect; lead rule 2026-11-09"
+      "reason": "As price_change: Samco's web adapter sends change_percentage only. Open until wire's per-broker canonical-key switch.",
+      "ref": "lead Q1 2026-11-09; feed::dialect per-broker canonical-key switch (lane wire)"
     }
   ]
 }
