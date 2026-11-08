@@ -62,19 +62,20 @@ impl Book {
     }
 }
 
-/// One side of a depth packet, padded to five.
+/// One side of a depth packet: its real levels, best first, at most five.
+/// An empty row (no price, no quantity) is no level: a side is never padded
+/// with zero-priced rows (lead decision 9 Nov; the web pads each side to
+/// five, `sfeed_websocket._depth_rows`).
 fn side(rows: &[SfeedRow]) -> Vec<DepthLevel> {
-    let mut levels: Vec<DepthLevel> = rows
-        .iter()
+    rows.iter()
+        .filter(|r| r.price != 0.0 || r.quantity != 0)
         .take(5)
         .map(|r| DepthLevel {
             price: r.price,
             quantity: r.quantity,
             orders: r.orders,
         })
-        .collect();
-    levels.resize(5, DepthLevel::default());
-    levels
+        .collect()
 }
 
 /// The exchange's time in epoch ms (SFeed sends seconds; 0 before the

@@ -315,7 +315,9 @@ fn a_mini_tick_keeps_the_last_known_ohlc_and_volume() {
 }
 
 /// Web `test_a_depth_packet_replaces_the_whole_book`: an empty row is an
-/// empty level, not the previous packet's.
+/// empty level, not the previous packet's. A side holds its real levels
+/// only, where the web pads it to five zero rows (a web defect, lead
+/// decision 9 Nov).
 #[test]
 fn a_depth_packet_replaces_the_whole_book() {
     let mut f = tcs(FeedMode::Depth);
@@ -335,9 +337,13 @@ fn a_depth_packet_replaces_the_whole_book() {
     };
     let d = last(frames_of(&mut f, &mut frames, second.packet(), Mode::Depth));
     assert_eq!(d["depth"]["buy"][0]["price"], 2135.0);
-    let empty = json!({"price": 0.0, "quantity": 0, "orders": 0});
-    assert_eq!(d["depth"]["buy"][1], empty);
-    assert_eq!(d["depth"]["sell"][1], empty);
+    assert_eq!(d["depth"]["buy"].as_array().map(Vec::len), Some(1), "{}", d);
+    assert_eq!(
+        d["depth"]["sell"].as_array().map(Vec::len),
+        Some(1),
+        "{}",
+        d
+    );
 }
 
 /// Web `test_bcd_maps_to_the_segment_the_feed_reports`: BSE currency

@@ -1007,9 +1007,9 @@ fn sfeed_handshake_subscribe_and_ticks() {
                 (t.symbol.as_str(), t.mode, t.ltp, t.close),
                 ("SBIN", 2, 814.1, 812.35)
             );
-            assert_eq!(d.buy.len(), 5);
+            // The book's real levels only, never zero-padded rows.
+            assert_eq!((d.buy.len(), d.sell.len()), (1, 1));
             assert_eq!(d.buy[0].price, 814.05);
-            assert_eq!(d.sell[1], DepthLevel::default());
         }
         other => panic!("unexpected {:?}", other),
     }

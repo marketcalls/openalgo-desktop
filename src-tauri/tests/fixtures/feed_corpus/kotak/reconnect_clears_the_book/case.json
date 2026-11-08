@@ -41,6 +41,13 @@
       "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     },
     {
+      "key": "depth",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "The web pads each side of an SFeed book to five rows of price 0, quantity 0 (sfeed_websocket.py::_depth_rows): levels the exchange does not have, with zero prices. The desktop sends the book's real levels only (lead decision 9 Nov: zero-padded levels -> the real ones, web defect).",
+      "ref": "sfeed_websocket.py:649-660; decisions.md (night of 9 Nov, empty book)"
+    },
+    {
       "key": "percent_change",
       "kind": "open",
       "reason": "The web sends the packet's own net change percent (nc); the desktop works it out from the price and the previous close, which differs where the packet's figure does.",
