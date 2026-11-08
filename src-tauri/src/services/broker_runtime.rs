@@ -267,7 +267,8 @@ async fn start_session(
             };
             let limits = limits::pool_limits(id);
             ctx.websocket.set_refusal(Some(feed_refusal(&broker)));
-            ctx.websocket.set_presubscribe(broker.feed_presubscribe());
+            ctx.websocket
+                .set_presubscribe(broker.feed_presubscribe(&auth));
             if let Err(e) = ctx.websocket.connect_pool(feed, more, limits).await {
                 tracing::error!("Market data feed for {} did not start: {}", id, e);
                 ctx.bridge.set_unavailable(bridge::FEED_NOT_STARTED);

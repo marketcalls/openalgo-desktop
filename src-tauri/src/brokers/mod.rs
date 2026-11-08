@@ -596,9 +596,10 @@ pub trait Broker: Send + Sync {
     /// The step the live feed awaits before it subscribes an instrument no
     /// consumer holds yet (`common::streaming::Presubscribe`): Samco looks
     /// a cold index's streaming id up over REST, as the web does when
-    /// subscribing. Default: none, every subscription streams as the master
-    /// describes it.
-    fn feed_presubscribe(&self) -> Option<common::streaming::Presubscribe> {
+    /// subscribing (its REST lookup needs the session's `auth`, as
+    /// `create_feed` gets it; the broker keeps no token). Default: none,
+    /// every subscription streams as the master describes it.
+    fn feed_presubscribe(&self, _auth: &AuthToken) -> Option<common::streaming::Presubscribe> {
         None
     }
 
