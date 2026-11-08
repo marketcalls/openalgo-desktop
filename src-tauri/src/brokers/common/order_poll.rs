@@ -159,6 +159,17 @@ pub fn book_price(o: &Order) -> f64 {
     }
 }
 
+/// The reason a polled update carries: a rejected order's, nothing for any
+/// other (web `PollingOrderUpdateAdapter._publish_order`), so a cancelled
+/// order's remark is never sent as a rejection reason.
+fn rejection_reason(o: &Order) -> String {
+    if o.status.eq_ignore_ascii_case("rejected") {
+        o.rejection_reason.clone().unwrap_or_default()
+    } else {
+        String::new()
+    }
+}
+
 /// Normalised order update from an order-book row, with the prices the
 /// web's polled update carries: its order book's (`format_order_data`,
 /// two decimals), not the broker's raw ones.
@@ -177,7 +188,7 @@ pub fn to_update(o: &Order) -> OrderUpdate {
         filled_quantity: i64::from(o.filled_quantity),
         pending_quantity: i64::from(o.pending_quantity),
         average_price: py_round(o.average_price, 2),
-        rejection_reason: o.rejection_reason.clone().unwrap_or_default(),
+        rejection_reason: rejection_reason(o),
     }
 }
 
@@ -247,6 +258,21 @@ mod tests {
         o.trigger_price = 812.004;
         let u = to_update(&o);
         assert_eq!((u.price, u.trigger_price), (812.46, 812.0));
+    }
+
+    /// Web `PollingOrderUpdateAdapter._publish_order`: `rejection_reason`
+    /// only for a rejected order. The desktop sent a cancelled order's
+    /// remark (5paisa's `Reason`) as its rejection reason.
+    #[test]
+    fn only_a_rejected_order_carries_a_rejection_reason() {
+        let mut o = order("1", "rejected", 0);
+        o.rejection_reason = Some("RMS:Margin Exceeds".into());
+        assert_eq!(to_update(&o).rejection_reason, "RMS:Margin Exceeds");
+        for status in ["cancelled", "open", "complete"] {
+            o.status = status.into();
+            o.rejection_reason = Some("Cancelled by user".into());
+            assert_eq!(to_update(&o).rejection_reason, "", "{}", status);
+        }
     }
 
     #[test]

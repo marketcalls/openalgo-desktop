@@ -62,8 +62,8 @@
     {
       "key": "rejection_reason",
       "kind": "web-defect",
-      "reason": "The web's book carries 5paisa's Reason as reason, and the poller reads rejection_reason, so a rejected order goes out with an empty reason; the desktop sends the RMS text. The desktop also sends a Reason on an order that is not rejected (the cancelled one here), where the web sends an empty string: a desktop difference to settle (web docs: the reason for a rejection).",
-      "ref": "order_data.py:243; order_adapter.py:514-516; brokers/common/order_poll.rs to_update"
+      "reason": "The web's 5paisa book carries 5paisa's Reason as reason, and the poller reads rejection_reason, so a rejected order goes out with an empty reason; the desktop sends 5paisa's RMS text. Lost data on the web.",
+      "ref": "broker/fivepaisa/mapping/order_data.py:243; websocket_proxy/order_adapter.py:514-516"
     }
   ]
 }

@@ -16,5 +16,5 @@
   "filled_quantity": 0,
   "pending_quantity": 0,
   "average_price": 0.0,
-  "rejection_reason": "Cancelled by user"
+  "rejection_reason": ""
 }
