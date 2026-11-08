@@ -95,12 +95,6 @@
       "ref": "groww_adapter.py:1020-1048"
     },
     {
-      "key": "frame",
-      "kind": "open",
-      "reason": "Desktop defect: on a book before any price the Groww feed publishes its merged tick, an LTP of 0 with nothing else, and the Quote client receives it as a quote. The web sends LTP and Quote subscribers nothing for a book tick (groww_adapter.py:966-967).",
-      "ref": "brokers/groww/streaming.rs (on_msg, merged_tick)"
-    },
-    {
       "key": "ltp",
       "kind": "desktop-decision",
       "reason": "A book before the first price: the web's merged entry has no ltp yet and leaves it out; the desktop's Depth frame keeps ltp (0) and timestamp, which the SDK's Depth callback reads (1.0.6 decision).",

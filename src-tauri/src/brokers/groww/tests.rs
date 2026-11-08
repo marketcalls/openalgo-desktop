@@ -1617,6 +1617,30 @@ fn index_ticks_carry_ltp() {
     assert_eq!((t.ltp, t.exchange.as_str()), (24890.15, "NSE_INDEX"));
 }
 
+/// A book before the first price is no trade: a Quote holder gets nothing
+/// from it, as on the web (groww_adapter.py:966-967), never a quote with an
+/// LTP of 0, and the Depth frame keeps `ltp` (0) and its time (the 1.0.6
+/// rule) with no quote field invented.
+#[test]
+fn a_book_before_the_first_price_publishes_no_quote() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
+    let events = f.parse(&msg_frame(2, &depth_payload()));
+    assert!(Frames::new("groww").at(&events, Mode::Quote).is_empty());
+    let depth = Frames::new("groww").at(&events, Mode::Depth);
+    assert_eq!(depth.len(), 1, "{:?}", depth);
+    assert_eq!(depth[0]["ltp"], 0.0);
+    for k in ["open", "close", "volume"] {
+        assert!(depth[0].get(k).is_none(), "{}: {}", k, depth[0]);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Order poller
 // ---------------------------------------------------------------------------

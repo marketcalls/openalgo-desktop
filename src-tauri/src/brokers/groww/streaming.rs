@@ -464,8 +464,22 @@ fn merge(m: &mut Merged, data: &proto::LiveData) -> (bool, bool) {
 
 /// A tick of an instrument's merged state, with what Groww has not sent
 /// marked absent (web openalgo#2377: a quote is the merged cache, never a
-/// 0 placeholder). An LTP frame reads only the price and time.
-fn merged_tick(sub: &FeedSubscription, m: &Merged, now: i64) -> NormalizedTick {
+/// 0 placeholder).
+///
+/// A message that carried no price (a book) has no trade: its tick marks
+/// the LTP absent, so the bridge only keeps what it brought. No LTP of 0 is
+/// published before the first price, and LTP and Quote holders get nothing
+/// for a book, as on the web (groww_adapter.py:966-967).
+fn merged_tick(sub: &FeedSubscription, m: &Merged, now: i64, priced: bool) -> NormalizedTick {
+    let mut t = quote_tick(sub, m, now);
+    if !priced || m.ltp == 0.0 {
+        t.mark_absent(QuoteField::Ltp);
+    }
+    t
+}
+
+/// The merged quote as a tick: what Groww has not sent yet marked absent.
+fn quote_tick(sub: &FeedSubscription, m: &Merged, now: i64) -> NormalizedTick {
     use QuoteField as F;
     let mut t = NormalizedTick {
         symbol: sub.symbol.clone(),
@@ -551,7 +565,7 @@ impl GrowwFeed {
             return Vec::new();
         }
         let now = now_ms();
-        let tick = merged_tick(&inst.sub, m, now);
+        let tick = merged_tick(&inst.sub, m, now, is_price);
         if !depth_mode {
             return vec![FeedEvent::Tick(tick)];
         }
