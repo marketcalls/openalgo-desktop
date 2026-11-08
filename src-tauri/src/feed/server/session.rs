@@ -296,9 +296,9 @@ impl Session {
     /// Holds one instrument: the depth streamed, the depth its
     /// acknowledgment names (see [`subscribe_depth`]; `None` is `null`)
     /// and the source's answer to wait on, or why not. A feed known not to
-    /// stream, or not to stream the exchange, refuses first, and so does a
-    /// depth or mode the broker's web adapter refuses, as it does before it
-    /// looks the symbol up (WS-01, openalgo#2341, audit C02).
+    /// stream refuses first; then what the broker's web adapter refuses, in
+    /// its order and words: a depth or mode, an exchange (WS-01,
+    /// openalgo#2341) and an unknown symbol (audit C02, bk-b RB-13).
     fn subscribe_key(
         &self,
         source: &Arc<dyn MarketDataSource>,
@@ -306,21 +306,27 @@ impl Session {
         mode: Mode,
         requested_depth: i64,
     ) -> Result<(u8, Option<i64>, Admission), String> {
+        use crate::feed::refusals;
         if let Some(reason) = source.unavailable() {
             return Err(reason);
         }
-        if let Some(reason) = source.refusal(&key.exchange) {
+        let broker = self.broker.as_deref().unwrap_or_default();
+        if let Some(reason) = refusals::refusal(broker, key, mode, requested_depth) {
             return Err(reason);
         }
-        let broker = self.broker.as_deref().unwrap_or_default();
-        if let Some(reason) = crate::feed::refusals::refusal(broker, key, mode, requested_depth) {
+        // In the order the broker's web adapter checks (bk-b RB-13): the
+        // mode and depth, then the exchange and the symbol, or the symbol
+        // and the exchange.
+        let exchange_first = refusals::exchange_before_lookup(broker);
+        let exchange = || source.refusal(&key.exchange);
+        if let Some(reason) = exchange_first.then(exchange).flatten() {
             return Err(reason);
         }
         if !source.resolve(key) {
-            return Err(format!(
-                "Token not found for {} on {}",
-                key.symbol, key.exchange
-            ));
+            return Err(refusals::not_found(broker, key));
+        }
+        if let Some(reason) = (!exchange_first).then(exchange).flatten() {
+            return Err(reason);
         }
         let supported = source.supported_depths(&key.exchange);
         match subscribe_depth(broker, mode, requested_depth, &supported) {
