@@ -1,0 +1,39 @@
+{
+  "broker": "indmoney",
+  "summary": "A subscribe on an exchange the price socket has no segment for is refused with the web adapter's words, beside an instrument it streams; nothing reaches the broker for the refused one.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "CRUDEOIL19NOV26FUT",
+      "exchange": "MCX",
+      "token": "472790",
+      "brsymbol": "CRUDEOIL19NOV26FUT",
+      "brexchange": "MCX",
+      "instrumenttype": "FUT",
+      "expiry": "19-NOV-26",
+      "name": "CRUDEOIL"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py::WebSocketProxy.subscribe_client"
+    ],
+    "notes": [
+      "The web's answer (indmoney_adapter.py:328-333 through server.py:1286-1336): its UNSUPPORTED_EXCHANGE error, whose message alone reaches the client, after the symbol lookup; the row is in the case's master, as the web reaches this answer only for a symbol its master holds (IndMoney's own master has no MCX rows, so there the web answers that the symbol is not found).",
+      "No push: web.json records no publish."
+    ]
+  },
+  "deviations": []
+}

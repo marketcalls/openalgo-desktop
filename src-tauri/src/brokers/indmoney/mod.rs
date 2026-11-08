@@ -585,6 +585,10 @@ impl Broker for IndmoneyBroker {
             token(auth)?,
         )))
     }
+
+    fn feed_refusal(&self, exchange: &str) -> Option<String> {
+        mapping::feed_refusal(exchange)
+    }
 }
 
 impl IndmoneyBroker {

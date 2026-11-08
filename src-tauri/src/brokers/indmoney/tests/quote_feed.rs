@@ -3,11 +3,13 @@
 //! INDstocks sent. The frames these make are pinned end to end by the
 //! corpus (`tests/fixtures/feed_corpus/indmoney`).
 
-use super::sub;
+use super::{master, sub};
 use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedMode, Message, NormalizedTick, QuoteField,
 };
 use crate::brokers::indmoney::streaming::IndmoneyFeed;
+use crate::brokers::indmoney::IndmoneyBroker;
+use crate::brokers::Broker;
 use serde_json::{json, Value};
 
 fn ticks(f: &mut IndmoneyFeed, packet: Value) -> Vec<FeedEvent> {
@@ -87,4 +89,22 @@ fn a_new_connection_starts_afresh() {
     assert!(f.on_connected().is_empty());
     assert_eq!(f.cache_len(), 0);
     assert!(!tick(&mut f, none).knows(QuoteField::Ltp));
+}
+
+/// Web indmoney_adapter.py:328-333: an exchange the price socket has no
+/// segment for is refused with the web's words (the web proxy forwards
+/// the message, not the `UNSUPPORTED_EXCHANGE` code).
+#[test]
+fn an_exchange_without_a_price_feed_is_refused_in_the_web_words() {
+    let b = IndmoneyBroker::new(master());
+    assert_eq!(
+        b.feed_refusal("MCX").as_deref(),
+        Some(
+            "INDmoney does not provide a market data feed for MCX. Supported: NSE, NFO, BSE, \
+             BFO, NSE_INDEX, BSE_INDEX"
+        )
+    );
+    for streamed in ["NSE", "NFO", "BSE", "BFO", "NSE_INDEX", "BSE_INDEX"] {
+        assert_eq!(b.feed_refusal(streamed), None, "{}", streamed);
+    }
 }
