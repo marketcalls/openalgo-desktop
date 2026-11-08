@@ -27,6 +27,8 @@ macro_rules! fixture {
 
 /// Web test/test_fyers_hsm_update_merge.py (openalgo#2318, #2323).
 mod hsm_update_merge;
+/// Web test/test_fyers_quote_feed.py (openalgo#2376).
+mod quote_feed;
 
 fn json_fixture(text: &str) -> Value {
     serde_json::from_str(text).unwrap()

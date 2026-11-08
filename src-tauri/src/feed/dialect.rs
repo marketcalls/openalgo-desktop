@@ -121,13 +121,15 @@ pub(crate) struct Aliases {
     /// Definedge, Paytm, Rupeezy, Tradejini).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percent: Option<f64>,
-    /// `price_change_percent` (Shoonya, Flattrade, Zebu, TradeSmart).
+    /// `price_change_percent` (Shoonya, Flattrade, Zebu, TradeSmart; Fyers
+    /// beside `change_percent` since web openalgo#2376).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub percent_change: Option<f64>,
     /// `price_change_percent` (Samco).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percentage: Option<f64>,
-    /// `ltt` (Sahi), in every mode `ltt` is sent (web openalgo#2376).
+    /// `ltt` (Sahi; Fyers in epoch seconds), in every mode `ltt` is sent
+    /// (web openalgo#2376).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_trade_time: Option<i64>,
 }
@@ -139,8 +141,8 @@ struct Dialect {
     last_quantity: Option<QuantityKey>,
     avg_trade_price: bool,
     change: Option<ChangeKey>,
-    change_percent: Option<PercentKey>,
-    last_trade_time: bool,
+    change_percent: &'static [PercentKey],
+    last_trade_time: Option<TradeTime>,
 }
 
 /// The web key for `last_quantity`.
@@ -165,12 +167,21 @@ enum PercentKey {
     ChangePercentage,
 }
 
+/// The unit of a broker's web `last_trade_time`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TradeTime {
+    /// Epoch milliseconds, as `ltt` (Sahi).
+    Millis,
+    /// Epoch seconds, HSM's own unit (Fyers, web `fyers_mapping.py`).
+    Seconds,
+}
+
 const CANONICAL: Dialect = Dialect {
     last_quantity: None,
     avg_trade_price: false,
     change: None,
-    change_percent: None,
-    last_trade_time: false,
+    change_percent: &[],
+    last_trade_time: None,
 };
 
 fn dialect(broker: &str) -> Dialect {
@@ -182,7 +193,8 @@ fn dialect(broker: &str) -> Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
             avg_trade_price: true,
             change: Some(C::Change),
-            change_percent: Some(P::ChangePercent),
+            change_percent: &[P::ChangePercent, P::PercentChange],
+            last_trade_time: Some(TradeTime::Seconds),
             ..CANONICAL
         },
         "angel" | "upstox" | "fivepaisa" | "mstock" | "pocketful" => Dialect {
@@ -192,18 +204,18 @@ fn dialect(broker: &str) -> Dialect {
         "paytm" => Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
             change: Some(C::Absolute),
-            change_percent: Some(P::ChangePercent),
+            change_percent: &[P::ChangePercent],
             ..CANONICAL
         },
         "samco" => Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
             change: Some(C::Change),
-            change_percent: Some(P::ChangePercentage),
+            change_percent: &[P::ChangePercentage],
             ..CANONICAL
         },
         "definedge" => Dialect {
             last_quantity: Some(Q::Ltq),
-            change_percent: Some(P::ChangePercent),
+            change_percent: &[P::ChangePercent],
             ..CANONICAL
         },
         "motilal" => Dialect {
@@ -212,19 +224,19 @@ fn dialect(broker: &str) -> Dialect {
         },
         "arrow" | "hdfcsecurities" | "hdfcsky" | "rupeezy" | "tradejini" => Dialect {
             change: Some(C::Change),
-            change_percent: Some(P::ChangePercent),
+            change_percent: &[P::ChangePercent],
             ..CANONICAL
         },
         "aliceblue" => Dialect {
-            change_percent: Some(P::ChangePercent),
+            change_percent: &[P::ChangePercent],
             ..CANONICAL
         },
         "shoonya" | "flattrade" | "zebu" | "tradesmart" => Dialect {
-            change_percent: Some(P::PercentChange),
+            change_percent: &[P::PercentChange],
             ..CANONICAL
         },
         "sahi" => Dialect {
-            last_trade_time: true,
+            last_trade_time: Some(TradeTime::Millis),
             ..CANONICAL
         },
         _ => CANONICAL,
@@ -258,15 +270,18 @@ pub(crate) fn aliases(broker: &str, c: Canonical) -> Aliases {
         Some(ChangeKey::Absolute) => a.change_absolute = c.price_change,
         None => {}
     }
-    match d.change_percent {
-        Some(PercentKey::ChangePercent) => a.change_percent = c.price_change_percent,
-        Some(PercentKey::PercentChange) => a.percent_change = c.price_change_percent,
-        Some(PercentKey::ChangePercentage) => a.change_percentage = c.price_change_percent,
-        None => {}
+    for key in d.change_percent {
+        match key {
+            PercentKey::ChangePercent => a.change_percent = c.price_change_percent,
+            PercentKey::PercentChange => a.percent_change = c.price_change_percent,
+            PercentKey::ChangePercentage => a.change_percentage = c.price_change_percent,
+        }
     }
-    if d.last_trade_time {
-        a.last_trade_time = c.ltt;
-    }
+    a.last_trade_time = match d.last_trade_time {
+        Some(TradeTime::Millis) => c.ltt,
+        Some(TradeTime::Seconds) => c.ltt.map(|ms| ms / 1000),
+        None => None,
+    };
     a
 }
 
@@ -361,6 +376,7 @@ mod tests {
             ("rupeezy", "change_percent", "price_change_percent"),
             ("paytm", "change_absolute", "price_change"),
             ("fyers", "change_percent", "price_change_percent"),
+            ("fyers", "percent_change", "price_change_percent"),
             ("aliceblue", "change_percent", "price_change_percent"),
             ("shoonya", "percent_change", "price_change_percent"),
             ("flattrade", "percent_change", "price_change_percent"),
@@ -415,8 +431,20 @@ mod tests {
         }
         let d = data(equity(), Mode::Quote, "fyers");
         assert!(d.get("price_change").is_none());
-        for alias in ["change", "change_percent"] {
+        for alias in ["change", "change_percent", "percent_change"] {
             assert!(d.get(alias).is_none(), "fyers equity {}: {}", alias, d);
+        }
+    }
+
+    /// Web test/test_fyers_quote_feed.py::test_quote_carries_reference_and_existing_key_names
+    /// (the trade time): Fyers publishes `last_trade_time` in epoch
+    /// seconds, HSM's own unit, beside the desktop's `ltt` in milliseconds.
+    #[test]
+    fn fyers_names_the_trade_time_in_seconds() {
+        for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
+            let d = data(equity(), mode, "fyers");
+            assert_eq!(d["last_trade_time"], 1_791_000_000, "{:?}", mode);
+            assert_eq!(d["ltt"], 1_791_000_000_000_i64, "{:?}", mode);
         }
     }
 

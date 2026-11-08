@@ -606,12 +606,15 @@ impl MarketDataSource for BrokerBridge {
     }
 
     fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) {
-        if self
-            .state
-            .lock()
-            .desired
-            .remove(&(key.clone(), mode, depth))
-        {
+        let mut st = self.state.lock();
+        if st.desired.remove(&(key.clone(), mode, depth)) {
+            // Once nothing names the instrument, its quote goes at once, so
+            // a book subscribed again merges only a quote of its own (web
+            // openalgo#2376, `forget_quote`).
+            if !st.desired.holds(key) {
+                st.last_tick.remove(key);
+            }
+            drop(st);
             self.changed.notify_one();
         }
     }
@@ -1028,5 +1031,37 @@ mod tests {
             (later["ltp"].as_f64(), later["open"].as_f64()),
             (Some(1167.7), Some(1180.1))
         );
+    }
+
+    /// Web test/test_fyers_quote_feed.py::test_tbt_resubscription_does_not_merge_the_old_quote
+    /// and test_tbt_release_keeps_the_quote_a_5_level_depth_still_reads:
+    /// the instrument's quote goes as soon as nothing names it, so a book
+    /// subscribed again merges no old quote; while another reference holds
+    /// the instrument, its quote stays.
+    #[test]
+    fn a_book_subscribed_again_merges_no_old_quote() {
+        let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
+        let key = InstrumentKey::new("SBIN", "NSE");
+        let book = FeedEvent::Depth(NormalizedDepth {
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            buy: vec![Default::default(); 50],
+            sell: vec![Default::default(); 50],
+            ..Default::default()
+        });
+        let open = |b: &BrokerBridge| b.convert(&book).and_then(|u| u.quote).map(|q| q.absent);
+        let quoted = |b: &BrokerBridge| open(b).is_some_and(|a| !a.contains(QuoteField::Open));
+
+        bridge.subscribe(&key, Mode::Depth, 50);
+        bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
+        assert!(quoted(&bridge));
+        bridge.unsubscribe(&key, Mode::Depth, 50);
+        bridge.subscribe(&key, Mode::Depth, 50);
+        assert!(!quoted(&bridge), "the old quote is not merged");
+
+        bridge.subscribe(&key, Mode::Depth, 5);
+        bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
+        bridge.unsubscribe(&key, Mode::Depth, 50);
+        assert!(quoted(&bridge), "the 5-level book still reads the quote");
     }
 }

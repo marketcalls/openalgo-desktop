@@ -23,11 +23,18 @@
 //!   currency. Index frames carry neither field, so they divide by 100.
 //! * HSM has no selective unsubscribe (web `unsubscribe_symbols`); an
 //!   unsubscribed topic is dropped locally and is gone after a reconnect.
-//! * Nothing Fyers does not send is published (web #2318, #2323): an update
-//!   frame is applied whole and published once; a depth message carries no
-//!   LTP of its own (the bridge gives it the quote feed's last traded price,
-//!   `feed::bridge::depth_update`, never a bid/ask midpoint); an index has
-//!   no order book, so it gets no depth message, only its real value.
+//! * Nothing Fyers does not send is published (web #2318, #2323, #2376): an
+//!   update frame is applied whole and published once; a field the record
+//!   does not hold is marked absent and left out of the frames, never sent
+//!   as 0; a depth message carries only the book (the bridge gives it the
+//!   quote feed's LTP and quote fields, `feed::bridge::depth_update`, never a
+//!   bid/ask midpoint), and one sent before the scrip's first quote goes
+//!   again once it comes; an index has no order book, so it gets no depth
+//!   message, only its real value, and no trade time.
+//! * LTP, Quote and Depth of one instrument are one effective subscription
+//!   on the manager, which counts references per mode, and a frame is
+//!   routed by its HSM topic name only: the web's shared callback slot and
+//!   symbol-name fallbacks (#2376) have no counterpart here.
 //!
 //! TBT 50-level depth (`TbtFeed`, in `tbt`): `wss://rtsocket-api.fyers.in/versova`,
 //! `authorization: app_id:access_token`, JSON subscribe, protobuf
@@ -46,8 +53,8 @@ pub use tbt::*;
 
 use crate::brokers::common::mpp::py_round;
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::{AuthToken, DepthLevel};
@@ -483,6 +490,7 @@ impl HsmFeed {
             precision,
         };
         self.emit(&state, out);
+        let first_quote = (kind == Topic::Scrip).then(|| state.name.clone());
         // Only topics this feed subscribed are kept, so the map is bounded
         // by the subscriptions.
         if self.topics.contains_key(&state.name) {
@@ -490,7 +498,21 @@ impl HsmFeed {
         } else {
             self.live.remove(&id);
         }
+        // A depth sent before the scrip's first quote went out without the
+        // quote fields; it goes once more, now complete (web
+        // `depth_awaiting_quote`). Later quotes are updates, not snapshots.
+        if let Some(depth) = first_quote.and_then(|n| self.sibling(&n, "sf|", "dp|")) {
+            self.emit(depth, out);
+        }
         true
+    }
+
+    /// The live state of the scrip's other feed (`sf|<seg>|<token>` and
+    /// `dp|<seg>|<token>` name one scrip): a depth message carries only the
+    /// book, and its quote is the symbol feed's.
+    fn sibling(&self, topic: &str, from: &str, to: &str) -> Option<&TopicState> {
+        let other = format!("{}{}", to, topic.strip_prefix(from)?);
+        self.live.values().find(|s| s.name == other)
     }
 
     fn update(&mut self, c: &mut Cursor<'_>, out: &mut Vec<FeedEvent>) -> bool {
@@ -532,7 +554,8 @@ impl HsmFeed {
             Topic::Index => out.push(FeedEvent::Tick(index_tick(sub, st, now))),
             Topic::Depth => {
                 if sub.mode == FeedMode::Depth {
-                    out.push(FeedEvent::Depth(depth_event(sub, st, now)));
+                    let quote = self.sibling(&st.name, "dp|", "sf|");
+                    out.push(FeedEvent::Depth(depth_event(sub, st, quote, now)));
                 }
             }
         }
@@ -564,6 +587,60 @@ fn field(st: &TopicState, i: usize) -> Option<i32> {
     st.values.get(i).copied().flatten()
 }
 
+/// Where a scrip (`sf`) record carries each quote field (`DATA_FIELDS`).
+const SCRIP_SOURCES: [(usize, QuoteField); 11] = [
+    (1, QuoteField::Volume),
+    (2, QuoteField::LastTradeTime),
+    (8, QuoteField::LastQuantity),
+    (9, QuoteField::TotalBuyQuantity),
+    (10, QuoteField::TotalSellQuantity),
+    (11, QuoteField::AveragePrice),
+    (12, QuoteField::OpenInterest),
+    (13, QuoteField::Low),
+    (14, QuoteField::High),
+    (19, QuoteField::Open),
+    (20, QuoteField::Close),
+];
+
+/// Where an index (`if`) record carries each (`INDEX_FIELDS`).
+const INDEX_SOURCES: [(usize, QuoteField); 4] = [
+    (1, QuoteField::Close),
+    (3, QuoteField::High),
+    (4, QuoteField::Low),
+    (5, QuoteField::Open),
+];
+
+/// What an index record never carries: no trade (so no trade time), no
+/// volume, average price, traded quantity, book totals or OI.
+const NOT_IN_INDEX_RECORDS: AbsentFields = AbsentFields::of(&[
+    QuoteField::LastTradeTime,
+    QuoteField::Volume,
+    QuoteField::AveragePrice,
+    QuoteField::LastQuantity,
+    QuoteField::TotalBuyQuantity,
+    QuoteField::TotalSellQuantity,
+    QuoteField::OpenInterest,
+]);
+
+/// The fields of `sources` the record does not hold (HSM's absent marker,
+/// or never sent): a field is published only when Fyers sent it (web
+/// #2376). With no LTP or previous close there is no change either.
+fn absent_from(
+    st: &TopicState,
+    sources: &[(usize, QuoteField)],
+    never: AbsentFields,
+) -> AbsentFields {
+    let absent = sources
+        .iter()
+        .filter(|(i, _)| field(st, *i).is_none())
+        .fold(never, |a, (_, f)| a.with(*f));
+    if field(st, 0).is_none() || absent.contains(QuoteField::Close) {
+        absent.with(QuoteField::Change)
+    } else {
+        absent
+    }
+}
+
 fn scrip_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
     let p = |i| st.price(i);
     let mut t = NormalizedTick {
@@ -583,6 +660,7 @@ fn scrip_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
         open: p(19),
         close: p(20),
         timestamp_ms: now,
+        absent: absent_from(st, &SCRIP_SOURCES, AbsentFields::default()),
         ..Default::default()
     };
     t.derive_change();
@@ -597,11 +675,11 @@ fn index_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
         mode: sub.mode.code(),
         ltp: p(0),
         close: p(1),
-        last_trade_time_ms: int(field(st, 2)) * 1000,
         high: p(3),
         low: p(4),
         open: p(5),
         timestamp_ms: now,
+        absent: absent_from(st, &INDEX_SOURCES, NOT_IN_INDEX_RECORDS),
         ..Default::default()
     };
     t.derive_change();
@@ -610,9 +688,17 @@ fn index_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
 
 /// web `map_to_openalgo_depth`: levels with a price only. A Fyers depth
 /// message has no LTP, so none is set (0): the bridge gives the frame the
-/// quote feed's last traded price, as the web's adapter borrows it
-/// (`get_last_ltp`), never the bid/ask midpoint it used to invent (#2318).
-fn depth_event(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedDepth {
+/// quote feed's last traded price and quote fields, as the web's adapter
+/// merges the latest symbol-feed quote (`get_latest_quote`), never the
+/// bid/ask midpoint it used to invent (#2318). The book totals are the
+/// symbol feed's too (`tot_buy_qty`, `tot_sell_qty`; 0 before its first
+/// quote), not a sum of the five levels.
+fn depth_event(
+    sub: &TopicSub,
+    st: &TopicState,
+    quote: Option<&TopicState>,
+    now: i64,
+) -> NormalizedDepth {
     let p = |i| st.price(i);
     let mut buy = Vec::new();
     let mut sell = Vec::new();
@@ -638,8 +724,8 @@ fn depth_event(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedDepth {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
         ltp: 0.0,
-        total_buy_quantity: buy.iter().map(|l| l.quantity).sum(),
-        total_sell_quantity: sell.iter().map(|l| l.quantity).sum(),
+        total_buy_quantity: int(quote.and_then(|q| field(q, 9))),
+        total_sell_quantity: int(quote.and_then(|q| field(q, 10))),
         buy,
         sell,
         timestamp_ms: now,
