@@ -31,6 +31,7 @@ mod iifl;
 mod samco;
 mod shoonya;
 mod tradesmart;
+mod wisdom;
 mod xts;
 mod zebu;
 mod zerodha;
@@ -47,6 +48,7 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("samco", samco::CASES),
     ("shoonya", shoonya::CASES),
     ("tradesmart", tradesmart::CASES),
+    ("wisdom", wisdom::CASES),
     ("zebu", zebu::CASES),
     ("zerodha", zerodha::CASES),
 ];

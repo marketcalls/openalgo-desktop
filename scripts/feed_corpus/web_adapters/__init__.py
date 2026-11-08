@@ -11,6 +11,7 @@ from web_adapters.ibulls import Ibulls
 from web_adapters.iifl import Iifl
 from web_adapters.shoonya import Shoonya
 from web_adapters.tradesmart import TradeSmart
+from web_adapters.wisdom import Wisdom
 from web_adapters.zebu import Zebu
 from web_adapters.zerodha import Zerodha
 
@@ -26,6 +27,7 @@ GLUES = {
         Iifl,
         Shoonya,
         TradeSmart,
+        Wisdom,
         Zebu,
         Zerodha,
     )
