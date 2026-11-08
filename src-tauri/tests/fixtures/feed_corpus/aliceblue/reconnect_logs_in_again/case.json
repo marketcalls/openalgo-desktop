@@ -34,32 +34,32 @@
   "deviations": [
     {
       "key": "symbol",
-      "kind": "desktop-decision",
-      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::protocol::market_data"
+      "kind": "open",
+      "reason": "The web's AliceBlue data carries no symbol (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
     },
     {
       "key": "exchange",
-      "kind": "desktop-decision",
-      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::protocol::market_data"
+      "kind": "open",
+      "reason": "The web's AliceBlue data carries no exchange (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
     },
     {
       "key": "mode",
       "kind": "open",
-      "reason": "The web's AliceBlue data carries no mode; data.mode follows each broker's web adapter (lead rule 2026-11-09): closed by the per-broker dialect switch.",
+      "reason": "The web's AliceBlue data carries no mode (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
       "ref": "aliceblue_adapter.py:1243-1305; feed::dialect (lane wire)"
     },
     {
       "key": "timestamp",
-      "kind": "desktop-decision",
-      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
-      "ref": "aliceblue_adapter.py:1243-1305; feed::protocol::market_data"
+      "kind": "open",
+      "reason": "The web's AliceBlue data carries no timestamp in LTP and Quote (aliceblue_adapter.py:1243-1305); the frame's top level names the instrument and mode, as the web's envelope does. Its presence in data follows each broker's web adapter (lead ruling 2026-11-09): closed by the per-broker dialect switch.",
+      "ref": "aliceblue_adapter.py:1243-1269; feed::dialect (lane wire)"
     },
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt, a string of epoch seconds (\"1794302700\"); feed timestamps are epoch milliseconds as numbers (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
+      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, and a string (\"1794302700\"); the protocol's WebSocket timestamps are epoch milliseconds (docs/prompt/websockets-format.md), so the unit is wrong, as for Dhan. The desktop sends the trade time in ms, as a number.",
       "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146"
     },
     {

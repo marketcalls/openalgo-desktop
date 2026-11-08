@@ -55,26 +55,26 @@
     },
     {
       "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop's Depth frame carries every Quote field of the instrument's latest tick (one Depth schema for every broker, docs/api/websocket-streaming/depth.md lists the trade quantity and book totals); this web adapter's Depth dict leaves out last_quantity although Firstock's tick carries it.",
+      "kind": "web-defect",
+      "reason": "Firstock's tick carries last_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
       "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
     },
     {
       "key": "average_price",
-      "kind": "desktop-decision",
-      "reason": "The desktop's Depth frame carries every Quote field of the instrument's latest tick (one Depth schema for every broker, docs/api/websocket-streaming/depth.md lists the trade quantity and book totals); this web adapter's Depth dict leaves out average_price although Firstock's tick carries it.",
+      "kind": "web-defect",
+      "reason": "Firstock's tick carries average_price and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
       "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
     },
     {
       "key": "total_buy_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop's Depth frame carries every Quote field of the instrument's latest tick (one Depth schema for every broker, docs/api/websocket-streaming/depth.md lists the trade quantity and book totals); this web adapter's Depth dict leaves out total_buy_quantity although Firstock's tick carries it.",
+      "kind": "web-defect",
+      "reason": "Firstock's tick carries total_buy_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
       "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop's Depth frame carries every Quote field of the instrument's latest tick (one Depth schema for every broker, docs/api/websocket-streaming/depth.md lists the trade quantity and book totals); this web adapter's Depth dict leaves out total_sell_quantity although Firstock's tick carries it.",
+      "kind": "web-defect",
+      "reason": "Firstock's tick carries total_sell_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
       "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
     },
     {
