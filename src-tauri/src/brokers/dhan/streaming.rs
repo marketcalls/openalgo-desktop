@@ -14,12 +14,17 @@
 //!   - 4 quote: `f32 ltp @0, u16 ltq @4, u32 ltt @6, f32 atp @10,
 //!     u32 volume @14, u32 total sell @18, u32 total buy @22, f32 open @26,
 //!     f32 close @30, f32 high @34, f32 low @38`
-//!   - 5 OI: `u32 oi @0`; 6 previous close: `f32 prev close @0, u32 prev oi @4`
-//!     (kept and folded into later ticks, not published on their own)
+//!   - 5 OI: `u32 oi @0`; 6 previous close: `f32 prev close @0, u32 prev oi @4`,
+//!     sent once on every subscribe (kept and folded into later ticks, not
+//!     published on their own)
 //!   - 8 full: quote fields with `u32 oi @26, oi high @30, oi low @34`, then
 //!     `f32 open @38, close @42, high @46, low @50`, then five 20-byte levels
 //!     from @54: `u32 bid qty, u32 ask qty, u16 bid orders, u16 ask orders,
 //!     f32 bid price, f32 ask price`
+//!   - A quote's close is today's, which Dhan fills only after the market
+//!     closes. OpenAlgo's close is the previous day's, so it comes from the
+//!     previous-close packet, and is left out until that has come (web
+//!     openalgo#2377).
 //!   - 50 disconnect: `u16 reason @0` (805: too many connections); 0 is a
 //!     heartbeat.
 //!
@@ -34,9 +39,9 @@
 
 use super::mapping::data_segment;
 use crate::brokers::common::streaming::{
-    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest, WEB_ORDER_PING_INTERVAL, WEB_PING_INTERVAL,
-    WEB_PING_TIMEOUT,
+    now_ms, ping, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest, WEB_ORDER_PING_INTERVAL,
+    WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -130,7 +135,37 @@ struct SubInfo {
     symbol: String,
     exchange: String,
     oi: i64,
-    prev_close: f64,
+    /// The previous day's close from the previous-close packet; `None`
+    /// until it has come on this connection.
+    prev_close: Option<f64>,
+}
+
+impl SubInfo {
+    fn new(s: &FeedSubscription) -> Self {
+        Self {
+            symbol: s.symbol.clone(),
+            exchange: s.exchange.clone(),
+            oi: 0,
+            prev_close: None,
+        }
+    }
+}
+
+/// What a quote lacks before its previous-close packet: the close, and so
+/// the change against it.
+const NO_PREVIOUS_CLOSE: AbsentFields = AbsentFields::of(&[QuoteField::Close, QuoteField::Change]);
+
+/// A subscription's instrument on the market feed: segment name, header
+/// segment code and security id.
+fn instrument(s: &FeedSubscription) -> Option<(&'static str, u8, u32)> {
+    match (
+        data_segment(&s.exchange),
+        segment_code(&s.exchange),
+        s.token.trim().parse::<u32>(),
+    ) {
+        (Some(seg), Some(code), Ok(id)) => Some((seg, code, id)),
+        _ => None,
+    }
 }
 
 fn instrument_frames(code: u8, list: &[(&str, &str)], batch: usize) -> Vec<Message> {
@@ -178,30 +213,35 @@ impl DhanFeed {
         }
     }
 
+    /// Register (or forget) the instruments, then the frames that ask for
+    /// them.
     fn frames(&mut self, subs: &[FeedSubscription], subscribe: bool) -> Vec<Message> {
-        let mut by_mode: Vec<(FeedMode, Vec<(&'static str, String)>)> = Vec::new();
         for s in subs {
-            let (Some(seg), Some(code), Ok(id)) = (
-                data_segment(&s.exchange),
-                segment_code(&s.exchange),
-                s.token.trim().parse::<u32>(),
-            ) else {
-                tracing::warn!("No Dhan security id for {}:{}", s.exchange, s.symbol);
+            let Some((_, code, id)) = instrument(s) else {
                 continue;
             };
             if subscribe {
-                self.subs.insert(
-                    (code, id),
-                    SubInfo {
-                        symbol: s.symbol.clone(),
-                        exchange: s.exchange.clone(),
-                        oi: 0,
-                        prev_close: 0.0,
-                    },
-                );
+                // A subscribe again on a new connection keeps the entry;
+                // `on_connected` has already cleared what it stored.
+                self.subs
+                    .entry((code, id))
+                    .or_insert_with(|| SubInfo::new(s));
             } else {
                 self.subs.remove(&(code, id));
             }
+        }
+        Self::request_frames(subs, subscribe)
+    }
+
+    /// The subscribe or unsubscribe frames for `subs`, one request code per
+    /// mode.
+    fn request_frames(subs: &[FeedSubscription], subscribe: bool) -> Vec<Message> {
+        let mut by_mode: Vec<(FeedMode, Vec<(&'static str, String)>)> = Vec::new();
+        for s in subs {
+            let Some((seg, _, id)) = instrument(s) else {
+                tracing::warn!("No Dhan security id for {}:{}", s.exchange, s.symbol);
+                continue;
+            };
             match by_mode.iter_mut().find(|(m, _)| *m == s.mode) {
                 Some((_, v)) => v.push((seg, id.to_string())),
                 None => by_mode.push((s.mode, vec![(seg, id.to_string())])),
@@ -262,7 +302,7 @@ impl DhanFeed {
                 }
                 6 if p.len() >= 8 => {
                     if let Some(s) = self.find(segment, token) {
-                        s.prev_close = le_f32(p, 0);
+                        s.prev_close = Some(le_f32(p, 0));
                     }
                 }
                 50 => {
@@ -316,7 +356,6 @@ impl DhanFeed {
                 t.mode = FeedMode::Ltp.code();
                 t.last_trade_time_ms = i64::from(le_u32(p, 4)) * 1000;
                 t.oi = sub.oi;
-                t.close = sub.prev_close;
             }
             _ => {
                 t.mode = if code == 4 {
@@ -338,14 +377,15 @@ impl DhanFeed {
                     sub.oi = t.oi;
                     38
                 };
+                // The packet's close (`base + 4`) is today's: not used.
                 t.open = le_f32(p, base);
-                t.close = le_f32(p, base + 4);
                 t.high = le_f32(p, base + 8);
                 t.low = le_f32(p, base + 12);
-                if t.close == 0.0 {
-                    t.close = sub.prev_close;
-                }
             }
+        }
+        match sub.prev_close {
+            Some(close) => t.close = close,
+            None => t.absent = NO_PREVIOUS_CLOSE,
         }
         t.derive_change();
         if code == 8 {
@@ -397,6 +437,31 @@ impl BrokerFeed for DhanFeed {
 
     fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         self.frames(subs, false)
+    }
+
+    /// Dhan drops the whole instrument on an unsubscribe and sends its
+    /// previous close again after the subscribe that follows; what this
+    /// connection stored stays meanwhile, as the web keeps it while another
+    /// mode of the instrument is subscribed (openalgo#2377).
+    fn mode_change_frames(
+        &mut self,
+        old: &FeedSubscription,
+        new: &FeedSubscription,
+    ) -> Vec<Message> {
+        let mut v = Self::request_frames(std::slice::from_ref(old), false);
+        v.extend(Self::request_frames(std::slice::from_ref(new), true));
+        v
+    }
+
+    /// A previous close or OI from the last connection never stands in for
+    /// the ones Dhan sends again on every subscribe (web openalgo#2377
+    /// clears them on disconnect).
+    fn on_connected(&mut self) -> Vec<Message> {
+        for s in self.subs.values_mut() {
+            s.prev_close = None;
+            s.oi = 0;
+        }
+        Vec::new()
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

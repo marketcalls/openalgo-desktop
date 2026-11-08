@@ -27,10 +27,18 @@ fn sub() -> FeedSubscription {
     }
 }
 
-/// A code 4 quote packet for NSE_EQ 3045 (offsets per
-/// `dhan_websocket._parse_quote_packet`).
+/// What Dhan sends a subscribe on each connection: the code 6 previous
+/// close, then a code 4 quote packet for NSE_EQ 3045 (offsets per
+/// `dhan_websocket._parse_quote_packet`) whose own close is today's, 0
+/// during the session.
 fn quote_packet(ltp: f32) -> Vec<u8> {
-    let mut p = vec![4u8];
+    let mut p = vec![6u8];
+    p.extend(16u16.to_le_bytes());
+    p.push(1);
+    p.extend(3045u32.to_le_bytes());
+    p.extend(812.35f32.to_le_bytes()); // @0 previous close
+    p.extend(0u32.to_le_bytes()); // @4 previous OI
+    p.push(4u8);
     p.extend(50u16.to_le_bytes());
     p.push(1);
     p.extend(3045u32.to_le_bytes());
@@ -41,10 +49,10 @@ fn quote_packet(ltp: f32) -> Vec<u8> {
     p.extend(4_823_170u32.to_le_bytes()); // @14 volume
     p.extend(689_415u32.to_le_bytes()); // @18 total sell
     p.extend(512_633u32.to_le_bytes()); // @22 total buy
-    for v in [810.0f32, 812.35, 816.0, 808.5] {
+    for v in [810.0f32, 0.0, 816.0, 808.5] {
         p.extend(v.to_le_bytes()); // @26 open, @30 close, @34 high, @38 low
     }
-    assert_eq!(p.len(), 50);
+    assert_eq!(p.len(), 16 + 50);
     p
 }
 

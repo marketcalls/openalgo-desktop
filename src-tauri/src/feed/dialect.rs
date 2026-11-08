@@ -129,7 +129,7 @@ pub(crate) struct Aliases {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percentage: Option<f64>,
     /// `ltt` (Sahi, Kotak; Fyers in epoch seconds), in every mode `ltt` is
-    /// sent (web openalgo#2376).
+    /// sent (web openalgo#2376); Dhan in epoch seconds (openalgo#2377).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_trade_time: Option<i64>,
 }
@@ -172,7 +172,8 @@ enum PercentKey {
 enum TradeTime {
     /// Epoch milliseconds, as `ltt` (Sahi, Kotak).
     Millis,
-    /// Epoch seconds, HSM's own unit (Fyers, web `fyers_mapping.py`).
+    /// Epoch seconds, the feed's own unit (Fyers, web `fyers_mapping.py`;
+    /// Dhan, web `dhan_adapter.py`).
     Seconds,
 }
 
@@ -241,6 +242,10 @@ fn dialect(broker: &str) -> Dialect {
         "kotak" => Dialect {
             change_percent: &[P::PercentChange],
             last_trade_time: Some(TradeTime::Millis),
+            ..CANONICAL
+        },
+        "dhan" => Dialect {
+            last_trade_time: Some(TradeTime::Seconds),
             ..CANONICAL
         },
         _ => CANONICAL,

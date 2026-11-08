@@ -851,6 +851,9 @@ fn f32le(v: f32) -> [u8; 4] {
     v.to_le_bytes()
 }
 
+/// Web test/test_dhan_quote_feed.py (openalgo#2377).
+mod quote_feed;
+
 #[test]
 fn feed_url_and_subscribe_frames() {
     let b = DhanBroker::new(master());
@@ -1006,10 +1009,14 @@ fn binary_packets_decode_little_endian() {
         (o.symbol.as_str(), o.exchange.as_str(), o.mode),
         ("NIFTY27OCT2625000CE", "NFO", 3)
     );
+    // The packet's close is today's; no previous close came for it.
     assert_eq!(
         (o.oi, o.open, o.close, o.high, o.low),
-        (5_234_175, 115.0, 118.0, 125.0, 110.5)
+        (5_234_175, 115.0, 0.0, 125.0, 110.5)
     );
+    assert!(o
+        .absent
+        .contains(crate::brokers::common::streaming::QuoteField::Close));
     let depth = events
         .iter()
         .find_map(|e| match e {
