@@ -1,0 +1,98 @@
+{
+  "broker": "aliceblue",
+  "summary": "One client asks for LTP, then Quote too, on the same equity: the LTP frame from the tk snapshot, the touchline subscribed again for Quote and its new tk serving a Quote and an LTP frame, then Quote alone from a delta once LTP is let go.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "mode-change",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"k\":\"\",\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._handle_message",
+      "broker/aliceblue/streaming/aliceblue_mapping.py::AliceBlueMessageMapper.parse_tick_data",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._update_market_snapshot",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received"
+    ],
+    "notes": [
+      "The desktop moves the instrument from LTP to Quote by unsubscribing and subscribing the touchline again (the default BrokerFeed::mode_change_frames); the web sends a second t subscribe and keeps both modes on one entry (all_modes). AliceBlue answers a t subscribe with a fresh tk snapshot, which this case pushes.",
+      "The desktop starts the instrument's snapshot afresh on that mode change (audit appendix item 13); a delta arriving before the new tk would carry zeros for the fields it lacks."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "symbol",
+      "kind": "desktop-decision",
+      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::protocol::market_data"
+    },
+    {
+      "key": "exchange",
+      "kind": "desktop-decision",
+      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::protocol::market_data"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::source::Mode::data_label"
+    },
+    {
+      "key": "timestamp",
+      "kind": "desktop-decision",
+      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::protocol::market_data"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt, a string of epoch seconds (\"1794302700\"); feed timestamps are epoch milliseconds as numbers (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
+      "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries last_quantity (ltq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent. The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries total_buy_quantity (tbq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent. The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries total_sell_quantity (tsq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent. The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends AliceBlue's pc as change_percent for every instrument; the desktop sends the change (and this alias) for indices only today.",
+      "ref": "audit C04; aliceblue_adapter.py:1259-1268"
+    },
+    {
+      "key": "total_oi",
+      "kind": "open",
+      "reason": "The web's Quote sends AliceBlue's toi as total_oi; the desktop's Quote carries no OI (C05) and has no total_oi alias.",
+      "ref": "audit C05, WS-05 aliases; aliceblue_adapter.py:1268"
+    }
+  ]
+}

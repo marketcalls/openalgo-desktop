@@ -1,0 +1,44 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "aliceblue",
+  "inputs_sha256": "fc868db75138c17c205865f5692565fcbd398edf3009e570e4dfd1a0a3b8fab4",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "99926000",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 24450.3,
+            "ltt": "1794302700",
+            "volume": 0,
+            "open": 24400.0,
+            "high": 24520.0,
+            "low": 24360.5,
+            "close": 24380.0,
+            "change_percent": 0.29,
+            "average_price": 0.0,
+            "total_oi": 0
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,234 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "aliceblue",
+  "inputs_sha256": "307153c17472397f0e964c28b869e92ded00dbeebd6e3c1f4011d3f0d464c9a3",
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "54957",
+      "brsymbol": "NIFTY24NOV26F",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 24450.3,
+            "timestamp": "1794302700",
+            "depth": {
+              "buy": [
+                {
+                  "price": 24450.0,
+                  "quantity": 150,
+                  "orders": 0
+                },
+                {
+                  "price": 24449.5,
+                  "quantity": 300,
+                  "orders": 0
+                },
+                {
+                  "price": 24449.0,
+                  "quantity": 450,
+                  "orders": 0
+                },
+                {
+                  "price": 24448.5,
+                  "quantity": 600,
+                  "orders": 0
+                },
+                {
+                  "price": 24448.0,
+                  "quantity": 750,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 24450.5,
+                  "quantity": 75,
+                  "orders": 0
+                },
+                {
+                  "price": 24451.0,
+                  "quantity": 225,
+                  "orders": 0
+                },
+                {
+                  "price": 24451.5,
+                  "quantity": 375,
+                  "orders": 0
+                },
+                {
+                  "price": 24452.0,
+                  "quantity": 525,
+                  "orders": 0
+                },
+                {
+                  "price": 24452.5,
+                  "quantity": 675,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 24450.3,
+            "timestamp": "1794302704",
+            "depth": {
+              "buy": [
+                {
+                  "price": 24450.0,
+                  "quantity": 150,
+                  "orders": 0
+                },
+                {
+                  "price": 24449.5,
+                  "quantity": 300,
+                  "orders": 0
+                },
+                {
+                  "price": 24449.0,
+                  "quantity": 450,
+                  "orders": 0
+                },
+                {
+                  "price": 24448.5,
+                  "quantity": 600,
+                  "orders": 0
+                },
+                {
+                  "price": 24448.0,
+                  "quantity": 750,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 24450.5,
+                  "quantity": 75,
+                  "orders": 0
+                },
+                {
+                  "price": 24451.0,
+                  "quantity": 225,
+                  "orders": 0
+                },
+                {
+                  "price": 24451.5,
+                  "quantity": 375,
+                  "orders": 0
+                },
+                {
+                  "price": 24452.0,
+                  "quantity": 525,
+                  "orders": 0
+                },
+                {
+                  "price": 24452.5,
+                  "quantity": 675,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 24450.3,
+            "timestamp": "1794302706",
+            "depth": {
+              "buy": [
+                {
+                  "price": 24450.0,
+                  "quantity": 150,
+                  "orders": 0
+                },
+                {
+                  "price": 24449.5,
+                  "quantity": 300,
+                  "orders": 0
+                },
+                {
+                  "price": 24449.0,
+                  "quantity": 450,
+                  "orders": 0
+                },
+                {
+                  "price": 24448.5,
+                  "quantity": 600,
+                  "orders": 0
+                },
+                {
+                  "price": 24448.0,
+                  "quantity": 750,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 24450.5,
+                  "quantity": 75,
+                  "orders": 0
+                },
+                {
+                  "price": 24451.0,
+                  "quantity": 225,
+                  "orders": 0
+                },
+                {
+                  "price": 24451.5,
+                  "quantity": 375,
+                  "orders": 0
+                },
+                {
+                  "price": 24452.0,
+                  "quantity": 525,
+                  "orders": 0
+                },
+                {
+                  "price": 24452.5,
+                  "quantity": 675,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "broker": "aliceblue",
+  "summary": "AliceBlue's Order Status Feed: an order open, partly filled and complete, one rejected with the RMS text, an NFO stop-loss order cancelled; symbols from the master by the broker symbol.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "54957",
+      "brsymbol": "NIFTY24NOV26F",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"k\":\"\",\"t\":\"h\"}",
+    "{\"heartbeat\":\"h\",\"userId\":\"AB1\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/aliceblue/streaming/aliceblue_order_adapter.py::AliceBlueOrderUpdateAdapter.normalize",
+      "broker/aliceblue/streaming/aliceblue_order_adapter.py::AliceBlueOrderUpdateAdapter.on_open_extra",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Both send AliceBlue's product code as it comes (INTRADAY, LONGTERM, NRML), not OpenAlgo's MIS, CNC, NRML (audit appendix item 9). The web's REST order book maps it (broker/aliceblue/mapping/transform_data.py reverse_map_product_type); the order stream does not, on either side. Pinned as today's behaviour.",
+      "The market socket's relay logs in too, and its frame is taken from the main socket first."
+    ]
+  }
+}

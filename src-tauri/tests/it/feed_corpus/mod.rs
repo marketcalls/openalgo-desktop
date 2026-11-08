@@ -19,6 +19,7 @@
 mod harness;
 mod inventory;
 
+mod aliceblue;
 mod angel;
 mod dhan;
 mod firstock;
@@ -27,6 +28,7 @@ mod zerodha;
 
 /// Every broker with cases, and its cases (the folder names).
 const BROKERS: &[(&str, &[&str])] = &[
+    ("aliceblue", aliceblue::CASES),
     ("angel", angel::CASES),
     ("dhan", dhan::CASES),
     ("firstock", firstock::CASES),

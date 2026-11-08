@@ -1,0 +1,143 @@
+{
+  "broker": "aliceblue",
+  "summary": "A Depth subscription on an NFO future with OI: the dk snapshot with five levels a side, then a df delta that changes the best bid and the best ask's quantity only.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "54957",
+      "brsymbol": "NIFTY24NOV26F",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"k\":\"\",\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._handle_message",
+      "broker/aliceblue/streaming/aliceblue_mapping.py::AliceBlueMessageMapper.parse_depth_data",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._update_market_snapshot",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received"
+    ],
+    "notes": [
+      "AliceBlue's order counts are not forwarded by the web (orders 0, aliceblue_adapter.py:1283); the desktop does the same (brokers/aliceblue/streaming.rs FeedSnap::side).",
+      "Depth OI is toi on the desktop (FeedSnap::apply); the web's Depth sends no OI.",
+      "The delta carries only the changed keys, as Noren's df does. The desktop merges it level by level; the web rebuilds a side from the levels the delta carries a price for and replaces the side with them (aliceblue_mapping.py:219-262, aliceblue_adapter.py:700-718), so four unchanged bids are lost, and a quantity change without its price (sq1) is ignored. Audit appendix item 10."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "symbol",
+      "kind": "desktop-decision",
+      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::protocol::market_data"
+    },
+    {
+      "key": "exchange",
+      "kind": "desktop-decision",
+      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::protocol::market_data"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "The desktop's data carries the symbol, exchange, mode label and receipt timestamp in every frame, as every broker's do on the desktop and the recorded Zerodha transcripts carry them (docs/api/websocket-streaming/ltp.md shows timestamp); this web adapter's dict has none of them (aliceblue_adapter.py:1243-1305).",
+      "ref": "aliceblue_adapter.py:1243-1305; feed::source::Mode::data_label"
+    },
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "The web's Depth timestamp is AliceBlue's feed time ft as it came, a string of epoch seconds; the frame timestamp is epoch milliseconds as a number (docs/prompt/websockets-format.md). The desktop sends the receipt time.",
+      "ref": "aliceblue_mapping.py:255; aliceblue_adapter.py:1295-1300"
+    },
+    {
+      "key": "ltt",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "volume",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "open",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "high",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "low",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "close",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "oi",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's quote from the same packet (one Depth schema for every broker; docs/api/websocket-streaming/depth.md lists ltq, OHLC, volume and the book totals); this web adapter's Depth dict has only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300).",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "A df delta carries only the levels that changed; the web replaces the whole bid side with the one level the delta names (losing the four unchanged bids) and drops the best ask's new quantity because the delta carries no price beside it. The desktop merges the delta level by level.",
+      "ref": "audit appendix item 10; aliceblue_mapping.py:219-262; aliceblue_adapter.py:700-718"
+    }
+  ]
+}
