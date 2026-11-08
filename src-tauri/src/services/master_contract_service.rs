@@ -994,7 +994,12 @@ mod tests {
         .await;
         until("day one's market feed", || ctx.websocket.is_connected()).await;
         let sbin = InstrumentKey::new("SBIN", "NSE");
-        drop(MarketDataSource::subscribe(&*ctx.bridge, &sbin, Mode::Ltp, 5));
+        drop(MarketDataSource::subscribe(
+            &*ctx.bridge,
+            &sbin,
+            Mode::Ltp,
+            5,
+        ));
         until("SBIN subscribed", || subs.load(Ordering::SeqCst) >= 1).await;
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
         let day_one = subs.load(Ordering::SeqCst);
