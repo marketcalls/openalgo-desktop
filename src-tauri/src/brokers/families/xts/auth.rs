@@ -94,6 +94,76 @@ fn session_field(session: &Value, key: &str) -> Option<String> {
     }
 }
 
+/// The account a posted session token belongs to, as the broker names it
+/// (web rmoney `session_account`, marketcalls/openalgo#2337). The session
+/// arrives from the broker's site with a `userID` beside the token, which
+/// is only a label anyone posting the form could write; the token is asked
+/// for its own profile (`GET /user/profile`, authorised by the token), which
+/// both checks it with the broker and names its account. A token the broker
+/// refuses, or a profile that names no account, signs in nothing.
+async fn confirmed_account(b: &XtsBroker, token: &str) -> Result<String> {
+    let resp = b
+        .http
+        .get(b.interactive_url("/user/profile"))
+        .header("authorization", token)
+        .header("Content-Type", "application/json")
+        .send()
+        .await;
+    let named = match resp {
+        Ok(r) if r.status().is_success() => match http::read_json::<Value>(b.cfg.id, r).await {
+            Ok((_, v)) => profile_account(&v),
+            Err(e) => {
+                tracing::warn!(
+                    broker = b.cfg.id,
+                    "Session profile unreadable: {}",
+                    e.code()
+                );
+                None
+            }
+        },
+        Ok(r) => {
+            tracing::warn!(
+                broker = b.cfg.id,
+                status = r.status().as_u16(),
+                "Session profile refused"
+            );
+            None
+        }
+        Err(e) => {
+            tracing::warn!(
+                broker = b.cfg.id,
+                "Session profile request failed: {}",
+                crate::brokers::common::redact::url_safe_error(&e)
+            );
+            None
+        }
+    };
+    named.ok_or_else(|| {
+        tracing::warn!(
+            broker = b.cfg.id,
+            "Sign-in refused: the broker did not confirm the session's account"
+        );
+        AppError::Auth(format!(
+            "{} did not confirm which account this login is for, so it was not stored. Log in again.",
+            b.cfg.name
+        ))
+    })
+}
+
+/// The account a `/user/profile` answer names (`result.ClientId`, in any of
+/// the casings XTS servers use), or `None`.
+fn profile_account(v: &Value) -> Option<String> {
+    if v.get("type").and_then(Value::as_str) != Some("success") {
+        return None;
+    }
+    let result = v.get("result").filter(|r| r.is_object())?;
+    ["ClientId", "ClientID", "clientId", "clientID"]
+        .iter()
+        .map(|k| mapping::s(result, k))
+        .find(|id| !id.trim().is_empty())
+        .map(|id| id.trim().to_string())
+}
+
 /// Interactive token and user id.
 async fn interactive_session(b: &XtsBroker, creds: &BrokerCredentials) -> Result<(String, String)> {
     let cfg = b.cfg;
@@ -142,11 +212,7 @@ async fn interactive_session(b: &XtsBroker, creds: &BrokerCredentials) -> Result
                     cfg.name
                 ))
             })?;
-            let user = if session.is_object() {
-                mapping::s(&session, "userID")
-            } else {
-                String::new()
-            };
+            let user = confirmed_account(b, &token).await?;
             return Ok((token, user));
         }
     };
@@ -221,6 +287,9 @@ pub(crate) async fn authenticate(b: &XtsBroker, creds: BrokerCredentials) -> Res
             None
         }
     };
+    if let Some(m) = &market {
+        refuse_another_account(b, &interactive_user, &m.user_id)?;
+    }
     let user_id = market
         .as_ref()
         .map(|m| m.user_id.clone())
@@ -232,4 +301,33 @@ pub(crate) async fn authenticate(b: &XtsBroker, creds: BrokerCredentials) -> Res
         user_id,
         user_name: None,
     })
+}
+
+/// A third-party sign-in whose session names another account than the
+/// market data keys is refused (web `brlogin.py` `_xts_account_mismatch`,
+/// marketcalls/openalgo#2337). Both are the trader's own keys, so two
+/// different accounts mean the session that came back is not the trader's.
+/// Only the OAuth members are compared: a direct login makes its session
+/// with the trader's own interactive keys. A side that names no account is
+/// not a mismatch (the web leaves the case where the market data login
+/// failed as it was).
+fn refuse_another_account(b: &XtsBroker, session_user: &str, market_user: &str) -> Result<()> {
+    if !matches!(
+        b.cfg.login,
+        XtsLogin::OAuthAccessToken | XtsLogin::OAuthSessionToken
+    ) {
+        return Ok(());
+    }
+    let (a, m) = (session_user.trim(), market_user.trim());
+    if a.is_empty() || m.is_empty() || a.eq_ignore_ascii_case(m) {
+        return Ok(());
+    }
+    tracing::warn!(
+        broker = b.cfg.id,
+        "Sign-in refused: the session and the market data keys name different accounts"
+    );
+    Err(AppError::Auth(
+        "This login is for a different account than the market data keys saved for this broker. Log in with that account, or check the keys under Broker Configuration."
+            .into(),
+    ))
 }

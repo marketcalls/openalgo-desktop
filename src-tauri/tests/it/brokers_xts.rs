@@ -127,7 +127,12 @@ fn md_routes(prefix: &str) -> Router<Arc<Fake>> {
                     if b["appKey"] == "bad" {
                         return Json(json!({"type": "error", "description": "Invalid appKey"}));
                     }
-                    Json(books()["market_login_ok"].clone())
+                    let mut ok = books()["market_login_ok"].clone();
+                    if b["appKey"] == "other" {
+                        // Market data keys issued to another account.
+                        ok["result"]["userID"] = json!("OTHER1");
+                    }
+                    Json(ok)
                 },
             ),
         )
@@ -221,6 +226,24 @@ fn app(state: Arc<Fake>) -> Router {
                     return Json(books()["session_refused"].clone());
                 }
                 Json(books()["session_ok"].clone())
+            }),
+        )
+        .route(
+            "/interactive/user/profile",
+            get(|State(s): S, h: HeaderMap| async move {
+                // The account a session token belongs to, by the token.
+                let token = auth(&h);
+                s.log(format!("profile|{}", token));
+                match token.as_str() {
+                    "rm-token" => {
+                        Json(json!({"type": "success", "result": {"ClientId": "<USER_ID>"}}))
+                    }
+                    "rm-other" => {
+                        Json(json!({"type": "success", "result": {"ClientID": "OTHER1"}}))
+                    }
+                    "rm-unnamed" => Json(json!({"type": "success", "result": {}})),
+                    _ => Json(books()["invalid_token"].clone()),
+                }
             }),
         )
         .route(
@@ -402,6 +425,73 @@ async fn oauth_variants() {
         "no /user/session for rmoney"
     );
     assert!(fake.lines("mdlogin|")[0].starts_with("mdlogin|/apibinarymarketdata/auth/login|"));
+}
+
+const OTHER_ACCOUNT: &str = "This login is for a different account than the market data keys saved for this broker. Log in with that account, or check the keys under Broker Configuration.";
+
+/// Web broker/compositedge/api/auth_api.py `ACCOUNT_MISMATCH` and
+/// blueprints/brlogin.py `_refuse_xts_account` (marketcalls/openalgo#2337,
+/// eec700046): the interactive session CompositEdge opened names one
+/// account and the saved market data keys log in as another, so the
+/// session that came back is not the trader's and is not stored.
+#[tokio::test]
+async fn compositedge_refuses_a_session_of_another_account_than_the_market_keys() {
+    let (b, _, _) = broker(&compositedge::CONFIG).await;
+    let mut c = creds();
+    c.request_token = Some(r#"{"accessToken":"acc-1"}"#.into());
+    c.api_key_market = Some("other".into());
+    let e = b.authenticate(c).await.unwrap_err();
+    assert_eq!(e.code(), "AUTH_ERROR");
+    assert_eq!(e.client_message(), OTHER_ACCOUNT);
+    // The same account on both sides signs in.
+    let mut c = creds();
+    c.request_token = Some(r#"{"accessToken":"acc-1"}"#.into());
+    assert_eq!(b.authenticate(c).await.unwrap().user_id, "<USER_ID>");
+    // A direct login is made with the trader's own interactive keys: not
+    // compared (fivepaisaxts).
+    let (d, _, _) = broker(&fivepaisaxts::CONFIG).await;
+    let mut c = creds();
+    c.api_key_market = Some("other".into());
+    assert!(d.authenticate(c).await.is_ok());
+}
+
+/// Web broker/rmoney/api/auth_api.py `session_account` and the rmoney
+/// callback in blueprints/brlogin.py (marketcalls/openalgo#2337, eec700046):
+/// the `userID` posted beside the token is only a label; RMoney names the
+/// token's account from its own profile, an account RMoney does not confirm
+/// signs in nothing, and one other than the market data keys' is refused.
+#[tokio::test]
+async fn rmoney_takes_the_account_from_the_tokens_own_profile() {
+    let (b, fake, _) = broker(&rmoney::CONFIG).await;
+    let posted = |token: &str, label: &str| {
+        let mut c = creds();
+        c.api_key = String::new();
+        c.api_secret = None;
+        c.auth_code = Some(json!({"token": token, "userID": label}).to_string());
+        c
+    };
+    // A label naming someone else does not decide the account.
+    let r = b.authenticate(posted("rm-token", "FORGED9")).await.unwrap();
+    assert_eq!(r.user_id, "<USER_ID>");
+    assert_eq!(fake.lines("profile|"), vec!["profile|rm-token".to_string()]);
+    // RMoney refuses the token, or names no account: nothing is stored.
+    for token in ["rm-refused", "rm-unnamed"] {
+        let e = b
+            .authenticate(posted(token, "<USER_ID>"))
+            .await
+            .unwrap_err();
+        assert_eq!(e.code(), "AUTH_ERROR");
+        assert_eq!(
+            e.client_message(),
+            "RMoney did not confirm which account this login is for, so it was not stored. Log in again."
+        );
+    }
+    // The token's account is not the market data keys' account.
+    let e = b
+        .authenticate(posted("rm-other", "<USER_ID>"))
+        .await
+        .unwrap_err();
+    assert_eq!(e.client_message(), OTHER_ACCOUNT);
 }
 
 // ---------------------------------------------------------------------------

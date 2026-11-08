@@ -29,7 +29,13 @@ the `client_id:::key` prefix, for Dhan and the Noren family; the client id
 entered on Broker Configuration for Arrow, HDFC Sky, HDFC Securities,
 AliceBlue and Rupeezy), else the account of the last session with that broker. A
 mismatch is refused and the live session and its stored row are left as they
-were. Saving a broker's settings again forgets an ended session's account,
+were. That account is the one the broker itself names for the session
+(marketcalls/openalgo#2337): Dhan's consent answer or its fund limits for a
+pasted token, never the client id saved here, and a token whose account Dhan
+does not name is refused; RMoney's profile of the posted session token, never
+the `userID` posted beside it, refused when RMoney does not confirm it. A
+CompositEdge or RMoney session whose account is not the market data keys'
+account is refused too. Saving a broker's settings again forgets an ended session's account,
 which is how a trader switches accounts. A state-less callback with no known
 account is refused.
 
