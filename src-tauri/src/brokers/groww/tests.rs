@@ -1830,6 +1830,12 @@ mod http_round_trip {
         h.get("x-api-version").and_then(|v| v.to_str().ok()) == Some("1.0")
     }
 
+    /// `Content-Type: application/json`, which the web sends on every call,
+    /// a GET included (`_groww_headers`, order_api.py:78-85).
+    fn json_type(h: &HeaderMap) -> bool {
+        h.get("content-type").and_then(|v| v.to_str().ok()) == Some("application/json")
+    }
+
     /// Live prices the fake LTP endpoint knows.
     fn ltp_of(key: &str) -> Option<f64> {
         match key {
@@ -1886,7 +1892,7 @@ mod http_round_trip {
             .route(
                 "/v1/order/list",
                 get(move |h: HeaderMap, Query(q): Query<HashMap<String, String>>| async move {
-                    log(&s2, format!("list|{}|{}|{}|{}", q["segment"], q["page"], q["page_size"], api_version(&h)));
+                    log(&s2, format!("list|{}|{}|{}|{}|{}", q["segment"], q["page"], q["page_size"], api_version(&h), json_type(&h)));
                     if q["segment"] == "CASH" && f.cash_orders_fail {
                         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"status": "FAILURE", "error": {"message": "Unable to serve request currently"}})));
                     }
@@ -2163,8 +2169,8 @@ mod http_round_trip {
         assert!(create.contains("\"trading_symbol\":\"NIFTY25OCT24500CE\""));
         assert!(create.contains("\"segment\":\"FNO\""));
         assert!(create.ends_with("|true"), "X-API-VERSION on create");
-        assert!(seen.contains(&"list|CASH|0|100|true".to_string()));
-        assert!(seen.contains(&"list|FNO|0|100|true".to_string()));
+        assert!(seen.contains(&"list|CASH|0|100|true|true".to_string()));
+        assert!(seen.contains(&"list|FNO|0|100|true|true".to_string()));
         assert!(seen.contains(&"cancel|\"GMK39038RDT490CCVRP\"|\"CASH\"|true".to_string()));
         assert!(seen.contains(&"cancel|\"GLTFO25100600009\"|\"CASH\"|true".to_string()));
         assert!(seen.contains(&"cancel|\"GLTFO25100600009\"|\"FNO\"|true".to_string()));

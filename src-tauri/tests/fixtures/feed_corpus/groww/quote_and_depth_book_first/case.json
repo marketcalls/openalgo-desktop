@@ -31,7 +31,8 @@
     "notes": [
       "The fake socket does not echo the nats subprotocol, so each connect is two connections: the first asks for it and is dropped by the feed, the second goes without it (GrowwFeed::on_connect_failed, web nats_websocket.py subprotocol fallback). Connection 2 is the session.",
       "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature.",
-      "The feed sends Groww what the web sends: its CONNECT text, one frame per SUB and UNSUB, a Depth's book before its price, and one PING after a batch of SUBs. Text PING frames are not recorded (upstream_ignore: the 10 s heartbeat is the same frame), so the batch's PING is pinned by brokers::groww's unit tests."
+      "The feed sends Groww what the web sends: its CONNECT text, one frame per SUB and UNSUB, a Depth's book before its price, and one PING after a batch of SUBs. Text PING frames are not recorded (upstream_ignore: the 10 s heartbeat is the same frame), so the batch's PING is pinned by brokers::groww's unit tests.",
+      "web-defect (approved, lead 2026-11-09): on the Depth subscribe the web keeps the Quote subscription's sid 1 on the price subject and sends SUB /ld/eq/nse/book.3045 2, SUB /ld/eq/nse/price.3045 3 and PING (groww_adapter.py:478-538, nats_websocket.py:774-897): the price subject is subscribed twice, so Groww delivers every price on sid 1 and on sid 3 and the web publishes it twice to its clients. The desktop moves the subscription: UNSUB 1, SUB book 2, SUB price 3, PING, one sid per subject. The case pushes what Groww sends the desktop (one price message, sid 3), so the doubled publish does not show as a frame."
     ]
   },
   "deviations": [
