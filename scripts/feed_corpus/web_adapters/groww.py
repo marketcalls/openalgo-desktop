@@ -23,8 +23,19 @@ A dropped socket is the web client's own reconnect
 (nats_websocket.py:271-328, `_resubscribe_all`): new sids, and the adapter
 is not told, so its merge cache keeps the old session's values.
 
+Order updates are the web's REST poll of the order book
+(`websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter`): each
+answer the fake broker API gives the CASH order list is the poller's next
+read. The order book is the web's own Groww mapping (`map_order_data`,
+`transform_order_data`, `format_order_data`, `openalgo_exchange`) after
+`direct_get_order_book` resolves each row's exchange and symbol
+(order_api.py:152-161, on the case's master); the poll diff and the
+published fields are written from order_adapter.py:456-475 and :490-517,
+since `_poll_loop` and `_publish_order` import the app.
 """
 
+import copy
+import json
 import types
 
 from webkit import Glue, Source
@@ -36,6 +47,12 @@ PROTOBUF_NAMES = [
     "FIELD_HIGH", "FIELD_LOW", "FIELD_CLOSE", "FIELD_VOLUME", "FIELD_VALUE", "FIELD_LTP",
     "parse_groww_market_data",
 ]
+
+ORDER_NAMES = [
+    "GROWW_ORDER_STATUS_MAP", "GROWW_PRICETYPE_MAP", "map_order_status", "_orders_from",
+    "map_order_data", "transform_order_data",
+]
+ORDER_LIST = "/v1/order/list"
 
 
 class Groww(Glue):
@@ -54,6 +71,13 @@ class Groww(Glue):
             "broker/groww/streaming/groww_adapter.py",
             "GrowwWebSocketAdapter",
             ["_on_data", "_normalize_market_data", "_maybe_clear_cache_entry"],
+        ),
+        Source("broker/groww/mapping/order_data.py", None, ORDER_NAMES),
+        Source("services/orderbook_service.py", None, ["format_decimal", "format_order_data"]),
+        Source(
+            "broker/groww/mapping/transform_data.py",
+            None,
+            ["EXCHANGE_NSE", "EXCHANGE_BSE", "SEGMENT_FNO", "openalgo_exchange"],
         ),
     ]
 
@@ -86,6 +110,10 @@ class Groww(Glue):
         # Per instrument, in subscribe order: its price and book subject keys.
         self.subjects = {}
         self.next_sid = 1
+        # The order list per segment as the fake answers it, and the poll's
+        # snapshot (None until its first, silent read).
+        self.order_lists = {}
+        self.baseline = None
 
     def subscribe(self, row, mode, depth):
         symbol, exchange = row["symbol"], row["exchange"]
@@ -152,3 +180,59 @@ class Groww(Glue):
         if isinstance(frame, bytes) and b"MSG" in frame[:50]:
             self.ws._process_binary_nats_message(frame)
 
+    def serve(self, method, path, body):
+        if not path.startswith(ORDER_LIST + "?"):
+            return
+        segment = "FNO" if "segment=FNO" in path else "CASH"
+        self.order_lists[segment] = json.loads(body)["payload"]["order_list"]
+        if segment == "CASH":
+            self.poll()
+
+    def order_book(self):
+        """get_orderbook_with_auth (orderbook_service.py:149-167) on
+        direct_get_order_book's rows (order_api.py:130-164)."""
+        rows = copy.deepcopy(self.order_lists.get("CASH", []) + self.order_lists.get("FNO", []))
+        for o in rows:
+            exchange = self.web["openalgo_exchange"](o.get("exchange", ""), o.get("segment", ""))
+            known = self.master.by_brsymbol(o["trading_symbol"], exchange)
+            o["brsymbol"], o["brexchange"] = o["trading_symbol"], o.get("exchange", "")
+            o["exchange"] = exchange
+            o["symbol"] = known["symbol"] if known else o["trading_symbol"]
+        mapped = self.web["map_order_data"](order_data={"data": rows, "order_list": rows})
+        return self.web["format_order_data"](self.web["transform_order_data"](mapped))
+
+    def poll(self):
+        """One read of _poll_loop (order_adapter.py:456-475): the first
+        seeds the snapshot silently."""
+        snapshot, by_id = {}, {}
+        for order in self.order_book():
+            orderid = str(order.get("orderid", ""))
+            if not orderid:
+                continue
+            snapshot[orderid] = (order.get("order_status", ""), int(order.get("filled_quantity") or 0))
+            by_id[orderid] = order
+        if self.baseline is not None:
+            for orderid, state in snapshot.items():
+                if self.baseline.get(orderid) != state:
+                    self.publish_order(by_id[orderid])
+        self.baseline = snapshot
+
+    def publish_order(self, order):
+        """_publish_order's OrderUpdateEvent fields (order_adapter.py:494-517)."""
+        raw_status = str(order.get("order_status", "")).strip().lower()
+        self.order({
+            "orderid": str(order.get("orderid", "")),
+            "symbol": order.get("symbol", ""),
+            "exchange": order.get("exchange", ""),
+            "action": str(order.get("action", "")).upper(),
+            "quantity": int(order.get("quantity") or 0),
+            "price": float(order.get("price") or 0),
+            "trigger_price": float(order.get("trigger_price") or 0),
+            "pricetype": order.get("pricetype", ""),
+            "product": order.get("product", ""),
+            "order_status": raw_status,
+            "filled_quantity": int(order.get("filled_quantity") or 0),
+            "pending_quantity": int(order.get("pending_quantity") or 0),
+            "average_price": float(order.get("average_price") or 0),
+            "rejection_reason": order.get("rejection_reason", "") if raw_status == "rejected" else "",
+        })

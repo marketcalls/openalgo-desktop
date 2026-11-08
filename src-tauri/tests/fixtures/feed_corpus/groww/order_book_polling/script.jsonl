@@ -1,0 +1,14 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "http_polled", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "note": "The poller has read the empty book: its silent baseline (it reads the FNO list too)."}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "body": "frames/book_open.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "body": "frames/book_partial.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json", "web": false, "note": "The web relays nothing: its book has no filled quantity, and the status is unchanged."}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "body": "frames/book_complete.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "body": "frames/book_rejected.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_stoploss_open.json"}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "body": "frames/book_cancelled.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_manual_complete.json"}

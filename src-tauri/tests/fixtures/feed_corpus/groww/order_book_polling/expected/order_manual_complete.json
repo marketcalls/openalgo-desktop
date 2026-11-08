@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "groww",
+  "orderid": "GMK1125110900004",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 1,
+  "price": 1497.95,
+  "trigger_price": 0.0,
+  "pricetype": "MARKET",
+  "product": "CNC",
+  "order_status": "complete",
+  "filled_quantity": 1,
+  "pending_quantity": 0,
+  "average_price": 1490.5,
+  "rejection_reason": ""
+}

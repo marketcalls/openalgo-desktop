@@ -1,12 +1,17 @@
 //! Groww: the NATS-over-WebSocket market feed as `GrowwBroker::create_feed`
-//! builds it. Its `prepare` mints a socket token over REST before every
-//! connect, read here from the fake broker API.
+//! builds it, and order updates from polling the order book (Groww has no
+//! order socket: web `_POLLING_BROKERS`), read by Groww's own
+//! `OrderPoller`. The feed's `prepare` mints a socket token over REST
+//! before every connect; the token and the order lists come from the fake
+//! broker API (the CASH and FNO lists from the case's `http` answers).
 
 use super::harness::{corpus_cases, Env, Feeds};
+use openalgo_desktop_lib::brokers::common::streaming::OrderFeed;
 use openalgo_desktop_lib::brokers::groww::GrowwBroker;
 use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
 use serde_json::json;
+use std::time::Duration;
 
 /// Groww's socket-token endpoint (`streaming::SOCKET_TOKEN_URL`'s path).
 const SOCKET_TOKEN: &str = "/v1/api/apex/v1/socket/token/create/";
@@ -21,7 +26,16 @@ fn feeds(env: &Env) -> Feeds {
         &env.url("main"),
     );
     let auth = AuthToken::new("login-token");
-    Feeds::boxed(broker.create_feed(&auth).expect("Groww's market feed"))
+    let feeds = Feeds::boxed(broker.create_feed(&auth).expect("Groww's market feed"));
+    if !env.orders() {
+        return feeds;
+    }
+    let updates = broker
+        .start_order_updates(&auth, Duration::from_secs(1))
+        .expect("Groww's order poller");
+    feeds
+        .with_order_feed(OrderFeed::Stream(updates))
+        .keeping(broker)
 }
 
 corpus_cases!(
@@ -35,5 +49,6 @@ corpus_cases!(
         index_depth_falls_back_to_price,
         derivative_quote_without_oi,
         reconnect_starts_afresh,
+        order_book_polling,
     ]
 );
