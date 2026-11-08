@@ -8,7 +8,7 @@
   "exchange": "NSE",
   "action": "SELL",
   "quantity": 25,
-  "price": 440.15,
+  "price": 0.0,
   "trigger_price": 0.0,
   "pricetype": "MARKET",
   "product": "MIS",

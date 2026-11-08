@@ -8,7 +8,7 @@
   "exchange": "NFO",
   "action": "SELL",
   "quantity": 75,
-  "price": 102.35,
+  "price": 0.0,
   "trigger_price": 0.0,
   "pricetype": "MARKET",
   "product": "NRML",

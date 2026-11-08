@@ -70,12 +70,6 @@
   },
   "deviations": [
     {
-      "key": "price",
-      "kind": "open",
-      "reason": "For a MARKET order (Samco books it as L with marketProtection) the desktop sends the protected limit price from the book (102.35); the web's order book path sends a MARKET order's price as 0.0 (format_order_data), in its order book and its order updates alike.",
-      "ref": "services/orderbook_service.py format_order_data; brokers/common/order_poll.rs to_update"
-    },
-    {
       "key": "exchange",
       "kind": "web-defect",
       "reason": "Samco books MCX contracts on its MFO segment; the web relays MFO and the broker's trading symbol because its symbol lookup asks the master for exchange MFO, which holds no row, so the update names no OpenAlgo contract. The desktop maps MFO to MCX and the symbol to the OpenAlgo one (brokers/samco/mapping.rs oa_exchange).",

@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 55. Open gaps: 171. Deviations pending approval: 85.
+Cases: 55. Open gaps: 169. Deviations pending approval: 85.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -20,7 +20,7 @@ Cases: 55. Open gaps: 171. Deviations pending approval: 85.
 | dhan | **no case** | deviation pending approval: `quote_before_previous_close`, `quote_previous_close`, `reconnect_forgets_previous_close` | open gap: `full_depth` | open gap: `depth_20_before_and_after_the_quote` | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
 | dhan_sandbox | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | firstock | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| fivepaisa | matches web: `ltp_mode` | open gap: `future_mode_change`, `index_quote`, `quote_mode`, `reconnect_after_held_prices`, `same_token_two_exchanges` | open gap: `depth_after_quote`, `depth_before_quote`, `future_mode_change` | not offered by the web | not offered by the web | not offered by the web | open gap: `order_book_polling` |
+| fivepaisa | matches web: `ltp_mode` | open gap: `future_mode_change`, `index_quote`, `quote_mode`, `reconnect_after_held_prices`, `same_token_two_exchanges` | open gap: `depth_after_quote`, `depth_before_quote`, `future_mode_change` | not offered by the web | not offered by the web | not offered by the web | deviation pending approval: `order_book_polling` |
 | fivepaisaxts | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | flattrade | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | fyers | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -41,7 +41,7 @@ Cases: 55. Open gaps: 171. Deviations pending approval: 85.
 | rmoney | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | rupeezy | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | sahi | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| samco | open gap: `index_ltp_and_quote`, `ltp_mode` | open gap: `index_ltp_and_quote`, `quote_and_depth_clients`, `quote_mode` | open gap: `depth_book_first_future`, `depth_quote_then_book`, `quote_and_depth_clients`, `reconnect_forgets_state` | not offered by the web | not offered by the web | not offered by the web | open gap: `order_book_polling` |
+| samco | open gap: `index_ltp_and_quote`, `ltp_mode` | open gap: `index_ltp_and_quote`, `quote_and_depth_clients`, `quote_mode` | open gap: `depth_book_first_future`, `depth_quote_then_book`, `quote_and_depth_clients`, `reconnect_forgets_state` | not offered by the web | not offered by the web | not offered by the web | deviation pending approval: `order_book_polling` |
 | shoonya | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | tradejini | open gap: `index_quote_and_ltp`, `ltp_mode` | open gap: `currency_quote_divisor`, `depth_to_quote_and_back`, `future_quote_oi`, `index_quote_and_ltp`, `quote_mode` | open gap: `depth_book_update_and_clear`, `depth_to_quote_and_back`, `depth_waits_for_the_quote`, `future_depth_oi`, `reconnect_drops_the_book` | not offered by the web | not offered by the web | not offered by the web | not offered by the web |
 | tradesmart | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -130,7 +130,6 @@ Cases: 55. Open gaps: 171. Deviations pending approval: 85.
 | fivepaisa | `index_quote` | `bid_quantity` | open | no | The web's Quote sends 5paisa's best bid quantity (BidQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire). |
 | fivepaisa | `index_quote` | `ask_price` | open | no | The web's Quote sends 5paisa's best ask (OffRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire). |
 | fivepaisa | `index_quote` | `ask_quantity` | open | no | The web's Quote sends 5paisa's best ask quantity (OffQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire). |
-| fivepaisa | `order_book_polling` | `price` | open | no | The desktop's shared order_poll::to_update passes the book's Rate through for a MARKET order (440.15 here); the web's order-book service sets a MARKET order's price to 0.0 (services/orderbook_service.py format_order_data), so its polled order_update carries 0.0. To fix in Phase B in brokers/common/order_poll.rs to_update (one commit, lane bk-c Samco), then drop this deviation. |
 | fivepaisa | `order_book_polling` | `frame` | web-defect | no | The web's 5paisa book (transform_order_data) has no filled_quantity, so the poller's (order_status, filled_quantity) never changes on a partial fill and the web publishes nothing for it; the desktop reads TradedQty and publishes the fill. |
 | fivepaisa | `order_book_polling` | `filled_quantity` | web-defect | no | The web sends 0 for every 5paisa order (its book has no filled_quantity), a completed one included; the desktop sends TradedQty. |
 | fivepaisa | `order_book_polling` | `pending_quantity` | web-defect | no | The web sends 0 for every 5paisa order (its book has no pending_quantity); the desktop sends PendingQty. |
@@ -213,7 +212,6 @@ Cases: 55. Open gaps: 171. Deviations pending approval: 85.
 | samco | `index_ltp_and_quote` | `last_trade_quantity` | web-defect | no | As last_quantity: the web sends last_trade_quantity 0 for an index frame without ltq; the desktop leaves it out. |
 | samco | `index_ltp_and_quote` | `price_change` | open | no | The desktop sends an index's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change). |
 | samco | `index_ltp_and_quote` | `price_change_percent` | open | no | As price_change: Samco's web adapter sends change_percentage only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change_percent). |
-| samco | `order_book_polling` | `price` | open | no | For a MARKET order (Samco books it as L with marketProtection) the desktop sends the protected limit price from the book (102.35); the web's order book path sends a MARKET order's price as 0.0 (format_order_data), in its order book and its order updates alike. |
 | samco | `order_book_polling` | `exchange` | web-defect | no | Samco books MCX contracts on its MFO segment; the web relays MFO and the broker's trading symbol because its symbol lookup asks the master for exchange MFO, which holds no row, so the update names no OpenAlgo contract. The desktop maps MFO to MCX and the symbol to the OpenAlgo one (brokers/samco/mapping.rs oa_exchange). |
 | samco | `order_book_polling` | `symbol` | web-defect | no | As exchange: the web sends Samco's trading symbol NATURALGAS26NOVFUT for an MCX order, not the OpenAlgo symbol. |
 | samco | `order_book_polling` | `frame` | web-defect | no | The web publishes no update for an order whose price carries Samco's thousands comma (5,412.00): the order book path leaves orderPrice as Samco's text and PollingOrderUpdateAdapter._publish_order's float() raises, which it logs and drops; the desktop parses the price and sends the update (open, then cancelled). |
