@@ -293,11 +293,12 @@ impl BrokerBridge {
             generation,
             deep_books,
         } = &mut *st;
-        let add: Vec<DesiredKey> = desired
+        let mut add: Vec<DesiredKey> = desired
             .iter()
             .filter(|k| !applied.contains_key(*k) && !ops.in_flight.contains(*k))
             .cloned()
             .collect();
+        desired.in_order(&mut add);
         let gone: Vec<DesiredKey> = applied
             .keys()
             .filter(|k| !desired.contains(k))

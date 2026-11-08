@@ -39,7 +39,7 @@ use crate::brokers::common::streaming::{
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::websocket::{FeedStatus, Reader, WebSocketManager};
 use parking_lot::Mutex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, Notify};
@@ -79,28 +79,39 @@ pub type DepthCapability = Arc<dyn Fn(&str) -> Vec<u8> + Send + Sync>;
 /// does not (`Broker::feed_refusal`).
 pub type ExchangeRefusal = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
 
-/// The references feed clients want, and how many of them name each
-/// instrument: every tick asks whether its instrument is held, under the
-/// state lock, and a scan of every reference made that cost grow with the
-/// number held (3,000 instruments in several modes at a busy open).
+/// The references feed clients want, in the order they were first wanted,
+/// and how many of them name each instrument: every tick asks whether its
+/// instrument is held, under the state lock, and a scan of every reference
+/// made that cost grow with the number held (3,000 instruments in several
+/// modes at a busy open).
 #[derive(Default)]
 struct Desired {
-    keys: HashSet<DesiredKey>,
+    /// Each key with when it was wanted: a request past the feed's room is
+    /// taken in its own order, first come first served, as the web's
+    /// proxy subscribes its items one by one (audit C02).
+    keys: HashMap<DesiredKey, u64>,
+    next: u64,
     per_instrument: HashMap<InstrumentKey, usize>,
 }
 
 impl Desired {
     fn insert(&mut self, key: DesiredKey) -> bool {
-        let instrument = key.0.clone();
-        let added = self.keys.insert(key);
-        if added {
-            *self.per_instrument.entry(instrument).or_insert(0) += 1;
+        if self.keys.contains_key(&key) {
+            return false;
         }
-        added
+        *self.per_instrument.entry(key.0.clone()).or_insert(0) += 1;
+        self.keys.insert(key, self.next);
+        self.next += 1;
+        true
+    }
+
+    /// `keys` in the order they were wanted.
+    fn in_order(&self, keys: &mut [DesiredKey]) {
+        keys.sort_by_key(|k| self.keys.get(k).copied().unwrap_or(u64::MAX));
     }
 
     fn remove(&mut self, key: &DesiredKey) -> bool {
-        let removed = self.keys.remove(key);
+        let removed = self.keys.remove(key).is_some();
         if removed {
             if let Some(n) = self.per_instrument.get_mut(&key.0) {
                 *n -= 1;
@@ -118,11 +129,11 @@ impl Desired {
     }
 
     fn contains(&self, key: &DesiredKey) -> bool {
-        self.keys.contains(key)
+        self.keys.contains_key(key)
     }
 
     fn iter(&self) -> impl Iterator<Item = &DesiredKey> {
-        self.keys.iter()
+        self.keys.keys()
     }
 
     /// Whether any reference names this instrument.
