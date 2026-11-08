@@ -20,6 +20,8 @@
         {
           "kind": "market",
           "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
           "mode": 2,
           "data": {
             "ltp": 24500.1,
@@ -44,6 +46,8 @@
         {
           "kind": "market",
           "topic": "NSE_INDEX_NIFTY_LTP",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
           "mode": 1,
           "data": {
             "ltp": 24500.1,
@@ -62,6 +66,8 @@
         {
           "kind": "market",
           "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
           "mode": 2,
           "data": {
             "ltp": 24510.0,
@@ -86,6 +92,8 @@
         {
           "kind": "market",
           "topic": "NSE_INDEX_NIFTY_LTP",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
           "mode": 1,
           "data": {
             "ltp": 24510.0,

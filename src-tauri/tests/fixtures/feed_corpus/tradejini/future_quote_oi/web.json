@@ -23,6 +23,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
           "mode": 2,
           "data": {
             "ltp": 24550.0,
@@ -53,6 +55,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
           "mode": 2,
           "data": {
             "ltp": 24555.0,

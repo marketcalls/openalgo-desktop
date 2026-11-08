@@ -23,6 +23,8 @@
         {
           "kind": "market",
           "topic": "NSE_INFY_DEPTH",
+          "exchange": "NSE",
+          "symbol": "INFY",
           "mode": 3,
           "data": {
             "ltp": 1155.0,
@@ -67,6 +69,8 @@
         {
           "kind": "market",
           "topic": "NSE_INFY_DEPTH",
+          "exchange": "NSE",
+          "symbol": "INFY",
           "mode": 3,
           "data": {
             "ltp": 1156.0,

@@ -24,6 +24,8 @@
         {
           "kind": "market",
           "topic": "CDS_USDINR25NOV25FUT_QUOTE",
+          "exchange": "CDS",
+          "symbol": "USDINR25NOV25FUT",
           "mode": 2,
           "data": {
             "ltp": 83.85125,

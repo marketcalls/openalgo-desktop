@@ -27,6 +27,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY25NOV25FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
           "mode": 3,
           "data": {
             "ltp": 24550.0,
@@ -117,6 +119,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY25NOV25FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
           "mode": 3,
           "data": {
             "ltp": 24555.0,
