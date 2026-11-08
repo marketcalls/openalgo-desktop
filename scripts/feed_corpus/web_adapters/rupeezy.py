@@ -62,3 +62,7 @@ class Rupeezy(Glue):
         ticks = [t for t in map(self.web["parse_packet"], self.web["split_message"](frame)) if t]
         if ticks:
             self.ad._on_ticks(ticks)
+        # `_topics_for` returns a set, whose order follows the string hash
+        # seed: put one packet's publishes in mode order, so web.json is the
+        # same on every run (the harness pairs them by mode, not by order).
+        self.published.sort(key=lambda p: p["mode"])
