@@ -642,6 +642,9 @@ fn feed() -> (SamcoFeed, Arc<Mutex<ListingIds>>) {
     )
 }
 
+/// Web test/test_samco_quote_feed.py (openalgo#2396, #2397).
+mod quote_feed;
+
 #[test]
 fn feed_handshake_carries_decoded_session_token() {
     let (f, _) = feed();

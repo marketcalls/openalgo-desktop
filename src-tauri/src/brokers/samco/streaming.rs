@@ -18,8 +18,9 @@
 //!   "streaming_type":"quote2"}}` (`_unwrap_tick`, `:522-541`). Fields of
 //!   both are merged per symbol (`_normalize_market_data`, `:543-667`):
 //!   `sym`/`symbol, ltp, ltq, o, h, l, c, ch, chPer, vol, oI, avgPr, bPr,
-//!   bSz, aPr, aSz, tBQ/tbq, tSQ/taq, lTrdT/ltt, bidValues[{price,qty,no}],
-//!   askValues`.
+//!   bSz, aPr, aSz, tBQ/tbq, tSQ/taq, lTrdT/ltt/lttUTC, bidValues[{price,qty,
+//!   no}], askValues`. The average price, the totals and the trade time are
+//!   left out of a frame until Samco has sent them.
 //! * Indices subscribe by `listingId` (`-23`), no suffix
 //!   (`samcoWebSocket.py:849-863`); ids come from `/quote/indexQuote` and
 //!   are shared with the REST adapter through [`ListingIds`].
@@ -27,8 +28,8 @@
 use super::mapping::{int, num, text};
 use super::ListingIds;
 use crate::brokers::common::streaming::{
-    now_ms, ping, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, WsRequest, WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
+    now_ms, ping, round2, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, QuoteField, WsRequest, WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -152,8 +153,8 @@ impl SamcoFeed {
         out
     }
 
-    fn event(&mut self, streaming_type: &str, data: &Map<String, Value>) -> Vec<FeedEvent> {
-        let key = {
+    fn event(&mut self, data: &Map<String, Value>) -> Vec<FeedEvent> {
+        let symbol = {
             let k = text(data.get("symbol"));
             if k.is_empty() {
                 text(data.get("sym"))
@@ -161,86 +162,59 @@ impl SamcoFeed {
                 k
             }
         };
-        let Some(sub) = self.subs.get(&key).cloned() else {
+        let Some((key, sub)) = self.route(&symbol) else {
             return Vec::new();
         };
-        let merged = {
-            let st = self.state.entry(key).or_default();
-            for (k, v) in data {
-                let empty = v.is_null() || v.as_str() == Some("");
-                if !empty {
-                    st.insert(k.clone(), v.clone());
-                }
-            }
-            st.clone()
-        };
-        let g = |k: &str| merged.get(k);
-        let levels = |k: &str| -> Vec<DepthLevel> {
-            g(k).and_then(Value::as_array)
-                .map(|a| {
-                    a.iter()
-                        .map(|l| DepthLevel {
-                            price: num(l.get("price")),
-                            quantity: int(l.get("qty")),
-                            orders: int(l.get("no")),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
-        let bids = levels("bidValues");
-        let asks = levels("askValues");
-        let total = |a: &str, b: &str| {
-            let x = g(a).filter(|v| super::mapping::truthy(Some(v)));
-            int(x.or_else(|| g(b)))
-        };
-        let tbq = total("tbq", "tBQ");
-        let tsq = total("taq", "tSQ");
-        let ts = now_ms();
-        let mut tick = NormalizedTick {
-            symbol: sub.symbol.clone(),
-            exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
-            ltp: num(g("ltp")),
-            open: num(g("o")),
-            high: num(g("h")),
-            low: num(g("l")),
-            close: num(g("c")),
-            volume: int(g("vol")),
-            average_price: num(g("avgPr")),
-            last_quantity: int(g("ltq")),
-            total_buy_quantity: tbq,
-            total_sell_quantity: tsq,
-            oi: int(g("oI")),
-            change: round2(num(g("ch"))),
-            change_percent: round2(num(g("chPer"))),
-            last_trade_time_ms: 0,
-            timestamp_ms: ts,
-            ..Default::default()
-        };
-        if tick.change == 0.0 && tick.change_percent == 0.0 {
-            tick.derive_change();
-        }
-        let _ = streaming_type;
+        let merged = self.merge(key, data);
+        let tick = quote_tick(&sub, &merged, now_ms());
         let mut out = vec![FeedEvent::Tick(tick.clone())];
         if sub.mode == FeedMode::Depth {
-            let pad = |mut v: Vec<DepthLevel>| {
-                v.truncate(5);
-                v.resize(5, DepthLevel::default());
-                v
-            };
-            out.push(FeedEvent::Depth(NormalizedDepth {
-                symbol: sub.symbol,
-                exchange: sub.exchange,
-                ltp: tick.ltp,
-                buy: pad(bids),
-                sell: pad(asks),
-                total_buy_quantity: tbq,
-                total_sell_quantity: tsq,
-                timestamp_ms: ts,
-            }));
+            out.push(FeedEvent::Depth(book(&sub, &merged, &tick)));
         }
         out
+    }
+
+    /// The subscription a frame's symbol names, with its streaming key.
+    /// Samco names a stock `scripCode_segment` (`2885_NSE`) and an index by
+    /// its bare listing id (`-23`). A bare stock scrip code does not say its
+    /// segment, and the same code on another segment is another instrument,
+    /// so it is taken only when a single segment holds that code (web
+    /// openalgo#2396 and #2397, `samco_adapter._on_data`).
+    fn route(&self, symbol: &str) -> Option<(String, SubInfo)> {
+        if let Some(sub) = self.subs.get(symbol) {
+            return Some((symbol.to_string(), sub.clone()));
+        }
+        if symbol.is_empty() || symbol.contains('_') || symbol.starts_with('-') {
+            return None;
+        }
+        let prefix = format!("{}_", symbol);
+        let mut held = self
+            .subs
+            .range(prefix.clone()..)
+            .take_while(|(k, _)| k.starts_with(&prefix));
+        let (key, sub) = held.next()?;
+        if held.next().is_some() {
+            tracing::debug!(
+                "Samco tick for scrip code {} matches more than one segment; dropped",
+                symbol
+            );
+            return None;
+        }
+        Some((key.clone(), sub.clone()))
+    }
+
+    /// Fold `data` into what the other stream last reported for `key`
+    /// (`quote` carries no ladder, `quote2` no ltp or OHLC); an empty value
+    /// keeps the earlier one. The state lives as long as the subscription.
+    fn merge(&mut self, key: String, data: &Map<String, Value>) -> Map<String, Value> {
+        let st = self.state.entry(key).or_default();
+        for (k, v) in data {
+            let empty = v.is_null() || v.as_str() == Some("");
+            if !empty {
+                st.insert(k.clone(), v.clone());
+            }
+        }
+        st.clone()
     }
 
     fn parse_text(&mut self, t: &str) -> Vec<FeedEvent> {
@@ -258,11 +232,141 @@ impl SamcoFeed {
             };
             if matches!(stype.as_str(), "quote" | "quote2" | "marketDepth") {
                 if let Some(p) = payload {
-                    out.extend(self.event(&stype, &p));
+                    out.extend(self.event(&p));
                 }
             }
         }
         out
+    }
+}
+
+/// The first of `keys` Samco has reported, a 0 included: `quote2` names the
+/// book totals `tbq`/`taq` and `quote` names them `tBQ`/`tSQ`, and a 0 from
+/// the depth stream is a real total, not a reason to show the quote
+/// stream's older one (web openalgo#2397, `_first_present`).
+fn first_present<'a>(state: &'a Map<String, Value>, keys: &[&str]) -> Option<&'a Value> {
+    keys.iter().find_map(|k| state.get(*k))
+}
+
+/// The exchange's last trade time, epoch ms (web openalgo#2396,
+/// `_parse_trade_time`): `lTrdT`, then `ltt` (IST wall-clock text, "01 Oct
+/// 2019, 06:47:03 PM"), then `lttUTC` (the same instant in UTC). A number is
+/// epoch ms, or seconds when too small to be ms. None when Samco sent no
+/// time it can read: the receive time is not the trade time.
+fn trade_time_ms(state: &Map<String, Value>) -> Option<i64> {
+    let ist_ms = crate::clock::IST_OFFSET_SECS * 1000;
+    [("lTrdT", ist_ms), ("ltt", ist_ms), ("lttUTC", 0)]
+        .into_iter()
+        .find_map(|(field, offset_ms)| {
+            let value = text(state.get(field));
+            if value.is_empty() {
+                None
+            } else if is_plain_number(&value) {
+                epoch_ms(&value)
+            } else {
+                chrono::NaiveDateTime::parse_from_str(&value, "%d %b %Y, %I:%M:%S %p")
+                    .ok()
+                    .map(|t| t.and_utc().timestamp_millis() - offset_ms)
+            }
+        })
+}
+
+/// Digits with at most one dot.
+fn is_plain_number(value: &str) -> bool {
+    let digits = value.replacen('.', "", 1);
+    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// A plain number as epoch ms: seconds below 10^11, none when it is not
+/// positive.
+fn epoch_ms(value: &str) -> Option<i64> {
+    let n = value.parse::<f64>().ok()?.trunc();
+    if n <= 0.0 || n >= i64::MAX as f64 {
+        return None;
+    }
+    if n >= 1e11 {
+        Some(n as i64)
+    } else {
+        (n as i64).checked_mul(1000)
+    }
+}
+
+/// The tick for `sub` from the merged fields. Average price, the book
+/// totals and the trade time are marked absent until Samco sends them, so
+/// a client is not shown an invented 0 or the receive time (web
+/// openalgo#2396).
+fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> NormalizedTick {
+    let g = |k: &str| merged.get(k);
+    let tbq = first_present(merged, &["tbq", "tBQ"]);
+    let tsq = first_present(merged, &["taq", "tSQ"]);
+    let ltt = trade_time_ms(merged);
+    let mut absent = AbsentFields::default();
+    for (missing, field) in [
+        (g("avgPr").is_none(), QuoteField::AveragePrice),
+        (tbq.is_none(), QuoteField::TotalBuyQuantity),
+        (tsq.is_none(), QuoteField::TotalSellQuantity),
+        (ltt.is_none(), QuoteField::LastTradeTime),
+    ] {
+        if missing {
+            absent = absent.with(field);
+        }
+    }
+    let mut tick = NormalizedTick {
+        symbol: sub.symbol.clone(),
+        exchange: sub.exchange.clone(),
+        mode: sub.mode.code(),
+        ltp: num(g("ltp")),
+        open: num(g("o")),
+        high: num(g("h")),
+        low: num(g("l")),
+        close: num(g("c")),
+        volume: int(g("vol")),
+        average_price: num(g("avgPr")),
+        last_quantity: int(g("ltq")),
+        total_buy_quantity: int(tbq),
+        total_sell_quantity: int(tsq),
+        oi: int(g("oI")),
+        change: round2(num(g("ch"))),
+        change_percent: round2(num(g("chPer"))),
+        last_trade_time_ms: ltt.unwrap_or(0),
+        timestamp_ms: ts,
+        absent,
+    };
+    if tick.change == 0.0 && tick.change_percent == 0.0 {
+        tick.derive_change();
+    }
+    tick
+}
+
+/// The five-level book for a depth subscriber, from the merged ladder.
+fn book(sub: &SubInfo, merged: &Map<String, Value>, tick: &NormalizedTick) -> NormalizedDepth {
+    let levels = |k: &str| -> Vec<DepthLevel> {
+        let mut v: Vec<DepthLevel> = merged
+            .get(k)
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .map(|l| DepthLevel {
+                        price: num(l.get("price")),
+                        quantity: int(l.get("qty")),
+                        orders: int(l.get("no")),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        v.truncate(5);
+        v.resize(5, DepthLevel::default());
+        v
+    };
+    NormalizedDepth {
+        symbol: sub.symbol.clone(),
+        exchange: sub.exchange.clone(),
+        ltp: tick.ltp,
+        buy: levels("bidValues"),
+        sell: levels("askValues"),
+        total_buy_quantity: tick.total_buy_quantity,
+        total_sell_quantity: tick.total_sell_quantity,
+        timestamp_ms: tick.timestamp_ms,
     }
 }
 
@@ -282,6 +386,15 @@ impl BrokerFeed for SamcoFeed {
         })?;
         req.headers_mut().insert("x-session-token", v);
         Ok(req)
+    }
+
+    /// Fields from a dead connection must not survive into the next one
+    /// (web `_cleanup_connection_state`): a `quote2` frame after a
+    /// reconnect would otherwise show the old price and trade time. The
+    /// subscriptions stay; the manager replays them.
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.state.clear();
+        Vec::new()
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
