@@ -1,11 +1,21 @@
-//! mStock: the market data socket (`brokers::mstock::streaming::MstockFeed`).
-//! mStock has no order-update stream, on the web or here.
+//! mStock: the market data socket (`brokers::mstock::streaming::MstockFeed`),
+//! with the session's `MstockBroker` against the fakes so the bridge takes
+//! its depth levels and refusals as a session does. mStock has no
+//! order-update stream, on the web or here.
 
 use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::mstock::streaming::MstockFeed;
+use openalgo_desktop_lib::brokers::mstock::MstockBroker;
+use std::sync::Arc;
 
 fn feeds(env: &Env) -> Feeds {
-    Feeds::market(MstockFeed::new(&env.url("main"), "jwt", "key"))
+    let broker = MstockBroker::with_urls(
+        env.symbols(),
+        env.http_url(),
+        env.http_url(),
+        env.url("main"),
+    );
+    Feeds::market(MstockFeed::new(&env.url("main"), "jwt", "key")).with_broker(Arc::new(broker))
 }
 
 corpus_cases!(

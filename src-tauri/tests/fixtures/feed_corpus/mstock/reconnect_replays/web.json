@@ -19,6 +19,8 @@
         {
           "kind": "market",
           "topic": "NSE_INFY_QUOTE",
+          "exchange": "NSE",
+          "symbol": "INFY",
           "mode": 2,
           "data": {
             "ltp": 1500.5,
@@ -51,6 +53,8 @@
         {
           "kind": "market",
           "topic": "NSE_INFY_QUOTE",
+          "exchange": "NSE",
+          "symbol": "INFY",
           "mode": 2,
           "data": {
             "ltp": 1502.25,
