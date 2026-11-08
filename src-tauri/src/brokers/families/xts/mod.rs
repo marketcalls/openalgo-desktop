@@ -23,6 +23,8 @@ mod funds;
 pub mod mapping;
 pub mod master_contract;
 mod orders;
+#[cfg(test)]
+mod parity_tests;
 pub mod socketio;
 pub mod streaming;
 #[cfg(test)]
