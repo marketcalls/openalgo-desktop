@@ -1,0 +1,77 @@
+{
+  "broker": "jainamxts",
+  "summary": "LTP on an NSE equity and on NIFTY (NSE_INDEX 26000 on segment 1): each subscribe is one REST call with code 1512, each 1512 event becomes an LTP frame with the trade time in Unix milliseconds, and after the unsubscribe (a PUT) a late event reaches nobody.",
+  "scenarios": [
+    "first-full-packet",
+    "index",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50_26000",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apibinarymarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/jainamxts/streaming/jainamxts_websocket.py::JainamXTSWebSocketClient._setup_socketio",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._process_json_data",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "XTS LastTradedTime counts seconds from 1980-01-01 IST; the desktop sends it as Unix milliseconds (families/xts/streaming.rs xts_time_ms).",
+      "One instrument per subscribe, so each REST body names one instrument (the feed batches what arrives together)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltq",
+      "kind": "open",
+      "reason": "The web's XTS LTP data carries the last traded quantity as ltq; the desktop's LTP frames carry no last quantity (audit C06 carrier, lane wire).",
+      "ref": "jainamxts_adapter.py _normalize_market_data (mode 1)"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST); feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it (1794199530000).",
+      "ref": "jainamxts_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming.rs xts_time_ms"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    }
+  ]
+}

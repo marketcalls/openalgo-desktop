@@ -30,6 +30,7 @@ mod fivepaisaxts;
 mod flattrade;
 mod ibulls;
 mod iifl;
+mod jainamxts;
 mod samco;
 mod shoonya;
 mod tradesmart;
@@ -49,6 +50,7 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("flattrade", flattrade::CASES),
     ("ibulls", ibulls::CASES),
     ("iifl", iifl::CASES),
+    ("jainamxts", jainamxts::CASES),
     ("samco", samco::CASES),
     ("shoonya", shoonya::CASES),
     ("tradesmart", tradesmart::CASES),

@@ -1,0 +1,122 @@
+{
+  "broker": "jainamxts",
+  "summary": "Quote on an NSE equity across a dropped socket: the feed logs in to the socket again (Engine.IO open, Socket.IO connect) and, once accepted, subscribes its book again over REST, so the next 1501 event reaches the client.",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apibinarymarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/jainamxts/streaming/jainamxts_websocket.py::JainamXTSWebSocketClient._setup_socketio",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._process_json_data",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._normalize_market_data",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._resubscribe_all"
+    ],
+    "notes": [
+      "The desktop keeps its subscription book across the reconnect and subscribes it again after the connect ack (families/xts/streaming.rs subscribe_frames, websocket::manager resubscribe)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends average_price as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends close as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends high as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends last_quantity as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends low as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "ltp",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends ltp as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote, its LastTradedTime included, in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, so it sends ltt 0. The desktop reads Touchline for every code and sends the trade time in Unix milliseconds.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends open as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends total_buy_quantity as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends total_sell_quantity as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends volume as 0. The desktop reads Touchline for every code.",
+      "ref": "jainamxts_adapter.py _normalize_market_data"
+    }
+  ]
+}

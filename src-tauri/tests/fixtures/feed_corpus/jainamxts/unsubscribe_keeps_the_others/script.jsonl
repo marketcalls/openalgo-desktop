@@ -1,0 +1,18 @@
+{"step": "upstream_connected", "connection": 1, "path": "/apibinarymarketdata/socket.io/?token=tok&userID=U1&publishFormat=JSON&broadcastMode=FULL&EIO=4&transport=websocket", "note": "The market data socket: the member's Socket.IO path and broadcast mode, the stored token and user."}
+{"step": "push", "frame": {"text": "0{\"sid\":\"s1\",\"upgrades\":[],\"pingInterval\":25000,\"pingTimeout\":20000,\"maxPayload\":1000000}"}, "note": "Engine.IO open; the feed answers with the Socket.IO connect."}
+{"step": "upstream_receives", "frames": [{"text": "40"}]}
+{"step": "push", "frame": {"text": "40{\"sid\":\"n1\"}"}, "note": "The Socket.IO connect ack accepts the session; the feed subscribes its book over REST."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "http_receives", "requests": [{"method": "POST", "path": "/apibinarymarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}]}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 2}}
+{"step": "http_receives", "requests": [{"method": "POST", "path": "/apibinarymarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 3045}], "xtsMessageCode": 1501}}]}
+{"step": "push", "frame": "frames/reliance_1501.txt"}
+{"step": "receive", "client": "a", "frame": "expected/reliance_quote.json"}
+{"step": "push", "frame": "frames/sbin_1501.txt"}
+{"step": "receive", "client": "a", "frame": "expected/sbin_quote.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "http_receives", "requests": [{"method": "PUT", "path": "/apibinarymarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}]}
+{"step": "push", "frame": "frames/sbin_1501_after.txt"}
+{"step": "receive", "client": "a", "frame": "expected/sbin_quote_after.json", "web": false}
+{"step": "push", "frame": "frames/reliance_1501.txt", "note": "RELIANCE was let go."}
+{"step": "silence", "client": "a"}
