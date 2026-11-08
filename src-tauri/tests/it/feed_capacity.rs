@@ -240,3 +240,33 @@ async fn a_deep_book_whose_socket_is_down_is_refused_while_the_main_feed_streams
     depth.disconnect().await.expect("stops");
     broker.abort();
 }
+
+/// Web broker/angel/streaming/angel_adapter.py:360: Angel's adapter
+/// refuses a Depth subscribe at anything but 5 levels, before it looks the
+/// symbol up; it was acknowledged here as 5 levels. The error item carries
+/// the adapter's own words, and nothing is held.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_depth_the_brokers_web_adapter_refuses_is_refused() {
+    let h = feed_support::start_full(
+        openalgo_desktop_lib::feed::FakeSource::new(feed_support::known()),
+        openalgo_desktop_lib::feed::orders::OrderRelay::new(),
+        Some("angel"),
+        |_| {},
+    )
+    .await;
+    let mut c = Client::connect(&h.url).await;
+    c.auth().await;
+    let ack = c
+        .request(subscribe(&["RELIANCE", "SBIN"], json!("Depth"), 20))
+        .await;
+    assert_eq!(ack["status"], "partial", "{}", ack);
+    for item in ack["subscriptions"].as_array().expect("items") {
+        assert_eq!(item["status"], "error", "{}", item);
+        assert_eq!(item["message"], "Invalid depth level 20. Must be 5");
+        assert_eq!(item["broker"], "angel");
+    }
+    assert_eq!(h.source.active_count(), 0);
+    let ack = c.request(subscribe(&["RELIANCE"], json!("Depth"), 5)).await;
+    assert_eq!(statuses(&ack), ["success"], "{}", ack);
+    h.handle.stop().await;
+}
