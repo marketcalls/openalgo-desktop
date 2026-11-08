@@ -718,7 +718,7 @@ mod tests {
         let manager = Arc::new(WebSocketManager::new());
         let bridge = BrokerBridge::new(manager.clone(), SymbolResolver::new());
         let key = InstrumentKey::new("SBIN", "NSE");
-        bridge.subscribe(&key, Mode::Depth, 5);
+        drop(bridge.subscribe(&key, Mode::Depth, 5));
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
         let book = FeedEvent::Depth(NormalizedDepth {
             symbol: "SBIN".into(),
@@ -746,7 +746,7 @@ mod tests {
     fn a_packet_without_a_trade_waits_for_the_price() {
         let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
         let key = InstrumentKey::new("NIFTY28NOV26FUT", "NFO");
-        bridge.subscribe(&key, Mode::Quote, 5);
+        drop(bridge.subscribe(&key, Mode::Quote, 5));
         let mut oi = NormalizedTick {
             symbol: key.symbol.clone(),
             exchange: key.exchange.clone(),
