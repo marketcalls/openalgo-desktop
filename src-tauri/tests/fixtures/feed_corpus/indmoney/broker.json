@@ -1,0 +1,19 @@
+{
+  "broker": "indmoney",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {},
+    "orders": "a dedicated order-update socket"
+  },
+  "sources": [
+    "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter.subscribe",
+    "broker/indmoney/streaming/indmoney_mapping.py::IndmoneyCapabilityRegistry",
+    "broker/indmoney/streaming/indmoney_order_adapter.py",
+    "services/order_update_service.py"
+  ],
+  "notes": [
+    "The adapter refuses mode 3 (indmoney_adapter.py:311-315): INDmoney streams LTP and Quote only. Its capability registry lists depth level 1 (the quote's best bid and ask, indmoney_mapping.py:104-117), which no subscribe can reach.",
+    "Exchanges: NSE, NFO, BSE, BFO, NSE_INDEX (NIDX), BSE_INDEX (BIDX)."
+  ]
+}

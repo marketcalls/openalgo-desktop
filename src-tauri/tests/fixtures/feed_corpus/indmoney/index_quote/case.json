@@ -1,0 +1,101 @@
+{
+  "broker": "indmoney",
+  "summary": "A Quote subscription on an NSE index (segment NIDX): the index packet carries the prices only.",
+  "scenarios": [
+    "index",
+    "first-full-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "13",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/indmoney/streaming/indWebSocket.py::IndWebSocket._on_message",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter.subscribe",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._on_data",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._normalize_market_data",
+      "broker/indmoney/streaming/indmoney_mapping.py::IndmoneyExchangeMapper"
+    ],
+    "notes": [
+      "Frames follow the INDstocks price socket's documented shape (indmoney_adapter.py:575-583: mode, instrument, timestamp in ms, data) with fractional prices so a price's JSON type is not what differs."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "open",
+      "reason": "Follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The desktop sends the label (ltp, quote); INDmoney's web adapter sends the subscription's mode number (indmoney_adapter.py:611).",
+      "ref": "lead rule 2026-11-09; feed::source::Mode::data_label; indmoney_adapter.py:608-614"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web sends the packet's own millisecond timestamp as timestamp, the same value it sends as ltt (indmoney_adapter.py:610-614); the desktop sends that value as ltt and its receipt time as timestamp. Which time a frame's timestamp carries when the broker stamps its packets is a desktop-wide wire question (HDFC Sky has the same): lead decision.",
+      "ref": "indmoney_adapter.py:614; feed::bridge::tick_update; brokers/indmoney/streaming.rs:213-234"
+    },
+    {
+      "key": "bid_price",
+      "kind": "web-defect",
+      "reason": "The index packet carries no best bid; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (web openalgo#2376).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    },
+    {
+      "key": "bid_qty",
+      "kind": "web-defect",
+      "reason": "The index packet carries no best bid quantity; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (web openalgo#2376).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    },
+    {
+      "key": "ask_price",
+      "kind": "web-defect",
+      "reason": "The index packet carries no best ask; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (web openalgo#2376).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    },
+    {
+      "key": "ask_qty",
+      "kind": "web-defect",
+      "reason": "The index packet carries no best ask quantity; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (web openalgo#2376).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "The index packet carries no average traded price; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (web openalgo#2376).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The index packet carries no open interest; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (web openalgo#2376).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    },
+    {
+      "key": "oi_change",
+      "kind": "web-defect",
+      "reason": "The index packet carries no OI change; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (web openalgo#2376).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends an index's change and change percent, worked out from the previous close, for every broker (feed::bridge::quote_fields), as the web's Kite index frames carry them; this web adapter sends neither.",
+      "ref": "feed::bridge::quote_fields; NormalizedTick::derive_change; audit C04"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "As price_change.",
+      "ref": "feed::bridge::quote_fields; audit C04"
+    }
+  ]
+}

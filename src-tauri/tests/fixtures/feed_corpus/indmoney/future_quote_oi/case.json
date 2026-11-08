@@ -1,0 +1,105 @@
+{
+  "broker": "indmoney",
+  "summary": "A Quote subscription on an index future (segment NFO, built from the OpenAlgo exchange, not the master's parent brexchange NSE): open interest and its change, then a partial packet whose OI 0 keeps the last OI.",
+  "scenarios": [
+    "derivative-oi",
+    "first-full-packet",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52345",
+      "brsymbol": "NIFTY 24 NOV 26 FUT",
+      "brexchange": "NSE",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "expiry": "24-NOV-26",
+      "name": "NIFTY"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/indmoney/streaming/indWebSocket.py::IndWebSocket._on_message",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter.subscribe",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._on_data",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._normalize_market_data",
+      "broker/indmoney/streaming/indmoney_mapping.py::IndmoneyExchangeMapper"
+    ],
+    "notes": [
+      "Frames follow the INDstocks price socket's documented shape (indmoney_adapter.py:575-583: mode, instrument, timestamp in ms, data) with fractional prices so a price's JSON type is not what differs.",
+      "indmoney_adapter.py:316-327: the instrument is NFO:<token> even though brexchange is NSE."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "open",
+      "reason": "Follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The desktop sends the label (ltp, quote); INDmoney's web adapter sends the subscription's mode number (indmoney_adapter.py:611).",
+      "ref": "lead rule 2026-11-09; feed::source::Mode::data_label; indmoney_adapter.py:608-614"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web sends the packet's own millisecond timestamp as timestamp, the same value it sends as ltt (indmoney_adapter.py:610-614); the desktop sends that value as ltt and its receipt time as timestamp. Which time a frame's timestamp carries when the broker stamps its packets is a desktop-wide wire question (HDFC Sky has the same): lead decision.",
+      "ref": "indmoney_adapter.py:614; feed::bridge::tick_update; brokers/indmoney/streaming.rs:213-234"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "open",
+      "reason": "INDmoney's quote stream carries no last traded quantity; the web leaves it out, the desktop sends 0 because the adapter marks nothing absent (desktop defect).",
+      "ref": "audit C03; brokers/indmoney/streaming.rs IndmoneyFeed::tick"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "open",
+      "reason": "The desktop sends the best bid's quantity as the total buy quantity; the stream carries no book totals and the web sends none. One level's quantity is not the exchange's total (invented data, desktop defect).",
+      "ref": "brokers/indmoney/streaming.rs:252-253; audit C03"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "open",
+      "reason": "The desktop sends the best ask's quantity as the total sell quantity; the stream carries no book totals and the web sends none. One level's quantity is not the exchange's total (invented data, desktop defect).",
+      "ref": "brokers/indmoney/streaming.rs:252-253; audit C03"
+    },
+    {
+      "key": "bid_price",
+      "kind": "open",
+      "reason": "The web's Quote frame carries the quote's best bid and ask, price and quantity (indmoney_adapter.py:681-684); the desktop's frame has no Quote bid/ask fields to carry them (carrier gap for lane wire, then the adapter fills them).",
+      "ref": "audit C06, P-11 (IndMoney quote bid_price/bid_qty/ask_price/ask_qty)"
+    },
+    {
+      "key": "bid_qty",
+      "kind": "open",
+      "reason": "The web's Quote frame carries the quote's best bid and ask, price and quantity (indmoney_adapter.py:681-684); the desktop's frame has no Quote bid/ask fields to carry them (carrier gap for lane wire, then the adapter fills them).",
+      "ref": "audit C06, P-11 (IndMoney quote bid_price/bid_qty/ask_price/ask_qty)"
+    },
+    {
+      "key": "ask_price",
+      "kind": "open",
+      "reason": "The web's Quote frame carries the quote's best bid and ask, price and quantity (indmoney_adapter.py:681-684); the desktop's frame has no Quote bid/ask fields to carry them (carrier gap for lane wire, then the adapter fills them).",
+      "ref": "audit C06, P-11 (IndMoney quote bid_price/bid_qty/ask_price/ask_qty)"
+    },
+    {
+      "key": "ask_qty",
+      "kind": "open",
+      "reason": "The web's Quote frame carries the quote's best bid and ask, price and quantity (indmoney_adapter.py:681-684); the desktop's frame has no Quote bid/ask fields to carry them (carrier gap for lane wire, then the adapter fills them).",
+      "ref": "audit C06, P-11 (IndMoney quote bid_price/bid_qty/ask_price/ask_qty)"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The web's Quote frame carries OI as the stream sends it (indmoney_adapter.py:686); the desktop's Quote frame carries OI only for a Depth subscription (feed::bridge::quote_fields), so a Quote holder of a future loses its open interest (carrier gap).",
+      "ref": "audit C05; feed::bridge::tick_update"
+    },
+    {
+      "key": "oi_change",
+      "kind": "open",
+      "reason": "The web's Quote frame carries the stream's OI change (indmoney_adapter.py:687); the desktop's carrier has no OI-change field (carrier gap for lane wire, then the adapter fills it).",
+      "ref": "audit C06, P-11 (IndMoney quote oi_change)"
+    }
+  ]
+}

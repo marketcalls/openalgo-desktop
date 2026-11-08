@@ -1,0 +1,24 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY24NOV26FUT",
+  "exchange": "NFO",
+  "mode": 2,
+  "broker": "indmoney",
+  "data": {
+    "symbol": "NIFTY24NOV26FUT",
+    "exchange": "NFO",
+    "mode": "quote",
+    "ltp": 24510.5,
+    "ltt": 1794302700777,
+    "timestamp": "<receipt_ms>",
+    "volume": 125000,
+    "last_quantity": 0,
+    "average_price": 24470.25,
+    "total_buy_quantity": 75,
+    "total_sell_quantity": 150,
+    "open": 24400.5,
+    "high": 24550.25,
+    "low": 24380.75,
+    "close": 24390.5
+  }
+}

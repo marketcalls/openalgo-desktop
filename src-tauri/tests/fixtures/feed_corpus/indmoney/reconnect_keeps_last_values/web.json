@@ -1,0 +1,81 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "indmoney",
+  "inputs_sha256": "79b504e3d234fc0913f6ad9a310428866f2e36c97ce8a0f954950a3d2e1a05c8",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1426.5,
+            "ltt": 1794302700123,
+            "open": 1410.5,
+            "high": 1430.25,
+            "low": 1400.75,
+            "close": 1418.5,
+            "volume": 5000,
+            "bid_price": 1426.4,
+            "bid_qty": 10,
+            "ask_price": 1426.6,
+            "ask_qty": 20,
+            "average_price": 1420.5,
+            "oi": 0,
+            "oi_change": 0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": 1794302700123
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1427.25,
+            "ltt": 1794302702789,
+            "open": 1410.5,
+            "high": 1431.5,
+            "low": 1400.75,
+            "close": 1418.5,
+            "volume": 5000,
+            "bid_price": 1427.2,
+            "bid_qty": 15,
+            "ask_price": 1427.3,
+            "ask_qty": 20,
+            "average_price": 1420.5,
+            "oi": 0,
+            "oi_change": 0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": 1794302702789
+          }
+        }
+      ]
+    }
+  ]
+}

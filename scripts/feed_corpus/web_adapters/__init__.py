@@ -7,8 +7,9 @@ from web_adapters.dhan import Dhan
 from web_adapters.groww import Groww
 from web_adapters.hdfcsecurities import HdfcSecurities
 from web_adapters.hdfcsky import HdfcSky
+from web_adapters.indmoney import Indmoney
 from web_adapters.kotak import Kotak
 from web_adapters.sahi import Sahi
 from web_adapters.zerodha import Zerodha
 
-GLUES = {g.broker: g for g in (Angel, Dhan, Groww, HdfcSecurities, HdfcSky, Kotak, Sahi, Zerodha)}
+GLUES = {g.broker: g for g in (Angel, Dhan, Groww, HdfcSecurities, HdfcSky, Indmoney, Kotak, Sahi, Zerodha)}

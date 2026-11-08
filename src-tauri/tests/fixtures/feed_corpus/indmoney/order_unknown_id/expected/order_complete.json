@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "indmoney",
+  "orderid": "96057999",
+  "symbol": "",
+  "exchange": "",
+  "action": "SELL",
+  "quantity": 1,
+  "price": 0.0,
+  "trigger_price": 0.0,
+  "pricetype": "",
+  "product": "",
+  "order_status": "complete",
+  "filled_quantity": 1,
+  "pending_quantity": 0,
+  "average_price": 22.89,
+  "rejection_reason": ""
+}

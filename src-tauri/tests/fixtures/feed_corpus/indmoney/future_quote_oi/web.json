@@ -1,0 +1,85 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "indmoney",
+  "inputs_sha256": "13272714c19452059bc76a6fb3b8a51d0c69ba2af5caa38a04cb337d5d75cc54",
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52345",
+      "brsymbol": "NIFTY 24 NOV 26 FUT",
+      "brexchange": "NSE",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "expiry": "24-NOV-26",
+      "name": "NIFTY"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
+          "mode": 2,
+          "data": {
+            "ltp": 24510.5,
+            "ltt": 1794302700777,
+            "open": 24400.5,
+            "high": 24550.25,
+            "low": 24380.75,
+            "close": 24390.5,
+            "volume": 125000,
+            "bid_price": 24510.25,
+            "bid_qty": 75,
+            "ask_price": 24511.5,
+            "ask_qty": 150,
+            "average_price": 24470.25,
+            "oi": 13456725,
+            "oi_change": -12500,
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": 1794302700777
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
+          "mode": 2,
+          "data": {
+            "ltp": 24512.75,
+            "ltt": 1794302701999,
+            "open": 24400.5,
+            "high": 24550.25,
+            "low": 24380.75,
+            "close": 24390.5,
+            "volume": 125150,
+            "bid_price": 24510.25,
+            "bid_qty": 75,
+            "ask_price": 24511.5,
+            "ask_qty": 150,
+            "average_price": 24470.25,
+            "oi": 13456725,
+            "oi_change": -12500,
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": 1794302701999
+          }
+        }
+      ]
+    }
+  ]
+}

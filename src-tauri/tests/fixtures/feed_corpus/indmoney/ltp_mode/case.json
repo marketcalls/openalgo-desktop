@@ -1,0 +1,47 @@
+{
+  "broker": "indmoney",
+  "summary": "An LTP subscription: the price socket's ltp packet, then the live double-encoded shape naming the bare token with an ltp of 0, which keeps the last price; the unsubscribe releases the ltp stream.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/indmoney/streaming/indWebSocket.py::IndWebSocket._on_message",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter.subscribe",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._on_data",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._normalize_market_data",
+      "broker/indmoney/streaming/indmoney_mapping.py::IndmoneyExchangeMapper"
+    ],
+    "notes": [
+      "Frames follow the INDstocks price socket's documented shape (indmoney_adapter.py:575-583: mode, instrument, timestamp in ms, data) with fractional prices so a price's JSON type is not what differs.",
+      "The second frame is a JSON string holding the JSON (indmoney_order_adapter.py:241 says the order socket double-encodes; the adapter decodes the price socket's twice too, indmoney_adapter.py:571)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "open",
+      "reason": "Follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The desktop sends the label (ltp, quote); INDmoney's web adapter sends the subscription's mode number (indmoney_adapter.py:611).",
+      "ref": "lead rule 2026-11-09; feed::source::Mode::data_label; indmoney_adapter.py:608-614"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web sends the packet's own millisecond timestamp as timestamp, the same value it sends as ltt (indmoney_adapter.py:610-614); the desktop sends that value as ltt and its receipt time as timestamp. Which time a frame's timestamp carries when the broker stamps its packets is a desktop-wide wire question (HDFC Sky has the same): lead decision.",
+      "ref": "indmoney_adapter.py:614; feed::bridge::tick_update; brokers/indmoney/streaming.rs:213-234"
+    }
+  ]
+}
