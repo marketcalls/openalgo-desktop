@@ -319,60 +319,60 @@ fn odd_integer(x: f64) -> bool {
 }
 
 /// `float.__pow__` (`float_pow`), with its special cases before the C
-/// library's `pow`.
-fn float_pow(iv: f64, iw: f64) -> Result<Num, Raised> {
-    if iw == 0.0 {
+/// library's `pow`. CPython names the operands `iv` and `iw`; they are
+/// `base` and `exponent` here because CodeQL reads `iv` as an encryption IV.
+fn float_pow(mut base: f64, exponent: f64) -> Result<Num, Raised> {
+    if exponent == 0.0 {
         return Ok(Num::Float(1.0));
     }
-    if iv.is_nan() {
-        return Ok(Num::Float(iv));
+    if base.is_nan() {
+        return Ok(Num::Float(base));
     }
-    if iw.is_nan() {
-        return Ok(Num::Float(if iv == 1.0 { 1.0 } else { iw }));
+    if exponent.is_nan() {
+        return Ok(Num::Float(if base == 1.0 { 1.0 } else { exponent }));
     }
-    if iw.is_infinite() {
-        let a = iv.abs();
+    if exponent.is_infinite() {
+        let a = base.abs();
         return Ok(Num::Float(if a == 1.0 {
             1.0
-        } else if (iw > 0.0) == (a > 1.0) {
-            iw.abs()
+        } else if (exponent > 0.0) == (a > 1.0) {
+            exponent.abs()
         } else {
             0.0
         }));
     }
-    if iv.is_infinite() {
-        let odd = odd_integer(iw);
-        return Ok(Num::Float(if iw > 0.0 {
+    if base.is_infinite() {
+        let odd = odd_integer(exponent);
+        return Ok(Num::Float(if exponent > 0.0 {
             if odd {
-                iv
+                base
             } else {
-                iv.abs()
+                base.abs()
             }
         } else if odd {
-            0.0f64.copysign(iv)
+            0.0f64.copysign(base)
         } else {
             0.0
         }));
     }
-    if iv == 0.0 {
-        if iw < 0.0 {
+    if base == 0.0 {
+        if exponent < 0.0 {
             return Err("0.0 cannot be raised to a negative power".into());
         }
-        return Ok(Num::Float(if odd_integer(iw) { iv } else { 0.0 }));
+        return Ok(Num::Float(if odd_integer(exponent) { base } else { 0.0 }));
     }
-    let mut base = iv;
     let mut negate = false;
-    if iv < 0.0 {
-        if iw != iw.floor() {
-            return complex_pow((iv, 0.0), (iw, 0.0));
+    if base < 0.0 {
+        if exponent != exponent.floor() {
+            return complex_pow((base, 0.0), (exponent, 0.0));
         }
-        base = -iv;
-        negate = odd_integer(iw);
+        base = -base;
+        negate = odd_integer(exponent);
     }
     if base == 1.0 {
         return Ok(Num::Float(if negate { -1.0 } else { 1.0 }));
     }
-    let ix = base.powf(iw);
+    let ix = base.powf(exponent);
     if ix.is_infinite() {
         return Err(FLOAT_POW_OVERFLOW.into());
     }
