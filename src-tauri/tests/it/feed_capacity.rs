@@ -116,9 +116,9 @@ async fn the_room_is_shared_and_a_batch_past_it_starts_what_fits() {
     let refused = &ack["subscriptions"][2];
     assert_eq!(refused["symbol"], "INFY");
     assert!(
-        refused["message"]
-            .as_str()
-            .is_some_and(|m| m.contains("at most 2 instruments")),
+        refused["message"].as_str().is_some_and(|m| m
+            == "Maximum capacity reached: 1 connections \u{d7} 2 symbols \
+                = 2 symbols. Currently subscribed to 2 symbols."),
         "{}",
         refused
     );

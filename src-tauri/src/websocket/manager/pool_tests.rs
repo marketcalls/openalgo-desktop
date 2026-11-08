@@ -103,9 +103,9 @@ async fn a_full_connection_opens_another_and_an_idle_one_closes() {
         answers.iter().map(|a| a.is_ok()).collect::<Vec<_>>(),
         [true, true, true, true, false]
     );
-    assert!(answers[4]
-        .as_ref()
-        .is_err_and(|why| why.contains("at most 4 instruments")));
+    assert!(answers[4].as_ref().is_err_and(|why| why
+        == "Maximum capacity reached: 2 connections \u{d7} 2 symbols = 4 symbols. \
+                Currently subscribed to 4 symbols."));
     until("the second connection's subscriptions", || {
         on(&seen, 1, "C") && on(&seen, 1, "D")
     })

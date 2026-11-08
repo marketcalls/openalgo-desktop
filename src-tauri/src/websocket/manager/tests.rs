@@ -221,7 +221,9 @@ async fn subscriptions_are_reference_counted_with_effective_mode() {
         .subscribe(vec![sub("D", FeedMode::Ltp)])
         .await
         .unwrap_err();
-    assert!(e.client_message().contains("at most 3 instruments"));
+    assert!(e
+        .client_message()
+        .contains("= 3 symbols. Currently subscribed to 3 symbols."));
     m.unsubscribe_all().await.unwrap();
     assert_eq!(m.instrument_count(), 0);
     m.disconnect().await.unwrap();
@@ -843,6 +845,6 @@ async fn admit_takes_what_fits_and_refuses_the_rest() {
     );
     assert!(answers[3]
         .as_ref()
-        .is_err_and(|why| why.contains("at most 3 instruments")));
+        .is_err_and(|why| why.contains("= 3 symbols. Currently subscribed to 3 symbols.")));
     assert_eq!(m.instrument_count(), 3);
 }

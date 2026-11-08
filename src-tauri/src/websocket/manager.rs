@@ -387,11 +387,18 @@ impl WebSocketManager {
         }
     }
 
-    /// What a reference past the feed's room is refused with.
-    fn no_room(&self, limits: PoolLimits) -> String {
+    /// What a reference past the feed's room is refused with: the web
+    /// pool's MAX_CAPACITY_REACHED words (`websocket_proxy/
+    /// connection_manager.py:364-369`), with this feed's own limits.
+    fn no_room(reg: &Registry) -> String {
+        let limits = reg.limits;
         format!(
-            "You can stream at most {} instruments at once. Unsubscribe some before adding more.",
-            limits.total()
+            "Maximum capacity reached: {} connections \u{d7} {} symbols = {} symbols. \
+             Currently subscribed to {} symbols.",
+            limits.connections,
+            limits.per_connection,
+            limits.total(),
+            reg.per_conn.iter().sum::<usize>()
         )
     }
 
@@ -416,7 +423,7 @@ impl WebSocketManager {
                 })
                 .sum();
             if reg.new_instruments(&subs) > free {
-                return Err(AppError::Validation(self.no_room(reg.limits)));
+                return Err(AppError::Validation(Self::no_room(&reg)));
             }
             let mut deltas = Vec::new();
             for s in subs {
@@ -458,7 +465,7 @@ impl WebSocketManager {
                         deltas.extend(reg.add(s, conn));
                         answers.push(Ok(()));
                     }
-                    None => answers.push(Err(self.no_room(reg.limits))),
+                    None => answers.push(Err(Self::no_room(&reg))),
                 }
             }
             (answers, (deltas, reg.changes))
