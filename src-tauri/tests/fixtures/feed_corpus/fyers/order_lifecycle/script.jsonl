@@ -1,0 +1,15 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"json": {"T": "SUB_ORD", "SLIST": ["orders"], "SUB_T": 1}}]}
+{"step": "upstream_connected", "socket": "orders", "connection": 1, "headers": {"authorization": "APPID-100:eyJhbGciOiJIUzI1NiJ9.eyJoc21fa2V5IjoiaHNta2V5MTIzIiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2ln"}}
+{"step": "push", "frame": "frames/subscribed.json", "socket": "orders"}
+{"step": "silence", "client": "a", "note": "Fyers' subscribe acknowledgement carries no order."}
+{"step": "push", "frame": "frames/order_open.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "push", "frame": "frames/order_partial.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json"}
+{"step": "push", "frame": "frames/order_complete.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "push", "frame": "frames/order_rejected.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
+{"step": "push", "frame": "frames/order_cancelled.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}

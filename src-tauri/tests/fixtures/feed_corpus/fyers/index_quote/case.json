@@ -1,0 +1,165 @@
+{
+  "broker": "fyers",
+  "summary": "A Quote subscription on the NIFTY index: the index feed gives the value, OHLC and previous close with the change worked out, and nothing an index record does not carry.",
+  "scenarios": [
+    "index",
+    "absent-field",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "101000000026000",
+      "brsymbol": "NSE:NIFTY50-INDEX",
+      "brexchange": "NSE",
+      "name": "Nifty 50",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fyers/streaming/fyers_hsm_websocket.py::FyersHSMWebSocket._parse_index_snapshot",
+      "broker/fyers/streaming/fyers_mapping.py::FyersDataMapper.map_to_openalgo_quote"
+    ],
+    "notes": [
+      "change 50.5 = 24350.5 - 24300.0; percent 0.21 (rounded to 2 places)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full); the web's Fyers adapter sends no mode key (its subscription_mode is the number).",
+      "ref": "feed::source::Mode::data_label (docs-7)"
+    },
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
+      "ref": "fyers_mapping.py:178; fyers_adapter.py:553"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The web's Fyers frames carry the broker's exchange token; the desktop's frames do not. Lane wire to decide whether the carrier passes broker tokens.",
+      "ref": "fyers_mapping.py:150"
+    },
+    {
+      "key": "data_type",
+      "kind": "open",
+      "reason": "The web's Fyers frames carry the mapper's data_type label; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
+      "ref": "fyers_mapping.py:179"
+    },
+    {
+      "key": "update_type",
+      "kind": "open",
+      "reason": "The web's Fyers frames say whether the message was a snapshot or a live update; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
+      "ref": "fyers_adapter.py:552"
+    },
+    {
+      "key": "subscription_mode",
+      "kind": "open",
+      "reason": "The web's Fyers frames carry the subscription's mode number; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
+      "ref": "fyers_websocket_adapter.py:319"
+    },
+    {
+      "key": "exchange_time",
+      "kind": "open",
+      "reason": "The web sends HSM's exchange feed time (exch_feed_time, epoch s) as exchange_time; the desktop's common carrier drops it.",
+      "ref": "fyers_mapping.py:167"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop's index frames carry the change as price_change and price_change_percent, the recorded Zerodha transcript's names, beside the Fyers names change, change_percent and percent_change (feed::dialect).",
+      "ref": "feed::protocol::market_data; feed::dialect"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop's index frames carry the change as price_change and price_change_percent, the recorded Zerodha transcript's names, beside the Fyers names change, change_percent and percent_change (feed::dialect).",
+      "ref": "feed::protocol::market_data; feed::dialect"
+    },
+    {
+      "key": "bid_price",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "ask_price",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "bid_size",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "ask_size",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "last_traded_time",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "avg_trade_price",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
+      "ref": "fyers_mapping.py:150-176"
+    }
+  ]
+}

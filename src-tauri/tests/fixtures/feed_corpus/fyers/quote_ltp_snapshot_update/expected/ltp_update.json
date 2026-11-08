@@ -1,0 +1,16 @@
+{
+  "type": "market_data",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "fyers",
+  "data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "mode": "ltp",
+    "ltp": 802.0,
+    "ltt": 1793170005000,
+    "timestamp": "<receipt_ms>",
+    "last_trade_time": 1793170005
+  }
+}

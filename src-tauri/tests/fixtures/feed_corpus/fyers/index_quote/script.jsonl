@@ -1,0 +1,6 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"hex": "0025010401000968736d6b6579313233020001500300010104000c4f70656e416c676f2d48534d"}], "note": "The binary authentication request with the JWT's hsm_key, sent on connect."}
+{"step": "push", "frame": "frames/auth_ok.hex"}
+{"step": "upstream_receives", "frames": [{"hex": "001b040201001500011269667c6e73655f636d7c4e696674792035300200010b"}]}
+{"step": "push", "frame": "frames/index_snapshot.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}

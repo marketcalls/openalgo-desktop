@@ -1,0 +1,12 @@
+# HSM data feed: an index-feed snapshot for NIFTY (no multiplier, precision or strings follow an index record).
+00000600000000  # length (unused), type 6 (data feed), padding
+0001  # scrip count
+531500  # snapshot record (83), topic id 21 (little-endian)
+1269667c6e73655f636d7c4e69667479203530  # topic name if|nse_cm|Nifty 50
+06  # field count 6
+002527ea  # ltp 2435050
+00251430  # prev_close_price 2430000
+6ae19a51  # exch_feed_time 1793170001
+00253b59  # high_price 2440025
+00251093  # low_price 2429075
+00251818  # open_price 2431000

@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"hex": "0025010401000968736d6b6579313233020001500300010104000c4f70656e416c676f2d48534d"}], "note": "The binary authentication request with the JWT's hsm_key, sent on connect."}
+{"step": "push", "frame": "frames/auth_ok.hex"}
+{"step": "upstream_receives", "frames": [{"hex": "0026040201002000020e73667c6e73655f636d7c333034350e64707c6e73655f636d7c333034350200010b"}], "note": "A Depth subscription takes the symbol feed with the depth feed, for its quote."}
+{"step": "push", "frame": "frames/depth_snapshot.hex"}
+{"step": "receive", "client": "a", "frame": "expected/book_before_quote.json", "note": "The book before any quote: no quote fields."}
+{"step": "push", "frame": "frames/quote_snapshot.hex"}
+{"step": "receive", "client": "a", "frame": "expected/book_with_quote.json", "note": "The scrip's first quote sends the waiting book again, now with the quote (audit P-07)."}

@@ -1,0 +1,192 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "fyers",
+  "inputs_sha256": "ff469278a780b9a9cbb95468591951987a07d0278f688e31b12b7bfc75b2e62b",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "10100000003045",
+      "brsymbol": "NSE:SBIN-EQ",
+      "brexchange": "NSE",
+      "name": "STATE BANK OF INDIA"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "mode": 3,
+          "data": {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "token": "3045",
+            "depth": {
+              "buy": [
+                {
+                  "price": 801.45,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 801.4,
+                  "quantity": 25,
+                  "orders": 2
+                },
+                {
+                  "price": 801.35,
+                  "quantity": 40,
+                  "orders": 3
+                },
+                {
+                  "price": 801.3,
+                  "quantity": 55,
+                  "orders": 4
+                },
+                {
+                  "price": 801.25,
+                  "quantity": 70,
+                  "orders": 5
+                }
+              ],
+              "sell": [
+                {
+                  "price": 801.5,
+                  "quantity": 20,
+                  "orders": 2
+                },
+                {
+                  "price": 801.55,
+                  "quantity": 35,
+                  "orders": 3
+                },
+                {
+                  "price": 801.6,
+                  "quantity": 50,
+                  "orders": 4
+                },
+                {
+                  "price": 801.65,
+                  "quantity": 65,
+                  "orders": 5
+                },
+                {
+                  "price": 801.7,
+                  "quantity": 80,
+                  "orders": 6
+                }
+              ]
+            },
+            "timestamp": "<receipt_s>",
+            "data_type": "Depth",
+            "update_type": "snapshot",
+            "subscription_mode": 3
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "mode": 3,
+          "data": {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "token": "3045",
+            "depth": {
+              "buy": [
+                {
+                  "price": 801.45,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 801.4,
+                  "quantity": 25,
+                  "orders": 2
+                },
+                {
+                  "price": 801.35,
+                  "quantity": 40,
+                  "orders": 3
+                },
+                {
+                  "price": 801.3,
+                  "quantity": 55,
+                  "orders": 4
+                },
+                {
+                  "price": 801.25,
+                  "quantity": 70,
+                  "orders": 5
+                }
+              ],
+              "sell": [
+                {
+                  "price": 801.5,
+                  "quantity": 20,
+                  "orders": 2
+                },
+                {
+                  "price": 801.55,
+                  "quantity": 35,
+                  "orders": 3
+                },
+                {
+                  "price": 801.6,
+                  "quantity": 50,
+                  "orders": 4
+                },
+                {
+                  "price": 801.65,
+                  "quantity": 65,
+                  "orders": 5
+                },
+                {
+                  "price": 801.7,
+                  "quantity": 80,
+                  "orders": 6
+                }
+              ]
+            },
+            "timestamp": "<receipt_s>",
+            "data_type": "Depth",
+            "ltp": 801.5,
+            "open": 798.0,
+            "high": 805.0,
+            "low": 795.0,
+            "close": 790.0,
+            "volume": 523000,
+            "avg_trade_price": 800.1,
+            "average_price": 800.1,
+            "last_trade_quantity": 7,
+            "last_quantity": 7,
+            "last_traded_time": 1793170000,
+            "last_trade_time": 1793170000,
+            "exchange_time": 1793170001,
+            "total_buy_quantity": 91000,
+            "total_sell_quantity": 88000,
+            "upper_circuit": 869.0,
+            "lower_circuit": 711.0,
+            "change": 11.5,
+            "change_percent": 1.46,
+            "percent_change": 1.46,
+            "update_type": "snapshot",
+            "subscription_mode": 3
+          }
+        }
+      ]
+    }
+  ]
+}

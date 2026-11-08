@@ -1,0 +1,33 @@
+{
+  "broker": "fyers",
+  "summary": "The Fyers order socket: SUB_ORD after connect with the app_id:token header; the subscribe acknowledgement is not relayed; an order open, partly filled and complete, one rejected with its reason and one cancelled each become an order_update frame.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "10100000003045",
+      "brsymbol": "NSE:SBIN-EQ",
+      "brexchange": "NSE",
+      "name": "STATE BANK OF INDIA"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fyers/streaming/fyers_order_adapter.py::FyersOrderUpdateAdapter.normalize",
+      "broker/fyers/streaming/fyers_order_adapter.py::_unwrap_order_record"
+    ],
+    "notes": [
+      "The record is wrapped in the action key with raw field names, as the adapter's docstring documents."
+    ]
+  },
+  "deviations": []
+}
