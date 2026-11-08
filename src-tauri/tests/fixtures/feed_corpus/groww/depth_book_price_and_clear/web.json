@@ -26,6 +26,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 3,
           "data": {
             "depth": {
@@ -84,6 +86,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 3,
           "data": {
             "depth": {
@@ -149,6 +153,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 3,
           "data": {
             "depth": {
@@ -224,6 +230,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 3,
           "data": {
             "depth": {

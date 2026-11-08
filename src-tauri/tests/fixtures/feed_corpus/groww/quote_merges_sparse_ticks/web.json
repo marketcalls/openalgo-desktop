@@ -26,6 +26,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 2,
           "data": {
             "ltp": 812.5,
@@ -53,6 +55,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 2,
           "data": {
             "ltp": 812.9,
@@ -80,6 +84,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 2,
           "data": {
             "ltp": 0,

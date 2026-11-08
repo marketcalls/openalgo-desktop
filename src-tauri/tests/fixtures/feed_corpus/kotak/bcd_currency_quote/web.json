@@ -31,6 +31,8 @@
         {
           "kind": "market",
           "topic": "BCD_USDINR25NOV26FUT_QUOTE",
+          "exchange": "BCD",
+          "symbol": "USDINR25NOV26FUT",
           "mode": 2,
           "data": {
             "ltp": 83.625,
