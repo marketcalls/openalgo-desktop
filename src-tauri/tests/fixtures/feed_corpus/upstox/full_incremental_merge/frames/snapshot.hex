@@ -1,0 +1,93 @@
+# The first full packet for NIFTY25NOV26FUT: LTPC, the five best bids and asks, the day and minute candles, ATP, vtt, OI and the totals (the audit's P-01 probe values).
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_FO|52175": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 219.3,
+#         "ltt": "1740729550000",
+#         "ltq": "100",
+#         "cp": 494.05
+#        },
+#        "marketLevel": {
+#         "bidAskQuote": [
+#          {
+#           "bidQ": 50,
+#           "bidP": 219.25,
+#           "askQ": 40,
+#           "askP": 219.35
+#          },
+#          {
+#           "bidQ": 100,
+#           "bidP": 219.2,
+#           "askQ": 80,
+#           "askP": 219.4
+#          },
+#          {
+#           "bidQ": 150,
+#           "bidP": 219.15,
+#           "askQ": 120,
+#           "askP": 219.45
+#          },
+#          {
+#           "bidQ": 200,
+#           "bidP": 219.1,
+#           "askQ": 160,
+#           "askP": 219.5
+#          },
+#          {
+#           "bidQ": 250,
+#           "bidP": 219.05,
+#           "askQ": 200,
+#           "askP": 219.55
+#          }
+#         ]
+#        },
+#        "marketOHLC": {
+#         "ohlc": [
+#          {
+#           "interval": "1d",
+#           "open": 480.0,
+#           "high": 495.0,
+#           "low": 210.0,
+#           "close": 219.3,
+#           "vol": "1234500",
+#           "ts": "1740681000000"
+#          },
+#          {
+#           "interval": "I1",
+#           "open": 219.0,
+#           "high": 219.5,
+#           "low": 218.9,
+#           "close": 219.3,
+#           "vol": "1500",
+#           "ts": "1740729540000"
+#          }
+#         ]
+#        },
+#        "atp": 300.25,
+#        "vtt": "1234575",
+#        "oi": 98765.0,
+#        "tbq": 5000.0,
+#        "tsq": 6000.0
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729566039"
+#   }
+080112c8020a0c4e53455f464f7c353231373512b70212b2020aaf020a1b099a
+99999999696b4010b089c4dcd432186421cdcccccccce07e40127d0a16083211
+0000000000686b4018282133333333336b6b400a160864116666666666666b40
+185021cdcccccccc6c6b400a1708960111cdcccccccc646b4018782166666666
+666e6b400a1808c801113333333333636b4018a001210000000000706b400a18
+08fa01119a99999999616b4018c801219a99999999716b4022690a330a023164
+110000000000007e40190000000000f07e40210000000000406a40299a999999
+99696b4030c4ac4b38c0e8b0c5d4320a320a024931110000000000606b401900
+00000000706b4021cdcccccccc5c6b40299a99999999696b4030dc0b38a0bbc3
+dcd432290000000000c47240308fad4b3900000000d01cf84049000000000088
+b34051000000000070b740200118d786c5dcd432

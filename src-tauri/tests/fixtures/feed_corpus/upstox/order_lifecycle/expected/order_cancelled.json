@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "upstox",
+  "orderid": "251109000003",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 10,
+  "price": 1300.5,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "CNC",
+  "order_status": "cancelled",
+  "filled_quantity": 0,
+  "pending_quantity": 10,
+  "average_price": 0.0,
+  "rejection_reason": ""
+}

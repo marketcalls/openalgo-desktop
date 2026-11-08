@@ -1,0 +1,37 @@
+# A full packet whose only candle is the minute candle (I1): it must not stand in for the day's OHLC (audit P-02).
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_FO|52175": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 220.2,
+#         "ltt": "1740729556000",
+#         "ltq": "10"
+#        },
+#        "marketOHLC": {
+#         "ohlc": [
+#          {
+#           "interval": "I1",
+#           "open": 220.0,
+#           "high": 220.5,
+#           "low": 219.8,
+#           "close": 220.2,
+#           "vol": "900",
+#           "ts": "1740729550000"
+#          }
+#         ]
+#        }
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729566200"
+#   }
+080112600a0c4e53455f464f7c35323137351250124c0a4a0a12096666666666
+866b4010a0b8c4dcd432180a22340a320a024931110000000000806b40190000
+000000906b40219a99999999796b40296666666666866b4030840738b089c4dc
+d432200118f887c5dcd432

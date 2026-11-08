@@ -1,0 +1,74 @@
+{
+  "broker": "upstox",
+  "summary": "Quote and Depth on an NFO future: Upstox's incremental full packets are merged into the instrument's snapshot, so an LTPC-only packet, a minute-candle-only packet and a book-only packet each keep what they do not carry; volume is vtt and close the previous close.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "depth-update",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "NSE_FO|52175",
+      "brsymbol": "NIFTY FUT 25 NOV 26",
+      "brexchange": "NSE_FO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._process_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._merge_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._build_payload",
+      "broker/upstox/streaming/upstox_client.py::UpstoxWebSocketClient._decode_protobuf_to_dict",
+      "test/test_upstox_quote_feed.py"
+    ],
+    "notes": [
+      "Values are the audit's P-01/P-02 probe values (WEBSOCKET_AUDIT_PRIMARY_BROKERS.md)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the web's Upstox payload has no mode key.",
+      "ref": "feed::source::Mode::data_label (docs-7)"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The web's Upstox frames carry the subscription's broker token (the instrument key); the desktop's do not. Lane wire to decide whether the carrier passes broker tokens.",
+      "ref": "upstox_adapter.py:884"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web stamps Upstox Quote and Depth frames with the broker's currentTs; the desktop stamps its receipt time (audit P-02, still open: the Upstox decoder should carry FeedResponse.current_ts, receipt time only when it is absent).",
+      "ref": "upstox_adapter.py:902; brokers/upstox/streaming.rs parse_frame"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Upstox sends OI as a double; the web passes it on as a float (98765.0), the desktop sends the whole contract count (98765), as every other broker's OI and the docs' integer OI are.",
+      "ref": "upstox_adapter.py:828 (float(ff['oi']))"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    },
+    {
+      "key": "depth",
+      "kind": "open",
+      "reason": "Upstox's book has no order counts: the web's levels carry price and quantity only and its book carries the broker's currentTs as depth.timestamp; the desktop's levels carry orders 0 (an invented zero, the 1.0.6 known limitation) and no book timestamp. Lane wire: leave orders out where the broker sends none.",
+      "ref": "upstox_adapter.py:909-914; brokers/upstox/feed_snapshot.rs book"
+    }
+  ]
+}

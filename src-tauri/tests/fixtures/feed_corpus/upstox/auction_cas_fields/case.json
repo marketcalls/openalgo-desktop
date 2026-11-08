@@ -1,0 +1,85 @@
+{
+  "broker": "upstox",
+  "summary": "A Quote during the closing auction: the quote fields as usual; the web also publishes the indicative equilibrium price, reference price, equilibrium and imbalance quantities and the auction flag.",
+  "scenarios": [
+    "first-full-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "NSE_EQ|INE002A01018",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._process_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._merge_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._build_payload",
+      "broker/upstox/streaming/upstox_client.py::UpstoxWebSocketClient._decode_protobuf_to_dict",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._extract_cas_fields"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the web's Upstox payload has no mode key.",
+      "ref": "feed::source::Mode::data_label (docs-7)"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The web's Upstox frames carry the subscription's broker token (the instrument key); the desktop's do not. Lane wire to decide whether the carrier passes broker tokens.",
+      "ref": "upstox_adapter.py:884"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web stamps Upstox Quote and Depth frames with the broker's currentTs; the desktop stamps its receipt time (audit P-02, still open: the Upstox decoder should carry FeedResponse.current_ts, receipt time only when it is absent).",
+      "ref": "upstox_adapter.py:902; brokers/upstox/streaming.rs parse_frame"
+    },
+    {
+      "key": "indicative_equilibrium_price",
+      "kind": "open",
+      "reason": "The web sends Upstox's closing-auction fields, from the tick that carried them; the desktop's decoder reads them (proto.rs) and the common carrier drops them (audit P-11; lane wire must carry them, then the Upstox decoder fills them per tick, keeping the sign of the imbalance).",
+      "ref": "upstox_adapter.py:957-1010"
+    },
+    {
+      "key": "reference_price",
+      "kind": "open",
+      "reason": "The web sends Upstox's closing-auction fields, from the tick that carried them; the desktop's decoder reads them (proto.rs) and the common carrier drops them (audit P-11; lane wire must carry them, then the Upstox decoder fills them per tick, keeping the sign of the imbalance).",
+      "ref": "upstox_adapter.py:957-1010"
+    },
+    {
+      "key": "indicative_equilibrium_quantity",
+      "kind": "open",
+      "reason": "The web sends Upstox's closing-auction fields, from the tick that carried them; the desktop's decoder reads them (proto.rs) and the common carrier drops them (audit P-11; lane wire must carry them, then the Upstox decoder fills them per tick, keeping the sign of the imbalance).",
+      "ref": "upstox_adapter.py:957-1010"
+    },
+    {
+      "key": "indicative_imbalance_quantity_total",
+      "kind": "open",
+      "reason": "The web sends Upstox's closing-auction fields, from the tick that carried them; the desktop's decoder reads them (proto.rs) and the common carrier drops them (audit P-11; lane wire must carry them, then the Upstox decoder fills them per tick, keeping the sign of the imbalance).",
+      "ref": "upstox_adapter.py:957-1010"
+    },
+    {
+      "key": "indicative_imbalance_quantity_market",
+      "kind": "open",
+      "reason": "The web sends Upstox's closing-auction fields, from the tick that carried them; the desktop's decoder reads them (proto.rs) and the common carrier drops them (audit P-11; lane wire must carry them, then the Upstox decoder fills them per tick, keeping the sign of the imbalance).",
+      "ref": "upstox_adapter.py:957-1010"
+    },
+    {
+      "key": "cas_eligible",
+      "kind": "open",
+      "reason": "The web sends Upstox's closing-auction fields, from the tick that carried them; the desktop's decoder reads them (proto.rs) and the common carrier drops them (audit P-11; lane wire must carry them, then the Upstox decoder fills them per tick, keeping the sign of the imbalance).",
+      "ref": "upstox_adapter.py:957-1010"
+    }
+  ]
+}

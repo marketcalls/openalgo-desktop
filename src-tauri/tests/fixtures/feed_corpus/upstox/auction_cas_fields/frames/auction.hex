@@ -1,0 +1,51 @@
+# A full packet during the closing auction: the indicative equilibrium price (LTPC wrapper), the reference price, the equilibrium and signed imbalance quantities and the auction flag.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_EQ|INE002A01018": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 1301.0,
+#         "ltt": "1740729560000",
+#         "ltq": "5",
+#         "cp": 1295.0,
+#         "iep": 1302.0
+#        },
+#        "marketOHLC": {
+#         "ohlc": [
+#          {
+#           "interval": "1d",
+#           "open": 1290.0,
+#           "high": 1310.0,
+#           "low": 1285.0,
+#           "close": 1301.0,
+#           "vol": "50000",
+#           "ts": "1740681000000"
+#          }
+#         ]
+#        },
+#        "atp": 1299.5,
+#        "vtt": "50000",
+#        "tbq": 9000.0,
+#        "tsq": 8000.0,
+#        "rp": 1300.0,
+#        "ieq": "5000",
+#        "iiqTotal": "-4200",
+#        "iiqM": "300",
+#        "casEligible": true
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729566600"
+#   }
+080112bb010a134e53455f45517c494e4530303241303130313812a301129e01
+0a9b010a2609000000000054944010c0d7c4dcd43218052100000000003c9440
+2a0909000000000058944022350a330a02316411000000000028944019000000
+000078944021000000000014944029000000000054944030d0860338c0e8b0c5
+d4322900000000004e944030d0860349000000000094c14051000000000040bf
+406100000000005094406888277098dfffffffffffffff0178ac028001012001
+18888bc5dcd432

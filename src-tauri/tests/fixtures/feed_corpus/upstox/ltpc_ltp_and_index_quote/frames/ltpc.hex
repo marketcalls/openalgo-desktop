@@ -1,0 +1,20 @@
+# An ltpc-mode packet for RELIANCE.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_EQ|INE002A01018": {
+#      "ltpc": {
+#       "ltp": 1301.25,
+#       "ltt": "1740729560000",
+#       "ltq": "5",
+#       "cp": 1295.0
+#      },
+#      "requestMode": "ltpc"
+#     }
+#    },
+#    "currentTs": "1740729566400"
+#   }
+080112360a134e53455f45517c494e45303032413031303138121f0a1b090000
+00000055944010c0d7c4dcd43218052100000000003c9440200018c089c5dcd4
+32

@@ -1,0 +1,67 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "upstox",
+  "inputs_sha256": "e5642412c6eec8b23c6882c40cb236113f3a7316bb24693da60514737ec595b5",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "NSE_EQ|INE002A01018",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    },
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "NSE_INDEX|Nifty 50",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "mode": 1,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "NSE_EQ|INE002A01018",
+            "ltp": 1301.25,
+            "ltq": 5,
+            "ltt": 1740729560000,
+            "cp": 1295.0
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "token": "NSE_INDEX|Nifty 50",
+            "ltp": 24350.5,
+            "open": 24310.0,
+            "high": 24400.25,
+            "low": 24290.75,
+            "close": 24300.0,
+            "ltt": 1740729561000,
+            "last_trade_time": 1740729561000,
+            "timestamp": 1740729566500
+          }
+        }
+      ]
+    }
+  ]
+}

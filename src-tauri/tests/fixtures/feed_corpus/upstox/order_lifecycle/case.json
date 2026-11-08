@@ -1,0 +1,29 @@
+{
+  "broker": "upstox",
+  "summary": "Upstox's portfolio stream: a position update is not relayed; an order open, partly filled and complete, one rejected with its reason and one cancelled each become an order_update frame with OpenAlgo's symbol (by instrument token) and product.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "NSE_EQ|INE002A01018",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/upstox/streaming/upstox_order_adapter.py::UpstoxOrderUpdateAdapter.normalize"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

@@ -6,6 +6,7 @@ from web_adapters.angel import Angel
 from web_adapters.deltaexchange import DeltaExchange
 from web_adapters.dhan import Dhan
 from web_adapters.fyers import Fyers
+from web_adapters.upstox import Upstox
 from web_adapters.zerodha import Zerodha
 
-GLUES = {g.broker: g for g in (Angel, DeltaExchange, Dhan, Fyers, Zerodha)}
+GLUES = {g.broker: g for g in (Angel, DeltaExchange, Dhan, Fyers, Upstox, Zerodha)}

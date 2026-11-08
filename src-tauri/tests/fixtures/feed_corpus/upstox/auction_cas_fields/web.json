@@ -1,0 +1,52 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "upstox",
+  "inputs_sha256": "830d6b01985742fde2cfacea28d6295b81d7489f9f7ccc3b668144138f149337",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "NSE_EQ|INE002A01018",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "NSE_EQ|INE002A01018",
+            "ltp": 1301.0,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "close": 1295.0,
+            "last_trade_quantity": 5,
+            "last_quantity": 5,
+            "volume": 50000,
+            "average_price": 1299.5,
+            "total_buy_quantity": 9000,
+            "total_sell_quantity": 8000,
+            "ltt": 1740729560000,
+            "last_trade_time": 1740729560000,
+            "timestamp": 1740729566600,
+            "indicative_equilibrium_price": 1302.0,
+            "reference_price": 1300.0,
+            "indicative_equilibrium_quantity": 5000,
+            "indicative_imbalance_quantity_total": -4200,
+            "indicative_imbalance_quantity_market": 300,
+            "cas_eligible": true
+          }
+        }
+      ]
+    }
+  ]
+}

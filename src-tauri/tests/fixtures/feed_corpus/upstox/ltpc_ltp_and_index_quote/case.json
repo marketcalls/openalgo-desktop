@@ -1,0 +1,89 @@
+{
+  "broker": "upstox",
+  "summary": "LTP on an equity and Quote on an index: the ltpc packet gives the LTP frame; the index packet gives OHLC from the day candle, the previous close and the change, and nothing an index does not carry.",
+  "scenarios": [
+    "first-full-packet",
+    "index",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "NSE_EQ|INE002A01018",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    },
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "NSE_INDEX|Nifty 50",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._process_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._merge_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._build_payload",
+      "broker/upstox/streaming/upstox_client.py::UpstoxWebSocketClient._decode_protobuf_to_dict"
+    ],
+    "notes": [
+      "change 50.5 = 24350.5 - 24300.0; percent 0.21 (rounded to 2 places)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the web's Upstox payload has no mode key.",
+      "ref": "feed::source::Mode::data_label (docs-7)"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The web's Upstox frames carry the subscription's broker token (the instrument key); the desktop's do not. Lane wire to decide whether the carrier passes broker tokens.",
+      "ref": "upstox_adapter.py:884"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web stamps Upstox Quote and Depth frames with the broker's currentTs; the desktop stamps its receipt time (audit P-02, still open: the Upstox decoder should carry FeedResponse.current_ts, receipt time only when it is absent).",
+      "ref": "upstox_adapter.py:902; brokers/upstox/streaming.rs parse_frame"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop's index frames carry the change since the previous close, as the recorded Zerodha index transcript does; the web's Upstox adapter sends no change.",
+      "ref": "feed::protocol::market_data (index branch)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop's index frames carry the change since the previous close, as the recorded Zerodha index transcript does; the web's Upstox adapter sends no change.",
+      "ref": "feed::protocol::market_data (index branch)"
+    },
+    {
+      "key": "ltq",
+      "kind": "open",
+      "reason": "The web's Upstox LTP payload is the raw LTPC (ltp, ltq, ltt, cp) and the token, with no timestamp or mode; the desktop's LTP frame carries ltp, ltt, timestamp and mode. Lane wire to decide (LTP frame shape).",
+      "ref": "upstox_adapter.py:889-892"
+    },
+    {
+      "key": "cp",
+      "kind": "open",
+      "reason": "The web's Upstox LTP payload is the raw LTPC (ltp, ltq, ltt, cp) and the token, with no timestamp or mode; the desktop's LTP frame carries ltp, ltt, timestamp and mode. Lane wire to decide (LTP frame shape).",
+      "ref": "upstox_adapter.py:889-892"
+    },
+    {
+      "key": "last_trade_time",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends Upstox's web name for the trade time beside ltt in every mode (feed::dialect); the web's LTP payload has ltt only.",
+      "ref": "feed::dialect (Upstox last_trade_time)"
+    }
+  ]
+}

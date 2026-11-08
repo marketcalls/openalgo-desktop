@@ -1,0 +1,54 @@
+# A full packet that carries only a new book.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_FO|52175": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "marketLevel": {
+#         "bidAskQuote": [
+#          {
+#           "bidQ": 70,
+#           "bidP": 220.15,
+#           "askQ": 30,
+#           "askP": 220.25
+#          },
+#          {
+#           "bidQ": 90,
+#           "bidP": 220.1,
+#           "askQ": 60,
+#           "askP": 220.3
+#          },
+#          {
+#           "bidQ": 110,
+#           "bidP": 220.05,
+#           "askQ": 90,
+#           "askP": 220.35
+#          },
+#          {
+#           "bidQ": 130,
+#           "bidP": 220.0,
+#           "askQ": 120,
+#           "askP": 220.4
+#          },
+#          {
+#           "bidQ": 150,
+#           "bidP": 219.95,
+#           "askQ": 150,
+#           "askP": 220.45
+#          }
+#         ]
+#        }
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729566300"
+#   }
+08011294010a0c4e53455f464f7c3532313735128301127f0a7d127b0a160846
+11cdcccccccc846b40181e210000000000886b400a16085a113333333333836b
+40183c219a99999999896b400a16086e119a99999999816b40185a2133333333
+338b6b400a17088201110000000000806b40187821cdcccccccc8c6b400a1808
+96011166666666667e6b401896012166666666668e6b40200118dc88c5dcd432

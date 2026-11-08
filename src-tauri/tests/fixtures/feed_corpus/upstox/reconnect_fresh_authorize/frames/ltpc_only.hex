@@ -1,0 +1,22 @@
+# The first packet on the new connection: LTPC only.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_FO|52175": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 220.0,
+#         "ltt": "1740729553000",
+#         "ltq": "150"
+#        }
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729570000"
+#   }
+0801122b0a0c4e53455f464f7c3532313735121b12170a150a13090000000000
+806b4010e8a0c4dcd432189601200118d0a5c5dcd432

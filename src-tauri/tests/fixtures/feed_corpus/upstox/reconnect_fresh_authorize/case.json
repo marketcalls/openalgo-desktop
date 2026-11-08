@@ -1,0 +1,113 @@
+{
+  "broker": "upstox",
+  "summary": "Upstox drops the socket: the feed authorizes again, connects to the new signed address and subscribes again; the first packet after it shows only what it carries.",
+  "scenarios": [
+    "reconnect",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "NSE_FO|52175",
+      "brsymbol": "NIFTY FUT 25 NOV 26",
+      "brexchange": "NSE_FO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._process_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._merge_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._build_payload",
+      "broker/upstox/streaming/upstox_client.py::UpstoxWebSocketClient._decode_protobuf_to_dict",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._on_connect"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the web's Upstox payload has no mode key.",
+      "ref": "feed::source::Mode::data_label (docs-7)"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The web's Upstox frames carry the subscription's broker token (the instrument key); the desktop's do not. Lane wire to decide whether the carrier passes broker tokens.",
+      "ref": "upstox_adapter.py:884"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web stamps Upstox Quote and Depth frames with the broker's currentTs; the desktop stamps its receipt time (audit P-02, still open: the Upstox decoder should carry FeedResponse.current_ts, receipt time only when it is absent).",
+      "ref": "upstox_adapter.py:902; brokers/upstox/streaming.rs parse_frame"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    },
+    {
+      "key": "volume",
+      "kind": "desktop-decision",
+      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "open",
+      "kind": "desktop-decision",
+      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "high",
+      "kind": "desktop-decision",
+      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "low",
+      "kind": "desktop-decision",
+      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "close",
+      "kind": "desktop-decision",
+      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "oi",
+      "kind": "desktop-decision",
+      "reason": "The desktop starts each connection's merge afresh (UpstoxFeed::on_connected clears the snapshots: a quote merged on the last socket is not this session's, the per-epoch merge the audit asks the desktop to keep); the web keeps the snapshot across a reconnect, so its first packet after one carries the old session's fields. (Before the drop the values differ as well: the web's OI is a float, see full_incremental_merge.)",
+      "ref": "brokers/upstox/streaming.rs on_connected"
+    }
+  ]
+}
