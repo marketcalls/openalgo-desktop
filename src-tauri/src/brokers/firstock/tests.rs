@@ -327,11 +327,10 @@ fn feed_url_frames_and_ticks() {
     let FeedEvent::Depth(d) = &ev[1] else {
         panic!()
     };
-    assert_eq!(
-        (d.buy[0].price, d.sell[0].quantity, d.sell[1].price),
-        (25079.9, 150, 0.0)
-    );
-    assert_eq!(d.buy.len(), 5);
+    assert_eq!((d.buy[0].price, d.sell[0].quantity), (25079.9, 150));
+    // The sentinel ask is dropped and no zero level is added: a side has
+    // the levels Firstock sent (lead rule 2026-11-09).
+    assert_eq!((d.buy.len(), d.sell.len()), (1, 1));
     assert!(matches!(
         f.parse_text(&resp("feed_failed").to_string())[0],
         FeedEvent::AuthFailed(_)
@@ -479,13 +478,7 @@ fn an_invalid_depth_side_keeps_the_valid_book() {
     let d = book(f.parse_text(&tick(mixed, valid)));
     assert_eq!(
         side(&d.buy),
-        vec![
-            (100.05, 7, 2),
-            (99.95, 3, 1),
-            (0.0, 0, 0),
-            (0.0, 0, 0),
-            (0.0, 0, 0)
-        ],
-        "invalid levels drop out instead of pushing valid ones down"
+        vec![(100.05, 7, 2), (99.95, 3, 1)],
+        "invalid levels drop out instead of pushing valid ones down, and no zero level is added"
     );
 }

@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 32. Open gaps: 31. Deviations pending approval: 99.
+Cases: 32. Open gaps: 31. Deviations pending approval: 100.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -170,6 +170,7 @@ Cases: 32. Open gaps: 31. Deviations pending approval: 99.
 | firstock | `depth_future_book_clear` | `average_price` | web-defect | no | Firstock's tick carries average_price and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals. |
 | firstock | `depth_future_book_clear` | `total_buy_quantity` | web-defect | no | Firstock's tick carries total_buy_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals. |
 | firstock | `depth_future_book_clear` | `total_sell_quantity` | web-defect | no | Firstock's tick carries total_sell_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals. |
+| firstock | `depth_future_book_clear` | `depth` | web-defect | no | The web pads a side with fewer than five valid levels to five with zero levels Firstock did not send (_extract_depth_data); a book carries the levels the broker sent (lead rule 2026-11-09). The desktop sends the two valid bids alone. |
 | firstock | `index_quote` | `ltt` | web-defect | no | Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms. |
 | firstock | `index_quote` | `price_change` | open | no | The web's Firstock adapter sends no change for any instrument; an index's change keys follow the adapter (lead decision 2026-11-09), so they go once the per-broker index_change switch lands (lane wire). |
 | firstock | `index_quote` | `price_change_percent` | open | no | As price_change. |

@@ -144,13 +144,17 @@ impl FirstockFeed {
         self.snapshots.len()
     }
 
+    /// The valid levels Firstock sent for a side, at most five. The web pads
+    /// a side to five with zero levels (`_extract_depth_data`); that padding
+    /// is not Firstock's and is not sent (lead rule 2026-11-09: levels are
+    /// what the broker's packet carried).
     fn levels(m: &Map<String, Value>, side: &str) -> Vec<DepthLevel> {
-        let mut out: Vec<DepthLevel> = m
-            .get(side)
+        m.get(side)
             .and_then(Value::as_array)
             .map(|a| {
                 a.iter()
                     .filter_map(Value::as_object)
+                    .take(5)
                     .map(|l| DepthLevel {
                         price: get(l, "price") / 100.0,
                         quantity: get(l, "quantity") as i64,
@@ -158,10 +162,7 @@ impl FirstockFeed {
                     })
                     .collect()
             })
-            .unwrap_or_default();
-        out.resize(5, DepthLevel::default());
-        out.truncate(5);
-        out
+            .unwrap_or_default()
     }
 
     fn tick(&mut self, data: &Map<String, Value>) -> Vec<FeedEvent> {
