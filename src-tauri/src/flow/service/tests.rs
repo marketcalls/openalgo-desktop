@@ -113,8 +113,13 @@ fn scheduled(time: &str) -> Value {
              "data": {"scheduleType": "daily", "time": time, "days": [1, 2, 3, 4, 5]}}])
 }
 
+/// An active workflow scheduled for 15:15, never the minute the test clock
+/// is pinned at (09:15 IST on a weekday): the start-up restore runs beside
+/// the test, and when it reads the row after `set_active` it registers the
+/// schedule, which is then due at once and starts a run that holds the
+/// workflow, so a delete answered 409 (CI, PR #217).
 async fn active_workflow(app: &Arc<AppState>) -> i64 {
-    let w = create_workflow(app, "A".into(), None, scheduled("09:15"), json!([]))
+    let w = create_workflow(app, "A".into(), None, scheduled("15:15"), json!([]))
         .await
         .unwrap();
     let conn = app.sqlite.conn().unwrap();
