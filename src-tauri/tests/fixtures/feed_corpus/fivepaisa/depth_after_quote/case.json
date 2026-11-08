@@ -32,15 +32,15 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web websocket transcripts"
+      "kind": "open",
+      "reason": "The 5paisa web adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (5paisa: the number).",
+      "ref": "fivepaisa_adapter.py:_on_data (market_data.update mode); feed/dialect.rs (lane wire)"
     },
     {
       "key": "open",
-      "kind": "web-defect",
-      "reason": "The web passes 5paisa's JSON number on as it came, so a whole price (the web test's OpenRate 445) goes out as an integer (445); the desktop sends every price as a float (445.0), as the docs' frames (docs/prompt/websockets-format.md) and every other broker's prices are. Same value, other JSON type.",
-      "ref": "fivepaisa_adapter.py:_quote_fields (feed.get(\"OpenRate\", 0))"
+      "kind": "open",
+      "reason": "The 5paisa web adapter passes 5paisa's JSON number on as it came, so a whole price (the web test's OpenRate 445) goes out as an integer (445) where the desktop sends a float (445.0). Same value, another JSON type: follows the web adapter in Phase B through lane wire's per-broker number types (5paisa: a price keeps the type of the frame's value).",
+      "ref": "fivepaisa_adapter.py:_quote_fields (feed.get(\"OpenRate\", 0)); feed/dialect.rs (lane wire)"
     },
     {
       "key": "percent_change",

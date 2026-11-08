@@ -30,9 +30,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web websocket transcripts"
+      "kind": "open",
+      "reason": "The 5paisa web adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (5paisa: the number).",
+      "ref": "fivepaisa_adapter.py:_on_data (market_data.update mode); feed/dialect.rs (lane wire)"
     },
     {
       "key": "price_change",
@@ -48,32 +48,32 @@
     },
     {
       "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "kind": "open",
+      "reason": "The 5paisa web adapter sends an index the equity quote keys, with 5paisa's zeros for the traded quantity, average price and book totals; the desktop's renderer gives an index the recorded Zerodha index shape without them. Field presence follows the broker's web adapter: in Phase B through lane wire's per-broker presence (5paisa: an index carries them).",
       "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
     },
     {
       "key": "last_trade_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "kind": "open",
+      "reason": "The 5paisa web adapter sends an index the equity quote keys, with 5paisa's zeros for the traded quantity, average price and book totals; the desktop's renderer gives an index the recorded Zerodha index shape without them. Field presence follows the broker's web adapter: in Phase B through lane wire's per-broker presence (5paisa: an index carries them).",
       "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
     },
     {
       "key": "average_price",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "kind": "open",
+      "reason": "The 5paisa web adapter sends an index the equity quote keys, with 5paisa's zeros for the traded quantity, average price and book totals; the desktop's renderer gives an index the recorded Zerodha index shape without them. Field presence follows the broker's web adapter: in Phase B through lane wire's per-broker presence (5paisa: an index carries them).",
       "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
     },
     {
       "key": "total_buy_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "kind": "open",
+      "reason": "The 5paisa web adapter sends an index the equity quote keys, with 5paisa's zeros for the traded quantity, average price and book totals; the desktop's renderer gives an index the recorded Zerodha index shape without them. Field presence follows the broker's web adapter: in Phase B through lane wire's per-broker presence (5paisa: an index carries them).",
       "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "kind": "open",
+      "reason": "The 5paisa web adapter sends an index the equity quote keys, with 5paisa's zeros for the traded quantity, average price and book totals; the desktop's renderer gives an index the recorded Zerodha index shape without them. Field presence follows the broker's web adapter: in Phase B through lane wire's per-broker presence (5paisa: an index carries them).",
       "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
     },
     {
