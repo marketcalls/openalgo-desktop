@@ -1,0 +1,70 @@
+{
+  "broker": "rupeezy",
+  "summary": "NIFTY 50 (NSE_INDEX, an EQIDX row of NSE_EQ) at Quote: the ohlcv packet becomes an index Quote frame with the change worked out from the previous close.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY",
+      "brexchange": "NSE_EQ",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rupeezy/streaming/rupeezy_websocket.py::split_message",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::parse_packet",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._on_ticks",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._topics_for",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "No live index packet was recorded; an index's ohlcv packet carries volume 0."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Rupeezy web adapter sends no data.mode.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The Rupeezy web adapter adds the broker's instrument token as a string to every frame; the desktop's common carrier has no place for it. Whether the desktop carries it is the lead's decision (a broker identifier, not a market field).",
+      "ref": "rupeezy_adapter.py:219 (_normalize); audit C06 carrier"
+    },
+    {
+      "key": "last_price",
+      "kind": "open",
+      "reason": "The Rupeezy web adapter repeats ltp as last_price in every frame; the desktop sends no such alias yet.",
+      "ref": "rupeezy_adapter.py:221; audit C06 per-broker aliases (feed::dialect)"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The Rupeezy web adapter repeats the previous close as prev_close wherever the packet carries a close; the desktop sends no such alias yet.",
+      "ref": "rupeezy_adapter.py:225-228; audit C06 per-broker aliases (feed::dialect)"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Rupeezy web names (change, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Rupeezy web names (change, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    }
+  ]
+}

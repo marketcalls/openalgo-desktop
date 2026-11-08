@@ -1,0 +1,12 @@
+# Vortex frame: an ohlcv packet with no trade time (0), as before the first trade.
+0100                    # packets in this frame: 1
+3e00                    # packet length 62
+4e53455f455100000000    # exchange NSE_EQ, NUL padded
+e50b0000                # token 3045
+0000000000648940        # ltp 812.5
+00000000                # last trade time 0, epoch s
+cdcccccccc288940        # open 805.1
+cdcccccccc7c8940        # high 815.6
+00000000001a8940        # low 803.25
+33333333333f8940        # previous close 807.9
+5cb34500                # volume 4567900

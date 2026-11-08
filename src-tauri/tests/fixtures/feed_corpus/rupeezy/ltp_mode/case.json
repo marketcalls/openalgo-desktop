@@ -1,0 +1,64 @@
+{
+  "broker": "rupeezy",
+  "summary": "An LTP subscription: Vortex's 22-byte ltp packet carries no time, so both frames are stamped on receipt; a heartbeat frame and a text order postback reach nobody; after the unsubscribe the ticker is taken back at its mode.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rupeezy/streaming/rupeezy_websocket.py::split_message",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::parse_packet",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._on_ticks",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._topics_for",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._normalize",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::RupeezyWebSocket._on_message"
+    ],
+    "notes": [
+      "The query carries auth_token, no login frame (rupeezy_websocket.py, module docstring)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Rupeezy web adapter sends no data.mode.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The Rupeezy web adapter adds the broker's instrument token as a string to every frame; the desktop's common carrier has no place for it. Whether the desktop carries it is the lead's decision (a broker identifier, not a market field).",
+      "ref": "rupeezy_adapter.py:219 (_normalize); audit C06 carrier"
+    },
+    {
+      "key": "last_price",
+      "kind": "open",
+      "reason": "The Rupeezy web adapter repeats ltp as last_price in every frame; the desktop sends no such alias yet.",
+      "ref": "rupeezy_adapter.py:221; audit C06 per-broker aliases (feed::dialect)"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "An ltp packet, or an ohlcv packet with no trade time, carries no trade time; the web sends ltt null, the desktop sends the receipt time as the trade time (the bridge's fallback), which the lead's rules forbid. A desktop defect: mark the trade time absent for such packets, so ltt is left out (the desktop's form of null).",
+      "ref": "rupeezy_adapter.py:222 (ltt None without a trade time); feed::bridge::ltt; BKD-03"
+    },
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "Without a trade time or update time the web sends timestamp null, a market data frame with no time (the SDK reads data.timestamp); the desktop stamps the time the packet was received.",
+      "ref": "rupeezy_adapter.py:223 ((last_update_time or ltt or 0) * 1000 or None)"
+    }
+  ]
+}

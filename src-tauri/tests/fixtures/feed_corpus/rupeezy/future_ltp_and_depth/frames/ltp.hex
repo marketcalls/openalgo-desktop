@@ -1,0 +1,6 @@
+# Vortex frame: an ltp packet for the future once only LTP is held.
+0100                    # packets in this frame: 1
+1600                    # packet length 22
+4e53455f464f00000000    # exchange NSE_FO, NUL padded
+b9880000                # token 35001
+00000000d007d840        # ltp 24607.25

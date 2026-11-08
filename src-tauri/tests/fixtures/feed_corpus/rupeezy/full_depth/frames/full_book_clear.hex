@@ -1,0 +1,50 @@
+# Vortex frame: a full packet whose ten levels are all zero (no book, e.g. a halt).
+0100                    # packets in this frame: 1
+0a01                    # packet length 266
+4e53455f455100000000    # exchange NSE_EQ, NUL padded
+e50b0000                # token 3045
+0000000000648940        # ltp 812.5
+f67ec06a                # last trade time 1791000310, epoch s
+cdcccccccc288940        # open 805.1
+cdcccccccc7c8940        # high 815.6
+00000000001a8940        # low 803.25
+33333333333f8940        # previous close 807.9
+7eb44500                # volume 4568190
+007fc06a                # last update time 1791000320, epoch s
+00000000                # last traded quantity 0
+295c8fc2f5528940        # average price 810.37
+0000000000000000        # total buy quantity 0
+0000000000000000        # total sell quantity 0
+00000000                # open interest 0
+0000000000000000        # bid 1 price 0.0
+00000000                # bid 1 quantity 0
+00000000                # bid 1 orders 0
+0000000000000000        # bid 2 price 0.0
+00000000                # bid 2 quantity 0
+00000000                # bid 2 orders 0
+0000000000000000        # bid 3 price 0.0
+00000000                # bid 3 quantity 0
+00000000                # bid 3 orders 0
+0000000000000000        # bid 4 price 0.0
+00000000                # bid 4 quantity 0
+00000000                # bid 4 orders 0
+0000000000000000        # bid 5 price 0.0
+00000000                # bid 5 quantity 0
+00000000                # bid 5 orders 0
+0000000000000000        # ask 1 price 0.0
+00000000                # ask 1 quantity 0
+00000000                # ask 1 orders 0
+0000000000000000        # ask 2 price 0.0
+00000000                # ask 2 quantity 0
+00000000                # ask 2 orders 0
+0000000000000000        # ask 3 price 0.0
+00000000                # ask 3 quantity 0
+00000000                # ask 3 orders 0
+0000000000000000        # ask 4 price 0.0
+00000000                # ask 4 quantity 0
+00000000                # ask 4 orders 0
+0000000000000000        # ask 5 price 0.0
+00000000                # ask 5 quantity 0
+00000000                # ask 5 orders 0
+b15c0100                # upper circuit 892.65 (paise)
+4b1d0100                # lower circuit 730.35 (paise)

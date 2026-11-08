@@ -1,0 +1,15 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY24NOV26FUT",
+  "exchange": "NFO",
+  "mode": 1,
+  "broker": "rupeezy",
+  "data": {
+    "symbol": "NIFTY24NOV26FUT",
+    "exchange": "NFO",
+    "mode": "ltp",
+    "ltp": 24605.5,
+    "ltt": 1791000400000,
+    "timestamp": 1791000401000
+  }
+}

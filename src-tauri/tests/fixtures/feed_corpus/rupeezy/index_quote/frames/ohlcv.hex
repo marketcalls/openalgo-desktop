@@ -1,0 +1,13 @@
+# Vortex frame: an ohlcv packet for NIFTY 50 (an EQIDX row in NSE_EQ, token 26000); an index
+# has no volume.
+0100                    # packets in this frame: 1
+3e00                    # packet length 62
+4e53455f455100000000    # exchange NSE_EQ, NUL padded
+90650000                # token 26000
+6666666616f0d740        # ltp 24512.35
+ee7ec06a                # last trade time 1791000302, epoch s
+0000000080e0d740        # open 24450.0
+9a99999919fcd740        # high 24560.4
+0000000010cfd740        # low 24380.25
+6666666606d4d740        # previous close 24400.1
+00000000                # volume 0

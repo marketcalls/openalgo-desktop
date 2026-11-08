@@ -1,0 +1,11 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "SBIN", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": null, "broker": "rupeezy"}], "message": "Subscription processing complete", "broker": "rupeezy"}, "note": "Rupeezy names no depth outside Depth mode (rupeezy_adapter.py:141-149)."}
+{"step": "upstream_connected", "connection": 1, "path": "/?auth_token=tok"}
+{"step": "upstream_receives", "frames": [{"json": {"ticker": "NSE:SBIN", "mode": "ltp", "message_type": "subscribe"}}]}
+{"step": "push", "frame": "frames/ltp.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltp.json"}
+{"step": "push", "frame": {"hex": "00"}, "note": "A frame under two bytes is a Vortex heartbeat."}
+{"step": "push", "frame": {"text": "{\"type\":\"order\",\"data\":{\"order_id\":\"NXAAE00002K3\",\"status\":\"OPEN\"}}"}, "note": "An order postback on the price socket; neither side uses it."}
+{"step": "push", "frame": "frames/ltp_next.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltp_next.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"ticker": "NSE:SBIN", "mode": "ltp", "message_type": "unsubscribe"}}]}

@@ -1,0 +1,21 @@
+{
+  "broker": "rupeezy",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": false
+  },
+  "sources": [
+    "broker/rupeezy/streaming/rupeezy_mapping.py::RupeezyCapabilityRegistry",
+    "broker/rupeezy/streaming/rupeezy_adapter.py",
+    "broker/rupeezy/streaming/rupeezy_websocket.py",
+    "services/order_update_service.py:36-76"
+  ],
+  "notes": [
+    "Vortex streams five levels; a Depth 20, 30 or 50 subscribe is acknowledged with depth 5, and outside Depth mode the web names no depth (null), as the desktop does (feed::dialect, DepthAck::FallbackElseNull).",
+    "The web has no Rupeezy order-update stream (no factory in services/order_update_service.py); Vortex's text order postbacks on the price socket are dropped by both sides."
+  ]
+}

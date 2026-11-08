@@ -1,0 +1,6 @@
+# Vortex frame: the next ltp packet.
+0100                    # packets in this frame: 1
+1600                    # packet length 22
+4e53455f455100000000    # exchange NSE_EQ, NUL padded
+e50b0000                # token 3045
+cdcccccccc648940        # ltp 812.6

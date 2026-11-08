@@ -1,0 +1,24 @@
+{
+  "type": "market_data",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "rupeezy",
+  "data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "mode": "quote",
+    "ltp": 812.5,
+    "ltt": "<receipt_ms>",
+    "timestamp": "<receipt_ms>",
+    "volume": 4567900,
+    "last_quantity": 0,
+    "average_price": 0.0,
+    "total_buy_quantity": 0,
+    "total_sell_quantity": 0,
+    "open": 805.1,
+    "high": 815.6,
+    "low": 803.25,
+    "close": 807.9
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "broker": "rupeezy",
+  "summary": "A Depth subscription streams Vortex full: the 266-byte packet gives the quote, OI, five levels a side and the price band; the next packet moves the book; a packet whose levels are all zero sends five zero levels a side, as the web does.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rupeezy/streaming/rupeezy_websocket.py::split_message",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::parse_packet",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._on_ticks",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._topics_for",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._normalize",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter.subscribe"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Rupeezy web adapter sends no data.mode.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The Rupeezy web adapter adds the broker's instrument token as a string to every frame; the desktop's common carrier has no place for it. Whether the desktop carries it is the lead's decision (a broker identifier, not a market field).",
+      "ref": "rupeezy_adapter.py:219 (_normalize); audit C06 carrier"
+    },
+    {
+      "key": "last_price",
+      "kind": "open",
+      "reason": "The Rupeezy web adapter repeats ltp as last_price in every frame; the desktop sends no such alias yet.",
+      "ref": "rupeezy_adapter.py:221; audit C06 per-broker aliases (feed::dialect)"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The Rupeezy web adapter repeats the previous close as prev_close wherever the packet carries a close; the desktop sends no such alias yet.",
+      "ref": "rupeezy_adapter.py:225-228; audit C06 per-broker aliases (feed::dialect)"
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends the change against the previous close in every frame of a packet that carries a close (ohlcv, full); the desktop sends it in index Quote and Depth frames only.",
+      "ref": "rupeezy_adapter.py:225-231; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends the change against the previous close in every frame of a packet that carries a close (ohlcv, full); the desktop sends it in index Quote and Depth frames only.",
+      "ref": "rupeezy_adapter.py:225-231; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "The web sends the price band of the full packet as circuit limits; the desktop decodes it (VortexPacket::upper_limit, lower_limit) and its common carrier drops it.",
+      "ref": "rupeezy_adapter.py:245-246; audit C06 (remaining brokers: Rupeezy circuits)"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "The web sends the price band of the full packet as circuit limits; the desktop decodes it (VortexPacket::upper_limit, lower_limit) and its common carrier drops it.",
+      "ref": "rupeezy_adapter.py:245-246; audit C06 (remaining brokers: Rupeezy circuits)"
+    }
+  ]
+}
