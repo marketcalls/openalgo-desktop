@@ -1,0 +1,38 @@
+{
+  "broker": "fivepaisa",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "CDS": [
+        5
+      ]
+    },
+    "orders": "REST order-book polling (web PollingOrderUpdateAdapter)"
+  },
+  "sources": [
+    "broker/fivepaisa/streaming/fivepaisa_mapping.py::FivePaisaCapabilityRegistry",
+    "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter.subscribe",
+    "services/order_update_service.py:_POLLING_BROKERS",
+    "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter"
+  ],
+  "notes": [
+    "The native 5paisa feed (MarketFeedV3 and MarketDepthService), not 5paisa XTS. Depth is 5 levels on every exchange; the web refuses a Depth subscribe at any other level (INVALID_DEPTH), and NSE_INDEX and BSE_INDEX stream on N/C and B/C.",
+    "Order updates: 5paisa allows one feed connection per token and evicts a second, so both the web and the desktop poll the REST order book (desktop brokers::common::order_poll). The corpus has no fake REST order book yet, so no order case covers it."
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "broker": "fivepaisa",
+  "summary": "Depth on NSE cash, the book first (audit RB-04): a MarketDepthService frame before any MarketFeedV3 frame gives the book and its totals and no quote field; after the quote, the next book carries it.",
+  "scenarios": [
+    "absent-field",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-test",
+    "sources": [
+      "broker/fivepaisa/streaming/fivepaisa_websocket.py::FivePaisaWebSocket._on_message",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_data",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._update_snapshot",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._normalize_market_data",
+      "test/test_fivepaisa_quote_feed.py::test_depth_before_any_feed_frame_publishes_no_quote_zeros",
+      "test/test_fivepaisa_quote_feed.py::test_a_depth_subscriber_still_keeps_the_feed_snapshot"
+    ],
+    "notes": [
+      "DEPTH and FEED are the web test's frames."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web websocket transcripts"
+    },
+    {
+      "key": "ltp",
+      "kind": "open",
+      "reason": "A MarketDepthService frame before the first MarketFeedV3 frame carries no traded price: the desktop sends ltp 0.0 (no quote held yet), the web leaves ltp out (audit RB-04). The other quote fields are already left out on both. CLAUDE.md keeps ltp in a depth frame before the first tick for the SDK's Depth callback, while rules.md forbids a zero LTP from a packet without a trade: lead decision.",
+      "ref": "audit RB-04; fivepaisa_adapter.py:_normalize_market_data mode 3; feed/bridge.rs depth_update"
+    },
+    {
+      "key": "depth",
+      "kind": "open",
+      "reason": "The desktop pads each side of 5paisa's book to five levels with zero levels (FivepaisaFeed depth_book, v.resize(5, ..)), so a book of one bid and one ask, or an empty book, goes out as five levels a side; the web sends the levels 5paisa sent (_extract_depth_data), and rules.md says no padded book. Desktop defect.",
+      "ref": "brokers/fivepaisa/streaming.rs:244; fivepaisa_adapter.py:_extract_depth_data"
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "The web passes 5paisa's JSON number on as it came, so a whole price (the web test's OpenRate 445) goes out as an integer (445); the desktop sends every price as a float (445.0), as the docs' frames (docs/prompt/websockets-format.md) and every other broker's prices are. Same value, other JSON type.",
+      "ref": "fivepaisa_adapter.py:_quote_fields (feed.get(\"OpenRate\", 0))"
+    },
+    {
+      "key": "percent_change",
+      "kind": "open",
+      "reason": "The web sends 5paisa's ChgPcnt as percent_change for every instrument; the desktop's common carrier sends the change fields for indices only, so an equity or a future loses it. Carrier gap (change fields for every exchange, audit C04, lane wire).",
+      "ref": "fivepaisa_adapter.py:_quote_fields; audit C04"
+    }
+  ]
+}

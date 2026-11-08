@@ -1,0 +1,16 @@
+{
+  "type": "market_data",
+  "symbol": "ITC",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "fivepaisa",
+  "data": {
+    "symbol": "ITC",
+    "exchange": "NSE",
+    "mode": "ltp",
+    "ltp": 440.1,
+    "ltt": 1759900055000,
+    "timestamp": "<receipt_ms>",
+    "last_trade_time": 1759900055000
+  }
+}

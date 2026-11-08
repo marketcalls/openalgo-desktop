@@ -1,0 +1,57 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "fivepaisa",
+  "inputs_sha256": "df2be3c967c15e6be807ae78f84eb7e11619f376717f85758e3c66742c81e9c3",
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 440.1,
+            "ltt": 1759900055000,
+            "last_trade_time": 1759900055000,
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 440.1,
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": []
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "broker": "fivepaisa",
+  "summary": "Quote on NIFTY (NSE_INDEX, scrip 999920000, Exch N, ExchType C): ltp, OHLC, ChgPcnt and the trade time.",
+  "scenarios": [
+    "index"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "999920000",
+      "brsymbol": "NIFTY",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fivepaisa/streaming/fivepaisa_websocket.py::FivePaisaWebSocket._on_message",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_data",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._update_snapshot",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "Frame worked here in 5paisa's MarketFeedV3 shape for an index (no traded quantity, no book: zeros), as the master names indices (scrip codes above 999900 on N/C and B/C)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web websocket transcripts"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries price_change and price_change_percent (ltp less the previous close, and 5paisa's ChgPcnt), as the recorded Zerodha index transcript does; this web adapter sends ChgPcnt as percent_change only, which the desktop sends too (feed/dialect.rs).",
+      "ref": "feed/bridge.rs quote_fields; feed/protocol.rs market_data index branch"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries price_change and price_change_percent (ltp less the previous close, and 5paisa's ChgPcnt), as the recorded Zerodha index transcript does; this web adapter sends ChgPcnt as percent_change only, which the desktop sends too (feed/dialect.rs).",
+      "ref": "feed/bridge.rs quote_fields; feed/protocol.rs market_data index branch"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
+    },
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries no traded quantity, average price or book totals (the recorded Zerodha index shape the desktop renders for every broker); this web adapter sends 5paisa's zeros for them on an index. Lead decision whether the index shape follows each broker's web adapter.",
+      "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
+    },
+    {
+      "key": "bid_price",
+      "kind": "open",
+      "reason": "The web's Quote sends 5paisa's best bid (BidRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; audit WEBSOCKET_AUDIT_REMAINING_BROKERS carrier table"
+    },
+    {
+      "key": "bid_quantity",
+      "kind": "open",
+      "reason": "The web's Quote sends 5paisa's best bid quantity (BidQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+    },
+    {
+      "key": "ask_price",
+      "kind": "open",
+      "reason": "The web's Quote sends 5paisa's best ask (OffRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+    },
+    {
+      "key": "ask_quantity",
+      "kind": "open",
+      "reason": "The web's Quote sends 5paisa's best ask quantity (OffQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+    }
+  ]
+}

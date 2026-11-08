@@ -1,0 +1,26 @@
+{
+  "type": "market_data",
+  "symbol": "ITC",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "fivepaisa",
+  "data": {
+    "symbol": "ITC",
+    "exchange": "NSE",
+    "mode": "quote",
+    "ltp": 0.0,
+    "ltt": 1759900115000,
+    "timestamp": "<receipt_ms>",
+    "volume": 1300,
+    "last_quantity": 0,
+    "average_price": 0.0,
+    "total_buy_quantity": 110,
+    "total_sell_quantity": 210,
+    "open": 0.0,
+    "high": 0.0,
+    "low": 0.0,
+    "close": 0.0,
+    "last_trade_quantity": 0,
+    "last_trade_time": 1759900115000
+  }
+}

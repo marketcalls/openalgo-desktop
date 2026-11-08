@@ -1,0 +1,105 @@
+{
+  "broker": "fivepaisa",
+  "summary": "Quote on NSE cash across a dropped socket: the feed reconnects with the same query and subscribes again; the first frame after it reports 0 for every price, and what that frame turns into shows whether the held prices outlived the connection.",
+  "scenarios": [
+    "reconnect",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fivepaisa/streaming/fivepaisa_websocket.py::FivePaisaWebSocket._on_message",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_data",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._update_snapshot",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._normalize_market_data",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_open"
+    ],
+    "notes": [
+      "The first frame is the web test's FEED with OpenRate 445.5; the frame after the reconnect is worked here: no trade yet on the new connection, every price 0 and the quantities as sent."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web websocket transcripts"
+    },
+    {
+      "key": "percent_change",
+      "kind": "open",
+      "reason": "The web sends 5paisa's ChgPcnt as percent_change for every instrument; the desktop's common carrier sends the change fields for indices only, so an equity or a future loses it. Carrier gap (change fields for every exchange, audit C04, lane wire).",
+      "ref": "fivepaisa_adapter.py:_quote_fields; audit C04"
+    },
+    {
+      "key": "ltp",
+      "kind": "open",
+      "reason": "The desktop forgets the held prices when the socket reconnects (FivepaisaFeed::on_connected clears the snapshots), so the first frame after a reconnect that reports 0 for a price goes out as 0.0, ltp included; the web keeps the snapshot across a reconnect (_on_open and _on_close leave last_snapshot) and holds the last price. A zero LTP from a frame without a trade is invented data (rules.md). Desktop defect, or lead decision if the per-connection reset is to stay with the zeros left out instead.",
+      "ref": "brokers/fivepaisa/streaming.rs:386-389; fivepaisa_adapter.py:_on_open, _update_snapshot"
+    },
+    {
+      "key": "open",
+      "kind": "open",
+      "reason": "The desktop forgets the held prices when the socket reconnects (FivepaisaFeed::on_connected clears the snapshots), so the first frame after a reconnect that reports 0 for a price goes out as 0.0, ltp included; the web keeps the snapshot across a reconnect (_on_open and _on_close leave last_snapshot) and holds the last price. A zero LTP from a frame without a trade is invented data (rules.md). Desktop defect, or lead decision if the per-connection reset is to stay with the zeros left out instead.",
+      "ref": "brokers/fivepaisa/streaming.rs:386-389; fivepaisa_adapter.py:_on_open, _update_snapshot"
+    },
+    {
+      "key": "high",
+      "kind": "open",
+      "reason": "The desktop forgets the held prices when the socket reconnects (FivepaisaFeed::on_connected clears the snapshots), so the first frame after a reconnect that reports 0 for a price goes out as 0.0, ltp included; the web keeps the snapshot across a reconnect (_on_open and _on_close leave last_snapshot) and holds the last price. A zero LTP from a frame without a trade is invented data (rules.md). Desktop defect, or lead decision if the per-connection reset is to stay with the zeros left out instead.",
+      "ref": "brokers/fivepaisa/streaming.rs:386-389; fivepaisa_adapter.py:_on_open, _update_snapshot"
+    },
+    {
+      "key": "low",
+      "kind": "open",
+      "reason": "The desktop forgets the held prices when the socket reconnects (FivepaisaFeed::on_connected clears the snapshots), so the first frame after a reconnect that reports 0 for a price goes out as 0.0, ltp included; the web keeps the snapshot across a reconnect (_on_open and _on_close leave last_snapshot) and holds the last price. A zero LTP from a frame without a trade is invented data (rules.md). Desktop defect, or lead decision if the per-connection reset is to stay with the zeros left out instead.",
+      "ref": "brokers/fivepaisa/streaming.rs:386-389; fivepaisa_adapter.py:_on_open, _update_snapshot"
+    },
+    {
+      "key": "close",
+      "kind": "open",
+      "reason": "The desktop forgets the held prices when the socket reconnects (FivepaisaFeed::on_connected clears the snapshots), so the first frame after a reconnect that reports 0 for a price goes out as 0.0, ltp included; the web keeps the snapshot across a reconnect (_on_open and _on_close leave last_snapshot) and holds the last price. A zero LTP from a frame without a trade is invented data (rules.md). Desktop defect, or lead decision if the per-connection reset is to stay with the zeros left out instead.",
+      "ref": "brokers/fivepaisa/streaming.rs:386-389; fivepaisa_adapter.py:_on_open, _update_snapshot"
+    },
+    {
+      "key": "average_price",
+      "kind": "open",
+      "reason": "The desktop forgets the held prices when the socket reconnects (FivepaisaFeed::on_connected clears the snapshots), so the first frame after a reconnect that reports 0 for a price goes out as 0.0, ltp included; the web keeps the snapshot across a reconnect (_on_open and _on_close leave last_snapshot) and holds the last price. A zero LTP from a frame without a trade is invented data (rules.md). Desktop defect, or lead decision if the per-connection reset is to stay with the zeros left out instead.",
+      "ref": "brokers/fivepaisa/streaming.rs:386-389; fivepaisa_adapter.py:_on_open, _update_snapshot"
+    },
+    {
+      "key": "bid_price",
+      "kind": "open",
+      "reason": "The web's Quote sends 5paisa's best bid (BidRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; audit WEBSOCKET_AUDIT_REMAINING_BROKERS carrier table"
+    },
+    {
+      "key": "bid_quantity",
+      "kind": "open",
+      "reason": "The web's Quote sends 5paisa's best bid quantity (BidQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+    },
+    {
+      "key": "ask_price",
+      "kind": "open",
+      "reason": "The web's Quote sends 5paisa's best ask (OffRate); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+    },
+    {
+      "key": "ask_quantity",
+      "kind": "open",
+      "reason": "The web's Quote sends 5paisa's best ask quantity (OffQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+    }
+  ]
+}

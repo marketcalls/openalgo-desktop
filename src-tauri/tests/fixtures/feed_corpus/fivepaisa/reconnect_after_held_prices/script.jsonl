@@ -1,0 +1,10 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_connected", "connection": 1, "path": "/feeds/api/chat?Value1=t|c"}
+{"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "C", "ScripCode": 1660}]}}], "connection": 1}
+{"step": "push", "frame": "frames/feed.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "path": "/feeds/api/chat?Value1=t|c"}
+{"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "C", "ScripCode": 1660}]}}], "connection": 2}
+{"step": "push", "frame": "frames/feed_after_reconnect.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote_after_reconnect.json"}

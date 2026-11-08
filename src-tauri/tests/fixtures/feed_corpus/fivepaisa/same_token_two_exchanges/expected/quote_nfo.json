@@ -1,0 +1,26 @@
+{
+  "type": "market_data",
+  "symbol": "ITC25NOV26FUT",
+  "exchange": "NFO",
+  "mode": 2,
+  "broker": "fivepaisa",
+  "data": {
+    "symbol": "ITC25NOV26FUT",
+    "exchange": "NFO",
+    "mode": "quote",
+    "ltp": 442.5,
+    "ltt": 1759900057000,
+    "timestamp": "<receipt_ms>",
+    "volume": 3200000,
+    "last_quantity": 1600,
+    "average_price": 443.6,
+    "total_buy_quantity": 480000,
+    "total_sell_quantity": 512000,
+    "open": 446.1,
+    "high": 448.0,
+    "low": 441.05,
+    "close": 444.35,
+    "last_trade_quantity": 1600,
+    "last_trade_time": 1759900057000
+  }
+}

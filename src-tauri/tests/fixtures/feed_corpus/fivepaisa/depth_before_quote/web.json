@@ -1,0 +1,101 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "fivepaisa",
+  "inputs_sha256": "ce1e5469cfe4eaa2881f4f0b8b82efb1c34af16e66bff624a46f4061bf636584",
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_DEPTH",
+          "mode": 3,
+          "data": {
+            "total_buy_quantity": 86225,
+            "total_sell_quantity": 135100,
+            "depth": {
+              "buy": [
+                {
+                  "price": 440.0,
+                  "quantity": 50,
+                  "orders": 2
+                }
+              ],
+              "sell": [
+                {
+                  "price": 440.2,
+                  "quantity": 25,
+                  "orders": 1
+                }
+              ]
+            },
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 440.1,
+            "volume": 1200,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 5,
+            "last_quantity": 5,
+            "average_price": 441.3,
+            "percent_change": -0.6321969,
+            "ltt": 1759900055000,
+            "last_trade_time": 1759900055000,
+            "total_buy_quantity": 86225,
+            "total_sell_quantity": 135100,
+            "depth": {
+              "buy": [
+                {
+                  "price": 440.0,
+                  "quantity": 50,
+                  "orders": 2
+                }
+              ],
+              "sell": [
+                {
+                  "price": 440.2,
+                  "quantity": 25,
+                  "orders": 1
+                }
+              ]
+            },
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}
