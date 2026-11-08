@@ -34,8 +34,8 @@
   "deviations": [
     {
       "key": "average_price",
-      "kind": "open",
-      "reason": "Delta's ticker carries no average price. The web sends a constant 0 (int, _normalise_ticker's fields default, a web defect to write up); the desktop sends 0.0. Neither is Delta's: the desktop should leave it out once the decoder marks it absent.",
+      "kind": "web-defect",
+      "reason": "Delta's ticker carries no average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
       "ref": "delta_adapter.py:584"
     },
     {

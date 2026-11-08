@@ -48,12 +48,6 @@
       "ref": "fyers_adapter.py:552"
     },
     {
-      "key": "exchange_time",
-      "kind": "open",
-      "reason": "The web sends HSM's exchange feed time (exch_feed_time, epoch s) as exchange_time; the desktop's common carrier drops it.",
-      "ref": "fyers_mapping.py:167"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "The desktop's index frames add price_change and price_change_percent. The web's Fyers adapter sends the change as change, change_percent and percent_change, which the desktop sends too. Lead ruling 2026-11-09: price_change and price_change_percent are not docs keys, so an index frame carries them only as each broker's web adapter sends them; the desktop follows the adapter (lane wire dialect, phase B).",

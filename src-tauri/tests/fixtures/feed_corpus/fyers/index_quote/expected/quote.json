@@ -6,6 +6,7 @@
     "close": 24300.0,
     "data_type": "Quote",
     "exchange": "NSE_INDEX",
+    "exchange_time": 1793170001,
     "high": 24400.25,
     "low": 24290.75,
     "ltp": 24350.5,

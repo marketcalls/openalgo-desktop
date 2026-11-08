@@ -29,15 +29,15 @@
   "deviations": [
     {
       "key": "last_quantity",
-      "kind": "open",
-      "reason": "Nubra's order book carries no last quantity; the desktop's Depth frame sends it as 0 (NubraFeed marks nothing absent), the web leaves it out. A field the stream does not carry must be left out (web openalgo#2376).",
-      "ref": "brokers/nubra/streaming.rs tick; nubra_adapter.py:880-890"
+      "kind": "web-defect",
+      "reason": "Nubra's order book carries the last traded quantity; the web drops it from the Depth frame, the desktop keeps it (lead decision: market data a web adapter drops from a mode is kept, lost data).",
+      "ref": "nubra_adapter.py:878-892"
     },
     {
       "key": "depth",
-      "kind": "open",
-      "reason": "Both pad a short side to five levels; the web's padding levels carry price 0 (an integer), the desktop's 0.0. Lead rule 2026-11-09: number types follow the web adapter; lane wire to settle padded books for every broker.",
-      "ref": "nubra_adapter.py:870-875; brokers/nubra/streaming.rs levels"
+      "kind": "web-defect",
+      "reason": "The web pads a short side of Nubra's book to five zero levels (price 0, an integer) Nubra never sent; the desktop sends the levels Nubra sent (lead rule on book levels).",
+      "ref": "nubra_adapter.py:870-875"
     },
     {
       "key": "ask",

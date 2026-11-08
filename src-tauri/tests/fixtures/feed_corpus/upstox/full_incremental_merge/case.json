@@ -35,12 +35,6 @@
   },
   "deviations": [
     {
-      "key": "oi",
-      "kind": "open",
-      "reason": "Upstox sends OI as a double and the web passes it on as a float (98765.0); the desktop sends an integer (98765). A JSON number type is not a web defect: Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "upstox_adapter.py:828 (float(ff['oi'])); lead rule 2026-11-09"
-    },
-    {
       "key": "depth",
       "kind": "open",
       "reason": "Upstox's book has no order counts: the web's levels carry price and quantity only and its book carries the broker's currentTs as depth.timestamp; the desktop's levels carry orders 0 (an invented zero, the 1.0.6 known limitation) and no book timestamp. Lane wire: leave orders out where the broker sends none.",

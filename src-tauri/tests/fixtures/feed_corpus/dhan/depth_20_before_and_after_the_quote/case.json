@@ -52,9 +52,9 @@
     },
     {
       "key": "ltt",
-      "kind": "open",
-      "reason": "Whether and how a frame carries ltt (in LTP frames, or beside the broker's own trade-time name) follows the web's Dhan adapter; the desktop always sends ltt in ms. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::bridge::depth_update; lead rule 2026-11-09"
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries the instrument's latest quote, its trade time included (1.0.6 decision, kept for 1.0.7: the depth frame keeps ltp, timestamp and the latest quote); the web's Dhan 20-level frame carries the book alone.",
+      "ref": "decisions.md (Kept: depth frame keeps ltp + timestamp + latest quote); feed::bridge::depth_update"
     },
     {
       "key": "volume",

@@ -36,27 +36,27 @@
     },
     {
       "key": "last_quantity",
-      "kind": "open",
-      "reason": "The web's index quote carries Dhan's (zero) last_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field).",
-      "ref": "dhan_adapter.py:905-921; feed::protocol::market_data (index branch)"
+      "kind": "web-defect",
+      "reason": "An index has no trades or book: the web sends the packet's zero last quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
+      "ref": "lead decision 2026-11-09 (index zeros)"
     },
     {
       "key": "average_price",
-      "kind": "open",
-      "reason": "The web's index quote carries Dhan's (zero) average_price; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field).",
-      "ref": "dhan_adapter.py:905-921; feed::protocol::market_data (index branch)"
+      "kind": "web-defect",
+      "reason": "An index has no trades or book: the web sends the packet's zero average price for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
+      "ref": "lead decision 2026-11-09 (index zeros)"
     },
     {
       "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "The web's index quote carries Dhan's (zero) total_buy_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field).",
-      "ref": "dhan_adapter.py:905-921; feed::protocol::market_data (index branch)"
+      "kind": "web-defect",
+      "reason": "An index has no trades or book: the web sends the packet's zero total buy quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
+      "ref": "lead decision 2026-11-09 (index zeros)"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "The web's index quote carries Dhan's (zero) total_sell_quantity; the desktop's index frame leaves the quantity fields out, as the recorded Zerodha index transcript does. A field the broker sent must be present (lane wire, presence of every field).",
-      "ref": "dhan_adapter.py:905-921; feed::protocol::market_data (index branch)"
+      "kind": "web-defect",
+      "reason": "An index has no trades or book: the web sends the packet's zero total sell quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
+      "ref": "lead decision 2026-11-09 (index zeros)"
     },
     {
       "key": "price_change",

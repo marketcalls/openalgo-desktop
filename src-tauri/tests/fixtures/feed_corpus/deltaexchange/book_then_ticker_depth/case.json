@@ -36,21 +36,21 @@
     },
     {
       "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "The desktop sends the sum of the visible book levels as total_buy_quantity / total_sell_quantity; the web names the same sums totalbuyqty / totalsellqty. Delta sends no totals: a sum of five levels is not the exchange's total (lane wire: decide the names; the decoder should not present a sum as the total).",
-      "ref": "delta_adapter.py:622-623; brokers/deltaexchange/streaming.rs book"
+      "kind": "desktop-decision",
+      "reason": "The desktop's canonical total_buy_quantity / total_sell_quantity go beside the web's totalbuyqty / totalsellqty with the same value (feed/dialect/names.rs: the canonical set plus the adapter's names).",
+      "ref": "feed/dialect/names.rs DELTA"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "open",
+      "kind": "desktop-decision",
       "reason": "As total_buy_quantity.",
-      "ref": "delta_adapter.py:622-623"
+      "ref": "feed/dialect/names.rs DELTA"
     },
     {
       "key": "depth",
-      "kind": "open",
-      "reason": "Delta's ob_l2 has no order counts: the web's levels carry price and quantity only, the desktop's carry orders 0 (an invented zero; the 1.0.6 known limitation). Both pad a short side to five zero levels, which lane wire should settle for every broker (no padded book).",
-      "ref": "delta_adapter.py:606-617; brokers/deltaexchange/streaming.rs book"
+      "kind": "web-defect",
+      "reason": "The web pads a short side of Delta's book to five zero levels Delta never sent and gives them no order count; the desktop sends the levels Delta sent (lead rule on book levels: padding a web adapter adds is a web defect).",
+      "ref": "delta_adapter.py:606-617"
     },
     {
       "key": "average_price",

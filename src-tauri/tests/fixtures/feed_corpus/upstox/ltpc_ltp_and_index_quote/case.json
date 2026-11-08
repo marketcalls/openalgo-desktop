@@ -39,9 +39,9 @@
   "deviations": [
     {
       "key": "timestamp",
-      "kind": "open",
-      "reason": "The web stamps Upstox Quote and Depth frames with the broker's currentTs; the desktop stamps its receipt time (audit P-02, still open: the Upstox decoder should carry FeedResponse.current_ts, receipt time only when it is absent).",
-      "ref": "upstox_adapter.py:902; brokers/upstox/streaming.rs parse_frame"
+      "kind": "desktop-decision",
+      "reason": "The web's Upstox LTP payload carries no timestamp; the docs' LTP frame does (docs/prompt/websockets-format.md, LTP: ltp and timestamp), and the docs rank above the adapter, so the desktop keeps it.",
+      "ref": "docs/prompt/websockets-format.md; upstox_adapter.py:887-892"
     },
     {
       "key": "price_change",
@@ -56,22 +56,10 @@
       "ref": "feed::protocol::market_data (index branch); lead ruling 2026-11-09"
     },
     {
-      "key": "ltq",
-      "kind": "open",
-      "reason": "The web's Upstox LTP payload is the raw LTPC (ltp, ltq, ltt, cp) and the token, with no timestamp or mode; the desktop's LTP frame carries ltp, ltt, timestamp and mode. Lane wire to decide (LTP frame shape).",
-      "ref": "upstox_adapter.py:889-892"
-    },
-    {
       "key": "cp",
-      "kind": "open",
-      "reason": "The web's Upstox LTP payload is the raw LTPC (ltp, ltq, ltt, cp) and the token, with no timestamp or mode; the desktop's LTP frame carries ltp, ltt, timestamp and mode. Lane wire to decide (LTP frame shape).",
-      "ref": "upstox_adapter.py:889-892"
-    },
-    {
-      "key": "last_trade_time",
-      "kind": "open",
-      "reason": "The desktop sends Upstox's last_trade_time beside ltt in LTP frames too; the web's LTP payload has ltt only. Lead rule 2026-11-09: this follows each broker's own web adapter (lane wire's per-broker dialect switch; bk-a sets the entry in phase B).",
-      "ref": "feed::dialect (Upstox last_trade_time); lead rule 2026-11-09"
+      "kind": "desktop-decision",
+      "reason": "The web's Upstox LTP payload names the previous close cp; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "upstox_adapter.py:889-892; feed/dialect/names.rs UPSTOX"
     }
   ]
 }
