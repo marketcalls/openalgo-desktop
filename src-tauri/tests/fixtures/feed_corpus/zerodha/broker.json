@@ -1,0 +1,19 @@
+{
+  "broker": "zerodha",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": "order postbacks on a dedicated Kite ticker connection"
+  },
+  "sources": [
+    "broker/zerodha/streaming/zerodha_adapter.py",
+    "broker/zerodha/streaming/zerodha_order_adapter.py",
+    "services/order_update_service.py:53"
+  ],
+  "notes": [
+    "Kite streams five levels; a Depth 20 or 50 subscribe is acknowledged with the depth asked for and streams five, as on the web (feed::dialect, DepthAck::Echo)."
+  ]
+}

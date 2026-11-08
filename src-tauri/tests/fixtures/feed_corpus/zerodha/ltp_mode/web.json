@@ -1,0 +1,35 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "zerodha",
+  "inputs_sha256": "e4d9a5ce268fb42efec9d2f1ff56c887e022e89047b951c557820f854ae24707",
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_LTP",
+          "mode": 1,
+          "data": {
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "mode": "ltp",
+            "ltp": 1501.25,
+            "ltt": "<receipt_ms>",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

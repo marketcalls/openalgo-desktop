@@ -1,0 +1,47 @@
+{
+  "broker": "dhan",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5,
+        20
+      ],
+      "NFO": [
+        5,
+        20
+      ],
+      "BSE": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "CDS": [
+        5
+      ],
+      "BCD": [
+        5
+      ],
+      "NSE_INDEX": [
+        5
+      ],
+      "BSE_INDEX": [
+        5
+      ]
+    },
+    "orders": "a dedicated order-update socket"
+  },
+  "sources": [
+    "broker/dhan/streaming/dhan_mapping.py::DhanCapabilityRegistry",
+    "broker/dhan/streaming/dhan_order_adapter.py",
+    "services/order_update_service.py:37"
+  ],
+  "notes": [
+    "Depth 20 streams on Dhan's separate twentydepth socket (NSE and NFO)."
+  ]
+}

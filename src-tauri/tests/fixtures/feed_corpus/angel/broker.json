@@ -1,0 +1,34 @@
+{
+  "broker": "angel",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "CDS": [
+        5
+      ]
+    },
+    "orders": "a dedicated order-status socket"
+  },
+  "sources": [
+    "broker/angel/streaming/angel_mapping.py::AngelCapabilityRegistry.depth_support",
+    "broker/angel/streaming/angel_order_adapter.py",
+    "services/order_update_service.py:52"
+  ],
+  "notes": []
+}

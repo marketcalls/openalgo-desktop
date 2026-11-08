@@ -23,15 +23,28 @@ or `test(/feed_corpus/)`; locally `cargo test --locked --test it feed_corpus`
 ## A case folder
 
 ```
-feed_corpus/<broker>/<case>/
-  case.json        what the case is, its symbol master, provenance, deviations
-  script.jsonl     the steps, one JSON object per line
-  frames/          raw frames the fake broker sends (.hex, .bin, .json, .txt)
-  expected/        frames a client must receive (.json)
-  web.json         the web's output for the same frames (generated, optional)
+feed_corpus/<broker>/
+  broker.json      what the web offers for the broker (modes, depths, orders)
+  <case>/
+    case.json      what the case is, its symbol master, provenance, deviations
+    script.jsonl   the steps, one JSON object per line
+    frames/        raw frames the fake broker sends (.hex, .bin, .json, .txt)
+    expected/      frames a client must receive (.json)
+    web.json       the web's output for the same frames (generated)
 ```
 
 The folder name is the test's name: `feed_corpus::<broker>::<case>`.
+
+### broker.json
+
+What the broker's web adapter offers, for the parity matrix
+(`docs/port/feed-parity-matrix.md`, written by
+`scripts/feed_corpus/parity_matrix.py`): `web.ltp`, `web.quote` (true or
+false), `web.depth` (the levels, or the levels per exchange as the web's
+capability registry lists them), `web.orders` (how the web streams order
+updates, or false), with `sources` (the web files read) and `notes`. A
+mode, depth or order stream the web offers and no case covers shows in the
+matrix as **no case**.
 
 ### case.json
 
@@ -137,9 +150,15 @@ on the case's pushes, offline (no app imports, database or network), and
 writes `web.json`: for each push (by its script line), what the web adapter
 publishes, with the topic mode and the `data` it forwards (and, for orders,
 the `order_update` frame the web relays). It records the web commit, the
-SHA-256 of the script and the pushed frame files, and the instruments it
-used, so a stale `web.json` fails the case. How a broker is run offline, and
-what to do where a web adapter cannot be, is in that script's docstring.
+SHA-256 of the script and the pushed frame files (text files with LF line
+ends), and the instruments it used, so a stale `web.json` fails the case.
+`--diff <case folder>` prints, without writing, every key on which the
+case's expected frames differ from the web: the deviations the case must
+declare. `--check` fails when a checked-in `web.json` is stale. How a broker
+is run offline (`scripts/feed_corpus/web_adapters/<broker>.py`: the web
+methods by name, and the state they read, built as the web's own tests
+build it), and what to do where a web adapter cannot be run, is in that
+script's docstring. CI never runs it: it has no web tree.
 
 With `web.json` present, each `receive` after a push is compared with the
 web's publish of the same mode for that push (or the lowest richer one,
@@ -175,9 +194,12 @@ difference shows any more fails the case, so remove it with the fix.
    `tests/it/feed_corpus/<broker>.rs` (`corpus_cases!`). A folder not listed
    there, or a listed case without a folder, fails
    `feed_corpus::inventory`.
-3. Compute `web.json` with `scripts/feed_corpus/web_expected.py` and declare
-   every deviation it shows.
-4. Run lane-test with `test(/feed_corpus::<broker>::/)`.
+3. Compute `web.json` with `scripts/feed_corpus/web_expected.py`; declare
+   every deviation `--diff` shows (the harness fails on an undeclared one
+   and on one that no longer shows).
+4. Run `python3 scripts/feed_corpus/parity_matrix.py` and commit the
+   matrix with the case.
+5. Run lane-test with `test(/feed_corpus::<broker>::/)`.
 
 ## Adding a broker
 
@@ -196,7 +218,11 @@ fn feeds(env: &Env) -> Feeds {
 corpus_cases!("dhan", feeds, [quote_previous_close, order_lifecycle]);
 ```
 
-Then `mod <broker>;` and a line in `BROKERS` in `tests/it/feed_corpus/mod.rs`.
+Then `mod <broker>;` and a line in `BROKERS` in `tests/it/feed_corpus/mod.rs`,
+the broker's `broker.json`, and its glue in
+`scripts/feed_corpus/web_adapters/` (a `webkit.Glue` naming the web
+methods that decode and normalise its frames, and a line in that folder's
+`__init__.py`).
 Use the feed's `with_url` (or `with_urls`) constructor; credentials are fake
 values (never real ones, never anything gitleaks matches). A feed whose
 `prepare` calls the broker's REST API first (Upstox's authorize, Groww's

@@ -275,8 +275,10 @@ impl Case {
             .map(|v| instrument(&at, v))
             .collect();
         let script_path = dir.join("script.jsonl");
+        // Line endings as committed, whatever a checkout made of them.
         let script = std::fs::read_to_string(&script_path)
-            .unwrap_or_else(|e| bad(&format!("{} script.jsonl", id), e));
+            .unwrap_or_else(|e| bad(&format!("{} script.jsonl", id), e))
+            .replace("\r\n", "\n");
         let mut inputs = script.clone().into_bytes();
         let steps = read_script(&id, &dir, &script, &mut inputs);
         let sockets = steps.iter().filter_map(|s| s.action.socket()).collect();
@@ -683,11 +685,19 @@ fn decode_hex(at: &str, text: &str) -> Vec<u8> {
 
 /// A frame the fake broker sends: a file (`.hex` and `.bin` binary,
 /// `.json` and `.txt` text, sent as written) or `{"hex"}`, `{"text"}`,
-/// `{"json"}`. A file's bytes join the case's inputs.
+/// `{"json"}`. A file's bytes join the case's inputs (a text file's with
+/// LF line ends, so a Windows checkout's CRLF does not change them).
 fn pushed_frame(at: &str, dir: &Path, v: &Value, inputs: &mut Vec<u8>) -> Wire {
     if let Some(name) = v.as_str() {
         let (path, bytes) = case_file(at, dir, name);
-        inputs.extend_from_slice(&bytes);
+        match extension(&path) {
+            "bin" => inputs.extend_from_slice(&bytes),
+            _ => inputs.extend_from_slice(
+                String::from_utf8_lossy(&bytes)
+                    .replace("\r\n", "\n")
+                    .as_bytes(),
+            ),
+        }
         return match extension(&path) {
             "hex" => Wire::Binary(decode_hex(at, &utf8(at, bytes))),
             "bin" => Wire::Binary(bytes),

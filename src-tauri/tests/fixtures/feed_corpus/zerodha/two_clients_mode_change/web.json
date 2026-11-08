@@ -1,0 +1,74 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "zerodha",
+  "inputs_sha256": "49e03a82bcb9eaaeb22275945d85a179436c2c90e939b5ff815c142c1b832324",
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "mode": "quote",
+            "ltp": 1500.0,
+            "ltt": "<receipt_ms>",
+            "timestamp": "<receipt_ms>",
+            "volume": 5000,
+            "last_quantity": 10,
+            "average_price": 1499.5,
+            "total_buy_quantity": 1,
+            "total_sell_quantity": 2,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "close": 1495.0
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_LTP",
+          "mode": 1,
+          "data": {
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "mode": "ltp",
+            "ltp": 1500.0,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_LTP",
+          "mode": 1,
+          "data": {
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "mode": "ltp",
+            "ltp": 1500.5,
+            "ltt": "<receipt_ms>",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}
