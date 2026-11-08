@@ -1,6 +1,7 @@
 //! Manager tests against a local fake WebSocket server on an ephemeral port.
 
 use super::*;
+use crate::brokers::common::streaming::{FeedEvent, FeedMode, Message, PrepareError};
 use crate::brokers::mock::MockFeed;
 use crate::websocket::handshake;
 use futures_util::{SinkExt, StreamExt};

@@ -3,8 +3,12 @@
 //! and a heartbeat it never answers all end the session, so the manager
 //! reconnects; a quiet broker that answers its heartbeats keeps it.
 
+use super::registry::Entry;
 use super::*;
-use crate::brokers::common::streaming::AUTH_ACK_DEADLINE;
+use crate::brokers::common::streaming::{FeedEvent, FeedMode, Message, AUTH_ACK_DEADLINE};
+use std::collections::BTreeMap;
+use tokio::time::Instant;
+use tokio_tungstenite::tungstenite::Error as WsError;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
