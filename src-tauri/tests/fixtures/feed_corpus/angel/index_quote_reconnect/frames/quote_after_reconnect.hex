@@ -1,0 +1,16 @@
+# The first QUOTE tick on the new connection.
+02                      # subscription mode 2
+01                      # exchange type 1
+39393932363030300000000000000000000000000000000000# token, NUL padded to 25 bytes
+0100000000000000        # sequence number
+2858c7c4a1010000        # exchange timestamp, epoch ms
+a02b250000000000        # last traded price 2436000 paise
+0000000000000000        # last traded quantity
+0000000000000000        # average traded price 0 paise
+0000000000000000        # volume
+0000000000000000        # total buy quantity (double)
+0000000000000000        # total sell quantity (double)
+1818250000000000        # open
+593b250000000000        # high
+9310250000000000        # low
+3014250000000000        # close (previous day)

@@ -1,0 +1,14 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "upstream_connected", "socket": "orders", "connection": 1, "headers": {"authorization": "Bearer jwt"}}
+{"step": "push", "frame": "frames/ack.json", "socket": "orders"}
+{"step": "silence", "client": "a", "note": "AB00 is the connection acknowledgement: nothing to relay."}
+{"step": "push", "frame": "frames/order_open.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "push", "frame": "frames/order_partial.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json"}
+{"step": "push", "frame": "frames/order_complete.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "push", "frame": "frames/order_rejected.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
+{"step": "push", "frame": "frames/order_cancelled.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}

@@ -1,0 +1,33 @@
+# The next SNAP_QUOTE tick with no resting orders: every best-five level zero, flags as before.
+03                      # subscription mode 3
+02                      # exchange type 2
+35323137350000000000000000000000000000000000000000# token, NUL padded to 25 bytes
+0100000000000000        # sequence number
+4054c7c4a1010000        # exchange timestamp, epoch ms
+bc50250000000000        # last traded price 2445500 paise
+9600000000000000        # last traded quantity
+5c47250000000000        # average traded price 2443100 paise
+700a170000000000        # volume
+0000000000000000        # total buy quantity (double)
+0000000000000000        # total sell quantity (double)
+283f250000000000        # open
+5062250000000000        # high
+7033250000000000        # low
+403b250000000000        # close (previous day)
+5850c7c4a1010000        # last traded timestamp, epoch ms
+701c910000000000        # open interest
+0000000000000000        # OI change percent
+0100000000000000000000000000000000000000# best five 1: flag 1 (buy), qty 0, price 0, orders 0
+0100000000000000000000000000000000000000# best five 2: flag 1 (buy), qty 0, price 0, orders 0
+0100000000000000000000000000000000000000# best five 3: flag 1 (buy), qty 0, price 0, orders 0
+0100000000000000000000000000000000000000# best five 4: flag 1 (buy), qty 0, price 0, orders 0
+0100000000000000000000000000000000000000# best five 5: flag 1 (buy), qty 0, price 0, orders 0
+0000000000000000000000000000000000000000# best five 6: flag 0 (sell), qty 0, price 0, orders 0
+0000000000000000000000000000000000000000# best five 7: flag 0 (sell), qty 0, price 0, orders 0
+0000000000000000000000000000000000000000# best five 8: flag 0 (sell), qty 0, price 0, orders 0
+0000000000000000000000000000000000000000# best five 9: flag 0 (sell), qty 0, price 0, orders 0
+0000000000000000000000000000000000000000# best five 10: flag 0 (sell), qty 0, price 0, orders 0
+60f4280000000000        # upper circuit
+2082210000000000        # lower circuit
+0000000000000000        # 52-week high
+0000000000000000        # 52-week low

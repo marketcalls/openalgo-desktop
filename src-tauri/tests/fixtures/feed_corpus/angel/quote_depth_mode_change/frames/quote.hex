@@ -1,0 +1,16 @@
+# SmartStream binary tick, QUOTE mode (123 bytes), RELIANCE (token 2885) on nse_cm.
+02                      # subscription mode 2
+01                      # exchange type 1
+32383835000000000000000000000000000000000000000000# token, NUL padded to 25 bytes
+0100000000000000        # sequence number
+e069c6c4a1010000        # exchange timestamp, epoch ms
+4dfc010000000000        # last traded price 130125 paise
+0a00000000000000        # last traded quantity
+9efb010000000000        # average traded price 129950 paise
+50c3000000000000        # volume
+000000000094c140        # total buy quantity (double)
+000000000040bf40        # total sell quantity (double)
+e8f7010000000000        # open
+b8ff010000000000        # high
+f4f5010000000000        # low
+00f4010000000000        # close (previous day)

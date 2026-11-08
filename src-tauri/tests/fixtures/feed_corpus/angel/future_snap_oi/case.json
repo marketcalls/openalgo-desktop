@@ -1,0 +1,74 @@
+{
+  "broker": "angel",
+  "summary": "A Depth subscription on an NFO future: SNAP_QUOTE gives OI and the best five; a tick with no resting orders clears every level.",
+  "scenarios": [
+    "derivative-oi",
+    "depth-update",
+    "book-clear",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "52175",
+      "brsymbol": "NIFTY25NOV26FUT",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX"
+    }
+  ],
+  "upstream_ignore": [
+    "ping"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/angel/streaming/smartWebSocketV2.py::SmartWebSocketV2._parse_binary_data",
+      "broker/angel/streaming/angel_adapter.py::AngelWebSocketAdapter._on_data",
+      "broker/angel/streaming/angel_adapter.py::AngelWebSocketAdapter._normalize_market_data",
+      "broker/angel/streaming/angel_adapter.py::AngelWebSocketAdapter._extract_depth_data"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "kind": "web-defect",
+      "reason": "Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are.",
+      "ref": "smartWebSocketV2.py:_parse_binary_data (byte_format d); angel_adapter.py:_normalize_market_data",
+      "key": "total_buy_quantity"
+    },
+    {
+      "kind": "web-defect",
+      "reason": "Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are.",
+      "ref": "smartWebSocketV2.py:_parse_binary_data (byte_format d); angel_adapter.py:_normalize_market_data",
+      "key": "total_sell_quantity"
+    },
+    {
+      "kind": "open",
+      "reason": "The web sends the circuit limits from the SNAP_QUOTE packet; the desktop's common carrier drops them (lane wire: optional circuit fields; then the Angel decoder fills them).",
+      "ref": "angel_adapter.py:806-810; audit P-11",
+      "key": "upper_circuit"
+    },
+    {
+      "kind": "open",
+      "reason": "The web sends the circuit limits from the SNAP_QUOTE packet; the desktop's common carrier drops them (lane wire: optional circuit fields; then the Angel decoder fills them).",
+      "ref": "angel_adapter.py:806-810; audit P-11",
+      "key": "lower_circuit"
+    }
+  ]
+}

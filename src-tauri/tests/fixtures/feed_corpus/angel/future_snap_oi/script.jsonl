@@ -1,0 +1,6 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"correlationID": "openalgo", "action": 1, "params": {"mode": 3, "tokenList": [{"exchangeType": 2, "tokens": ["52175"]}]}}}]}
+{"step": "push", "frame": "frames/snap.hex"}
+{"step": "receive", "client": "a", "frame": "expected/snap.json"}
+{"step": "push", "frame": "frames/snap_empty_book.hex"}
+{"step": "receive", "client": "a", "frame": "expected/snap_empty_book.json", "note": "An empty book: five zero levels per side, as Angel sends them, on both."}
