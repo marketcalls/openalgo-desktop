@@ -143,3 +143,33 @@ async fn what_the_broker_refuses_is_refused_for_every_consumer() {
         vec![Ok(())]
     );
 }
+
+/// Dhan's 20-level socket: past its room the broker's own words
+/// (dhan_adapter.py:395), else the web pool's.
+#[tokio::test]
+async fn a_full_feed_refuses_in_the_brokers_words_where_it_has_its_own() {
+    let m = WebSocketManager::with_config(FeedConfig {
+        max_instruments: 1,
+        ..fast()
+    });
+    assert_eq!(
+        m.admit(vec![sub("NIFTY", FeedMode::Depth)]).await,
+        vec![Ok(())]
+    );
+    let pool = m.admit(vec![sub("BANKNIFTY", FeedMode::Depth)]).await;
+    assert_eq!(
+        pool,
+        vec![Err(
+            "Maximum capacity reached: 1 connections \u{d7} 1 symbols = 1 symbols. \
+                  Currently subscribed to 1 symbols."
+                .to_string()
+        )]
+    );
+    m.set_room_refusal(Some("Maximum 50 subscriptions allowed for 20-depth"));
+    assert_eq!(
+        m.admit(vec![sub("BANKNIFTY", FeedMode::Depth)]).await,
+        vec![Err(
+            "Maximum 50 subscriptions allowed for 20-depth".to_string()
+        )]
+    );
+}

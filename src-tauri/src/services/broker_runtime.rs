@@ -332,6 +332,9 @@ async fn start_deep_feed(ctx: &AppState, broker: &Arc<dyn Broker>, auth: &AuthTo
     else {
         return;
     };
+    ctx.runtime
+        .depth_ws
+        .set_room_refusal(limits::depth_room_refusal(id));
     let started = match broker.create_depth_feed(auth, levels) {
         Ok(feed) => ctx
             .runtime

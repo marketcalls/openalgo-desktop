@@ -97,6 +97,16 @@ pub(crate) fn depth_limits(broker: &str) -> PoolLimits {
     }
 }
 
+/// How the deeper-book socket's broker words a subscribe past its room,
+/// where its web adapter refuses it before the pool does: Dhan's
+/// SUBSCRIPTION_LIMIT (dhan_adapter.py:395). Others: the pool's words.
+pub(crate) fn depth_room_refusal(broker: &str) -> Option<&'static str> {
+    match broker {
+        "dhan" => Some("Maximum 50 subscriptions allowed for 20-depth"),
+        _ => None,
+    }
+}
+
 /// How long a deep book may stay silent before the instrument falls back
 /// to the main feed's levels, for a broker whose web adapter does so (audit
 /// P-10): Dhan's 20 levels, 30 s from the subscription and after the last
@@ -127,6 +137,11 @@ mod tests {
         assert_eq!(pool_limits("sahi").total(), 3000);
         assert_eq!(pool_limits("compositedge"), PoolLimits::single(3000));
         assert_eq!(depth_limits("dhan"), PoolLimits::single(50));
+        assert_eq!(
+            depth_room_refusal("dhan"),
+            Some("Maximum 50 subscriptions allowed for 20-depth")
+        );
+        assert_eq!(depth_room_refusal("fyers"), None);
         assert_eq!(deep_book_timeout("dhan"), Some(Duration::from_secs(30)));
         assert_eq!(deep_book_timeout("fyers"), None);
     }

@@ -198,6 +198,9 @@ pub struct WebSocketManager {
     /// is subscribed (`presubscribe`).
     refusal: Mutex<Option<FeedRefusal>>,
     presubscribe: Mutex<Option<Presubscribe>>,
+    /// The broker's own words for a subscribe past the room, where its web
+    /// adapter refuses before the pool does (`set_room_refusal`).
+    room_refusal: Mutex<Option<&'static str>>,
 }
 
 impl Default for WebSocketManager {
@@ -227,6 +230,7 @@ impl WebSocketManager {
             epoch: AtomicU64::new(0),
             refusal: Mutex::new(None),
             presubscribe: Mutex::new(None),
+            room_refusal: Mutex::new(None),
         }
     }
 
@@ -376,6 +380,7 @@ impl WebSocketManager {
         *self.factory.lock() = None;
         *self.refusal.lock() = None;
         *self.presubscribe.lock() = None;
+        *self.room_refusal.lock() = None;
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
     }
@@ -387,10 +392,21 @@ impl WebSocketManager {
         }
     }
 
-    /// What a reference past the feed's room is refused with: the web
-    /// pool's MAX_CAPACITY_REACHED words (`websocket_proxy/
-    /// connection_manager.py:364-369`), with this feed's own limits.
-    fn no_room(reg: &Registry) -> String {
+    /// The broker's words for a subscribe past this feed's room, where its
+    /// web adapter refuses it before the pool does (Dhan's 20-level socket),
+    /// or none for the pool's words (the default; a disconnect clears it).
+    pub fn set_room_refusal(&self, words: Option<&'static str>) {
+        *self.room_refusal.lock() = words;
+    }
+
+    /// What a reference past the feed's room is refused with: the broker's
+    /// words when it has its own (`set_room_refusal`), else the web pool's
+    /// MAX_CAPACITY_REACHED words (`websocket_proxy/
+    /// connection_manager.py:364-369`) with this feed's own limits.
+    fn no_room(&self, reg: &Registry) -> String {
+        if let Some(words) = *self.room_refusal.lock() {
+            return words.to_string();
+        }
         let limits = reg.limits;
         format!(
             "Maximum capacity reached: {} connections \u{d7} {} symbols = {} symbols. \
@@ -423,7 +439,7 @@ impl WebSocketManager {
                 })
                 .sum();
             if reg.new_instruments(&subs) > free {
-                return Err(AppError::Validation(Self::no_room(&reg)));
+                return Err(AppError::Validation(self.no_room(&reg)));
             }
             let mut deltas = Vec::new();
             for s in subs {
@@ -465,7 +481,7 @@ impl WebSocketManager {
                         deltas.extend(reg.add(s, conn));
                         answers.push(Ok(()));
                     }
-                    None => answers.push(Err(Self::no_room(&reg))),
+                    None => answers.push(Err(self.no_room(&reg))),
                 }
             }
             (answers, (deltas, reg.changes))
