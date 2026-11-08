@@ -140,7 +140,10 @@ def build() -> str:
         for col, _ in COLUMNS:
             got = cells[col]
             off = offered(web, col)
-            if got:
+            if got and off is False:
+                # A case there shows the desktop refuses it, as the web does.
+                line.append("not offered by the web (refusal: " + ", ".join(f"`{n}`" for n, _, _ in got) + ")")
+            elif got:
                 worst = max(r for _, _, r in got)
                 label = ["matches web", "approved deviation", "deviation pending approval", "open gap"][worst]
                 listed = ", ".join(
@@ -155,6 +158,11 @@ def build() -> str:
                 line.append("**no case**")
         rows.append(line)
         missing = [s for s in names if s not in seen]
+        if offered(web, "orders") is False:
+            # A broker whose web adapter streams no order updates (Sahi,
+            # HDFC) has no order scenario to cover.
+            missing = [s for s in missing if not s.startswith("order-")]
+            missing.append("(order updates: not offered by the web)")
         if cases:
             scen.append((broker, sorted(seen, key=names.index), missing))
     out = [

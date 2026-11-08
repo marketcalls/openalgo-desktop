@@ -92,11 +92,38 @@ impl std::fmt::Display for Wire {
 /// where the value is deterministic.
 pub(crate) const ANY: &str = "<any>";
 
-/// `got` is `want`, `"<any>"` matching any value: the same keys, the same
-/// values with the same JSON types, arrays of the same length.
+/// In a JSON frame or request a case expects from the feed, the time the
+/// feed stamped it when it sent it (Kotak's `conn_req_time`): an integer
+/// epoch time, in ms or in s, from this run.
+pub(crate) const NOW_MS: &str = "<now_ms>";
+pub(crate) const NOW_S: &str = "<now_s>";
+
+/// How far back a send time may lie: longer than any case runs.
+const RUN_MS: i64 = 15 * 60 * 1000;
+
+fn epoch_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+        .unwrap_or(0)
+}
+
+/// Whether `got` is an integer time of this run in `unit` ms.
+fn sent_now(got: &Value, unit: i64) -> bool {
+    let now = epoch_ms();
+    got.as_i64()
+        .map(|t| t.saturating_mul(unit))
+        .is_some_and(|t| t > now - RUN_MS && t <= now + unit.max(5))
+}
+
+/// `got` is `want`, `"<any>"` matching any value and `"<now_ms>"` /
+/// `"<now_s>"` a send time of this run: the same keys, the same values with
+/// the same JSON types, arrays of the same length.
 pub(crate) fn json_matches(want: &Value, got: &Value) -> bool {
     match (want, got) {
         (Value::String(s), _) if s == ANY => true,
+        (Value::String(s), _) if s == NOW_MS => sent_now(got, 1),
+        (Value::String(s), _) if s == NOW_S => sent_now(got, 1000),
         (Value::Object(w), Value::Object(g)) => {
             w.len() == g.len()
                 && w.iter()
@@ -228,6 +255,22 @@ pub(crate) enum Action {
     },
     DropUpstream {
         socket: Socket,
+        /// The close frame's code and reason, if the broker sends one.
+        close: Option<(u16, String)>,
+    },
+    /// Refuse the next `times` upgrades with HTTP `status`.
+    RefuseUpgrades {
+        socket: Socket,
+        status: u16,
+        times: usize,
+    },
+    /// The socket has had exactly `count` connections (and `refused`
+    /// refused upgrades), and still has after `ms`.
+    UpstreamConnections {
+        socket: Socket,
+        count: usize,
+        refused: Option<usize>,
+        ms: u64,
     },
     /// The fake broker API answers this from now on (an order book the
     /// poller reads next).
@@ -253,7 +296,9 @@ impl Action {
             Action::Push { socket, .. }
             | Action::UpstreamReceives { socket, .. }
             | Action::UpstreamConnected { socket, .. }
-            | Action::DropUpstream { socket } => Some(*socket),
+            | Action::DropUpstream { socket, .. }
+            | Action::RefuseUpgrades { socket, .. }
+            | Action::UpstreamConnections { socket, .. } => Some(*socket),
             _ => None,
         }
     }
@@ -644,7 +689,9 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
         "push" => &["socket", "frame", "connection"],
         "upstream_receives" => &["socket", "frames", "any_order", "connection"],
         "upstream_connected" => &["socket", "connection", "path", "headers"],
-        "drop_upstream" => &["socket"],
+        "drop_upstream" => &["socket", "code", "reason"],
+        "refuse_upgrades" => &["socket", "status", "times"],
+        "upstream_connections" => &["socket", "count", "refused", "ms"],
         "http_serve" => &["method", "path", "status", "body", "record"],
         "http_polled" => &["method", "path", "times"],
         "http_receives" => &["requests"],
@@ -741,7 +788,47 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
                 })
                 .unwrap_or_default(),
         },
-        "drop_upstream" => Action::DropUpstream { socket: socket() },
+        "drop_upstream" => Action::DropUpstream {
+            socket: socket(),
+            close: match (o.get("code"), o.get("reason")) {
+                (None, None) => None,
+                (Some(c), r) => Some((
+                    c.as_u64()
+                        .and_then(|c| u16::try_from(c).ok())
+                        .unwrap_or_else(|| bad(at, "\"code\" is a close code")),
+                    r.map_or_else(String::new, |r| {
+                        r.as_str()
+                            .map(String::from)
+                            .unwrap_or_else(|| bad(at, "\"reason\" is a string"))
+                    }),
+                )),
+                (None, Some(_)) => bad(at, "a close \"reason\" goes with its \"code\""),
+            },
+        },
+        "refuse_upgrades" => Action::RefuseUpgrades {
+            socket: socket(),
+            status: need("status")
+                .as_u64()
+                .and_then(|s| u16::try_from(s).ok())
+                .filter(|s| (400..600).contains(s))
+                .unwrap_or_else(|| bad(at, "\"status\" is an HTTP error status")),
+            times: number("times").unwrap_or(1),
+        },
+        "upstream_connections" => Action::UpstreamConnections {
+            socket: socket(),
+            count: need("count")
+                .as_u64()
+                .and_then(|n| usize::try_from(n).ok())
+                .unwrap_or_else(|| bad(at, "\"count\" is a number")),
+            refused: o.get("refused").map(|r| {
+                r.as_u64()
+                    .and_then(|n| usize::try_from(n).ok())
+                    .unwrap_or_else(|| bad(at, "\"refused\" is a number"))
+            }),
+            ms: o.get("ms").map_or(300, |v| {
+                v.as_u64().unwrap_or_else(|| bad(at, "\"ms\" is a number"))
+            }),
+        },
         "http_serve" => Action::HttpServe(http_answer(at, dir, o, inputs)),
         "http_polled" => Action::HttpPolled {
             method: http_method(at, o),

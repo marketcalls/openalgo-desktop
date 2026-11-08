@@ -16,7 +16,10 @@ use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio::task::{JoinHandle, JoinSet};
-use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
+use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
+use tokio_tungstenite::tungstenite::http::StatusCode;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
 
@@ -41,7 +44,8 @@ pub(crate) struct Handshake {
 
 enum Out {
     Frame(Message),
-    Close,
+    /// Close, with this code and reason if given.
+    Close(Option<(u16, String)>),
 }
 
 #[derive(Default)]
@@ -51,6 +55,10 @@ struct State {
     consumed: usize,
     /// The connection open now and the way to write to it.
     live: Option<(usize, mpsc::Sender<Out>)>,
+    /// Refuse the next upgrades with this HTTP status, this many times.
+    refuse: Option<(u16, usize)>,
+    /// Upgrades refused so far.
+    refused: usize,
 }
 
 pub(crate) struct Upstream {
@@ -76,7 +84,8 @@ impl Upstream {
         let task = tokio::spawn(async move {
             let mut connections = JoinSet::new();
             while let Ok((tcp, _)) = listener.accept().await {
-                let Some((ws, hs)) = open(tcp).await else {
+                let refusal = next_refusal(&shared);
+                let Some((ws, hs)) = open(tcp, refusal).await else {
                     continue;
                 };
                 let (tx, rx) = mpsc::channel(64);
@@ -148,14 +157,36 @@ impl Upstream {
             .map_err(|_| "the connection closed before the frame was sent".to_string())
     }
 
-    /// Close the open connection, as a broker dropping the socket does.
-    pub(crate) async fn drop_live(&self) -> Result<(), String> {
+    /// Close the open connection, as a broker dropping the socket does,
+    /// with a close frame's code and reason if given (Sahi's 4401, 4403,
+    /// 4429).
+    pub(crate) async fn drop_live(&self, close: Option<(u16, String)>) -> Result<(), String> {
         let live = self.state.lock().live.take();
         let (_, tx) = live.ok_or_else(|| "no connection is open".to_string())?;
-        tx.send(Out::Close)
+        tx.send(Out::Close(close))
             .await
             .map_err(|_| "the connection had already closed".to_string())
     }
+
+    /// Refuse the next `times` upgrades with HTTP `status` (a broker's 429).
+    pub(crate) fn refuse(&self, status: u16, times: usize) {
+        self.state.lock().refuse = Some((status, times));
+    }
+
+    /// Connections opened and upgrades refused so far.
+    pub(crate) fn counts(&self) -> (usize, usize) {
+        let st = self.state.lock();
+        (st.connections.len(), st.refused)
+    }
+}
+
+/// The status to refuse the next upgrade with, if a step asked for one.
+fn next_refusal(state: &Mutex<State>) -> Option<u16> {
+    let mut st = state.lock();
+    let (status, times) = st.refuse?;
+    st.refuse = (times > 1).then_some((status, times - 1));
+    st.refused += 1;
+    Some(status)
 }
 
 /// Dropping the fake broker stops it listening and closes every
@@ -166,10 +197,19 @@ impl Drop for Upstream {
     }
 }
 
-/// Accept the WebSocket handshake, keeping its path and headers.
-async fn open(tcp: TcpStream) -> Option<(WebSocketStream<TcpStream>, Handshake)> {
+/// Accept the WebSocket handshake, keeping its path and headers, or
+/// refuse it with `refusal`'s HTTP status.
+async fn open(
+    tcp: TcpStream,
+    refusal: Option<u16>,
+) -> Option<(WebSocketStream<TcpStream>, Handshake)> {
     let mut hs = Handshake::default();
     let cb = handshake::check(|req: &Request, resp: Response| {
+        if let Some(status) = refusal {
+            let mut no = ErrorResponse::new(Some(format!("refused with {}", status)));
+            *no.status_mut() = StatusCode::from_u16(status).unwrap_or(StatusCode::FORBIDDEN);
+            return Err(Box::new(no));
+        }
         hs.path = req.uri().to_string();
         hs.headers = req
             .headers()
@@ -213,7 +253,16 @@ async fn serve(
                         break;
                     }
                 }
-                Some(Out::Close) | None => {
+                Some(Out::Close(Some((code, reason)))) => {
+                    let frame = CloseFrame {
+                        code: CloseCode::from(code),
+                        reason: reason.into(),
+                    };
+                    let _ = write.send(Message::Close(Some(frame))).await;
+                    let _ = write.close().await;
+                    break;
+                }
+                Some(Out::Close(None)) | None => {
                     let _ = write.close().await;
                     break;
                 }

@@ -1,0 +1,29 @@
+{
+  "broker": "zerodha",
+  "summary": "Kite closes the socket with a close code, refuses the first reconnect with HTTP 429, and accepts the next: the manager backs off and connects again, sends the subscription again, and streams as before.",
+  "scenarios": [
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-test",
+    "sources": [
+      "broker/zerodha/streaming/zerodha_websocket.py::ZerodhaWebSocket._parse_packet",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._handle_ticks",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._transform_regular_tick",
+      "test/test_zerodha_index_packets.py::test_regular_quote_packet_still_uses_quote_layout"
+    ],
+    "notes": [
+      "A 429 is not a refused session (WebSocketManager stops only on 401 and 403), so the feed retries after its backoff."
+    ]
+  }
+}

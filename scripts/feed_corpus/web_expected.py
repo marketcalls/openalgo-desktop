@@ -194,8 +194,12 @@ def compute(case_dir: Path, web: Path, sha: str) -> dict:
     }
 
 
-def mode_pair(published: list, mode: int):
-    market = [p for p in published if p["kind"] == "market"]
+def mode_pair(published: list, mode: int, frame: dict):
+    market = [
+        p for p in published
+        if p["kind"] == "market"
+        and all(k not in p or p[k] == frame.get(k) for k in ("symbol", "exchange"))
+    ]
     same = [p for p in market if p["mode"] == mode]
     if same:
         return same[0]
@@ -232,7 +236,7 @@ def diff(case_dir: Path, out: dict) -> list[str]:
                 orders_seen += 1
                 mine, theirs = frame, (theirs[0]["frame"] if theirs else None)
             else:
-                p = mode_pair(pushes[last], step.get("web_mode", frame.get("mode")))
+                p = mode_pair(pushes[last], step.get("web_mode", frame.get("mode")), frame)
                 mine, theirs = frame.get("data", {}), (p["data"] if p else None)
             if theirs is None:
                 lines.append(f"(line {n}: the web publishes nothing this frame could come from)")

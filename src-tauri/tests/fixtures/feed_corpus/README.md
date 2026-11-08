@@ -44,7 +44,9 @@ false), `web.depth` (the levels, or the levels per exchange as the web's
 capability registry lists them), `web.orders` (how the web streams order
 updates, or false), with `sources` (the web files read) and `notes`. A
 mode, depth or order stream the web offers and no case covers shows in the
-matrix as **no case**.
+matrix as **no case**; one it does not offer shows as not offered by the
+web, with the cases that show the desktop refusing it too; a broker with
+`"orders": false` has no order scenarios to cover.
 
 ### case.json
 
@@ -110,7 +112,9 @@ One step per line. Every step may carry a `"note"` for the reader;
 | `push` | `socket`, `frame`, `connection` | The fake broker sends `frame` on the open connection (of `socket`, default `main`; on connection `connection` if named). |
 | `upstream_receives` | `socket`, `frames`, `any_order`, `connection` | The feed's next frames to the broker are exactly `frames`, in order (or in any order), all on `connection` if named. |
 | `upstream_connected` | `socket`, `connection`, `path`, `headers` | Connection `connection` (default 1) was opened, with this path and query and these headers (only the named ones are compared). |
-| `drop_upstream` | `socket` | The fake broker closes the open connection, as a broker dropping the socket does; the manager reconnects. |
+| `drop_upstream` | `socket`, `code`, `reason` | The fake broker closes the open connection, as a broker dropping the socket does, with a close frame of that code and reason if given (Sahi's 4401, 4403, 4429); the manager reconnects or stops as the feed decides. |
+| `refuse_upgrades` | `socket`, `status`, `times` | The next `times` (default 1) connection attempts are refused with HTTP `status` (429, 401). |
+| `upstream_connections` | `socket`, `count`, `refused`, `ms` | The socket reaches exactly `count` opened connections (and `refused` refused upgrades, if named) and still has them after `ms` (default 300): a feed that reconnected, or one that stopped. |
 | `http_serve` | `method`, `path`, `status`, `body`, `record` | The fake broker API answers `path` with this from now on (the order book a poller reads next). Counts as a push for the receipt window and for `web.json`. |
 | `http_polled` | `method`, `path`, `times` | Wait until `path`'s current answer has been read `times` times (default 1): the poller has seen it. |
 | `http_receives` | `requests` | The next requests the API kept (from `record` routes, or to no route) are exactly these: `{"method", "path" (with its query), "json" or "text" (the body; neither for none)}`. |
@@ -123,7 +127,9 @@ frame, sent compact, compared as JSON) or `{"binary_json": {...}}` (a binary
 frame holding JSON, as Upstox sends its subscriptions). In a JSON frame or
 request the feed sends, the string `"<any>"` matches any value at that key:
 only for a value no case can know (Upstox's random `guid`), never where the
-value is deterministic. A `.hex` file takes any spacing and `#` comments,
+value is deterministic. `"<now_ms>"` and `"<now_s>"` match an integer epoch
+time of this run, in ms or s: a time the feed stamps when it sends (Kotak's
+`conn_req_time`). A `.hex` file takes any spacing and `#` comments,
 so a packet is written field by field:
 
 ```
@@ -222,8 +228,9 @@ build it), and what to do where a web adapter cannot be run, is in that
 script's docstring. CI never runs it: it has no web tree.
 
 With `web.json` present, each `receive` after a push is compared with the
-web's publish of the same mode for that push (or the lowest richer one,
-which is what the web proxy delivers to a client at that mode): the `data`
+web's publish for the same instrument (the topic's exchange and symbol) and
+mode for that push (or the lowest richer mode, which is what the web proxy
+delivers to a client at that mode): the `data`
 objects key by key, or the whole frame for an `order_update`. `web_mode`
 picks another mode; `"web": false` says the web sends nothing for this
 frame, which needs a deviation with key `frame`. Every key on which the
@@ -288,7 +295,13 @@ Use the feed's `with_url` (or the broker's `with_urls`) constructor;
 credentials are fake values (never real ones, never anything gitleaks
 matches). A feed made by `Broker::create_feed` goes in with
 `Feeds::boxed(..)`, an order feed from `Broker::create_order_feed` with
-`.with_order_feed(..)`, a deep-book socket with `.with_depth(levels, ..)`. A
+`.with_order_feed(..)`, a deep-book socket with `.with_depth(levels, ..)`.
+Build the broker itself and pass it with `.with_broker(Arc::new(broker))`,
+as the app does: the bridge then takes its depth levels
+(`Broker::feed_depth_levels`, in place of `case.json`'s `depth_levels`) and
+its exchange refusals (`Broker::feed_refusal`), so a refusal case (an
+exchange or mode the broker's feed does not stream) answers as it would in
+the app; the broker lives until the case ends. A
 feed whose `prepare` calls the broker's REST API first (Upstox's authorize,
 Groww's socket token) reads it from the fake broker API:
 `env.serve_json("/v3/feed/market-data-feed/authorize", json!({"data":

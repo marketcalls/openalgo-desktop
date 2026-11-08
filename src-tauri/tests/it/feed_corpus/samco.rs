@@ -8,20 +8,22 @@ use openalgo_desktop_lib::brokers::samco::SamcoBroker;
 use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
 use serde_json::json;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Samco's order book, empty until a case serves another.
 const ORDER_BOOK: &str = "/order/orderBook";
 
 fn feeds(env: &Env) -> Feeds {
-    let broker = SamcoBroker::with_urls(
+    let broker = Arc::new(SamcoBroker::with_urls(
         env.symbols(),
         env.http_url(),
         format!("{}/master", env.http_url()),
         env.url("main"),
-    );
+    ));
     let auth = AuthToken::new("session");
-    let feeds = Feeds::boxed(broker.create_feed(&auth).expect("Samco's market feed"));
+    let feeds = Feeds::boxed(broker.create_feed(&auth).expect("Samco's market feed"))
+        .with_broker(broker.clone());
     if !env.orders() {
         return feeds;
     }
@@ -32,9 +34,7 @@ fn feeds(env: &Env) -> Feeds {
     let updates = broker
         .start_order_updates(&auth, Duration::from_secs(1))
         .expect("Samco's order poller");
-    feeds
-        .with_order_feed(OrderFeed::Stream(updates))
-        .keeping(broker)
+    feeds.with_order_feed(OrderFeed::Stream(updates))
 }
 
 corpus_cases!("samco", feeds, [order_book_polling]);

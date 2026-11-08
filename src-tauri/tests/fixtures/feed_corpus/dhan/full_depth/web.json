@@ -23,6 +23,8 @@
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 3,
           "data": {
             "symbol": "RELIANCE",

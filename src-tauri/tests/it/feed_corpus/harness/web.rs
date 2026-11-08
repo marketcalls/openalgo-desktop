@@ -133,7 +133,17 @@ fn counterpart<'a>(
                 .map(u64::from)
                 .or_else(|| frame["mode"].as_u64())
                 .unwrap_or(0);
-            let market: Vec<&Value> = published.iter().filter(|p| p["kind"] == "market").collect();
+            // The web's publishes for this frame's instrument (its topic's
+            // exchange and symbol), so one push may publish several.
+            let market: Vec<&Value> = published
+                .iter()
+                .filter(|p| p["kind"] == "market")
+                .filter(|p| {
+                    ["symbol", "exchange"]
+                        .iter()
+                        .all(|k| p.get(*k).is_none_or(|v| *v == frame[*k]))
+                })
+                .collect();
             let theirs: &Value = market
                 .iter()
                 .find(|p| mode_of(p) == Some(mode))

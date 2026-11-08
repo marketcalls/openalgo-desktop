@@ -24,6 +24,7 @@ corpus_cases!(
         index_full,
         two_clients_mode_change,
         reconnect_replays,
+        refused_reconnect,
         order_postbacks,
     ]
 );

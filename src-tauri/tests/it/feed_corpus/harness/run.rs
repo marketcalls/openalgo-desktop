@@ -8,7 +8,7 @@ use super::case::{bad, Action, Case, Expect, Socket, Step};
 use super::compare::{self, Window};
 use super::http::{self, HttpRequestExpect};
 use super::json_text;
-use super::upstream::Received;
+use super::upstream::{until, Received};
 use super::web;
 use super::world::{Env, Feeds, World};
 use crate::feed_support::Client;
@@ -177,10 +177,25 @@ impl Runner<'_> {
                     }
                 }
             }
-            Action::DropUpstream { socket } => {
-                if let Err(e) = self.world.upstream(*socket).drop_live().await {
+            Action::DropUpstream { socket, close } => {
+                let up = self.world.upstream(*socket);
+                if let Err(e) = up.drop_live(close.clone()).await {
                     bad(&at, format!("{} socket: {}", socket.name(), e));
                 }
+            }
+            Action::RefuseUpgrades {
+                socket,
+                status,
+                times,
+            } => self.world.upstream(*socket).refuse(*status, *times),
+            Action::UpstreamConnections {
+                socket,
+                count,
+                refused,
+                ms,
+            } => {
+                self.upstream_connections(&at, *socket, *count, *refused, *ms)
+                    .await
             }
             Action::HttpServe(answer) => {
                 // An order book the poller reads next is like a push: its
@@ -207,6 +222,37 @@ impl Runner<'_> {
             }
             Action::HttpReceives { requests } => self.http_receives(&at, requests).await,
             Action::Note => {}
+        }
+    }
+
+    /// The socket reaches exactly `count` connections (and `refused`
+    /// refused upgrades) and stays there for `ms`: a feed that reconnects
+    /// after a drop or a 429, or one that stops after a refused session.
+    async fn upstream_connections(
+        &self,
+        at: &str,
+        socket: Socket,
+        count: usize,
+        refused: Option<usize>,
+        ms: u64,
+    ) {
+        let up = self.world.upstream(socket);
+        let wanted = |(c, r): (usize, usize)| c == count && refused.is_none_or(|want| want == r);
+        let reached = until(|| wanted(up.counts()).then_some(())).await.is_some();
+        tokio::time::sleep(Duration::from_millis(ms)).await;
+        let now = up.counts();
+        if !reached || !wanted(now) {
+            bad(
+                at,
+                format!(
+                    "the {} socket has had {} connections and {} refused upgrades; expected {}{}",
+                    socket.name(),
+                    now.0,
+                    now.1,
+                    count,
+                    refused.map_or_else(String::new, |r| format!(" and {} refused", r))
+                ),
+            );
         }
     }
 

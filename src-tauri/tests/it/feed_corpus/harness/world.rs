@@ -16,6 +16,7 @@ use openalgo_desktop_lib::brokers::common::streaming::{
     BrokerFeed, FeedEvent, OrderFeed, OrderUpdate,
 };
 use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
+use openalgo_desktop_lib::brokers::Broker;
 use openalgo_desktop_lib::events::EventBus;
 use openalgo_desktop_lib::feed::auth::StaticAuth;
 use openalgo_desktop_lib::feed::bridge::BrokerBridge;
@@ -88,6 +89,9 @@ pub(crate) struct Feeds {
     /// What must live as long as the case (a broker whose poller stops
     /// when it is dropped).
     keep: Vec<Box<dyn Any + Send + Sync>>,
+    /// The session's broker, whose depth levels and exchange refusals the
+    /// bridge reads.
+    broker: Option<Arc<dyn Broker>>,
 }
 
 impl Feeds {
@@ -102,7 +106,17 @@ impl Feeds {
             depth: None,
             orders: None,
             keep: Vec::new(),
+            broker: None,
         }
+    }
+
+    /// The session's broker, as `broker_runtime` installs it: the bridge
+    /// takes its depth levels (`Broker::feed_depth_levels`, in place of
+    /// `case.json`'s `depth_levels`) and its exchange refusals
+    /// (`Broker::feed_refusal`), and it lives until the case ends.
+    pub(crate) fn with_broker(mut self, broker: Arc<dyn Broker>) -> Feeds {
+        self.broker = Some(broker.clone());
+        self.keeping(broker)
     }
 
     /// The broker's separate socket for books of `levels` levels (Dhan 20,
@@ -191,10 +205,31 @@ impl World {
         let deep = Arc::new(WebSocketManager::with_config(manager_config()));
         let orders = Arc::new(WebSocketManager::with_config(manager_config()));
         let bridge = BrokerBridge::with_depth_manager(market.clone(), deep.clone(), symbols);
-        let levels = case.depth_levels.clone();
-        bridge.set_depth_capability(Arc::new(move |exchange: &str| {
-            levels.get(exchange).cloned().unwrap_or_else(|| vec![5])
-        }));
+        match &feeds.broker {
+            // `broker_runtime::start_session`'s wiring.
+            Some(b) => {
+                if !case.depth_levels.is_empty() {
+                    panic!(
+                        "feed corpus {}: depth levels come from the broker; drop case.json's",
+                        case.id
+                    );
+                }
+                let caps = b.clone();
+                bridge.set_depth_capability(Arc::new(move |exchange: &str| {
+                    caps.feed_depth_levels(exchange)
+                }));
+                let refusal = b.clone();
+                bridge.set_exchange_refusal(Arc::new(move |exchange: &str| {
+                    refusal.feed_refusal(exchange)
+                }));
+            }
+            None => {
+                let levels = case.depth_levels.clone();
+                bridge.set_depth_capability(Arc::new(move |exchange: &str| {
+                    levels.get(exchange).cloned().unwrap_or_else(|| vec![5])
+                }));
+            }
+        }
 
         // Order updates: listened for before any socket connects, as the
         // runtime does, so none is missed.

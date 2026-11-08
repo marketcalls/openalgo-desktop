@@ -203,6 +203,19 @@ def topic_mode(topic: str) -> int:
     return {"LTP": 1, "QUOTE": 2, "DEPTH": 3}[topic.rsplit("_", 1)[1].upper()]
 
 
+# websocket_proxy/server.py's two-segment exchanges in a topic.
+_TWO_SEGMENT_EXCHANGES = {("NSE", "INDEX"), ("BSE", "INDEX"), ("MCX", "INDEX"), ("GLOBAL", "INDEX")}
+
+
+def topic_instrument(topic: str) -> tuple[str, str]:
+    """A topic's exchange and symbol, split as websocket_proxy/server.py's
+    ZeroMQ listener splits them (the frame a client gets carries these)."""
+    remaining = topic.split("_")[:-1]
+    if len(remaining) >= 2 and (remaining[0], remaining[1]) in _TWO_SEGMENT_EXCHANGES:
+        return f"{remaining[0]}_{remaining[1]}", "_".join(remaining[2:])
+    return remaining[0], "_".join(remaining[1:])
+
+
 class Master:
     """The case's symbol master rows, with the defaults the harness gives."""
 
@@ -327,9 +340,11 @@ class Glue:
 
     def publish(self, topic: str, data: dict) -> None:
         """The adapter's `publish_market_data`."""
-        self.published.append(
-            {"kind": "market", "topic": topic, "mode": topic_mode(topic), "data": receipt(copy.deepcopy(data))}
-        )
+        exchange, symbol = topic_instrument(topic)
+        self.published.append({
+            "kind": "market", "topic": topic, "exchange": exchange, "symbol": symbol,
+            "mode": topic_mode(topic), "data": receipt(copy.deepcopy(data)),
+        })
 
     def order(self, fields: dict) -> None:
         """An order update the adapter normalised, as the web relays it:

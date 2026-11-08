@@ -19,6 +19,8 @@
         {
           "kind": "market",
           "topic": "NSE_INFY_QUOTE",
+          "exchange": "NSE",
+          "symbol": "INFY",
           "mode": 2,
           "data": {
             "symbol": "INFY",
@@ -46,6 +48,8 @@
         {
           "kind": "market",
           "topic": "NSE_INFY_QUOTE",
+          "exchange": "NSE",
+          "symbol": "INFY",
           "mode": 2,
           "data": {
             "symbol": "INFY",
