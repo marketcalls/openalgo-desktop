@@ -355,76 +355,14 @@ impl DhanFeed {
             timestamp_ms: now,
             ..Default::default()
         };
-        match code {
-            2 => {
-                t.mode = FeedMode::Ltp.code();
-                t.last_trade_time_ms = i64::from(le_u32(p, 4)) * 1000;
-                t.oi = sub.oi;
-            }
-            _ => {
-                t.mode = if code == 4 {
-                    FeedMode::Quote.code()
-                } else {
-                    FeedMode::Depth.code()
-                };
-                t.last_quantity = i64::from(le_u16(p, 4));
-                t.last_trade_time_ms = i64::from(le_u32(p, 6)) * 1000;
-                t.average_price = le_f32(p, 10);
-                t.volume = i64::from(le_u32(p, 14));
-                t.total_sell_quantity = i64::from(le_u32(p, 18));
-                t.total_buy_quantity = i64::from(le_u32(p, 22));
-                let base = if code == 4 {
-                    t.oi = sub.oi;
-                    26
-                } else {
-                    t.oi = i64::from(le_u32(p, 26));
-                    sub.oi = t.oi;
-                    38
-                };
-                t.open = le_f32(p, base);
-                t.high = le_f32(p, base + 8);
-                t.low = le_f32(p, base + 12);
-                // The packet's close (`base + 4`) is today's, which Dhan
-                // fills only after the market closes: it goes out as
-                // `day_close` (web `_normalize_5depth_data`), never as close.
-                let day_close = le_f32(p, base + 4);
-                if day_close != 0.0 {
-                    t.extras.day_close = Some(day_close);
-                }
-                if code == 8 {
-                    t.broker_fields.set(
-                        BrokerField::OiHigh,
-                        BrokerValue::Int(i64::from(le_u32(p, 30))),
-                    );
-                    t.broker_fields.set(
-                        BrokerField::OiLow,
-                        BrokerValue::Int(i64::from(le_u32(p, 34))),
-                    );
-                    t.extras.previous_oi = sub.prev_oi;
-                }
-            }
-        }
+        quote_body(&mut t, sub, code, p);
         match sub.prev_close {
             Some(close) => t.close = close,
             None => t.absent = NO_PREVIOUS_CLOSE,
         }
         t.derive_change();
         if code == 8 {
-            let mut buy = Vec::with_capacity(5);
-            let mut sell = Vec::with_capacity(5);
-            for i in 0..5 {
-                let o = 54 + 20 * i;
-                buy.push(DepthLevel {
-                    price: le_f32(p, o + 12),
-                    quantity: i64::from(le_u32(p, o)),
-                    orders: i64::from(le_u16(p, o + 8)),
-                });
-                sell.push(DepthLevel {
-                    price: le_f32(p, o + 16),
-                    quantity: i64::from(le_u32(p, o + 4)),
-                    orders: i64::from(le_u16(p, o + 10)),
-                });
-            }
+            let (buy, sell) = full_book(p);
             let depth = NormalizedDepth {
                 symbol: t.symbol.clone(),
                 exchange: t.exchange.clone(),
@@ -442,6 +380,81 @@ impl DhanFeed {
             out.push(FeedEvent::Tick(t));
         }
     }
+}
+
+/// A market packet's fields after its LTP (web `_parse_ticker_packet`,
+/// `_parse_quote_packet`, `_parse_full_packet`), by response code.
+fn quote_body(t: &mut NormalizedTick, sub: &mut SubInfo, code: u8, p: &[u8]) {
+    match code {
+        2 => {
+            t.mode = FeedMode::Ltp.code();
+            t.last_trade_time_ms = i64::from(le_u32(p, 4)) * 1000;
+            t.oi = sub.oi;
+        }
+        _ => {
+            t.mode = if code == 4 {
+                FeedMode::Quote.code()
+            } else {
+                FeedMode::Depth.code()
+            };
+            t.last_quantity = i64::from(le_u16(p, 4));
+            t.last_trade_time_ms = i64::from(le_u32(p, 6)) * 1000;
+            t.average_price = le_f32(p, 10);
+            t.volume = i64::from(le_u32(p, 14));
+            t.total_sell_quantity = i64::from(le_u32(p, 18));
+            t.total_buy_quantity = i64::from(le_u32(p, 22));
+            let base = if code == 4 {
+                t.oi = sub.oi;
+                26
+            } else {
+                t.oi = i64::from(le_u32(p, 26));
+                sub.oi = t.oi;
+                38
+            };
+            t.open = le_f32(p, base);
+            t.high = le_f32(p, base + 8);
+            t.low = le_f32(p, base + 12);
+            // The packet's close (`base + 4`) is today's, which Dhan
+            // fills only after the market closes: it goes out as
+            // `day_close` (web `_normalize_5depth_data`), never as close.
+            let day_close = le_f32(p, base + 4);
+            if day_close != 0.0 {
+                t.extras.day_close = Some(day_close);
+            }
+            if code == 8 {
+                t.broker_fields.set(
+                    BrokerField::OiHigh,
+                    BrokerValue::Int(i64::from(le_u32(p, 30))),
+                );
+                t.broker_fields.set(
+                    BrokerField::OiLow,
+                    BrokerValue::Int(i64::from(le_u32(p, 34))),
+                );
+                t.extras.previous_oi = sub.prev_oi;
+            }
+        }
+    }
+}
+
+/// A full packet's five 20-byte book levels from byte 54: bid and ask
+/// quantity (u32), orders (u16) and price (f32).
+fn full_book(p: &[u8]) -> (Vec<DepthLevel>, Vec<DepthLevel>) {
+    let mut buy = Vec::with_capacity(5);
+    let mut sell = Vec::with_capacity(5);
+    for i in 0..5 {
+        let o = 54 + 20 * i;
+        buy.push(DepthLevel {
+            price: le_f32(p, o + 12),
+            quantity: i64::from(le_u32(p, o)),
+            orders: i64::from(le_u16(p, o + 8)),
+        });
+        sell.push(DepthLevel {
+            price: le_f32(p, o + 16),
+            quantity: i64::from(le_u32(p, o + 4)),
+            orders: i64::from(le_u16(p, o + 10)),
+        });
+    }
+    (buy, sell)
 }
 
 impl BrokerFeed for DhanFeed {
