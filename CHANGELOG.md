@@ -3,6 +3,179 @@
 All notable changes to OpenAlgo Desktop are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.6
+
+OpenAlgo web's November broker fixes. Live prices from thirteen brokers now
+leave out a value the broker's feed does not carry instead of showing 0, so
+an app that works out the change against a previous close of 0 no longer
+shows the whole price as the change. Also: Kotak, Shoonya, Dhan, CompositEdge
+and RMoney fixes, a Live strategy that stays with the broker its first order
+went to, Historify history at session opens, the Chrome Plugin and Excel
+Add-in on the Download page, and every open code-scanning alert fixed. If you
+run 1.0.5, OpenAlgo offers this update in the app; choose Update when no live
+strategy or active workflow is running.
+
+### Live market data
+
+- The WebSocket feed leaves out a quote field your broker's feed does not
+  carry, as OpenAlgo web now does, instead of sending 0. A 50-level Fyers or
+  20-level Dhan book that arrives before the symbol's first quote carries its
+  price, totals and levels only. Frames also carry the names each broker's
+  OpenAlgo web adapter uses beside the usual ones: `last_trade_time` (Sahi,
+  Kotak, Fyers, Dhan, Upstox, mStock, Samco, 5paisa) and `percent_change`
+  (Fyers, Kotak, Definedge, Tradejini, 5paisa) (marketcalls/openalgo#2376).
+- Sahi: Quote and Depth no longer show open, high, low, previous close,
+  average price, last quantity or order book totals as 0. Sahi's live feed
+  does not carry them, so they are left out, and an index no longer gets a
+  made-up trade time (marketcalls/openalgo#2376).
+- Fyers: market depth carries the full quote and Fyers' own order book
+  totals, and a book that arrives before the first quote is sent again,
+  complete. A value Fyers did not send is left out instead of 0, and indices
+  no longer show a trade time, volume or open interest of 0
+  (marketcalls/openalgo#2376).
+- Kotak: the first prices before a full quote no longer show open, high, low
+  and volume as 0, and there is no trade time before the first trade. Market
+  depth shows the whole book Kotak sent, without levels the exchange had
+  already removed. NIFTY and NIFTY50 both stream, and BSE currency
+  derivatives (BCD) now stream at all (marketcalls/openalgo#2376).
+- Dhan: a quote's close is the previous day's close all session, as Dhan
+  sends it when you subscribe. After the market it no longer becomes the
+  day's own close, and until Dhan has sent it the close is left out instead
+  of shown as 0 (marketcalls/openalgo#2377).
+- Upstox: quotes keep every value Upstox has sent instead of dropping open,
+  high, low, average price and totals to 0 between ticks. The close is the
+  previous day's close, volume is the day's traded volume, and market depth
+  carries the full quote. Moving a symbol between LTP and Quote no longer
+  drops it from the feed for a moment (marketcalls/openalgo#2377).
+- Groww: index prices (NIFTY, SENSEX and others) now stream live. A quote
+  shows what Groww has sent and leaves out the rest instead of zeros.
+  Subscribing to MCX, NCO, CDS or another exchange Groww does not stream now
+  says so (marketcalls/openalgo#2341, #2377).
+- Zerodha: index quotes in Depth mode no longer show open interest as 0, and
+  a tick always carries the mode its packet was sent in
+  (marketcalls/openalgo#2361).
+- Definedge: a quote also takes Definedge's depth feed, so open, high, low,
+  previous close, last quantity, trade time and the book totals arrive even
+  when the first quote came without them. A value Definedge has not sent is
+  left out instead of shown as 0 (marketcalls/openalgo#2383).
+- mStock: the last trade time is the full packet's own, and it is left out
+  before the first trade instead of showing when the quote arrived
+  (marketcalls/openalgo#2383).
+- Tradejini: quotes no longer show total buy and sell quantity as 0 before a
+  depth book has come. Market depth refreshes with every price change and
+  waits for the price before showing a book (marketcalls/openalgo#2383,
+  #2341, #2359).
+- Samco: live prices carry the exchange's last trade time, not the time
+  OpenAlgo received them, and leave it out when Samco sends none. Average
+  price and total buy and sell quantity appear once Samco sends them, a total
+  of 0 included, instead of showing 0 before. A price for one segment is
+  never shown under the same code on another (marketcalls/openalgo#2396,
+  #2397).
+- 5paisa: live prices and market depth no longer mix up two instruments that
+  share a scrip code (NSE and BSE, or cash and F&O). Market depth shows the
+  latest open, high, low, close, volume, average price and trade time. An
+  open-interest update no longer shows a quote with volume 0, and a missing
+  trade time is left out instead of shown as now (marketcalls/openalgo#2396,
+  #2397).
+- HDFC Sky: circuit-limit and open-interest updates no longer blank the live
+  price, OHLC and volume. After a reconnect or a new subscription, nothing
+  old is shown until the first full quote (marketcalls/openalgo#2396, #2397).
+- Flattrade, Shoonya, Zebu, TradeSmart: live market data keeps reconnecting
+  through a long network outage, as it already did; OpenAlgo web's Flattrade
+  gave up after about seven minutes, and tests now pin it here
+  (marketcalls/openalgo#2324).
+
+### Brokers
+
+- Shoonya: the last candle of each day in 3-minute to 4-hour history is right
+  again. Shoonya folded the next morning's pre-open price into it when a
+  request spanned several days (marketcalls/openalgo#2343, #2360).
+- Kotak Neo: holdings show the right symbol, margin errors show Kotak's
+  reason, and the average price uses the decimals Kotak gives. A delivery
+  position carried overnight is valued at what it cost, from Holdings, and a
+  position still valued at the previous day's settlement says so in the
+  position book (`average_price_basis`) (marketcalls/openalgo#2365, #2367).
+- Dhan: a login is accepted only for the account Dhan confirms it belongs
+  to, and an access token is accepted from the login form, never from a link
+  (marketcalls/openalgo#2337).
+- CompositEdge and RMoney: a login for another account than your market data
+  keys is refused, and RMoney's account is confirmed with RMoney itself
+  (marketcalls/openalgo#2337).
+- Tradejini: the instrument download no longer fails on Tradejini's new ETF
+  group. Indices are typed EQ, and BCD, which Tradejini does not list, is no
+  longer offered. Charts load again for contracts whose history held a bar
+  outside its own high and low, and bars missing a price are dropped instead
+  of drawn at 0 (marketcalls/openalgo#2341, #2359).
+
+### Strategies
+
+- A Live strategy that started before you logged in to your broker now stays
+  with the broker its first order went to. A login to another broker while a
+  Live strategy still trades elsewhere is refused, with what to stop first
+  (marketcalls/openalgo#2337).
+- A pending strategy stop says "Stop requested" once, not every few seconds,
+  and a stop or target hit while OpenAlgo cannot reach the strategy's broker
+  is recorded once (marketcalls/openalgo#2337).
+
+### Historify
+
+- Scrolling back on a Historify chart at 3-minute, 5-minute, 15-minute or
+  1-hour bars loads older history again; it stopped at the first bar of a
+  session (marketcalls/openalgo#2358, #2310).
+
+### Download page
+
+- The Download page lists FastScalper, the Chrome Plugin and the Excel
+  Add-in, each with what it does, how to install it, its download and what
+  it needs from OpenAlgo (an API key and this app's address). The OpenAlgo
+  Desktop card says new versions arrive as an update in the app, and links
+  to the release page for installing on another computer.
+
+### Security
+
+- Select Broker no longer shows text taken from its address. After a failed
+  broker login OpenAlgo keeps the reason itself and shows it once, only in
+  the browser session that came back from that login, so a link someone else
+  made cannot put words on the page (marketcalls/openalgo#2337).
+- Every open code-scanning alert is fixed (eleven, all in Flow). None was a
+  leak: ten were test code that the scan was not leaving out, and one was a
+  variable named after CPython's that the scan reads as an encryption value.
+  A check now refuses a scan setting that would leave out app code.
+
+### Fixes
+
+- Windows: when Windows has reserved the app's port (Hyper-V, WSL, Docker),
+  the start page now says so and tells you to pick another port such as 5001
+  and update your broker app's redirect URL. The troubleshooting guide shows
+  how to check.
+- Select Broker shows a failed broker sign-in at the top of the page when
+  that broker has no card; before, it was not shown at all
+  (marketcalls/openalgo#2337).
+
+### Maintenance
+
+- Tauri 2.12.5, uuid 1.29 and webpki-roots 1.0.11 (which follows Mozilla's
+  root store), and the CI tooling updates.
+
+### Documentation
+
+- The API reference covers Sector Rotation (`/api/v1/sectorrotation`, served
+  since 1.0.4), what a 502 "may have been placed" answer means and when to
+  check the order book, and how a GTT OCO behaves on each broker (on Angel
+  One it is two separate rules). The WebSocket pages say which fields can be
+  absent. The Tools chapter lists all 17 tools.
+
+### Known limitations
+
+- The Windows reserved-port message covers the app's own port; the market
+  data feed's port (8765) still shows the general "could not open the port"
+  message in that case.
+- Upstox market depth levels still carry `orders: 0`, where OpenAlgo web now
+  leaves the key out.
+- HDFC Sky streams up to 300 instruments per connection; past that, the
+  desktop does not yet tell you.
+- Sound alerts and native notifications (issue #222) are planned for 1.0.7.
+
 ## 1.0.5
 
 Flow arrives: build trading workflows on a canvas at `/flow`, run them now,
