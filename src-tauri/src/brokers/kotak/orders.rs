@@ -220,8 +220,9 @@ async fn backfill_ltp(
 }
 
 pub async fn get_positions(b: &KotakBroker, auth: &AuthToken) -> Result<Vec<Position>> {
-    let rows = raw_positions(b, auth).await?;
+    let mut rows = raw_positions(b, auth).await?;
     let ltp = backfill_ltp(b, auth, &rows).await;
+    super::carry_cost::backfill(b, auth, &mut rows).await;
     Ok(rows
         .iter()
         .map(|p| {
@@ -234,6 +235,15 @@ pub async fn get_positions(b: &KotakBroker, auth: &AuthToken) -> Result<Vec<Posi
 }
 
 pub async fn get_holdings(b: &KotakBroker, auth: &AuthToken) -> Result<Vec<Holding>> {
+    Ok(raw_holdings(b, auth)
+        .await?
+        .iter()
+        .map(|h| mapping::map_holding(h, b.resolver()))
+        .collect())
+}
+
+/// The holdings rows as Kotak sent them (an empty book when it has none).
+pub(crate) async fn raw_holdings(b: &KotakBroker, auth: &AuthToken) -> Result<Vec<Value>> {
     let sess = KotakSession::parse(auth)?;
     let (status, v) = b.trading_get(&sess, "/portfolio/v1/holdings").await?;
     if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
@@ -263,10 +273,7 @@ pub async fn get_holdings(b: &KotakBroker, auth: &AuthToken) -> Result<Vec<Holdi
             return Err(book_read::unreadable("kotak", Book::Holdings));
         }
     };
-    Ok(rows
-        .iter()
-        .map(|h| mapping::map_holding(h, b.resolver()))
-        .collect())
+    Ok(rows)
 }
 
 /// web `cancel_all_orders_api`: every order whose raw `ordSt` is `open` or

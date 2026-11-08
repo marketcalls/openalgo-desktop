@@ -17,6 +17,7 @@
 //! bodies of `jData=<percent-encoded JSON>`, every value a string.
 
 pub mod auth;
+mod carry_cost;
 mod data;
 mod feed_config;
 mod funds;
@@ -25,6 +26,8 @@ pub mod master_contract;
 mod order_feed;
 mod orders;
 pub mod streaming;
+#[cfg(test)]
+mod docs_alignment_tests;
 #[cfg(test)]
 mod tests;
 
@@ -165,6 +168,9 @@ pub struct KotakBroker {
     /// The UCC of the last login, which SFeed wants as its `user` (the web
     /// reads `BROKER_API_KEY`; without it the web sends `neome`).
     pub(crate) ucc: Mutex<Option<String>>,
+    /// What carried cash-segment positions cost, from Holdings
+    /// (`carry_cost`).
+    pub(crate) holding_costs: carry_cost::HoldingCosts,
 }
 
 impl KotakBroker {
@@ -194,6 +200,7 @@ impl KotakBroker {
             retry_base: Duration::from_secs(1),
             feed_url: Arc::new(Mutex::new(None)),
             ucc: Mutex::new(None),
+            holding_costs: carry_cost::HoldingCosts::default(),
         }
     }
 
@@ -503,6 +510,7 @@ impl Broker for KotakBroker {
         *self.feed_url.lock() = None;
         // A resume puts it back from the saved keys (KEY-01).
         *self.ucc.lock() = None;
+        self.holding_costs.clear();
     }
 }
 

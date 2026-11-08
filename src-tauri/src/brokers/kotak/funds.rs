@@ -101,17 +101,13 @@ pub fn parse_margin(v: &Value) -> std::result::Result<f64, String> {
         return Err("Invalid response from broker".into());
     }
     if s(v, "stat") != "Ok" {
-        let m = s(v, "errMsg");
-        return Err(if m.is_empty() {
-            let e = s(v, "emsg");
-            if e.is_empty() {
-                "Failed to calculate margin".into()
-            } else {
-                e
-            }
-        } else {
-            m
-        });
+        // Kotak's error field is `emsg` (web marketcalls/openalgo#2367);
+        // `errMsg` is read after it.
+        return Err(["emsg", "errMsg"]
+            .iter()
+            .map(|k| s(v, k))
+            .find(|m| !m.is_empty())
+            .unwrap_or_else(|| "Failed to calculate margin".into()));
     }
     Ok(n(v, "reqdMrgn"))
 }

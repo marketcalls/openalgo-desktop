@@ -481,20 +481,39 @@ pub fn price_factor(p: &Value) -> f64 {
     term("multiplier") * (term("genNum") / term("genDen")) * (term("prcNum") / term("prcDen"))
 }
 
+/// The scratch field a carried cash-segment row's Holdings average price
+/// is stamped in before mapping (`carry_cost::backfill`).
+pub const HOLDING_AVERAGE: &str = "_holding_avg";
+
 /// What the carried-forward leg cost (web `_carry_forward_amounts`): at
-/// `upldPrc` when Kotak sends it, else Kotak's carry-forward valuation
-/// (flagged).
+/// `upldPrc` when Kotak sends it, else at the Holdings average price
+/// stamped on a carried cash-segment row (Kotak's docs: the Neo app
+/// values such a leg from Holdings, marketcalls/openalgo#2367), else
+/// Kotak's carry-forward valuation (flagged; a carried F&O leg has no cost
+/// anywhere in Kotak's API).
 pub fn carry_forward_amounts(p: &Value, factor: f64) -> (f64, f64, bool) {
     let cfb = n(p, "cfBuyQty");
     let cfs = n(p, "cfSellQty");
     if cfb == 0.0 && cfs == 0.0 {
         return (0.0, 0.0, false);
     }
-    let up = n(p, "upldPrc");
+    let up = Some(n(p, "upldPrc"))
+        .filter(|v| *v > 0.0)
+        .unwrap_or_else(|| n(p, HOLDING_AVERAGE));
     if up > 0.0 {
         return (cfb * up * factor, cfs * up * factor, false);
     }
     (n(p, "cfBuyAmt"), n(p, "cfSellAmt"), true)
+}
+
+/// The decimals a row's average price is rounded to: its `precision`
+/// (Kotak's docs: "decided by precision field"), 2 when it says none, as
+/// Kotak's SDK falls back.
+fn average_precision(p: &Value) -> i32 {
+    match n(p, "precision") as i32 {
+        0 => 2,
+        digits => digits.clamp(0, 8),
+    }
 }
 
 /// The quantities a position row's net is made of (`net_quantity`).
@@ -524,10 +543,11 @@ pub fn map_position(p: &Value, symbols: &SymbolResolver, ltp: f64) -> Position {
     let total_sell = cf_sell + n(p, "sellAmt");
     let buy_qty = n(p, "flBuyQty") + n(p, "cfBuyQty");
     let sell_qty = n(p, "flSellQty") + n(p, "cfSellQty");
+    let digits = average_precision(p);
     let average_price = if quantity > 0 && buy_qty > 0.0 {
-        py_round(total_buy / (buy_qty * factor), 2)
+        py_round(total_buy / (buy_qty * factor), digits)
     } else if quantity < 0 && sell_qty > 0.0 {
-        py_round(total_sell / (sell_qty * factor), 2)
+        py_round(total_sell / (sell_qty * factor), digits)
     } else if quantity != 0 {
         0.0
     } else {
@@ -564,14 +584,17 @@ pub fn map_position(p: &Value, symbols: &SymbolResolver, ltp: f64) -> Position {
 }
 
 /// `map_portfolio_data` + `transform_holdings_data`. The symbol is the
-/// master-contract symbol for `instrumentToken` (the web keeps Kotak's
-/// `displaySymbol` here, which does not resolve; books must carry
-/// OpenAlgo symbols), falling back to `displaySymbol`.
+/// master-contract symbol for `exchangeIdentifier`, the exchange token the
+/// master stores and positions carry as `tok` (web
+/// marketcalls/openalgo#2367: `instrumentToken` is Kotak's own id and is
+/// not in the master; ITBEES is instrumentToken 18974, exchangeIdentifier
+/// 19084), falling back to `displaySymbol`.
 pub fn map_holding(h: &Value, symbols: &SymbolResolver) -> Holding {
     let exchange = row_exchange(&s(h, "exchangeSegment"));
-    let tok = s(h, "instrumentToken");
-    let symbol = symbols
-        .by_token(&exchange, &tok)
+    let tok = s(h, "exchangeIdentifier");
+    let symbol = Some(tok.trim())
+        .filter(|t| !t.is_empty() && !exchange.is_empty())
+        .and_then(|t| symbols.by_token(&exchange, t))
         .map(|r| r.symbol)
         .unwrap_or_else(|| s(h, "displaySymbol"));
     let qty = n(h, "quantity");

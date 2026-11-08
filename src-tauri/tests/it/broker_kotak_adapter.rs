@@ -1074,3 +1074,111 @@ async fn registry_lists_kotak_with_two_step_login() {
     );
     assert_eq!(b.name(), "Kotak Neo");
 }
+
+// ---------------------------------------------------------------------------
+// A carried delivery position valued at its Holdings cost (web
+// test/test_kotak_sdk_2365.py, marketcalls/openalgo#2365, #2367, eb4cce0a1)
+// ---------------------------------------------------------------------------
+
+/// 100 SBIN carried overnight at Kotak's settlement valuation of 800.00 a
+/// share, bought at 750.00 (only Holdings knows), and a carried option,
+/// which has no cost anywhere in Kotak's API.
+fn carried_rows() -> (Value, Value) {
+    (
+        json!({
+            "trdSym": "SBIN-EQ", "exSeg": "nse_cm", "tok": "3045", "prod": "CNC",
+            "flBuyQty": "0", "flSellQty": "0", "cfBuyQty": "100", "cfSellQty": "0",
+            "buyAmt": "0", "sellAmt": "0", "cfBuyAmt": "80000.00", "cfSellAmt": "0",
+            "upldPrc": "0.00",
+        }),
+        json!({
+            "trdSym": "NIFTY27OCT2622600CE", "exSeg": "nse_fo", "tok": "45001", "prod": "NRML",
+            "flBuyQty": "0", "flSellQty": "0", "cfBuyQty": "0", "cfSellQty": "65",
+            "buyAmt": "0", "sellAmt": "0", "cfBuyAmt": "0", "cfSellAmt": "13832.00",
+            "upldPrc": "0.00",
+        }),
+    )
+}
+
+fn holdings_2365() -> String {
+    json!({"data": [
+        {"exchangeIdentifier": "3045", "averagePrice": 750.0, "instrumentToken": 1},
+        {"exchangeIdentifier": "11915", "averagePrice": 21.0, "instrumentToken": 2}
+    ]})
+    .to_string()
+}
+
+fn positions_of(rows: Vec<Value>) -> String {
+    json!({"stat": "Ok", "stCode": 200, "data": rows}).to_string()
+}
+
+/// `test_carried_equity_is_valued_at_its_holdings_cost`,
+/// `test_carried_option_keeps_the_carry_forward_valuation` and
+/// `test_holdings_are_read_once_per_session_while_cached`.
+#[tokio::test]
+async fn a_carried_equity_is_valued_at_its_holdings_cost_read_once_per_session() {
+    let (equity, option) = carried_rows();
+    let m = Mock::default();
+    m.on(
+        "GET",
+        "/quick/user/positions",
+        200,
+        positions_of(vec![equity, option]),
+    );
+    m.on("GET", "/portfolio/v1/holdings", 200, holdings_2365());
+    let s = serve(&m).await;
+    let b = broker(&s);
+    let p = b.get_positions(&auth(&s)).await.unwrap();
+    assert_eq!((p[0].symbol.as_str(), p[0].average_price), ("SBIN", 750.0));
+    assert_eq!(
+        p[1].average_price, 212.8,
+        "an F&O leg keeps the carried valuation"
+    );
+    b.get_positions(&auth(&s)).await.unwrap();
+    assert_eq!(m.calls("GET", "/portfolio/v1/holdings").len(), 1);
+    // A logout forgets them: the next session reads its own.
+    b.on_logout().await;
+    b.get_positions(&auth(&s)).await.unwrap();
+    assert_eq!(m.calls("GET", "/portfolio/v1/holdings").len(), 2);
+}
+
+/// `test_holdings_are_not_read_without_a_carried_cash_row` and
+/// `test_an_uploaded_price_still_wins_over_holdings`.
+#[tokio::test]
+async fn holdings_are_read_only_for_a_carried_cash_row_kotak_did_not_price() {
+    let (mut equity, option) = carried_rows();
+    equity["upldPrc"] = json!("760.00");
+    let m = Mock::default();
+    m.on(
+        "GET",
+        "/quick/user/positions",
+        200,
+        positions_of(vec![equity, option]),
+    );
+    m.on("GET", "/portfolio/v1/holdings", 200, holdings_2365());
+    let s = serve(&m).await;
+    let p = broker(&s).get_positions(&auth(&s)).await.unwrap();
+    assert_eq!(p[0].average_price, 760.0);
+    assert!(m.calls("GET", "/portfolio/v1/holdings").is_empty());
+}
+
+/// `test_a_holdings_failure_leaves_the_carry_forward_valuation`
+#[tokio::test]
+async fn a_holdings_failure_leaves_the_carry_forward_valuation() {
+    let (equity, option) = carried_rows();
+    let m = Mock::default();
+    m.on(
+        "GET",
+        "/quick/user/positions",
+        200,
+        positions_of(vec![equity, option]),
+    );
+    m.on("GET", "/portfolio/v1/holdings", 503, "{}");
+    let s = serve(&m).await;
+    let b = broker(&s);
+    let p = b.get_positions(&auth(&s)).await.unwrap();
+    assert_eq!(p[0].average_price, 800.0);
+    // Not remembered: the next read asks again.
+    b.get_positions(&auth(&s)).await.unwrap();
+    assert_eq!(m.calls("GET", "/portfolio/v1/holdings").len(), 2);
+}
