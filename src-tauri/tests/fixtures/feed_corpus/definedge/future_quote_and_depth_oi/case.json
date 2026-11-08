@@ -1,6 +1,6 @@
 {
   "broker": "definedge",
-  "summary": "A future held at Quote by one client and at Depth by another: the desktop subscribes the depth feed alone while Depth is held (the touchline goes) and both frames carry OI; once Depth is released the touchline comes back and the Quote frame carries no OI.",
+  "summary": "A future held at Quote by one client and at Depth by another: the desktop subscribes the depth feed alone while Depth is held (the touchline goes) and both frames carry OI; once Depth is released the touchline comes back and the Quote frame keeps the last Depth packet's OI, not the one just sent.",
   "scenarios": [
     "derivative-oi",
     "mode-change",
@@ -39,40 +39,16 @@
   },
   "deviations": [
     {
-      "key": "mode",
+      "key": "ask",
       "kind": "open",
-      "reason": "Definedge's web adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Lead rule 2026-11-09: data.mode follows the broker's own web adapter, in Phase B through lane wire's per-broker switch in the dialect table (Definedge: integer).",
-      "ref": "definedge_adapter.py:911-918 (_publish_to_subscribers); feed::source::Mode::data_label"
+      "reason": "The web sends the best ask price (Definedge `sp1`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
     },
     {
-      "key": "ltt",
-      "kind": "web-defect",
-      "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
-      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms"
-    },
-    {
-      "key": "open_interest",
+      "key": "ask_qty",
       "kind": "open",
-      "reason": "Definedge's web adapter sends OI as oi only; the desktop adds open_interest beside it. Lead rule 2026-11-09: open_interest follows the broker's own web adapter, in Phase B through lane wire's per-broker switch in the dialect table (Definedge: no open_interest).",
-      "ref": "definedge_adapter.py:987-1003 (_QUOTE_FIELDS); feed::protocol::market_data"
-    },
-    {
-      "key": "change_percent",
-      "kind": "open",
-      "reason": "The web sends Definedge's percent change (`pc`) for every instrument; the desktop sends the change fields for indices only.",
-      "ref": "audit C04 (change on all exchanges), lane wire"
-    },
-    {
-      "key": "percent_change",
-      "kind": "open",
-      "reason": "The web's reference key for `pc` (openalgo#2383), sent for every instrument; the desktop sends the change fields for indices only.",
-      "ref": "audit C04 (change on all exchanges), lane wire"
-    },
-    {
-      "key": "ltq",
-      "kind": "desktop-decision",
-      "reason": "ltq is Definedge's web name for last_quantity (WS-05 alias); the desktop sends the canonical name and the alias in Quote and Depth alike, where the web sends ltq in Depth only (its _DEPTH_EXTRA_FIELDS).",
-      "ref": "feed::dialect (Definedge ltq)"
+      "reason": "The web sends the best ask quantity (Definedge `sq1`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
     },
     {
       "key": "bid",
@@ -87,16 +63,16 @@
       "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
     },
     {
-      "key": "ask",
+      "key": "ltq",
       "kind": "open",
-      "reason": "The web sends the best ask price (Definedge `sp1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+      "reason": "Definedge's web adapter sends ltq (its name for last_quantity) in Depth only (_DEPTH_EXTRA_FIELDS); the desktop's names table sends it from Quote. Phase B: from Depth, in Definedge's entry of feed/dialect/names.rs.",
+      "ref": "definedge_adapter.py:1004-1005; feed/dialect/names.rs DEFINEDGE"
     },
     {
-      "key": "ask_qty",
-      "kind": "open",
-      "reason": "The web sends the best ask quantity (Definedge `sq1`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms"
     },
     {
       "key": "prev_oi",
@@ -105,22 +81,22 @@
       "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
     },
     {
+      "key": "price_change",
+      "kind": "open",
+      "reason": "Definedge's web adapter sends the percent change only (change_percent, percent_change), never price_change, for any instrument; the desktop adds its canonical price_change. Lead rules 2026-11-09: change keys outside the docs follow the adapter; dropped in Phase B through the per-broker switch.",
+      "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "Definedge's web adapter names the percent change change_percent and percent_change (both sent by the desktop too); the desktop adds its canonical price_change_percent. Dropped in Phase B through the per-broker switch (lead rules 2026-11-09).",
+      "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
+    },
+    {
       "key": "total_oi",
       "kind": "open",
       "reason": "The web sends the total open interest (Definedge `toi`); the desktop's common carrier drops it.",
       "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "total_buy_qty",
-      "kind": "open",
-      "reason": "The web's Depth payload names the book total total_buy_qty beside total_buy_quantity; the desktop sends total_buy_quantity only.",
-      "ref": "definedge_adapter.py:1004-1007; lane wire (per-broker aliases)"
-    },
-    {
-      "key": "total_sell_qty",
-      "kind": "open",
-      "reason": "The web's Depth payload names the book total total_sell_qty beside total_sell_quantity; the desktop sends total_sell_quantity only.",
-      "ref": "definedge_adapter.py:1004-1007; lane wire (per-broker aliases)"
     },
     {
       "key": "lower_circuit",
@@ -137,8 +113,8 @@
     {
       "key": "oi",
       "kind": "open",
-      "reason": "A Quote frame from a Quote-only subscription leaves OI out on the desktop (bridge quote_fields carries OI for a Depth tick only); the web's Quote sends oi whenever Definedge sent it.",
-      "ref": "audit C05 (quote OI), lane wire"
+      "reason": "Once the Depth holder leaves, the Quote frame carries the OI of the last Depth-mode packet: the feed marks a packet with the subscription's mode, a Quote-mode packet does not carry OI, and the bridge's snapshot keeps the earlier value (14250000 against the 14262000 Definedge sent). Phase B: the packet's own mode, OI marked carried in Quote (phase-b.md rules 1 and 3).",
+      "ref": "streaming.rs DefinedgeFeed::tick (mode: sub.mode); feed/bridge/snapshot.rs merge"
     }
   ]
 }

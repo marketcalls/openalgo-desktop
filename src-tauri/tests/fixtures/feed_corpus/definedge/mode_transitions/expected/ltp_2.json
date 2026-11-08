@@ -7,7 +7,7 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "ltp",
+    "mode": 1,
     "ltp": 1395.55,
     "ltt": 1730784007000,
     "timestamp": "<receipt_ms>"

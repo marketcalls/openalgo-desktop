@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "definedge",
-  "inputs_sha256": "c9f499f6d754541963b3f5e05625a53770eed3e9990fcf659aa4192670281d19",
+  "inputs_sha256": "20dd98ac8ba15ebae4dcef7302eb862b1f33cd02468ba025ba24bfa6eb665545",
   "instruments": [
     {
       "symbol": "NIFTY25NOV25FUT",
@@ -169,7 +169,7 @@
             "high": 24450.0,
             "low": 24300.0,
             "close": 24312.7,
-            "change_percent": 0.4,
+            "change_percent": 0.42,
             "average_price": 24390.15,
             "oi": 14262000,
             "prev_oi": 14100000,
@@ -179,7 +179,7 @@
             "ask": 24411.0,
             "ask_qty": 225,
             "ltt": "1730784005",
-            "percent_change": 0.4,
+            "percent_change": 0.42,
             "last_quantity": 150,
             "total_buy_quantity": 312000,
             "total_sell_quantity": 298500,

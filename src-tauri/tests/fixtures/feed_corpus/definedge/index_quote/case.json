@@ -35,12 +35,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "Definedge's web adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full). Lead rule 2026-11-09: data.mode follows the broker's own web adapter, in Phase B through lane wire's per-broker switch in the dialect table (Definedge: integer).",
-      "ref": "definedge_adapter.py:911-918 (_publish_to_subscribers); feed::source::Mode::data_label"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
@@ -49,13 +43,13 @@
     {
       "key": "price_change",
       "kind": "open",
-      "reason": "Definedge's web adapter sends an index's percent change only; the desktop adds its canonical price_change. Lead rule 2026-11-09: an index's price_change follows the broker's own web adapter, dropped in Phase B through lane wire's per-broker switch.",
-      "ref": "definedge_adapter.py:987-1003 (_QUOTE_FIELDS has no change); feed::dialect"
+      "reason": "Definedge's web adapter sends the percent change only (change_percent, percent_change), never price_change, for any instrument; the desktop adds its canonical price_change. Lead rules 2026-11-09: change keys outside the docs follow the adapter; dropped in Phase B through the per-broker switch.",
+      "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
     },
     {
       "key": "price_change_percent",
       "kind": "open",
-      "reason": "Definedge's web adapter names an index's percent change change_percent and percent_change (both sent by the desktop too, as aliases); the desktop adds its canonical price_change_percent. Lead rule 2026-11-09: dropped in Phase B through lane wire's per-broker switch.",
+      "reason": "Definedge's web adapter names the percent change change_percent and percent_change (both sent by the desktop too); the desktop adds its canonical price_change_percent. Dropped in Phase B through the per-broker switch (lead rules 2026-11-09).",
       "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
     }
   ]

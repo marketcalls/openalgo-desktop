@@ -7,12 +7,14 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "full",
+    "mode": 3,
     "ltp": 1391.0,
     "ltt": 1730776500000,
     "timestamp": "<receipt_ms>",
     "total_buy_quantity": 5000,
     "total_sell_quantity": 4200,
+    "total_buy_qty": 5000,
+    "total_sell_qty": 4200,
     "depth": {
       "buy": [
         {

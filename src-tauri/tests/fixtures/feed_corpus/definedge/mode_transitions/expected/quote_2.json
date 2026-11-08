@@ -7,7 +7,7 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 1395.55,
     "ltt": 1730784007000,
     "timestamp": "<receipt_ms>",
@@ -20,6 +20,10 @@
     "high": 1398.0,
     "low": 1378.5,
     "close": 1391.0,
-    "ltq": 7
+    "ltq": 7,
+    "price_change": 4.55,
+    "price_change_percent": 0.33,
+    "change_percent": 0.33,
+    "percent_change": 0.33
   }
 }
