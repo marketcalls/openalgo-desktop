@@ -1440,6 +1440,18 @@ fn location(headers: &axum::http::HeaderMap) -> String {
     headers[header::LOCATION].to_str().unwrap().to_string()
 }
 
+/// The `error` of a Select Broker address, `/broker?error=<id>&broker=<id>`:
+/// the reason itself stays in OpenAlgo, read once from
+/// `/api/broker/sign-in-failure/<id>` (`session::sign_in_failures`).
+fn sign_in_failure_id(loc: &str) -> String {
+    let u = url::Url::parse(&format!("http://127.0.0.1{}", loc)).unwrap();
+    assert_eq!(u.path(), "/broker", "{}", loc);
+    u.query_pairs()
+        .find(|(k, _)| k == "error")
+        .map(|(_, v)| v.into_owned())
+        .unwrap_or_default()
+}
+
 fn state_from_kite_url(url: &str) -> String {
     let u = url::Url::parse(url).unwrap();
     let rp = u
@@ -1683,13 +1695,21 @@ async fn aliceblue_callback_for_another_account_is_refused() {
     let (_, headers, _) = h
         .send(with_session(get(ALICE_CALLBACK), &cookie, None))
         .await;
-    let loc = urlencoding::decode(&location(&headers))
-        .unwrap()
-        .into_owned();
+    // The reason is read from OpenAlgo, never from the address.
+    let id = sign_in_failure_id(&location(&headers));
+    let (_, body) = h
+        .json(with_session(
+            get(&format!("/api/broker/sign-in-failure/{}", id)),
+            &cookie,
+            None,
+        ))
+        .await;
     assert!(
-        loc.contains("Add your Alice Blue User ID on the Broker Configuration page"),
+        body["data"]["message"].as_str().is_some_and(
+            |m| m.contains("Add your Alice Blue User ID on the Broker Configuration page")
+        ),
         "{}",
-        loc
+        body
     );
     assert!(!h.ctx().is_broker_connected());
     assert!(h.mock.last_auth.lock().is_none());
@@ -2093,12 +2113,7 @@ async fn first_state_less_sign_in_needs_the_saved_client_id() {
     let loc = location(&h);
     assert!(loc.starts_with("/broker?error="), "{}", loc);
     // The reason is read from OpenAlgo, never from the address.
-    let id = url::Url::parse(&format!("http://127.0.0.1{}", loc))
-        .unwrap()
-        .query_pairs()
-        .find(|(k, _)| k == "error")
-        .map(|(_, v)| v.into_owned())
-        .unwrap();
+    let id = sign_in_failure_id(&loc);
     let reason = format!("/api/broker/sign-in-failure/{}", id);
     let (_, _, body) = send_to(ctx, with_session(get(&reason), &cookie, None)).await;
     assert!(

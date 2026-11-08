@@ -21,16 +21,6 @@ async fn forged_callback(h: &H, cookie: Option<&str>) -> String {
     location(&headers)
 }
 
-/// The `error` value of a Select Broker address.
-fn error_param(loc: &str) -> String {
-    let u = url::Url::parse(&format!("http://127.0.0.1{}", loc)).unwrap();
-    assert_eq!(u.path(), "/broker", "{}", loc);
-    u.query_pairs()
-        .find(|(k, _)| k == "error")
-        .map(|(_, v)| v.into_owned())
-        .unwrap_or_default()
-}
-
 async fn read_reason(h: &H, cookie: &str, id: &str) -> (StatusCode, Value) {
     let path = format!("/api/broker/sign-in-failure/{}", urlencoding::encode(id));
     h.json(with_session(get(&path), cookie, None)).await
@@ -50,7 +40,7 @@ async fn a_failed_sign_in_puts_no_sentence_in_the_address() {
     let h = harness();
     let (cookie, _) = h.session(true);
     let loc = forged_callback(&h, Some(&cookie)).await;
-    let id = error_param(&loc);
+    let id = sign_in_failure_id(&loc);
     assert!(
         !loc.contains("started"),
         "the sentence is in the address: {}",
@@ -85,7 +75,7 @@ async fn a_sign_in_reason_belongs_to_the_session_it_came_back_with() {
     let h = harness();
     let (mine, _) = h.session(true);
     let (other, _) = h.session(true);
-    let id = error_param(&forged_callback(&h, Some(&mine)).await);
+    let id = sign_in_failure_id(&forged_callback(&h, Some(&mine)).await);
 
     let (s, _) = read_reason(&h, &other, &id).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
@@ -108,7 +98,7 @@ async fn a_sign_in_reason_belongs_to_the_session_it_came_back_with() {
 #[tokio::test]
 async fn a_reason_without_a_session_is_read_once_by_the_signed_in_trader() {
     let h = harness();
-    let id = error_param(&forged_callback(&h, None).await);
+    let id = sign_in_failure_id(&forged_callback(&h, None).await);
     let (cookie, _) = h.session(true);
     let (s, body) = read_reason(&h, &cookie, &id).await;
     assert_eq!(s, StatusCode::OK, "{}", body);
@@ -122,7 +112,7 @@ async fn a_reason_without_a_session_is_read_once_by_the_signed_in_trader() {
 async fn a_sign_in_reason_needs_the_signed_in_user_and_ends_at_logout() {
     let h = harness();
     let (cookie, _) = h.session(true);
-    let id = error_param(&forged_callback(&h, Some(&cookie)).await);
+    let id = sign_in_failure_id(&forged_callback(&h, Some(&cookie)).await);
 
     let (anon, _) = h.session(false);
     let (s, body) = read_reason(&h, &anon, &id).await;
