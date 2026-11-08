@@ -7,7 +7,7 @@
 use super::bridge::pairing;
 use super::bridge::snapshot::{self, Snapshot};
 use super::bridge::{depth_update, tick_update};
-use super::protocol::market_data;
+use super::protocol::{market_data, reaches};
 use super::{InstrumentKey, MarketUpdate, Mode};
 use crate::brokers::common::streaming::FeedEvent;
 use serde_json::Value;
@@ -75,10 +75,9 @@ impl Frames {
     }
 
     /// `update`'s frame for a subscriber at `mode`, if `feed::registry`
-    /// serves it one: not above the update's mode, nor another mode than an
-    /// exact one's.
+    /// serves it one (`protocol::reaches`).
     fn push(&self, out: &mut Vec<Value>, update: MarketUpdate, mode: Mode) {
-        if mode > update.mode || (update.exact_mode && mode != update.mode) {
+        if !reaches(&update, mode, self.broker) {
             return;
         }
         let frame = market_data(&update, mode, self.depth, self.broker);

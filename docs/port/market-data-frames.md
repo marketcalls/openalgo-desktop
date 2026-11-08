@@ -211,7 +211,11 @@ fix the Zerodha shape):
   book on its own (a deep book from its own socket) reaches Depth holders
   only, so no holder gets a packet twice. A full tick whose book does not
   come with it still reaches Depth holders, with no `depth` key, as the web
-  publishes such a packet on its Depth topic without a book.
+  publishes such a packet on its Depth topic without a book; where the web
+  adapter publishes a quote packet on its Quote topic alone (Definedge's
+  touchline, 5paisa's feed frame, from their web tests), the broker's
+  dialect says so (`Dialect::depth_needs_book`, `protocol::reaches`) and a
+  Depth holder hears nothing until the book comes.
 - **One frame per mode the client holds, for each update**
   (`feed::registry::dispatch`): a Depth update reaches a client's Depth,
   Quote and LTP holdings, a Quote update its Quote and LTP holdings, an LTP
@@ -241,8 +245,9 @@ fix the Zerodha shape):
      to mode 1 with the whole Depth dict, and a second mode-1 frame from
      the LTP topic: two LTP callbacks per tick. The desktop sends one.
   3. Where an adapter publishes nothing to Depth holders for a full packet
-     without a book, its broker lane declares it; the desktop sends the
-     Depth holder its frame without `depth`.
+     without a book, its broker lane declares it with `depth_needs_book`
+     (Definedge and 5paisa so far); every other broker's Depth holder gets
+     the frame without `depth`.
 
 Draft for the web: *The proxy's listener folds each upstream message to the
 highest mode a client holds at or below the message's topic, so the

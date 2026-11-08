@@ -155,6 +155,13 @@ pub(crate) struct Dialect {
     /// Whether the book carries the frame's `timestamp` inside it (Upstox:
     /// `depth: {buy, sell, timestamp}`).
     pub book_time: bool,
+    /// Whether a Depth holder gets a frame only with a book: the broker's
+    /// web adapter publishes a quote packet on its Quote topic alone, so a
+    /// Depth-only client hears nothing until the book comes (Definedge's
+    /// touchline, 5paisa's feed frame). Otherwise a full packet without a
+    /// book reaches Depth holders without `depth` (lead decision
+    /// 2026-11-09).
+    pub depth_needs_book: bool,
     pub names: &'static [WebName],
 }
 
@@ -220,6 +227,13 @@ impl Dialect {
     const fn book_time(self) -> Self {
         Self {
             book_time: true,
+            ..self
+        }
+    }
+
+    const fn depth_needs_book(self) -> Self {
+        Self {
+            depth_needs_book: true,
             ..self
         }
     }
@@ -595,6 +609,7 @@ const fn d(data_mode: DataMode, names: &'static [WebName]) -> Dialect {
         floats: &[],
         fold: Fold::PerMode,
         book_time: false,
+        depth_needs_book: false,
         names,
     }
 }
@@ -627,11 +642,11 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "jainamxts" | "rmoney" | "wisdom" => {
             d(Number, XTS).richer()
         }
-        "definedge" => d(Number, DEFINEDGE),
+        "definedge" => d(Number, DEFINEDGE).depth_needs_book(),
         "deltaexchange" => d(Number, DELTA).no_ltt().richer(),
         "dhan" => d(Number, DHAN).richer(),
         "firstock" => d(Number, FIRSTOCK).no_index_change(),
-        "fivepaisa" => d(Number, FIVEPAISA),
+        "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book(),
         "shoonya" => d(Number, SHOONYA).no_ltt(),
         "flattrade" => d(Number, FLATTRADE).no_ltt(),
         "zebu" => d(Number, ZEBU).no_ltt(),

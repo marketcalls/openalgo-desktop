@@ -355,6 +355,17 @@ fn web_keys(d: &DataOut<'_>, fr: &Frame<'_>) -> WebKeys {
     WebKeys(out)
 }
 
+/// Whether a holder at `mode` gets a frame of `update`: not above the
+/// update's mode, only its own mode for an exact one (a book on its own),
+/// and at Depth without a book only where the broker's web adapter
+/// publishes such a packet on its Depth topic (`Dialect::depth_needs_book`).
+pub(crate) fn reaches(update: &MarketUpdate, mode: Mode, broker: &str) -> bool {
+    if mode > update.mode || (update.exact_mode && mode != update.mode) {
+        return false;
+    }
+    !(mode == Mode::Depth && update.depth.is_none() && dialect(broker).depth_needs_book)
+}
+
 /// Render `update` for a subscriber at `mode` (which must not exceed
 /// `update.mode`), with each depth side truncated to `depth` levels.
 pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -> String {

@@ -97,7 +97,7 @@ fn index_full_tick_reaches_every_mode_with_change_fields() {
 fn frame_data(t: &NormalizedTick, mode: Mode, broker: &str) -> serde_json::Value {
     let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
     let tick = tick_update(key.clone(), t).expect("a price");
-    let update = if mode == Mode::Depth && tick.mode < Mode::Depth {
+    let update = if mode == Mode::Depth {
         let d = NormalizedDepth {
             symbol: t.symbol.clone(),
             exchange: t.exchange.clone(),
