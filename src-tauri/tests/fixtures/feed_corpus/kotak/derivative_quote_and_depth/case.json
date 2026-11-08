@@ -1,6 +1,6 @@
 {
   "broker": "kotak",
-  "summary": "An index future held at Quote by one client and at Depth by another: one depth packet gives the Quote frame and the five-level book with OI; when the Depth holder leaves, only the depth stream is unsubscribed and the Quote frames go on.",
+  "summary": "An index future held at Quote by one client and at Depth by another: one depth packet gives the Quote frame with OI and the five-level book; when the Depth holder leaves, only the depth stream is unsubscribed and the Quote frames go on with OI.",
   "scenarios": [
     "derivative-oi",
     "mode-change",
@@ -31,40 +31,16 @@
   },
   "deviations": [
     {
-      "key": "mode",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web's Kotak adapter puts no mode in data; the desktop sends the label (ltp, quote, full). The key follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B.",
-      "ref": "kotak_adapter.py::_on_data_received publish_data; feed::source::Mode::data_label"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     },
     {
-      "key": "open_interest",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The web's Kotak adapter sends oi only; the desktop sends open_interest beside it. The key follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B.",
-      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market_data"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "The web's Quote frame carries the market picture's OI (0 for an equity); the desktop's Quote tick carries OI only while a Depth subscription holds the instrument.",
-      "ref": "audit C05; kotak_adapter.py::_quote_extras; feed::bridge::tick_update"
-    },
-    {
-      "key": "percent_change",
-      "kind": "open",
-      "reason": "The web sends the packet's own net change percent (nc) as percent_change for every scrip; the desktop's carrier keeps a change only for an index, so an equity or a derivative frame has none.",
-      "ref": "audit C04; kotak_adapter.py::_QUOTE_EXTRA_FIELDS; sfeed_websocket.py::_trade_fields"
-    },
-    {
-      "key": "totalbuyqty",
-      "kind": "open",
-      "reason": "The web's Kotak depth frame also names the book total totalbuyqty; the desktop's Kotak dialect does not send that name.",
-      "ref": "kotak_adapter.py:668 (mode 3 publish); feed::dialect (lane wire)"
-    },
-    {
-      "key": "totalsellqty",
-      "kind": "open",
-      "reason": "The web's Kotak depth frame also names the book total totalsellqty; the desktop's Kotak dialect does not send that name.",
-      "ref": "kotak_adapter.py:668 (mode 3 publish); feed::dialect (lane wire)"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     }
   ]
 }

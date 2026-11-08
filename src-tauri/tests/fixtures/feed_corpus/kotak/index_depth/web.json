@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "kotak",
-  "inputs_sha256": "78c5a87a5bd476d65b1d0c14e090202d7d4b4f581055c88ae1aea1eaa8c1704a",
+  "inputs_sha256": "cecb6134d681a9424c8a0c60eabd456779d2f55dfd0c28daa2098cd2b70745a8",
   "instruments": [
     {
       "symbol": "NIFTY",

@@ -1,6 +1,6 @@
 {
   "broker": "kotak",
-  "summary": "A Depth subscription to an index: the index feed's tick comes out as a full frame with the price and the day's range, and no book.",
+  "summary": "A Depth subscription to an index: the index feed's tick comes out as a full frame with the price and the day's range.",
   "scenarios": [
     "index"
   ],
@@ -21,17 +21,11 @@
       "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
       "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
       "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
-      "test/test_kotak_index_depth_tick.py"
+      "test/test_kotak_index_depth_tick.py::test_an_index_reaches_a_depth_subscriber"
     ],
     "notes": []
   },
   "deviations": [
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Kotak adapter puts no mode in data; the desktop sends the label (ltp, quote, full). The key follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B.",
-      "ref": "kotak_adapter.py::_on_data_received publish_data; feed::source::Mode::data_label"
-    },
     {
       "key": "volume",
       "kind": "web-defect",
@@ -42,20 +36,20 @@
     {
       "key": "price_change",
       "kind": "open",
-      "reason": "The desktop's index frame carries the change since the previous close under the canonical names as well as percent_change; the web's Kotak index frame has percent_change only.",
-      "ref": "feed::bridge::quote_fields (index change fields, lane wire C04)"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     },
     {
       "key": "price_change_percent",
       "kind": "open",
-      "reason": "The desktop's index frame carries the change since the previous close under the canonical names as well as percent_change; the web's Kotak index frame has percent_change only.",
-      "ref": "feed::bridge::quote_fields (index change fields, lane wire C04)"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     },
     {
       "key": "depth",
       "kind": "open",
-      "reason": "The web's Kotak adapter answers a Depth subscription to an index with its price over an empty book (depth: {buy: [], sell: []}); the desktop's frame for an index has no depth key.",
-      "ref": "kotak_adapter.py:617-640; feed::protocol::market_data (no book for an index)"
+      "reason": "The web's Kotak adapter answers a Depth subscription to an index with its price over an empty book (depth: {buy: [], sell: []}); the desktop renders no depth key for an index until lane wire's per-broker index book rule (Absent / EmptyBook) is on the base (lead ruling R1).",
+      "ref": "kotak_adapter.py:617-640; feed::protocol::market (no book for an index)"
     },
     {
       "key": "totalbuyqty",

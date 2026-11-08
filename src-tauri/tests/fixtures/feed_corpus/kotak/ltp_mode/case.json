@@ -34,16 +34,10 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Kotak adapter puts no mode in data; the desktop sends the label (ltp, quote, full). The key follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B.",
-      "ref": "kotak_adapter.py::_on_data_received publish_data; feed::source::Mode::data_label"
-    },
-    {
       "key": "last_trade_time",
       "kind": "open",
-      "reason": "The web's Kotak LTP frame has ltt only; the desktop's Kotak dialect adds last_trade_time in every mode, LTP included, where the web adds it in Quote and Depth.",
-      "ref": "kotak_adapter.py:578 (mode 1 publish); feed::dialect aliases (lane wire)"
+      "reason": "The web's Kotak LTP frame has ltt only; Kotak's dialect entry sends last_trade_time from LTP up, where the web sends it in Quote and Depth.",
+      "ref": "kotak_adapter.py:578 (mode 1 publish); feed/dialect/names.rs KOTAK"
     }
   ]
 }

@@ -39,12 +39,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Kotak adapter puts no mode in data; the desktop sends the label (ltp, quote, full). The key follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B.",
-      "ref": "kotak_adapter.py::_on_data_received publish_data; feed::source::Mode::data_label"
-    },
-    {
       "key": "volume",
       "kind": "web-defect",
       "reason": "An SFeed index packet carries no volume; the web's index normaliser writes volume 0 (sfeed_websocket.py::_to_index) and publishes it, a zero the exchange never sent. The desktop leaves it out (web openalgo#2376).",
@@ -54,20 +48,20 @@
     {
       "key": "price_change",
       "kind": "open",
-      "reason": "The desktop's index frame carries the change since the previous close under the canonical names as well as percent_change; the web's Kotak index frame has percent_change only.",
-      "ref": "feed::bridge::quote_fields (index change fields, lane wire C04)"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     },
     {
       "key": "price_change_percent",
       "kind": "open",
-      "reason": "The desktop's index frame carries the change since the previous close under the canonical names as well as percent_change; the web's Kotak index frame has percent_change only.",
-      "ref": "feed::bridge::quote_fields (index change fields, lane wire C04)"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     },
     {
       "key": "last_trade_time",
       "kind": "open",
-      "reason": "The web's Kotak LTP frame has ltt only; the desktop's Kotak dialect adds last_trade_time in every mode, LTP included, where the web adds it in Quote and Depth.",
-      "ref": "kotak_adapter.py:578 (mode 1 publish); feed::dialect aliases (lane wire)"
+      "reason": "The web's Kotak LTP frame has ltt only; Kotak's dialect entry sends last_trade_time from LTP up, where the web sends it in Quote and Depth.",
+      "ref": "kotak_adapter.py:578 (mode 1 publish); feed/dialect/names.rs KOTAK"
     }
   ]
 }

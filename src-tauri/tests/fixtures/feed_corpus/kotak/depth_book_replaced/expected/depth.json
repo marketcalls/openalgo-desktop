@@ -7,7 +7,6 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "full",
     "ltp": 1300.5,
     "ltt": 1762666200000,
     "timestamp": "<receipt_ms>",
@@ -20,8 +19,11 @@
     "high": 1310.0,
     "low": 1285.0,
     "close": 1280.5,
+    "price_change": 20.0,
+    "price_change_percent": 1.56,
     "oi": 0,
-    "open_interest": 0,
+    "percent_change": 1.56,
+    "last_trade_time": 1762666200000,
     "depth": {
       "buy": [
         {
@@ -78,6 +80,7 @@
         }
       ]
     },
-    "last_trade_time": 1762666200000
+    "totalbuyqty": 9000,
+    "totalsellqty": 7000
   }
 }

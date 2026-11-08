@@ -1,11 +1,10 @@
 //! Web `test/test_kotak_quote_feed.py` (openalgo#2376): SFeed bytes in, the
 //! 8765 frames out (`feed::testkit`), with the web test's values.
 //!
-//! The desktop's decoder already published average price, last quantity,
-//! the book totals and OI, with the exchange's trade time: those cases pin
-//! it. Not carried: an equity's change fields and a Quote-mode tick's OI,
-//! never in the desktop's Quote frames, and the web's Kotak-only
-//! `totalbuyqty` / `totalsellqty` names.
+//! Each packet's tick says what the packet carries and the bridge merges
+//! it (`feed::bridge::snapshot`), as the web merges a packet over the
+//! instrument's last state; these cases read the frames, built the same
+//! way (`feed::testkit`).
 
 use super::*;
 use crate::brokers::kotak::streaming::exchange_name;
@@ -171,10 +170,40 @@ fn a_quote_carries_every_field_the_packet_decoded() {
         "last_quantity": 50,
         "total_buy_quantity": 900,
         "total_sell_quantity": 800,
+        "oi": 4_200,
     });
     for (k, v) in expected.as_object().unwrap() {
         assert_eq!(q.get(k), Some(v), "{}: {}", k, q);
     }
+}
+
+/// A market picture's book totals are the exchange's figure now, a 0
+/// included: with every bid gone the total buy quantity is 0, not the last
+/// one (web `kotak_adapter._on_data_received`, where a complete packet's
+/// fields win; audit P-04).
+#[test]
+fn a_book_total_of_zero_is_zero() {
+    let mut f = tcs(FeedMode::Depth);
+    let mut frames = Frames::new("kotak");
+    let full = Picture {
+        level: DEPTH,
+        ..Default::default()
+    };
+    frames_of(&mut f, &mut frames, full.packet(), Mode::Depth);
+    let no_bids = Picture {
+        level: DEPTH,
+        total_buy: 0,
+        buy: vec![],
+        ..Default::default()
+    };
+    let d = last(frames_of(
+        &mut f,
+        &mut frames,
+        no_bids.packet(),
+        Mode::Depth,
+    ));
+    assert_eq!(d["total_buy_quantity"], 0, "{}", d);
+    assert_eq!(d["total_sell_quantity"], 800, "{}", d);
 }
 
 /// Web `test_ltt_is_the_exchange_last_trade_time_in_milliseconds`, with

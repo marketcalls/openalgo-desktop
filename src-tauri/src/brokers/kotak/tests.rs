@@ -18,7 +18,9 @@ use super::order_feed::{realtime_url, KotakOrderFeed};
 use super::streaming::{decode_packet, parse_dividers, split_batch, KotakFeed, Sfeed};
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use chrono::NaiveDate;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -989,7 +991,8 @@ fn sfeed_handshake_subscribe_and_ticks() {
     assert_eq!(frames[1]["event"], "subscribeDepth");
     assert_eq!(frames[1]["inputtoken"], "nse_cm|3045");
     assert_eq!(frames[2]["inputtoken"], "nse_cm|Nifty 50");
-    // Depth packet for SBIN -> a quote tick and a 5-level depth.
+    // Depth packet for SBIN -> a quote tick (a market picture is a Quote
+    // packet with OI) and a 5-level depth.
     let mp = packet(
         0,
         1,
@@ -1002,7 +1005,7 @@ fn sfeed_handshake_subscribe_and_ticks() {
         (FeedEvent::Tick(t), FeedEvent::Depth(d)) => {
             assert_eq!(
                 (t.symbol.as_str(), t.mode, t.ltp, t.close),
-                ("SBIN", 3, 814.1, 812.35)
+                ("SBIN", 2, 814.1, 812.35)
             );
             assert_eq!(d.buy.len(), 5);
             assert_eq!(d.buy[0].price, 814.05);
@@ -1010,8 +1013,9 @@ fn sfeed_handshake_subscribe_and_ticks() {
         }
         other => panic!("unexpected {:?}", other),
     }
-    // A mini touch line only moves the LTP; the rest is kept, and the
-    // depth holder gets the cached book at the new price.
+    // A mini touch line carries the LTP and the previous close and says it
+    // lacks the rest, which the bridge keeps; the depth holder gets the
+    // cached book at the new price.
     let ev = f.parse(&Message::Binary(packet(
         0,
         1,
@@ -1020,7 +1024,8 @@ fn sfeed_handshake_subscribe_and_ticks() {
     )));
     match &ev[..] {
         [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
-            assert_eq!((t.ltp, t.open, t.close), (815.0, 810.0, 812.35));
+            assert_eq!((t.ltp, t.close), (815.0, 812.35));
+            assert!(!t.knows(QuoteField::Open) && !t.knows(QuoteField::Volume));
             assert_eq!((d.ltp, d.buy[0].price), (815.0, 814.05));
         }
         other => panic!("unexpected {:?}", other),
@@ -1042,18 +1047,19 @@ fn sfeed_handshake_subscribe_and_ticks() {
         }
         other => panic!("unexpected {:?}", other),
     }
-    // Unsubscribed tokens are ignored and leave no state behind.
+    // Unsubscribed tokens are ignored and leave no state behind; only a
+    // book is kept between packets.
     assert!(f
         .parse(&Message::Binary(packet(0, 1, 1, &mini_body(42, 100, 0))))
         .is_empty());
-    assert_eq!(f.state_len(), 2);
+    assert_eq!(f.state_len(), 1);
     let un = text_frames(&f.unsubscribe_frames(&[fsub("SBIN", "NSE", FeedMode::Depth)]));
     assert_eq!(
         un[0],
         json!({"event": "unsubscribeScrips", "inputtoken": "nse_cm|3045"})
     );
     assert_eq!(un[1]["event"], "unsubscribeDepth");
-    assert_eq!((f.subscription_count(), f.state_len()), (2, 1));
+    assert_eq!((f.subscription_count(), f.state_len()), (2, 0));
     // Mode changes only touch the depth stream.
     let up = text_frames(&f.mode_change_frames(
         &fsub("TCS", "NSE", FeedMode::Ltp),
@@ -1123,14 +1129,14 @@ fn depth_holders_see_every_packets_price_with_the_cached_book() {
         ev
     );
 
-    // Leaving depth drops the book but keeps the quote fields.
+    // Leaving depth drops the book; the quote stays with the bridge.
     f.mode_change_frames(
         &fsub("SBIN", "NSE", FeedMode::Depth),
         &fsub("SBIN", "NSE", FeedMode::Quote),
     );
     let ev = f.parse(&mini(3045, 81_700));
     match &ev[..] {
-        [FeedEvent::Tick(t)] => assert_eq!((t.ltp, t.open, t.close), (817.0, 810.0, 812.35)),
+        [FeedEvent::Tick(t)] => assert_eq!((t.ltp, t.close), (817.0, 812.35)),
         other => panic!("unexpected {:?}", other),
     }
     // Back in depth, nothing is published as a book until one arrives.

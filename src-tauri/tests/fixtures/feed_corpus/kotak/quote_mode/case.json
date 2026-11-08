@@ -1,6 +1,6 @@
 {
   "broker": "kotak",
-  "summary": "A Quote subscription: the SFeed login and its divider answer, then a touch-line market picture gives every quote field and a mini touch line after it moves only the price and the last trade.",
+  "summary": "A Quote subscription: the SFeed login and its divider answer, then a touch-line market picture gives every quote field with OI, and a mini touch line after it moves only the price, the last trade and the change.",
   "scenarios": [
     "first-full-packet",
     "partial-packet"
@@ -21,28 +21,23 @@
       "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
       "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
       "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "test/test_kotak_quote_feed.py::test_a_quote_carries_every_field_the_packet_decoded",
       "test/test_kotak_quote_feed.py::test_a_mini_tick_keeps_the_last_known_ohlc_and_volume"
     ],
     "notes": []
   },
   "deviations": [
     {
-      "key": "mode",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web's Kotak adapter puts no mode in data; the desktop sends the label (ltp, quote, full). The key follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B.",
-      "ref": "kotak_adapter.py::_on_data_received publish_data; feed::source::Mode::data_label"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     },
     {
-      "key": "oi",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The web's Quote frame carries the market picture's OI (0 for an equity); the desktop's Quote tick carries OI only while a Depth subscription holds the instrument.",
-      "ref": "audit C05; kotak_adapter.py::_quote_extras; feed::bridge::tick_update"
-    },
-    {
-      "key": "percent_change",
-      "kind": "open",
-      "reason": "The web sends the packet's own net change percent (nc) as percent_change for every scrip; the desktop's carrier keeps a change only for an index, so an equity or a derivative frame has none.",
-      "ref": "audit C04; kotak_adapter.py::_QUOTE_EXTRA_FIELDS; sfeed_websocket.py::_trade_fields"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     }
   ]
 }

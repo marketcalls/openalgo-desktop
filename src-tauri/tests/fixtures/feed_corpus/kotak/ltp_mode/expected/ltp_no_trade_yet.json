@@ -7,7 +7,6 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "ltp",
     "ltp": 800.0,
     "timestamp": "<receipt_ms>"
   }

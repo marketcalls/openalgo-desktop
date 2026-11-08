@@ -1,6 +1,6 @@
 {
   "broker": "kotak",
-  "summary": "A Depth subscription: a depth packet replaces the whole book, so bids the exchange removed are gone and only the one ask left shows (audit P-04); a touch line after it moves the price over the same book.",
+  "summary": "A Depth subscription: a depth packet replaces the whole book, so bids the exchange removed are gone, only the one ask left shows and the total buy quantity is 0 (audit P-04); a touch line after it moves the price over the same book.",
   "scenarios": [
     "first-full-packet",
     "depth-update",
@@ -23,46 +23,29 @@
       "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
       "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
       "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._to_depth",
-      "test/test_kotak_quote_feed.py::test_a_depth_packet_replaces_the_whole_book"
+      "test/test_kotak_quote_feed.py::test_a_depth_packet_replaces_the_whole_book",
+      "test/test_kotak_quote_feed.py::test_depth_publishes_its_book_totals_and_every_quote_field"
     ],
     "notes": []
   },
   "deviations": [
     {
-      "key": "mode",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web's Kotak adapter puts no mode in data; the desktop sends the label (ltp, quote, full). The key follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B.",
-      "ref": "kotak_adapter.py::_on_data_received publish_data; feed::source::Mode::data_label"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     },
     {
-      "key": "open_interest",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The web's Kotak adapter sends oi only; the desktop sends open_interest beside it. The key follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B.",
-      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market_data"
+      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
+      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     },
     {
       "key": "percent_change",
       "kind": "open",
-      "reason": "The web sends the packet's own net change percent (nc) as percent_change for every scrip; the desktop's carrier keeps a change only for an index, so an equity or a derivative frame has none.",
-      "ref": "audit C04; kotak_adapter.py::_QUOTE_EXTRA_FIELDS; sfeed_websocket.py::_trade_fields"
-    },
-    {
-      "key": "totalbuyqty",
-      "kind": "open",
-      "reason": "The web's Kotak depth frame also names the book total totalbuyqty; the desktop's Kotak dialect does not send that name.",
-      "ref": "kotak_adapter.py:668 (mode 3 publish); feed::dialect (lane wire)"
-    },
-    {
-      "key": "totalsellqty",
-      "kind": "open",
-      "reason": "The web's Kotak depth frame also names the book total totalsellqty; the desktop's Kotak dialect does not send that name.",
-      "ref": "kotak_adapter.py:668 (mode 3 publish); feed::dialect (lane wire)"
-    },
-    {
-      "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "A market picture's total is the exchange's figure now: with every bid gone it is 0. The desktop folds a 0 total as 'unchanged' (streaming::State::fold_picture keep_i) and sends the last nonzero total, 9000, over an empty bid side; the web sends 0.",
-      "ref": "kotak/streaming/mod.rs fold_picture; kotak_adapter.py:476 (a complete packet's fields win)"
+      "reason": "The web sends the packet's own net change percent (nc); the desktop works it out from the price and the previous close, which differs where the packet's figure does.",
+      "ref": "sfeed_websocket.py::_trade_fields (nc); feed::bridge::snapshot derive_change"
     }
   ]
 }

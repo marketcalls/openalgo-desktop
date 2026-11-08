@@ -7,7 +7,6 @@
   "data": {
     "symbol": "NIFTY50",
     "exchange": "NSE_INDEX",
-    "mode": "ltp",
     "ltp": 21360.0,
     "ltt": 1762666201000,
     "timestamp": "<receipt_ms>",
