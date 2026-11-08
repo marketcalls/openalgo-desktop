@@ -232,6 +232,10 @@ impl AngelFeed {
         }
         if mode == 3 && p.len() >= SNAP_LEN {
             t.oi = le_i64(p, 131);
+            // web `_normalize_market_data`: SNAP_QUOTE's price band, in
+            // paise like every SmartStream price.
+            t.extras.upper_circuit = Some(price(347));
+            t.extras.lower_circuit = Some(price(355));
             let mut buy = Vec::with_capacity(5);
             let mut sell = Vec::with_capacity(5);
             for i in 0..10 {
