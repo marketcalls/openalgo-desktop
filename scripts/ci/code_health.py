@@ -24,6 +24,10 @@ Checks, on production code (test modules and test-support code excluded):
   dead_public_functions  a pub fn whose name appears nowhere else in the code
   frontend_files         a .ts/.tsx file over TS_FILE_LINES lines ("web": ported, exempt)
 
+And one check that has no baseline:
+  codeql_hidden          a production .rs file that a paths-ignore glob of CODEQL_CONFIG
+                         keeps from CodeQL; only test code may be left out of the scan
+
 Standard library only; Python 3.10+.
 """
 
@@ -52,6 +56,7 @@ TS_FILE_LINES = 1000
 EXISTING_MAY_GROW = False
 
 BASELINE = ".github/code-health-baseline.json"
+CODEQL_CONFIG = ".github/codeql/codeql-config.yml"
 RUST_ROOT = "src-tauri/src"
 HANDLER_DIRS = ("src-tauri/src/server/routes/", "src-tauri/src/commands/")
 FRONTEND_ROOT = "src"
@@ -499,8 +504,55 @@ def _measure() -> dict:
             result["frontend_files"][p] = n
             where[f"frontend_files:{p}"] = (p, 1)
 
+    ignored = [_glob_re(g) for g in codeql_ignores(_read(CODEQL_CONFIG))] if os.path.exists(CODEQL_CONFIG) else []
+    result["codeql_hidden"] = sorted(p for p in files if not is_test(p) and _hidden(p, ignored))
+
     result["_where"] = where
     return result
+
+
+# ------------------------------------------------------------- CodeQL scope
+
+
+def codeql_ignores(text: str) -> list[str]:
+    """The globs under `paths-ignore:` in a CodeQL config (a plain YAML list)."""
+    out: list[str] = []
+    inside = False
+    for raw in text.splitlines():
+        line = raw.split(" #", 1)[0].rstrip()
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line[0].isspace():
+            inside = line.startswith("paths-ignore:")
+            continue
+        item = line.strip()
+        if inside and item.startswith("- "):
+            out.append(item[2:].strip().strip("\"'"))
+    return out
+
+
+def _glob_re(glob: str) -> re.Pattern:
+    """A CodeQL path glob: `**` spans directories, `*` and `?` stay within one."""
+    out, i = "", 0
+    while i < len(glob):
+        if glob.startswith("**/", i):
+            out, i = out + "(?:.*/)?", i + 3
+        elif glob.startswith("**", i):
+            out, i = out + ".*", i + 2
+        elif glob[i] == "*":
+            out, i = out + "[^/]*", i + 1
+        elif glob[i] == "?":
+            out, i = out + "[^/]", i + 1
+        else:
+            out, i = out + re.escape(glob[i]), i + 1
+    return re.compile(out + r"\Z")
+
+
+def _hidden(path: str, ignored: list[re.Pattern]) -> bool:
+    """Whether a glob matches the file or a folder it sits in (CodeQL leaves out both)."""
+    parts = path.split("/")
+    candidates = ["/".join(parts[: n + 1]) for n in range(len(parts))]
+    return any(g.match(c) for g in ignored for c in candidates)
 
 
 # ------------------------------------------------------------- compare
@@ -665,6 +717,7 @@ def main(argv: list[str] | None = None) -> int:
 
     current = measure(args.repo)
     where = current.pop("_where")
+    hidden = current.pop("codeql_hidden")
     path = os.path.join(args.repo, BASELINE)
 
     if args.init:
@@ -703,6 +756,16 @@ def main(argv: list[str] | None = None) -> int:
         else:
             failures += 1
             _annotate("error", p, line, f.message)
+
+    for p in hidden:
+        failures += 1
+        _annotate(
+            "error",
+            p,
+            1,
+            f"{CODEQL_CONFIG} keeps this production file out of CodeQL. Only test code may be left "
+            "out: narrow the glob, or declare the module `#[cfg(test)] mod name;` if it is a test.",
+        )
 
     if args.base_ref:
         try:

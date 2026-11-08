@@ -224,5 +224,62 @@ class Gained(unittest.TestCase):
         self.assertEqual(ch.gained(renamed, base), [])
 
 
+
+class CodeqlScope(unittest.TestCase):
+    """Only test code may be left out of CodeQL (alerts 292, 293, 301)."""
+
+    CONFIG = textwrap.dedent(
+        """\
+        name: test
+        paths-ignore:
+          # a comment
+          - src-tauri/vendor/**
+          - "src-tauri/src/**/*_tests.rs"
+          - "src-tauri/src/**/*_tests/**"
+        """
+    )
+
+    def setUp(self):
+        self.t = Tree()
+        self.t.write(ch.CODEQL_CONFIG, self.CONFIG)
+        self.t.write(
+            "src-tauri/src/lib.rs",
+            "pub mod a;\n#[cfg(test)]\nmod a_tests;\n#[cfg(test)]\nmod b_tests;\n",
+        )
+        self.t.write("src-tauri/src/a.rs", "pub fn f() {}\n")
+        self.t.write("src-tauri/src/a_tests.rs", "fn t() { crate::a::f(); }\n")
+        self.t.write("src-tauri/src/b_tests/mod.rs", "mod c;\n")
+        self.t.write("src-tauri/src/b_tests/c.rs", "fn t() {}\n")
+        self.assertEqual(self.t.run("--init")[0], 0)
+
+    def tearDown(self):
+        self.t.close()
+
+    def test_test_files_and_folders_may_be_left_out(self):
+        self.assertEqual(ch.measure(self.t.root)["codeql_hidden"], [])
+        self.assertEqual(self.t.run()[0], 0)
+
+    def test_a_glob_that_leaves_out_production_code_fails(self):
+        # Named like a test, but compiled into the app.
+        self.t.write("src-tauri/src/lib.rs", "pub mod a;\npub mod a_tests;\n#[cfg(test)]\nmod b_tests;\n")
+        self.assertEqual(ch.measure(self.t.root)["codeql_hidden"], ["src-tauri/src/a_tests.rs"])
+        code, out = self.t.run()
+        self.assertEqual(code, 1)
+        self.assertIn("keeps this production file out of CodeQL", out)
+
+    def test_globs_follow_codeql(self):
+        g = ch._glob_re
+        self.assertTrue(g("src-tauri/src/**/tests.rs").match("src-tauri/src/tests.rs"))
+        self.assertTrue(g("src-tauri/src/**/tests.rs").match("src-tauri/src/a/b/tests.rs"))
+        self.assertFalse(g("src-tauri/src/*.rs").match("src-tauri/src/a/b.rs"))
+        self.assertFalse(g("src-tauri/src/**/tests.rs").match("src-tauri/src/a/tests.rs.bak"))
+        # A folder glob leaves out what is inside it.
+        self.assertTrue(ch._hidden("src-tauri/src/x_tests/deep/y.rs", [g("src-tauri/src/**/*_tests")]))
+
+    def test_the_repository_config_hides_no_production_code(self):
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.assertEqual(ch.measure(repo)["codeql_hidden"], [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

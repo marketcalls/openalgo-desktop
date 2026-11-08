@@ -6,7 +6,9 @@
 # there. Unit tests that live in their own files inside src-tauri/src
 # (src-tauri/src/server/tests/ and every tests.rs) are excluded too: each is
 # declared `#[cfg(test)] mod tests;` and never compiled into the app. Check
-# that declaration before adding a path here. Inline #[cfg(test)] modules in
+# that declaration before adding a path here; the code-health gate
+# (scripts/ci/code_health.py, check codeql_hidden) fails CI when a glob here
+# leaves out production code. Inline #[cfg(test)] modules in
 # other files cannot be excluded by path: move such a module into its own
 # tests.rs beside the file (`foo.rs` declares `#[cfg(test)] mod tests;`, the
 # body goes in `foo/tests.rs`), which closes its alerts at the next scan
@@ -24,6 +26,12 @@ paths-ignore:
   # Shared test kits, declared `#[cfg(test)] pub(crate) mod testkit;` and
   # never compiled into the app (checked 2026-10-31: agent/tools/testkit.rs).
   - "src-tauri/src/**/testkit.rs"
+  # Unit tests in a file or folder named for what they test (`foo_tests.rs`,
+  # `foo_tests/`), declared `#[cfg(test)] mod foo_tests;` (Flow's
+  # data_tests, reads_tests, client_tests raised alerts 292, 293 and 301).
+  # scripts/ci/code_health.py fails CI if any glob here hides production code.
+  - "src-tauri/src/**/*_tests.rs"
+  - "src-tauri/src/**/*_tests/**"
   - "**/*.test.ts"
   - "**/*.test.tsx"
   - e2e/**
