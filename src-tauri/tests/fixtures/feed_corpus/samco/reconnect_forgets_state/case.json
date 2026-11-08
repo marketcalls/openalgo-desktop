@@ -48,8 +48,9 @@
     {
       "key": "frame",
       "kind": "web-defect",
-      "reason": "The desktop sends a Depth client a fresh frame for every quote frame (new price, volume, OI) once its book exists; the web publishes to Depth subscribers only on quote2 frames, so a Depth-only client's price stands still until Samco's next book update.",
-      "ref": "samco_adapter.py _on_data (target_modes [3] for quote2, [1, 2] for quote)"
+      "reason": "The web sends Depth clients nothing on a quote packet (samco_adapter.py _on_data routes quote frames to LTP and Quote subscriptions only), so a Depth-only client's price, volume and OI stand still until Samco's next book; the desktop refreshes Depth from the cached book on every quote packet, under its one frame per held mode policy (audit C08).",
+      "ref": "samco_adapter.py _on_data (target_modes [3] for quote2, [1, 2] for quote); audit C08; lead ruling 2026-11-09",
+      "approved": true
     },
     {
       "key": "last_trade_quantity",

@@ -61,15 +61,15 @@
     },
     {
       "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop's index frames carry no last_quantity, average price or book totals, as the recorded Zerodha index transcript does; the web sends a last_quantity of 0 Samco never sent for an index.",
-      "ref": "feed::protocol market_data (index branch); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The desktop's index frames carry no last_quantity; Samco's web adapter sends last_quantity for an index too (0 when Samco sends no ltq). Follows the web adapter in Phase B through the per-broker switch.",
+      "ref": "lead ruling 2026-11-09; feed::dialect per-broker switch (lane wire)"
     },
     {
       "key": "last_trade_quantity",
-      "kind": "desktop-decision",
-      "reason": "As last_quantity: its Samco alias goes with it.",
-      "ref": "feed::dialect; feed::protocol market_data (index branch)"
+      "kind": "open",
+      "reason": "As last_quantity: Samco's web adapter sends last_trade_quantity for an index too. Follows the web adapter in Phase B through the per-broker switch.",
+      "ref": "lead ruling 2026-11-09; feed::dialect per-broker switch (lane wire)"
     },
     {
       "key": "mode",
@@ -79,15 +79,15 @@
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends an index's change under its canonical name price_change, as the recorded Zerodha index transcript does, beside Samco's web name change with the same value.",
-      "ref": "feed::dialect (canonical names always); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The desktop sends an index's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change).",
+      "ref": "lead ruling 2026-11-09; feed::dialect per-broker switch (lane wire)"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "As price_change, beside Samco's web name change_percentage.",
-      "ref": "feed::dialect; tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "As price_change: Samco's web adapter sends change_percentage only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change_percent).",
+      "ref": "lead ruling 2026-11-09; feed::dialect per-broker switch (lane wire)"
     }
   ]
 }
