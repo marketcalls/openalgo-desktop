@@ -209,6 +209,37 @@ impl Registry {
     }
 }
 
+/// One flush's changes as the web sends them (bk-b): each instrument's net
+/// change, the unsubscribes first, then the mode changes, then the
+/// subscribes, so a subscribe never reaches a broker at its cap before the
+/// unsubscribe that frees its slot. An instrument subscribed and released
+/// in the same flush sends nothing.
+pub(super) fn in_web_order(deltas: Vec<Delta>) -> Vec<Delta> {
+    let mut seen: HashMap<(String, String), usize> = HashMap::new();
+    let mut net: Vec<(Option<FeedSubscription>, Option<FeedSubscription>)> = Vec::new();
+    for d in deltas {
+        let (key, before, after) = match d {
+            Delta::Subscribe(s) => (s.instrument_key(), None, Some(s)),
+            Delta::Unsubscribe(s) => (s.instrument_key(), Some(s), None),
+            Delta::ModeChange(b, a) => (a.instrument_key(), Some(b), Some(a)),
+        };
+        match seen.get(&key) {
+            Some(i) => net[*i].1 = after,
+            None => {
+                seen.insert(key, net.len());
+                net.push((before, after));
+            }
+        }
+    }
+    let mut out: Vec<Delta> = net.into_iter().filter_map(|(b, a)| change(b, a)).collect();
+    out.sort_by_key(|d| match d {
+        Delta::Unsubscribe(_) => 0,
+        Delta::ModeChange(..) => 1,
+        Delta::Subscribe(_) => 2,
+    });
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,6 +254,39 @@ mod tests {
             mode,
             depth,
         }
+    }
+
+    fn of(symbol: &str, mode: FeedMode) -> FeedSubscription {
+        FeedSubscription {
+            symbol: symbol.into(),
+            ..sub(mode, 5)
+        }
+    }
+
+    /// bk-b: one flush goes out as the web sends it, unsubscribes, then mode
+    /// changes, then subscribes, each instrument once with its net change.
+    #[test]
+    fn a_flush_releases_before_it_subscribes() {
+        let flush = vec![
+            Delta::Subscribe(of("A", FeedMode::Ltp)),
+            Delta::Unsubscribe(of("B", FeedMode::Ltp)),
+            Delta::ModeChange(of("C", FeedMode::Ltp), of("C", FeedMode::Quote)),
+            // Taken and let go in the same flush: nothing.
+            Delta::Subscribe(of("D", FeedMode::Ltp)),
+            Delta::Unsubscribe(of("D", FeedMode::Ltp)),
+            // Let go and taken again as it was: nothing.
+            Delta::Unsubscribe(of("E", FeedMode::Quote)),
+            Delta::Subscribe(of("E", FeedMode::Quote)),
+        ];
+        let named: Vec<String> = in_web_order(flush)
+            .into_iter()
+            .map(|d| match d {
+                Delta::Subscribe(s) => format!("sub {}", s.symbol),
+                Delta::Unsubscribe(s) => format!("unsub {}", s.symbol),
+                Delta::ModeChange(_, a) => format!("mode {}", a.symbol),
+            })
+            .collect();
+        assert_eq!(named, ["unsub B", "mode C", "sub A"]);
     }
 
     fn moved(d: Option<Routed>) -> Option<(FeedMode, u8, FeedMode, u8)> {

@@ -453,3 +453,68 @@ async fn a_deliberate_close_says_the_feeds_farewell_first() {
     assert_eq!(byes, vec![1], "only the deliberate close says it");
     srv.abort();
 }
+
+/// bk-b (Sahi at its cap, and every broker): an unsubscribe and a subscribe
+/// that reach a full connection in one flush go out unsubscribe first, so
+/// the subscribe finds the slot free. Reading the socket queues both
+/// changes, the subscribe first, as the manager makes them.
+#[tokio::test]
+async fn a_full_connections_flush_releases_before_it_subscribes() {
+    let (mut sup, cmd) = supervisor(Box::new(MockFeed::new("ws://127.0.0.1:1")));
+    let registry = sup.registry.clone();
+    let stopper = cmd.clone();
+    let mut queued = false;
+    let mut read = futures_util::stream::poll_fn(move |_| {
+        if !queued {
+            queued = true;
+            let sbin = registry
+                .lock()
+                .effective_all()
+                .into_iter()
+                .find(|s| s.symbol == "SBIN");
+            let mut reg = registry.lock();
+            let add: Vec<Delta> = reg
+                .add(infy("2", "INFY"), 0)
+                .into_iter()
+                .map(|(_, d)| d)
+                .collect();
+            let _ = cmd.try_send(Command::Apply(Apply::plain(add, reg.changes)));
+            let remove: Vec<Delta> = sbin
+                .and_then(|s| reg.remove(&s))
+                .into_iter()
+                .map(|(_, d)| d)
+                .collect();
+            let _ = cmd.try_send(Command::Apply(Apply::plain(remove, reg.changes)));
+        }
+        Poll::Pending
+    });
+    let sent: Arc<Mutex<Vec<(Duration, String)>>> = Arc::default();
+    let mut write = StuckSink {
+        sent: sent.clone(),
+        take: 100,
+        start: Instant::now(),
+        pongs: None,
+    };
+    // A stop in the same burst would leave the changes to the next socket.
+    let stop = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let _ = stopper.send(Command::Stop).await;
+    });
+    let end = tokio::time::timeout(
+        Duration::from_secs(5),
+        sup.session("mock", &mut write, &mut read),
+    )
+    .await;
+    stop.abort();
+    assert!(matches!(end, Ok(SessionEnd::Stopped)));
+    let frames: Vec<String> = sent.lock().iter().map(|(_, f)| f.clone()).collect();
+    assert_eq!(
+        frames,
+        [
+            r#"{"sub":["NSE:SBIN:1"]}"#,
+            r#"{"unsub":["NSE:SBIN:1"]}"#,
+            r#"{"sub":["NSE:INFY:1"]}"#,
+        ],
+        "the whole set, then the flush in the web's order"
+    );
+}

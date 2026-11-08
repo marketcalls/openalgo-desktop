@@ -666,13 +666,15 @@ impl Supervisor {
         }
     }
 
-    /// Frames for a run of deltas, in order. Consecutive subscribes (and
-    /// consecutive unsubscribes) go to the feed in one call, so feeds that
-    /// can batch send one frame or request per run rather than one per
-    /// instrument (web #2176: Firstock, Pocketful, RMoney batching). With
+    /// Frames for a run of deltas, in the web's order (`in_web_order`).
+    /// Consecutive subscribes (and consecutive unsubscribes) go to the feed
+    /// in one call, so feeds that can batch send one frame or request per
+    /// run rather than one per instrument (web #2176: Firstock, Pocketful,
+    /// RMoney batching). With
     /// `later`, unsubscribes are releases a caller waits on, and the
     /// broker's own answers to them are collected there.
     fn delta_frames(&mut self, deltas: Vec<Delta>, mut later: Option<&mut Later>) -> Vec<Message> {
+        let deltas = super::registry::in_web_order(deltas);
         let mut frames = Vec::new();
         let mut subs: Vec<FeedSubscription> = Vec::new();
         let mut unsubs: Vec<FeedSubscription> = Vec::new();
