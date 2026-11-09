@@ -594,10 +594,11 @@ const SAMCO: &[WebName] = &[
     n("last_trade_quantity", S::LastQuantity, Q),
     n("change", S::Change, Q),
     n("change_percentage", S::ChangePercent, Q),
-    n("best_bid_price", S::Extra(E::BidPrice), Q),
-    n("best_bid_quantity", S::Extra(E::BidQuantity), Q),
-    n("best_ask_price", S::Extra(E::AskPrice), Q),
-    n("best_ask_quantity", S::Extra(E::AskQuantity), Q),
+    // samco_adapter.py sends the best bid and ask in its Quote dict only.
+    nt("best_bid_price", S::Extra(E::BidPrice), Q, Q),
+    nt("best_bid_quantity", S::Extra(E::BidQuantity), Q, Q),
+    nt("best_ask_price", S::Extra(E::AskPrice), Q, Q),
+    nt("best_ask_quantity", S::Extra(E::AskQuantity), Q, Q),
 ];
 
 const TRADEJINI: &[WebName] = &[
@@ -722,7 +723,11 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .mode_of_holder()
             .no_index_change()
             .instrument_key(Key::LastQuantity, Modes::NEVER),
-        "samco" => d(Number, SAMCO).no_index_change(),
+        // An index's last quantity when Samco sends one (samco_adapter.py
+        // sends last_quantity for every instrument at Quote and Depth).
+        "samco" => d(Number, SAMCO)
+            .no_index_change()
+            .index_key(Key::LastQuantity, Modes::QUOTE_UP),
         "tradejini" => d(Number, TRADEJINI).no_index_change().depth_needs_book(),
         _ => Dialect {
             keys: Keys::V106,

@@ -438,6 +438,12 @@ fn shared_fields_go_out_under_the_brokers_names() {
     let samco = render(&u, Mode::Quote, "samco");
     assert_eq!(samco["best_bid_price"], 101.2);
     assert_eq!(samco["best_ask_quantity"], 50);
+    let samco = render(&u, Mode::Depth, "samco");
+    assert!(
+        samco.get("best_bid_price").is_none(),
+        "Quote only: {}",
+        samco
+    );
     let paytm = render(&at_quote, Mode::Quote, "paytm");
     assert_eq!(paytm["52_week_high"], 130.0);
     assert!(paytm.get("oi_change").is_none(), "Depth only");

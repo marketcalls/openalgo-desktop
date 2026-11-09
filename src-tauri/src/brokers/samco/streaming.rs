@@ -374,6 +374,17 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
         absent,
         ..Default::default()
     };
+    // Totals Samco's streams no longer hold (the book stream's go when the
+    // last Depth holder leaves) are cleared from what the bridge keeps for
+    // the instrument, not left standing in for the quote stream's.
+    for (missing, field) in [
+        (tbq.is_none(), QuoteField::TotalBuyQuantity),
+        (tsq.is_none(), QuoteField::TotalSellQuantity),
+    ] {
+        if missing {
+            tick.mark_cleared(field);
+        }
+    }
     if g("oI").is_some() {
         tick.mark_carried(QuoteField::OpenInterest);
     }

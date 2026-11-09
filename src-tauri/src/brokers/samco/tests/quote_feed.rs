@@ -380,6 +380,31 @@ fn the_best_bid_and_ask_are_published_at_quote() {
     assert_eq!(best(&d), [None, None, None, None], "{}", d);
 }
 
+/// The book stream's totals are dropped when the last Depth holder
+/// leaves, and from what the bridge keeps for the instrument too: a quote
+/// stream that sends no tBQ/tSQ then shows no totals, as the web's (its
+/// client drops the merged fields), not the book's last ones.
+#[test]
+fn leaving_depth_clears_the_book_totals_the_bridge_kept() {
+    let mut f = reliance();
+    let mut frames = Frames::new("samco");
+    let mut events = f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE", "tbq": "5", "taq": "6", "bidValues": [], "askValues": [],
+    })));
+    events.extend(f.parse(&tick("2885_NSE")));
+    let d = frames.at(&events, Mode::Quote).pop().unwrap();
+    assert_eq!(d["total_buy_quantity"], 5, "{}", d);
+    let depth = sub("RELIANCE", "NSE", "NSE", "2885", FeedMode::Depth);
+    f.mode_change_frames(&depth, &depth.with_mode(FeedMode::Quote));
+    let d = frames
+        .at(&f.parse(&tick("2885_NSE")), Mode::Quote)
+        .pop()
+        .unwrap();
+    for k in ["total_buy_quantity", "total_sell_quantity"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+}
+
 /// Web test_tick_from_another_segment_is_not_routed.
 #[test]
 fn a_tick_from_another_segment_is_not_routed() {
