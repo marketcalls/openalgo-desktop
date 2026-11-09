@@ -164,13 +164,6 @@
           ]
         },
         {
-          "client": "q",
-          "publication": 1,
-          "mode": 2,
-          "topic_mode": 3,
-          "serves": []
-        },
-        {
           "client": "d",
           "publication": 1,
           "mode": 3,
@@ -178,6 +171,13 @@
           "serves": [
             3
           ]
+        },
+        {
+          "client": "q",
+          "publication": 1,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": []
         }
       ]
     },

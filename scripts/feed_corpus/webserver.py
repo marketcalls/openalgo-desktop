@@ -233,6 +233,9 @@ class WebServer:
                             "topic_mode": pub["mode"]})
             else:
                 out.append({"client": client, "publication": index, "order": True})
+        # The server fans out from Python sets, whose order changes from run
+        # to run; a client's own frames keep their publication order.
+        out.sort(key=lambda d: (d["publication"], d["client"]))
         return self._serves(out, published)
 
     def _serves(self, deliveries: list[dict], published: list) -> list[dict]:
