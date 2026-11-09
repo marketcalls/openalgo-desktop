@@ -26,6 +26,11 @@ fn key() -> InstrumentKey {
     InstrumentKey::new("SBIN", "NSE")
 }
 
+/// The frame `event` gives a wait that has seen nothing else.
+fn frame(event: &FeedEvent, key: &InstrumentKey, mode: Mode, broker: &str) -> Option<Value> {
+    FrameWait::new(key, mode, broker).read(event)
+}
+
 #[test]
 fn a_tick_is_the_apps_frame_at_the_mode_asked() {
     let f = frame(&tick(1), &key(), Mode::Ltp, "zerodha").unwrap();
