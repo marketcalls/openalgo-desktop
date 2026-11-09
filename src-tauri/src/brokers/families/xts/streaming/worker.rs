@@ -97,11 +97,15 @@ pub(crate) async fn run_commands(
             tracing::warn!(
                 broker = t.broker,
                 instruments = report.retry.len(),
-                "Subscription still failing after {} retries; the next reconnect sends it again",
+                "Subscription still failing after {} retries; giving it up",
                 RETRY_ATTEMPTS
             );
-            if let Some(waited) = &cmd.waited {
-                waited.gave_up(&report.retry);
+            if cmd
+                .waited
+                .as_ref()
+                .is_some_and(|w| w.gave_up(&report.retry))
+            {
+                let_go(&mut pending, cmd.code, report.retry);
             }
             continue;
         }
@@ -142,6 +146,33 @@ fn schedule(pending: &mut std::collections::VecDeque<Pending>, p: Pending) {
         .position(|q| q.due > p.due)
         .unwrap_or(pending.len());
     pending.insert(at, p);
+}
+
+/// An admission gave up on `instruments` and its owner was told they were
+/// not started, but the broker may have taken them all the same (only its
+/// answers were lost). Nobody owns them now, so it is told to let go; a
+/// newer subscribe of them replaces this like any other retry.
+fn let_go(
+    pending: &mut std::collections::VecDeque<Pending>,
+    code: u16,
+    instruments: Vec<serde_json::Value>,
+) {
+    let due = tokio::time::Instant::now();
+    let cmd = Command {
+        subscribe: false,
+        code,
+        instruments,
+        waited: None,
+        then_release: None,
+    };
+    schedule(
+        pending,
+        Pending {
+            cmd,
+            attempt: 0,
+            due,
+        },
+    );
 }
 
 /// A mode change's release of its old message code, for the instruments

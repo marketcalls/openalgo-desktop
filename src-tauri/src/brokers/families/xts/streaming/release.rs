@@ -25,7 +25,9 @@
 //!
 //! A passing failure of an admission is sent again with its waiter, and
 //! only what that retry comes to answers it: a retry report is not an
-//! answer (review B2).
+//! answer (review B2). If every attempt fails its owner is told it was not
+//! started, and the broker to let go of it in case only its answers were
+//! lost.
 
 use super::{mapping, Command, CommandReport, XtsFeed, SUBSCRIBE_BATCH, SUBSCRIBE_GAP};
 use crate::brokers::common::streaming::{
@@ -219,15 +221,18 @@ impl Waited {
 
     /// Asked every time the worker asks, the broker never answered about
     /// `instruments`: an admission is told so; a session's whole set just
-    /// tries again at the next reconnect.
-    pub(super) fn gave_up(&self, instruments: &[Value]) {
+    /// tries again at the next reconnect. True when they are now nobody's,
+    /// so the broker is to let go of them in case it took them.
+    pub(super) fn gave_up(&self, instruments: &[Value]) -> bool {
         let mut a = self.0.lock();
-        if a.kind == Kind::Admission {
+        let told = a.kind == Kind::Admission;
+        if told {
             for inst in instruments {
                 a.refuse(inst, NOT_ANSWERED.to_string());
             }
         }
         a.command_done();
+        told
     }
 }
 
