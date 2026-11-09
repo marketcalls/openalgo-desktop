@@ -37,21 +37,21 @@
       "kind": "web-defect",
       "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
       "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386",
-      "approved": true
+      "approval": "alias-unit"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "After a reconnect the web merges the OI its client held from the session before the drop (its OI cache survives the reconnect, iiflcapital_websocket.py:282, 467), a value from another session; the desktop leaves OI out until the new session's OI packet.",
       "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::on_connected",
-      "approved": true
+      "approval": "merge-restart-on-reconnect"
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "After a reconnect the web merges the OI its client held from the session before the drop (its OI cache survives the reconnect, iiflcapital_websocket.py:282, 467), a value from another session; the desktop leaves OI out until the new session's OI packet.",
       "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::on_connected",
-      "approved": true
+      "approval": "merge-restart-on-reconnect"
     }
   ]
 }

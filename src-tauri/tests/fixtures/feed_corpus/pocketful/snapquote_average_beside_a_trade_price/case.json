@@ -37,21 +37,21 @@
       "kind": "web-defect",
       "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
       "ref": "pocketful_adapter.py:583, 631",
-      "approved": true
+      "approval": "alias-unit"
     },
     {
       "key": "frame",
       "kind": "web-defect",
       "reason": "The web's _find_subscription returns the first subscription of a token, the Quote one, for every packet (PF-03), so the snapquote goes out on the Quote topic and its Depth holder gets nothing. The desktop sends the Depth holder the book with the last real price (1500.25) and the snapquote's average (1499.10) as average_price.",
       "ref": "pocketful_adapter.py:739-747 (_find_subscription), 650-690; PF-03; R107-07",
-      "approved": true
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "missing-frame",
       "kind": "web-defect",
       "reason": "The web publishes the snapquote to the Quote holder (PF-03) with its average 1499.10 as ltp, replacing the real trade price 1500.25 the detailed packet gave it. A snapquote has no trade price, so the desktop sends a Quote holder nothing from it. A snapquote carries no trade price (packet_decoder.py:83-137, averageTradePrice at 126); the web publishes its average trade price as ltp (pocketful_adapter.py:676), so a client reads the day's average as the last trade. The desktop sends the average as average_price and ltp from a real trade only: the last one known, or 0 before the instrument's first (the 1.0.6 rule for a book before any price). R107-07.",
       "ref": "pocketful_adapter.py:650-690, 739-747; PF-03; R107-07",
-      "approved": true
+      "approval": "pocketful-average-not-ltp"
     }
   ]
 }

@@ -35,42 +35,42 @@
       "kind": "web-defect",
       "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
       "ref": "pocketful_adapter.py:583, 631",
-      "approved": true
+      "approval": "alias-unit"
     },
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "pocketful_adapter.py:580-594",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "pocketful_adapter.py:580-594",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "pocketful_adapter.py:580-594",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "pocketful_adapter.py:580-594",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "pocketful_adapter.py:580-594",
-      "approved": true
+      "approval": "leave-out-unsent"
     }
   ]
 }

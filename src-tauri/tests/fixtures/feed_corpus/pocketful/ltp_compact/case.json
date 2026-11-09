@@ -38,14 +38,14 @@
       "kind": "web-defect",
       "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
       "ref": "pocketful_adapter.py:583, 631",
-      "approved": true
+      "approval": "alias-unit"
     },
     {
       "key": "change",
       "kind": "web-defect",
       "reason": "The compact packet's change is a signed number; the web unpacks it unsigned (packet_decoder.py:257, '>I'), so a fall of 10.50 becomes 42949662.46. The desktop reads it signed (audit RB-14; lead ruling 2026-11-09: keep the desktop's).",
       "ref": "packet_decoder.py:252-265; pocketful/streaming.rs decode_compact",
-      "approved": true
+      "approval": "never-copy-web-defect"
     }
   ]
 }
