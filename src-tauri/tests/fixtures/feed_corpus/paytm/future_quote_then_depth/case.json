@@ -42,48 +42,6 @@
       "approved": true
     },
     {
-      "key": "last_quantity",
-      "kind": "open",
-      "reason": "The desktop sends the canonical last_quantity beside last_trade_quantity in Quote; the Paytm web adapter's Quote frame names it last_trade_quantity only (paytm_adapter.py:715). Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "paytm_adapter.py:715; feed/protocol/market.rs canonical()"
-    },
-    {
-      "key": "last_trade_quantity",
-      "kind": "open",
-      "reason": "The desktop sends last_trade_quantity from Quote up (names.rs `from`); the Paytm web adapter's Depth frame names the value last_quantity only (paytm_adapter.py:734). Open until wire's WebName.to; in the fan-out case the web's Quote holder also gets the Depth dict (C08).",
-      "ref": "paytm_adapter.py:715, 734; feed/dialect/names.rs PAYTM"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change_absolute, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change_absolute, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
-      "key": "depth",
-      "kind": "open",
-      "reason": "The Paytm web adapter publishes only the tick's own mode topic, and the proxy hands a Quote holder the Depth topic's dict unchanged (book and circuits included); the desktop's Quote frame is cut at Quote. Open until wire's C08 one-dict fold (decision 2026-11-09: lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them).",
-      "ref": "websocket_proxy/server.py (fan-out to lower modes); paytm_adapter.py:649-675; audit C08"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The Paytm web adapter publishes only the tick's own mode topic, and the proxy hands a Quote holder the Depth topic's dict unchanged (book and circuits included); the desktop's Quote frame is cut at Quote. Open until wire's C08 one-dict fold (decision 2026-11-09: lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them).",
-      "ref": "websocket_proxy/server.py (fan-out to lower modes); paytm_adapter.py:649-675; audit C08"
-    },
-    {
-      "key": "oi_change",
-      "kind": "open",
-      "reason": "The Paytm web adapter publishes only the tick's own mode topic, and the proxy hands a Quote holder the Depth topic's dict unchanged (book and circuits included); the desktop's Quote frame is cut at Quote. Open until wire's C08 one-dict fold (decision 2026-11-09: lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them).",
-      "ref": "websocket_proxy/server.py (fan-out to lower modes); paytm_adapter.py:649-675; audit C08"
-    },
-    {
       "key": "frame",
       "kind": "web-defect",
       "reason": "When the Depth holder leaves, the web adapter deletes the security id from token_map (paytm_adapter.py:500-501) although the Quote holder's preference is still on the wire, so every later packet is dropped as untracked and the web's Quote holder receives nothing more. The desktop moves the preference back to QUOTE and keeps streaming to it.",

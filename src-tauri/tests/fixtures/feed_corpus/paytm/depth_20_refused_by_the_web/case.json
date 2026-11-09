@@ -1,6 +1,6 @@
 {
   "broker": "paytm",
-  "summary": "A Depth 20 subscribe: the web adapter refuses it (Paytm streams five levels only); the desktop acknowledges depth 20 and streams the five-level FULL book.",
+  "summary": "A Depth 20 subscribe: refused with the web adapter's words and status partial, nothing sent upstream; a Depth 5 subscribe after it streams the five-level FULL book.",
   "scenarios": [
     "subscription-lifecycle"
   ],
@@ -17,21 +17,22 @@
     "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
     "method": "web-script",
     "sources": [
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py::WebSocketProxy.subscribe_client",
       "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_binary_data",
-      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_data",
-      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data",
-      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter.subscribe"
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data"
     ],
     "notes": [
-      "The web answers this subscribe with an error entry, \"Invalid depth level 20. Paytm supports only 5 levels\", and status partial (paytm_adapter.py:388-391, websocket_proxy/server.py:1318-1328); the reply is pinned here as the desktop sends it today."
+      "The web answers a Depth subscribe at any depth but 5 with an error entry, \"Invalid depth level 20. Paytm supports only 5 levels\", and status partial (paytm_adapter.py:388-391, websocket_proxy/server.py:1318-1334); the desktop refuses it at admission with the same words (feed/refusals.rs, lane life; BKD-06)."
     ]
   },
   "deviations": [
     {
-      "key": "frame",
-      "kind": "open",
-      "reason": "The web refuses a Depth subscribe at any depth but 5 (\"Invalid depth level 20. Paytm supports only 5 levels\", paytm_adapter.py:388-391); the desktop acknowledges depth 20 and streams five levels. Lane life's refusal (feed/server/refusals.rs, c08002aa, same words and status partial) fixes it once life is merged into base; the case then expects the refusal and no frame.",
-      "ref": "paytm_adapter.py:388-391; feed/server/refusals.rs (lane life); BKD-06"
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes Paytm's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time)",
+      "approved": true
     }
   ]
 }

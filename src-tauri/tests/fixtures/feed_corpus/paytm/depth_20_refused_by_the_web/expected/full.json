@@ -20,8 +20,6 @@
     "high": 1510.2,
     "low": 1485.1,
     "close": 1488.3,
-    "price_change": 11.75,
-    "price_change_percent": 0.79,
     "oi": 0,
     "depth": {
       "buy": [
@@ -81,7 +79,6 @@
     },
     "change_absolute": 11.75,
     "change_percent": 0.79,
-    "last_trade_quantity": 25,
     "52_week_high": 1608.95,
     "52_week_low": 1201.5,
     "oi_change": 0

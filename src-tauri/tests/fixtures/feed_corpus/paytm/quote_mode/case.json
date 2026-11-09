@@ -31,24 +31,6 @@
       "reason": "The web passes Paytm's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
       "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time)",
       "approved": true
-    },
-    {
-      "key": "last_quantity",
-      "kind": "open",
-      "reason": "The desktop sends the canonical last_quantity beside last_trade_quantity in Quote; the Paytm web adapter's Quote frame names it last_trade_quantity only (paytm_adapter.py:715). Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "paytm_adapter.py:715; feed/protocol/market.rs canonical()"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change_absolute, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change_absolute, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     }
   ]
 }
