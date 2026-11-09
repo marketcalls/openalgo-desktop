@@ -116,13 +116,6 @@
           ]
         },
         {
-          "client": "b",
-          "publication": 1,
-          "mode": 1,
-          "topic_mode": 2,
-          "serves": []
-        },
-        {
           "client": "a",
           "publication": 1,
           "mode": 2,
@@ -130,6 +123,13 @@
           "serves": [
             2
           ]
+        },
+        {
+          "client": "b",
+          "publication": 1,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
         }
       ]
     },
@@ -230,13 +230,6 @@
           ]
         },
         {
-          "client": "b",
-          "publication": 1,
-          "mode": 1,
-          "topic_mode": 2,
-          "serves": []
-        },
-        {
           "client": "a",
           "publication": 1,
           "mode": 2,
@@ -244,6 +237,13 @@
           "serves": [
             2
           ]
+        },
+        {
+          "client": "b",
+          "publication": 1,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
         }
       ]
     }

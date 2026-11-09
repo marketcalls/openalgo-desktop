@@ -61,13 +61,6 @@
       ],
       "deliveries": [
         {
-          "client": "b",
-          "publication": 0,
-          "mode": 1,
-          "topic_mode": 2,
-          "serves": []
-        },
-        {
           "client": "a",
           "publication": 0,
           "mode": 2,
@@ -75,6 +68,13 @@
           "serves": [
             2
           ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
         },
         {
           "client": "b",
@@ -134,13 +134,6 @@
       ],
       "deliveries": [
         {
-          "client": "b",
-          "publication": 0,
-          "mode": 1,
-          "topic_mode": 2,
-          "serves": []
-        },
-        {
           "client": "a",
           "publication": 0,
           "mode": 2,
@@ -148,6 +141,13 @@
           "serves": [
             2
           ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
         },
         {
           "client": "b",

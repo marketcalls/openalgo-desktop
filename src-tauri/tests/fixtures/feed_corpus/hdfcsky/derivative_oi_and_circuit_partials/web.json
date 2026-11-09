@@ -145,13 +145,6 @@
       ],
       "deliveries": [
         {
-          "client": "b",
-          "publication": 0,
-          "mode": 2,
-          "topic_mode": 3,
-          "serves": []
-        },
-        {
           "client": "a",
           "publication": 0,
           "mode": 3,
@@ -159,6 +152,13 @@
           "serves": [
             3
           ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": []
         },
         {
           "client": "b",
@@ -295,13 +295,6 @@
       ],
       "deliveries": [
         {
-          "client": "b",
-          "publication": 0,
-          "mode": 2,
-          "topic_mode": 3,
-          "serves": []
-        },
-        {
           "client": "a",
           "publication": 0,
           "mode": 3,
@@ -309,6 +302,13 @@
           "serves": [
             3
           ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": []
         },
         {
           "client": "b",
@@ -445,13 +445,6 @@
       ],
       "deliveries": [
         {
-          "client": "b",
-          "publication": 0,
-          "mode": 2,
-          "topic_mode": 3,
-          "serves": []
-        },
-        {
           "client": "a",
           "publication": 0,
           "mode": 3,
@@ -459,6 +452,13 @@
           "serves": [
             3
           ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": []
         },
         {
           "client": "b",

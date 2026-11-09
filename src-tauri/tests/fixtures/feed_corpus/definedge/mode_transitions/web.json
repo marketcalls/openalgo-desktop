@@ -187,6 +187,15 @@
           ]
         },
         {
+          "client": "d",
+          "publication": 2,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        },
+        {
           "client": "l",
           "publication": 2,
           "mode": 1,
@@ -199,15 +208,6 @@
           "mode": 2,
           "topic_mode": 3,
           "serves": []
-        },
-        {
-          "client": "d",
-          "publication": 2,
-          "mode": 3,
-          "topic_mode": 3,
-          "serves": [
-            3
-          ]
         }
       ]
     },
