@@ -44,9 +44,13 @@ fn update(key: InstrumentKey) -> MarketUpdate {
         depth: Some(DepthBook {
             buy: vec![level; 5],
             sell: vec![level; 5],
+            ..Default::default()
         }),
         exact_mode: false,
         token: None,
+        broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     }
 }
 
@@ -850,14 +854,18 @@ fn book_meta_keys_follow_the_broker() {
         q.broker_fields
             .set(BrokerField::UpdateType, BrokerValue::Text("live"));
     }
+    if let Some(b) = u.depth.as_mut() {
+        b.time_ms = Some(1_791_000_000_000);
+    }
     let fifty: Value = serde_json::from_str(&market_data(&u, Mode::Depth, 50, "fyers")).unwrap();
     let d = &fifty["data"];
     assert_eq!(
         (d["is_50_depth"].as_bool(), d["depth_levels"].as_u64()),
-        (Some(true), Some(50))
+        (Some(true), Some(5)),
+        "the levels the book holds"
     );
     assert_eq!(d["total_buy_qty"], 300);
-    assert_eq!(d["feed_time"], 1_791_000_000);
+    assert_eq!(d["feed_time"], 1_791_000_000, "the book packet's own time");
     assert_eq!(d["update_type"], "live");
     let five = render(&u, Mode::Depth, "fyers");
     assert!(five.get("is_50_depth").is_none() && five.get("total_buy_qty").is_none());
@@ -866,6 +874,123 @@ fn book_meta_keys_follow_the_broker() {
     assert!(render(&u, Mode::Depth, "zerodha")["depth"]
         .get("timestamp")
         .is_none());
+}
+
+/// The levels a frame names are those its book was served at: Dhan's
+/// `depth_level` says 5, and Fyers sends no 50-level keys, once a deep
+/// subscription fell back to the main feed (audit P-10; web Dhan
+/// dhan_adapter.py:930, 1042).
+#[test]
+fn a_fallen_back_book_names_the_levels_it_was_served_at() {
+    let data = |u: &MarketUpdate, depth, broker| -> Value {
+        let v: Value = serde_json::from_str(&market_data(u, Mode::Depth, depth, broker)).unwrap();
+        v["data"].clone()
+    };
+    let levels = |u: &mut MarketUpdate, l| {
+        if let Some(b) = u.depth.as_mut() {
+            b.levels = l;
+        }
+    };
+    let mut u = update(equity());
+    assert_eq!(data(&u, 20, "dhan")["depth_level"], 20, "no deep socket");
+    levels(&mut u, Some(20));
+    assert_eq!(data(&u, 20, "dhan")["depth_level"], 20, "the deep book");
+    assert_eq!(data(&u, 5, "dhan")["depth_level"], 5, "a holder at 5");
+    levels(&mut u, Some(5));
+    assert_eq!(data(&u, 20, "dhan")["depth_level"], 5, "fallen back");
+    assert!(data(&u, 50, "fyers").get("is_50_depth").is_none());
+    levels(&mut u, Some(50));
+    assert_eq!(data(&u, 50, "fyers")["is_50_depth"], true);
+}
+
+/// A Depth 5 and a Depth 20 holder of one Dhan symbol while its 20 levels
+/// stream from the depth socket: each gets only books at its own depth,
+/// the 20 holder never the main feed's 5 levels in between (web defect:
+/// the web sends every Depth publish of a symbol to every Depth client);
+/// after the fallback the 20 holder gets the main feed's book, named 5.
+#[test]
+fn each_depth_holder_gets_only_books_at_its_own_depth() {
+    use super::reaches;
+    let book = |n: usize, levels: u8| DepthBook {
+        buy: vec![
+            DepthLevel {
+                price: 101.0,
+                quantity: 1,
+                orders: Some(1)
+            };
+            n
+        ],
+        sell: vec![
+            DepthLevel {
+                price: 101.5,
+                quantity: 1,
+                orders: Some(1)
+            };
+            n
+        ],
+        levels: Some(levels),
+        time_ms: None,
+    };
+    let frame = |u: &MarketUpdate, depth: u8| -> Option<Value> {
+        reaches(u, Mode::Depth, depth, "dhan").then(|| {
+            let v: Value =
+                serde_json::from_str(&market_data(u, Mode::Depth, depth, "dhan")).unwrap();
+            v["data"].clone()
+        })
+    };
+    let side = |d: &Value| d["depth"]["buy"].as_array().map(Vec::len);
+    let mut main = update(equity());
+    main.exact_mode = true;
+    main.depth = Some(book(5, 5));
+    main.deep_live = Some(20);
+    main.deep_book = Some(book(20, 20));
+    let five = frame(&main, 5).expect("a 5 holder hears the main book");
+    assert_eq!(
+        (side(&five), five["depth_level"].as_u64()),
+        (Some(5), Some(5))
+    );
+    assert!(frame(&main, 20).is_none(), "never the 5 levels in between");
+
+    let mut deep = main.clone();
+    deep.depth = None;
+    let twenty = frame(&deep, 20).expect("the 20 holder hears its book");
+    assert_eq!(
+        (side(&twenty), twenty["depth_level"].as_u64()),
+        (Some(20), Some(20))
+    );
+    assert!(frame(&deep, 5).is_none(), "the 5 holder has its own book");
+
+    let mut tick = main.clone();
+    tick.exact_mode = false;
+    assert_eq!(frame(&tick, 5).as_ref().and_then(side), Some(5));
+    assert_eq!(frame(&tick, 20).as_ref().and_then(side), Some(20));
+
+    let mut fell_back = main.clone();
+    fell_back.deep_live = None;
+    let twenty = frame(&fell_back, 20).expect("after the fallback, the main book");
+    assert_eq!(
+        (side(&twenty), twenty["depth_level"].as_u64()),
+        (Some(5), Some(5))
+    );
+}
+
+/// Fyers' `token` is the exchange's token (the fytoken less its first ten
+/// digits) on HSM frames and the ticker on TBT 50-level frames, and none on
+/// an index (the web's `""` placeholder, declared by the Fyers lane).
+#[test]
+fn fyers_names_its_frames_by_the_token_the_web_uses() {
+    let mut u = update(equity());
+    u.token = Some(std::sync::Arc::from("10100000003045"));
+    u.broker_symbol = Some(std::sync::Arc::from("NSE:SBIN-EQ"));
+    for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
+        assert_eq!(render(&u, mode, "fyers")["token"], "3045", "{:?}", mode);
+    }
+    let fifty: Value = serde_json::from_str(&market_data(&u, Mode::Depth, 50, "fyers")).unwrap();
+    assert_eq!(fifty["data"]["token"], "NSE:SBIN-EQ");
+    assert_eq!(render(&u, Mode::Quote, "upstox")["token"], "10100000003045");
+    let mut i = update(index());
+    i.token = u.token.clone();
+    assert!(render(&i, Mode::Quote, "fyers").get("token").is_none());
 }
 
 /// Tradejini's Quote and Depth frames carry `last_trade_time` as that
@@ -975,6 +1100,37 @@ fn a_trade_time_goes_out_in_the_text_form_of_its_packet() {
         ..frame
     };
     assert_eq!(at(Source::TradeTimeOfDay, &f), None);
+}
+
+/// Definedge's `last_trade_time` (Quote up) and `ltt_time` (Depth) go only
+/// with a packet that marked its trade time's text form (the depth feed's
+/// `ltt` clock); a packet whose trade time is the feed time sends neither.
+#[test]
+fn definedge_names_a_trade_time_only_from_its_clock() {
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.trade_time = Some(1_791_000_000_000);
+    }
+    for mode in [Mode::Quote, Mode::Depth] {
+        let d = render(&u, mode, "definedge");
+        assert!(
+            d.get("last_trade_time").is_none() && d.get("ltt_time").is_none(),
+            "{}",
+            d
+        );
+    }
+    if let Some(q) = u.quote.as_mut() {
+        q.time_text = Some(TimeText::TimeOfDay);
+    }
+    let quote = render(&u, Mode::Quote, "definedge");
+    assert_eq!(quote["last_trade_time"], "09:30:00");
+    assert!(quote.get("ltt_time").is_none(), "Depth only");
+    let depth = render(&u, Mode::Depth, "definedge");
+    assert_eq!(depth["last_trade_time"], "09:30:00");
+    assert_eq!(depth["ltt_time"], "09:30:00");
+    assert!(data_at(equity(), Mode::Ltp, "definedge")
+        .get("last_trade_time")
+        .is_none());
 }
 
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,

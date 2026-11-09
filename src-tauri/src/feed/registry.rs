@@ -252,13 +252,13 @@ impl Registry {
                 continue;
             };
             for mode in Mode::ALL.iter().rev().copied() {
-                if !protocol::reaches(update, mode, &client.broker) {
-                    continue;
-                }
                 let Some(depth) = slots.get(mode) else {
                     continue;
                 };
                 let depth = if mode == Mode::Depth { depth } else { 0 };
+                if !protocol::reaches(update, mode, depth, &client.broker) {
+                    continue;
+                }
                 let frame = match rendered
                     .iter()
                     .find(|(m, d, b, _)| *m == mode && *d == depth && **b == *client.broker)

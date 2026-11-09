@@ -79,10 +79,29 @@ pub(crate) enum Source {
     /// when the broker sent one (the Noren family's `last_trade_time`, the
     /// broker's `ltt` passed through), or in the form the packet marks.
     TradeTimeOfDay,
+    /// The exchange's trade time in the text form the packet marks, and only
+    /// when it marks one (`NormalizedTick::time_text`): Definedge's web sends
+    /// `last_trade_time` and `ltt_time` only for a packet whose trade time is
+    /// the depth feed's `ltt` clock (`HH:MM:SS`), none for a feed time `ft`.
+    TradeTimeMarked,
     Extra(Extra),
     /// The book depth the frame streams (Dhan, the Noren family:
-    /// `depth_level`).
+    /// `depth_level`): the levels the book was served at.
     DepthLevels,
+    /// The levels the frame's book holds, its longer side (web Fyers TBT
+    /// `depth_levels`, fyers_tbt_websocket.py:519-530).
+    BookLevels,
+    /// The book packet's own time (web Fyers TBT `feed_time`).
+    BookTime(Unit),
+    /// The broker token less its first ten digits, the exchange's token
+    /// (web Fyers `exchange_token` from the fytoken, fyers_mapping.py:82);
+    /// none for an index (the web sends a placeholder `""`).
+    ExchangeToken,
+    /// The broker's trading symbol (web Fyers TBT, fyers_mapping.py:305).
+    BrokerSymbol,
+    /// The first source on a 50-level Depth frame, the second otherwise
+    /// (web Fyers names its HSM and TBT frames' `token` differently).
+    FiftyOr(&'static Source, &'static Source),
     /// The frame's mode as a number (Groww, Fyers: `subscription_mode`).
     SubscriptionMode,
     /// The web's topic, `<EXCHANGE>_<SYMBOL>_<LTP|QUOTE|DEPTH>` (Groww).
@@ -93,9 +112,6 @@ pub(crate) enum Source {
     PerMode([&'static str; 3]),
     /// The broker's instrument token, as text (`token`).
     Token,
-    /// The frame's `timestamp` in the unit the web name uses (Fyers 50-level
-    /// `feed_time`).
-    Timestamp(Unit),
     /// `true` (Fyers' 50-level frames: `is_50_depth`).
     True,
     /// The inner source, only in a Depth frame streaming 50 levels (Fyers'
@@ -363,6 +379,8 @@ const ALICEBLUE: &[WebName] = &[
 /// last quantity is `last_quantity` alone.
 const DEFINEDGE: &[WebName] = &[
     n("ltq", S::LastQuantity, D),
+    n("last_trade_time", S::TradeTimeMarked, Q),
+    n("ltt_time", S::TradeTimeMarked, D),
     n("change_percent", S::ChangePercent, Q),
     n("percent_change", S::ChangePercent, Q),
     n("prev_oi", S::Extra(E::PreviousOi), Q),
@@ -457,7 +475,8 @@ const TRADESMART: &[WebName] = &noren("tradesmart_timestamp", "oi", Q);
 
 /// Fyers sends its symbol feed's whole dict to LTP and Quote holders.
 const FYERS: &[WebName] = &[
-    n("token", S::Token, L),
+    // HSM frames: the exchange token; TBT 50-level frames: the ticker.
+    n("token", S::FiftyOr(&S::BrokerSymbol, &S::ExchangeToken), L),
     n("open", S::Open, L),
     n("high", S::High, L),
     n("low", S::Low, L),
@@ -487,8 +506,8 @@ const FYERS: &[WebName] = &[
     // `fyers_mapping.py` `map_to_openalgo_50_depth`: the TBT book's keys.
     n("total_buy_qty", S::FiftyLevels(&S::TotalBuyQuantity), D),
     n("total_sell_qty", S::FiftyLevels(&S::TotalSellQuantity), D),
-    n("feed_time", S::FiftyLevels(&S::Timestamp(Unit::Seconds)), D),
-    n("depth_levels", S::FiftyLevels(&S::DepthLevels), D),
+    n("feed_time", S::FiftyLevels(&S::BookTime(Unit::Seconds)), D),
+    n("depth_levels", S::FiftyLevels(&S::BookLevels), D),
     n("is_50_depth", S::FiftyLevels(&S::True), D),
 ];
 

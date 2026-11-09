@@ -162,6 +162,19 @@ struct State {
 }
 
 impl State {
+    /// `levels` while `key`'s Depth subscription at them streams from the
+    /// deeper socket (not fallen back to the main feed's levels).
+    fn deep_live(&self, key: &InstrumentKey, levels: Option<u8>) -> Option<u8> {
+        levels.filter(|l| {
+            matches!(
+                self.applied.get(&(key.clone(), Mode::Depth, *l)),
+                Some(Applied::Deep { .. })
+            )
+        })
+    }
+}
+
+impl State {
     fn holds(&self, key: &InstrumentKey) -> bool {
         self.desired.holds(key)
     }
@@ -414,7 +427,7 @@ impl BrokerBridge {
                 self.note_deep_book(&ev);
             }
             let Some(tick) = pairing::awaits_book(&ev) else {
-                self.publish(self.convert(&ev));
+                self.publish(self.convert_from(&ev, deep));
                 return true;
             };
             let next = pairing::next_event(tick, rx);
@@ -422,15 +435,15 @@ impl BrokerBridge {
                 if deep {
                     self.note_deep_book(book);
                 }
-                self.convert(&ev);
-                let both = self.convert(book).map(|u| MarketUpdate {
+                self.convert_from(&ev, deep);
+                let both = self.convert_from(book, deep).map(|u| MarketUpdate {
                     exact_mode: false,
                     ..u
                 });
                 self.publish(both);
                 return true;
             }
-            self.publish(self.convert(&ev));
+            self.publish(self.convert_from(&ev, deep));
             match next {
                 Next::Other(other) => ev = other,
                 Next::Lagged(n) => {
@@ -449,11 +462,16 @@ impl BrokerBridge {
         }
     }
 
-    /// The instrument's broker token from the symbol master.
-    fn token(&self, key: &InstrumentKey) -> Option<Arc<str>> {
-        self.symbols
-            .by_symbol(&key.exchange, &key.symbol)
-            .map(|row| Arc::from(row.token.as_str()))
+    /// The instrument's broker token and trading symbol from the symbol
+    /// master.
+    fn ids(&self, key: &InstrumentKey) -> snapshot::BrokerIds {
+        match self.symbols.by_symbol(&key.exchange, &key.symbol) {
+            Some(row) => (
+                Some(Arc::from(row.token.as_str())),
+                Some(Arc::from(row.brsymbol.as_str())),
+            ),
+            None => (None, None),
+        }
     }
 
     /// The main feed's connection count: a snapshot belongs to the
@@ -465,10 +483,18 @@ impl BrokerBridge {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// `ev` from the main feed (the bridge's tests).
+    #[cfg(test)]
     fn convert(&self, ev: &FeedEvent) -> Option<MarketUpdate> {
+        self.convert_from(ev, false)
+    }
+
+    /// `ev` as an update; `deep`: it came from the deeper-book socket.
+    fn convert_from(&self, ev: &FeedEvent, deep: bool) -> Option<MarketUpdate> {
         match ev {
             FeedEvent::Tick(t) => {
                 let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
+                let deep_levels = *self.deep.lock();
                 let epoch = self.connection();
                 let mut st = self.state.lock();
                 if !st.holds(&key) {
@@ -476,16 +502,19 @@ impl BrokerBridge {
                 }
                 let mut merged = snapshot::merge(st.last_tick.get(&key), t, epoch);
                 if merged.token().is_none() {
-                    merged.set_token(self.token(&key));
+                    merged.set_ids(self.ids(&key));
                 }
                 // A packet without a trade (OI, circuits) only updates the
                 // snapshot; the next priced packet carries what it brought.
+                let deep_live = st.deep_live(&key, deep_levels);
                 let update = t
                     .knows(QuoteField::Ltp)
                     .then(|| snapshot_update(key.clone(), &merged))
                     .flatten()
                     .map(|u| MarketUpdate {
                         token: merged.token(),
+                        broker_symbol: merged.broker_symbol(),
+                        deep_live,
                         ..u
                     });
                 st.last_tick.insert(key, merged);
@@ -494,18 +523,46 @@ impl BrokerBridge {
             FeedEvent::Depth(d) => {
                 let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
                 let epoch = self.connection();
+                // A broker with a deeper socket: its books are at its levels,
+                // the main feed's at the main levels (a fallen-back holder's,
+                // also when the deeper socket did not start this session).
+                let deep_levels = *self.deep.lock();
+                let levels = deep_levels.or(*self.deep_down.lock()).map(|l| {
+                    if deep {
+                        l
+                    } else {
+                        DEFAULT_DEPTH
+                    }
+                });
                 let mut st = self.state.lock();
                 if !st.holds(&key) {
                     return None;
                 }
                 let last = st.last_tick.get(&key).filter(|s| s.of_epoch(epoch));
                 let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
-                let token = last.and_then(Snapshot::token).or_else(|| self.token(&key));
-                let update = depth_update(key.clone(), d, last.map(Snapshot::tick), lacks);
-                if let Some(book) = LastBook::of(&update) {
-                    snapshot::keep_book(&mut st.last_tick, &key, book, epoch);
+                let (token, broker_symbol) = match last.filter(|s| s.token().is_some()) {
+                    Some(s) => (s.token(), s.broker_symbol()),
+                    None => self.ids(&key),
+                };
+                let mut update = depth_update(key.clone(), d, last.map(Snapshot::tick), lacks);
+                if let Some(book) = update.depth.as_mut() {
+                    book.levels = levels;
                 }
-                Some(MarketUpdate { token, ..update })
+                if let Some(book) = LastBook::of(&update) {
+                    snapshot::keep_book(&mut st.last_tick, &key, book, epoch, deep);
+                }
+                if deep {
+                    update.deep_book = update.depth.take();
+                } else {
+                    let cached = st.last_tick.get(&key).and_then(Snapshot::deep_book);
+                    update.deep_book = cached.map(|b| b.book.clone());
+                }
+                Some(MarketUpdate {
+                    token,
+                    broker_symbol,
+                    deep_live: st.deep_live(&key, deep_levels),
+                    ..update
+                })
             }
             _ => None,
         }
@@ -650,6 +707,36 @@ mod tests {
         drop(bridge.subscribe(&tcs, Mode::Ltp, 5));
         bridge.stop().await;
         assert!(!relayed(&bridge, "TCS"));
+    }
+
+    /// A main-feed book names the main levels for a broker with a deeper
+    /// socket, also when that socket did not start this session (Dhan:
+    /// `depth_level` 5, web dhan_adapter.py:930; bk-a's
+    /// dhan/depth_20_feed_not_made), and no levels for one without.
+    #[test]
+    fn a_main_book_names_the_main_levels_when_the_deep_socket_is_down() {
+        let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
+        let key = InstrumentKey::new("RELIANCE", "NSE");
+        drop(bridge.subscribe(&key, Mode::Depth, 20));
+        let book = FeedEvent::Depth(NormalizedDepth {
+            symbol: "RELIANCE".into(),
+            exchange: "NSE".into(),
+            buy: vec![Default::default(); 5],
+            sell: vec![Default::default(); 5],
+            ..Default::default()
+        });
+        let levels = |b: &BrokerBridge| {
+            b.convert(&book)
+                .and_then(|u| u.depth)
+                .and_then(|d| d.levels)
+        };
+        assert_eq!(levels(&bridge), None, "no deeper socket");
+        bridge.set_deep_unavailable(20);
+        assert_eq!(
+            levels(&bridge),
+            Some(DEFAULT_DEPTH),
+            "the deeper socket is down"
+        );
     }
 
     /// WS-01: a session's "cannot stream" lasts until the session ends

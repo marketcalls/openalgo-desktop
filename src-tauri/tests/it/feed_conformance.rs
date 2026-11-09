@@ -232,6 +232,7 @@ fn update_from(frame: &Value) -> MarketUpdate {
     let depth = d.get("depth").map(|_| DepthBook {
         buy: side("buy"),
         sell: side("sell"),
+        ..Default::default()
     });
     MarketUpdate {
         key: InstrumentKey::new(
@@ -246,6 +247,9 @@ fn update_from(frame: &Value) -> MarketUpdate {
         depth,
         exact_mode: false,
         token: None,
+        broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     }
 }
 

@@ -6,7 +6,7 @@
 use super::to_json;
 use crate::brokers::common::streaming::{Number, NumberForm, TimeText};
 use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Fold, Key, Source, Unit};
-use crate::feed::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
+use crate::feed::source::{DepthBook, DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
 use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
 use serde_json::Value;
@@ -300,6 +300,14 @@ fn as_integer(v: Value) -> Value {
     }
 }
 
+/// The levels this frame's book was streamed at: the holder's depth, or the
+/// main feed's where its deep subscription fell back (web Dhan names 5
+/// then, dhan_adapter.py:930, 1042; web Fyers sends no 50-level frame).
+fn served(fr: &Frame<'_>) -> u8 {
+    let levels = book_for(fr.update, fr.depth).and_then(|b| b.levels);
+    levels.map_or(fr.depth, |l| l.min(fr.depth))
+}
+
 /// The value of `source` in this frame, if known.
 fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
     let q = fr.q;
@@ -326,10 +334,35 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::TradeTimeOfDay => q
             .trade_time
             .and_then(|ms| time_text(ms, q.time_text.unwrap_or(TimeText::TimeOfDay))),
+        Source::TradeTimeMarked => {
+            let form = q.time_text?;
+            q.trade_time.and_then(|ms| time_text(ms, form))
+        }
         Source::Extra(e) => extra(e, q),
         Source::DepthLevels => {
             let book = fr.content == Mode::Depth && !fr.update.key.is_index();
-            book.then(|| Value::from(fr.depth))
+            book.then(|| Value::from(served(fr)))
+        }
+        Source::BookLevels => {
+            let b = book_for(fr.update, fr.depth).filter(|_| fr.content == Mode::Depth)?;
+            let present = b.buy.len().max(b.sell.len()).min(usize::from(fr.depth));
+            Some(Value::from(present))
+        }
+        Source::BookTime(unit) => book_for(fr.update, fr.depth)
+            .and_then(|b| b.time_ms)
+            .map(|ms| time(ms, unit)),
+        Source::ExchangeToken => {
+            let token = fr
+                .update
+                .token
+                .as_deref()
+                .filter(|_| !fr.update.key.is_index())?;
+            Some(Value::from(token.get(10..).unwrap_or(token)))
+        }
+        Source::BrokerSymbol => fr.update.broker_symbol.as_deref().map(Value::from),
+        Source::FiftyOr(fifty, other) => {
+            let at_fifty = fr.content == Mode::Depth && served(fr) == 50;
+            value(if at_fifty { *fifty } else { *other }, fr)
         }
         Source::SubscriptionMode => Some(Value::from(fr.mode.as_u8())),
         Source::Topic => Some(Value::from(format!(
@@ -341,10 +374,9 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::BrokerId => Some(Value::from(fr.broker)),
         Source::PerMode(texts) => Some(Value::from(texts[fr.mode.index()])),
         Source::Token => fr.update.token.as_deref().map(Value::from),
-        Source::Timestamp(unit) => Some(time(fr.update.timestamp, unit)),
         Source::True => Some(Value::Bool(true)),
         Source::FiftyLevels(inner) => {
-            let fifty = fr.content == Mode::Depth && fr.depth == 50;
+            let fifty = fr.content == Mode::Depth && served(fr) == 50;
             fifty.then(|| value(*inner, fr)).flatten()
         }
     }
@@ -382,11 +414,38 @@ fn web_keys(d: &DataOut<'_>, fr: &Frame<'_>) -> WebKeys {
 /// update's mode, only its own mode for an exact one (a book on its own),
 /// and at Depth without a book only where the broker's web adapter
 /// publishes such a packet on its Depth topic (`Dialect::depth_needs_book`).
-pub(crate) fn reaches(update: &MarketUpdate, mode: Mode, broker: &str) -> bool {
+pub(crate) fn reaches(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -> bool {
     if mode > update.mode || (update.exact_mode && mode != update.mode) {
         return false;
     }
-    !(mode == Mode::Depth && update.depth.is_none() && dialect(broker).depth_needs_book)
+    if mode != Mode::Depth {
+        return true;
+    }
+    // A main-feed book is not for a holder whose own book streams from the
+    // deeper socket (its frames carry that book).
+    if update.exact_mode && update.depth.is_some() && update.deep_live == Some(depth) {
+        return false;
+    }
+    if book_for(update, depth).is_some() {
+        return true;
+    }
+    // No book for this holder: a book event for other holders reaches it
+    // not at all; a tick reaches it without a book unless its broker's web
+    // adapter waits for the book.
+    !update.exact_mode && !dialect(broker).depth_needs_book
+}
+
+/// The book a Depth holder at `depth` gets from `update`: the deeper
+/// socket's while its subscription streams from there (a Dhan 20 or Fyers
+/// 50 holder never gets the main feed's 5 levels in between, which would
+/// show its book shrinking and growing; web defect: the web's listener
+/// sends every Depth publish of a symbol to every Depth client), else the
+/// main feed's, cut to `depth`.
+fn book_for(update: &MarketUpdate, depth: u8) -> Option<&DepthBook> {
+    match update.deep_live {
+        Some(levels) if levels == depth => update.deep_book.as_ref(),
+        _ => update.depth.as_ref(),
+    }
 }
 
 /// Render `update` for a subscriber at `mode` (which must not exceed
@@ -435,7 +494,12 @@ fn book(update: &MarketUpdate, mode: Mode, depth: u8) -> Option<BookOut> {
     } else {
         usize::MAX
     };
-    match &update.depth {
+    let held = if mode == Mode::Depth {
+        book_for(update, depth)
+    } else {
+        update.depth.as_ref()
+    };
+    match held {
         Some(b) => Some(BookOut {
             buy: b.buy.iter().take(n).map(LevelOut::from).collect(),
             sell: b.sell.iter().take(n).map(LevelOut::from).collect(),
