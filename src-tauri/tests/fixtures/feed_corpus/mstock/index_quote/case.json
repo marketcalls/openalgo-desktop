@@ -35,45 +35,38 @@
     },
     {
       "key": "last_quantity",
-      "kind": "open",
-      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
-      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
+      "kind": "web-defect",
+      "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
+      "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
+      "approved": true
     },
     {
       "key": "last_trade_quantity",
-      "kind": "open",
-      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
-      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
+      "kind": "web-defect",
+      "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
+      "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
+      "approved": true
     },
     {
       "key": "average_price",
-      "kind": "open",
-      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
-      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
+      "kind": "web-defect",
+      "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
+      "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
+      "approved": true
     },
     {
       "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
-      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
+      "kind": "web-defect",
+      "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
+      "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
+      "approved": true
     },
     {
       "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
-      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends price_change and price_change_percent in an index frame, worked out from the LTP and the previous close (100.75 and 0.42 here); mStock's web adapter sends no change for any instrument (mstock_adapter.py:340-433). Phase B drops them for mStock through the per-broker switch.",
-      "ref": "lead rule 2026-11-09 (index price_change per adapter); audit C04"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends price_change and price_change_percent in an index frame, worked out from the LTP and the previous close (100.75 and 0.42 here); mStock's web adapter sends no change for any instrument (mstock_adapter.py:340-433). Phase B drops them for mStock through the per-broker switch.",
-      "ref": "lead rule 2026-11-09 (index price_change per adapter); audit C04"
+      "kind": "web-defect",
+      "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
+      "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
+      "approved": true
     }
   ]
 }
