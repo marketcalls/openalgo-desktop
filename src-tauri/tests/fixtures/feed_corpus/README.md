@@ -144,7 +144,10 @@ feed that closes the socket itself (after an in-band authentication error)
 or after a `disconnect`. On a socket whose script expects a close (or
 disconnects it), every close the feed makes is recorded from the start, in
 order with its frames, and a connection that ends without a close frame
-shows as "ended without a close frame"; other sockets record no closes. A
+shows as "ended without a close frame", which `{"ended": null}` expects (a
+handshake the feed gave up on: Groww's first connection, asking for the
+`nats` subprotocol the fake broker does not echo, before it retries
+without it); other sockets record no closes. A
 `.hex` file takes any spacing and `#` comments,
 so a packet is written field by field:
 

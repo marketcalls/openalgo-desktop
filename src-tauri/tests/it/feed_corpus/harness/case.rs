@@ -169,6 +169,10 @@ pub(crate) enum Expect {
     /// with that code, `{"close": {"code": 4001, "reason": "..."}}` with
     /// that code and reason.
     Close(CloseExpect),
+    /// The connection ended without a close frame: `{"ended": null}` (a
+    /// handshake the feed gave up on, as Groww's first one without its
+    /// subprotocol).
+    Ended,
 }
 
 /// What a close frame the feed sends must carry (`None`: anything).
@@ -201,6 +205,7 @@ impl Expect {
             (Expect::Text(s), Wire::Text(t)) => s == t,
             (Expect::Binary(b), Wire::Binary(x)) => b == x,
             (Expect::Close(want), Wire::Closed(got)) => want.matches(got.as_ref()),
+            (Expect::Ended, Wire::Ended) => true,
             _ => false,
         }
     }
@@ -213,6 +218,7 @@ impl std::fmt::Display for Expect {
             Expect::BinaryJson(v) => write!(f, "binary json {}", v),
             Expect::Text(t) => write!(f, "text {}", t),
             Expect::Binary(b) => write!(f, "binary {}", hex::encode(b)),
+            Expect::Ended => write!(f, "the connection ended without a close frame"),
             Expect::Close(c) => {
                 write!(f, "close")?;
                 if let Some(code) = c.code {
@@ -513,7 +519,9 @@ impl Case {
             .filter_map(|s| match &s.action {
                 Action::Disconnect { socket } => Some(*socket),
                 Action::UpstreamReceives { socket, frames, .. }
-                    if frames.iter().any(|f| matches!(f, Expect::Close(_))) =>
+                    if frames
+                        .iter()
+                        .any(|f| matches!(f, Expect::Close(_) | Expect::Ended)) =>
                 {
                     Some(*socket)
                 }
@@ -1245,6 +1253,19 @@ fn upstream_frame(at: &str, dir: &Path, v: &Value) -> Expect {
     {
         return Expect::Close(close_expect(at, code));
     }
+    if let Some(ended) = v
+        .as_object()
+        .filter(|o| o.len() == 1)
+        .and_then(|o| o.get("ended"))
+    {
+        if !matches!(ended, Value::Null | Value::Bool(true)) {
+            bad(
+                at,
+                "\"ended\" is null: a connection that ended without a close frame",
+            );
+        }
+        return Expect::Ended;
+    }
     match inline(at, v) {
         ("hex", s) => Expect::Binary(decode_hex(at, s.as_str().unwrap_or_default())),
         ("text", s) => Expect::Text(s.as_str().unwrap_or_default().to_string()),
@@ -1338,5 +1359,19 @@ mod tests {
         assert!(!close(json!({"code": 4001})).matches(&Wire::Closed(None)));
         assert!(close(Value::Null).matches(&Wire::Closed(None)));
         assert!(!close(Value::Null).matches(&Wire::Ended));
+    }
+
+    /// A connection that ended without a close frame has its own
+    /// expectation, and a close frame does not meet it.
+    #[test]
+    fn an_ended_connection_is_expected_by_name() {
+        let ended = upstream_frame("t", Path::new("."), &json!({"ended": null}));
+        assert!(ended.matches(&Wire::Ended));
+        assert!(!ended.matches(&Wire::Closed(None)));
+        assert!(!ended.matches(&Wire::Closed(Some((1000, String::new())))));
+        assert_eq!(
+            ended.to_string(),
+            "the connection ended without a close frame"
+        );
     }
 }
