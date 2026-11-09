@@ -125,5 +125,12 @@ class Samco(Polling, Glue):
         self.ws._cleanup_connection_state()
         self.ws.connected = True  # SamcoWebSocket._on_open on the new socket
 
+    def serve(self, method, path, body):
+        # The index quote the desktop's feed asks for a streaming id: the web
+        # adapter's `_get_index_listing_id` reads LISTING_IDS here.
+        if path.split("?", 1)[0] == "/quote/indexQuote":
+            return
+        super().serve(method, path, body)
+
     def push(self, socket, frame):
         self.ws._on_message(None, frame.decode("utf-8") if isinstance(frame, bytes) else frame)

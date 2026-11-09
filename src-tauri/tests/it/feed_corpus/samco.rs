@@ -4,19 +4,16 @@
 //! `_POLLING_BROKERS`), read from the fake broker API by Samco's own
 //! `OrderPoller`.
 //!
-//! The market feed knows NIFTY's streaming id (`-23`), as it does once a
-//! REST index quote of NIFTY has run in the session (`brokers/samco/data.rs`
-//! `index_details`); any other index starts without one (audit RB-05). The
-//! broker's own `create_feed` shares a cache only a REST quote fills, which
-//! a case cannot run before the feed starts, so the feed is built here
-//! with the cache it would have then.
+//! The market feed is the one a session gets (`SamcoBroker::create_feed`),
+//! with the broker's step before a new instrument: an index's streaming id
+//! is looked up over REST (`/quote/indexQuote`, an answer the index cases
+//! give) as the web does when it subscribes (audit RB-05).
 
 use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::common::streaming::OrderFeed;
-use openalgo_desktop_lib::brokers::samco::streaming::SamcoFeed;
-use openalgo_desktop_lib::brokers::samco::{ListingIds, SamcoBroker};
+use openalgo_desktop_lib::brokers::samco::SamcoBroker;
 use openalgo_desktop_lib::brokers::types::AuthToken;
-use parking_lot::Mutex;
+use openalgo_desktop_lib::brokers::Broker;
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
@@ -37,10 +34,8 @@ fn feeds(env: &Env) -> Feeds {
         env.url("main"),
     ));
     let auth = AuthToken::new(SESSION);
-    let listing_ids = Arc::new(Mutex::new(ListingIds::default()));
-    listing_ids.lock().insert("NSE_INDEX", "NIFTY", "-23");
-    let feeds = Feeds::market(SamcoFeed::new(&env.url("main"), SESSION, listing_ids))
-        .with_broker(broker.clone(), &auth);
+    let feed = broker.create_feed(&auth).expect("Samco's market feed");
+    let feeds = Feeds::boxed(feed).with_broker(broker.clone(), &auth);
     if !env.orders() {
         return feeds;
     }
@@ -65,6 +60,7 @@ corpus_cases!(
         reconnect_forgets_state,
         quote_and_depth_clients,
         index_ltp_and_quote,
+        index_cold_subscribe,
         order_book_polling,
     ]
 );

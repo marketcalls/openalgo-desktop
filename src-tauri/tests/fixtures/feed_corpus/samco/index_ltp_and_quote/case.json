@@ -1,6 +1,6 @@
 {
   "broker": "samco",
-  "summary": "NIFTY at LTP and at Quote, its streaming id (-23) known from an earlier index quote: an index quote frame, then a partial one with a new price and change.",
+  "summary": "NIFTY at LTP and at Quote, its streaming id (-23) looked up over REST as it is first subscribed: an index quote frame, then a partial one with a new price and change.",
   "scenarios": [
     "index",
     "first-full-packet",
@@ -18,6 +18,24 @@
       "instrumenttype": "INDEX"
     }
   ],
+  "http": [
+    {
+      "path": "/quote/indexQuote",
+      "body": {
+        "json": {
+          "status": "Success",
+          "statusMessage": "Index Details retrieved successfully",
+          "indexDetails": [
+            {
+              "indexName": "NIFTY 50",
+              "listingId": "-23",
+              "lastTradedPrice": "24500.15"
+            }
+          ]
+        }
+      }
+    }
+  ],
   "provenance": {
     "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
     "method": "web-script",
@@ -31,7 +49,7 @@
       "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._get_index_listing_id"
     ],
     "notes": [
-      "Indices subscribe by Samco's listingId with no segment suffix (samcoWebSocket.py subscribe). The case's feed knows NIFTY's id as the desktop learns it from a REST index quote (brokers/samco/data.rs index_details); the web glue answers _get_index_listing_id with the same id."
+      "Indices subscribe by Samco's listingId with no segment suffix (samcoWebSocket.py subscribe). The feed looks it up over REST when the first client subscribes (Broker::feed_presubscribe, audit RB-05); the web glue answers _get_index_listing_id with the same id."
     ]
   },
   "deviations": [

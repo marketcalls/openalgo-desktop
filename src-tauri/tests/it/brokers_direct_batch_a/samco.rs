@@ -986,3 +986,48 @@ async fn order_poller_backs_off_on_ip_refusal_and_stops_on_expiry() {
     let closed = tokio::time::timeout(Duration::from_secs(2), rx.recv()).await;
     assert!(matches!(closed, Ok(None)));
 }
+
+/// RB-05: the live feed's step before a new instrument looks an index's
+/// streaming id up over REST, as the web does when it subscribes
+/// (`samco_adapter.py` `_get_index_listing_id`), so a cold index streams
+/// without a REST quote first. A stock passes as the master describes it,
+/// and a lookup that fails is the item's answer in the web's words.
+#[tokio::test]
+async fn the_feed_step_looks_a_cold_indexs_streaming_id_up() {
+    let sub = |symbol: &str, exchange: &str, token: &str| FeedSubscription {
+        symbol: symbol.into(),
+        exchange: exchange.into(),
+        token: token.into(),
+        brsymbol: symbol.into(),
+        brexchange: "NSE".into(),
+        mode: FeedMode::Quote,
+        depth: 5,
+    };
+    let nifty = sub("NIFTY", "NSE_INDEX", "NIFTY_50");
+    let sbin = sub("SBIN", "NSE", "3045");
+    let fake = Fake::start(samco_routes).await;
+    let b = broker(&fake);
+    let step = b.feed_presubscribe(&auth()).expect("Samco's step");
+    let out = step(vec![nifty.clone(), sbin.clone()]).await;
+    let listed = FeedSubscription {
+        token: "-23".into(),
+        ..nifty.clone()
+    };
+    assert_eq!(out, vec![Ok(listed), Ok(sbin)]);
+    assert_eq!(fake.calls("/quote/indexQuote").len(), 1);
+
+    let refused = Fake::start(|r: &Req| match r.path.as_str() {
+        "/quote/indexQuote" => ok(json!({"status": "Failure", "statusMessage": "No data"})),
+        _ => samco_routes(r),
+    })
+    .await;
+    let b = broker(&refused);
+    let step = b.feed_presubscribe(&auth()).expect("Samco's step");
+    let out = step(vec![nifty]).await;
+    let why = out[0].clone().unwrap_err();
+    assert!(
+        why.starts_with("Error getting index listingId: "),
+        "{}",
+        why
+    );
+}

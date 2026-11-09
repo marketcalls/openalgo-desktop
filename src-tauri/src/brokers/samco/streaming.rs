@@ -124,6 +124,11 @@ impl SamcoFeed {
     /// Streaming key for a subscription (web `subscribe`).
     fn key(&self, s: &FeedSubscription) -> Option<String> {
         if matches!(s.exchange.as_str(), "NSE_INDEX" | "BSE_INDEX") {
+            // The live feed's step puts the listing id in the token (RB-05);
+            // without it, the ids a REST index quote learnt.
+            if s.token.starts_with('-') {
+                return Some(s.token.clone());
+            }
             let id = self.listing_ids.lock().get(&s.exchange, &s.symbol);
             if id.is_none() {
                 tracing::warn!(

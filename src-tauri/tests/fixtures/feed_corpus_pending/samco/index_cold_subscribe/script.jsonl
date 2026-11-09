@@ -1,3 +1,0 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BANKNIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
-{"step": "push", "frame": "frames/index_quote.json", "note": "What Samco streams for -25 to a feed that subscribed it."}
-{"step": "silence", "client": "a"}
