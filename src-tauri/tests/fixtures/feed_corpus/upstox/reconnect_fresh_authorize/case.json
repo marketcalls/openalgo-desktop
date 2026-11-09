@@ -84,18 +84,6 @@
       "kind": "web-defect",
       "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
       "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
-    },
-    {
-      "key": "cp",
-      "kind": "desktop-decision",
-      "reason": "The web's Upstox LTP payload names the previous close cp; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
-      "ref": "upstox_adapter.py:889-892; feed/dialect/names.rs UPSTOX"
-    },
-    {
-      "key": "ltq",
-      "kind": "desktop-decision",
-      "reason": "The web's Upstox LTP payload names the last quantity ltq; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
-      "ref": "upstox_adapter.py:889-892; feed/dialect/names.rs UPSTOX"
     }
   ]
 }

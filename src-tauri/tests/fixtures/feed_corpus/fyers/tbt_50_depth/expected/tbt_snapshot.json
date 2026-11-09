@@ -47,9 +47,12 @@
         }
       ]
     },
+    "depth_levels": 50,
     "exchange": "NSE",
     "exchange_time": 1793170001,
+    "feed_time": 1794185980,
     "high": 805.0,
+    "is_50_depth": true,
     "last_quantity": 7,
     "last_trade_quantity": 7,
     "last_trade_time": 1793170000,
@@ -59,13 +62,13 @@
     "ltp": 801.5,
     "open": 798.0,
     "percent_change": 1.46,
-    "price_change": 11.5,
-    "price_change_percent": 1.46,
     "subscription_mode": 3,
     "symbol": "SBIN",
     "timestamp": "<receipt_ms>",
     "token": "10100000003045",
+    "total_buy_qty": 91000,
     "total_buy_quantity": 91000,
+    "total_sell_qty": 88000,
     "total_sell_quantity": 88000,
     "upper_circuit": 869.0,
     "volume": 523000

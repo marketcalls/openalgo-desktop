@@ -52,18 +52,6 @@
       "kind": "web-defect",
       "reason": "The web sends oi 0 for an equity whose HSM record carried no OI (fyers_data.get('OI', 0)); a field the stream does not carry is left out, never sent as 0 (web openalgo#2376), as the desktop does.",
       "ref": "fyers_mapping.py:163"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop also sends the canonical price_change / price_change_percent on a Fyers instrument, whose adapter names the change change / change_percent / percent_change only (lead ruling: non-docs change keys follow the adapter). The dialect has no switch that drops the canonical keys and keeps the adapter's names (instrument_change gates both): lane wire.",
-      "ref": "feed/dialect/names.rs Dialect::instrument_change"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop also sends the canonical price_change / price_change_percent on a Fyers instrument, whose adapter names the change change / change_percent / percent_change only (lead ruling: non-docs change keys follow the adapter). The dialect has no switch that drops the canonical keys and keeps the adapter's names (instrument_change gates both): lane wire.",
-      "ref": "feed/dialect/names.rs Dialect::instrument_change"
     }
   ]
 }

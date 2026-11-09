@@ -48,18 +48,6 @@
       "ref": "fyers_adapter.py:552"
     },
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop's index frames add price_change and price_change_percent. The web's Fyers adapter sends the change as change, change_percent and percent_change, which the desktop sends too. Lead ruling 2026-11-09: price_change and price_change_percent are not docs keys, so an index frame carries them only as each broker's web adapter sends them; the desktop follows the adapter (lane wire dialect, phase B).",
-      "ref": "feed::protocol::market_data; feed::dialect; lead ruling 2026-11-09"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop's index frames add price_change and price_change_percent. The web's Fyers adapter sends the change as change, change_percent and percent_change, which the desktop sends too. Lead ruling 2026-11-09: price_change and price_change_percent are not docs keys, so an index frame carries them only as each broker's web adapter sends them; the desktop follows the adapter (lane wire dialect, phase B).",
-      "ref": "feed::protocol::market_data; feed::dialect; lead ruling 2026-11-09"
-    },
-    {
       "key": "bid_price",
       "kind": "web-defect",
       "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",

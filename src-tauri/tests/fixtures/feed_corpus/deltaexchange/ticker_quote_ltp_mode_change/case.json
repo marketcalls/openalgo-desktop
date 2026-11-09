@@ -45,10 +45,10 @@
       "ref": "delta_adapter.py:584"
     },
     {
-      "key": "oi",
+      "key": "mode",
       "kind": "open",
-      "reason": "The web's Quote frames carry the ticker's OI; the desktop's Quote frames carry OI only in Depth mode (audit C05, lane wire quote OI).",
-      "ref": "delta_adapter.py:596; feed::bridge::quote_fields"
+      "reason": "The web publishes the merged dict once per subscription with its own mode (delta_adapter.py:470-485): an LTP holder gets mode 1. The richer fold keeps the packet mode 2 until lane wire-2 (mode_of_holder) is merged.",
+      "ref": "delta_adapter.py:470-485; lane107/wire-2"
     }
   ]
 }

@@ -3,7 +3,6 @@
   "data": {
     "average_price": 300.25,
     "close": 494.05,
-    "cp": 494.05,
     "depth": {
       "buy": [
         {
@@ -48,7 +47,8 @@
           "price": 219.55,
           "quantity": 200
         }
-      ]
+      ],
+      "timestamp": 1740729566100
     },
     "exchange": "NFO",
     "high": 495.0,
@@ -57,7 +57,6 @@
     "last_trade_time": 1740729553000,
     "low": 210.0,
     "ltp": 220.0,
-    "ltq": 150,
     "ltt": 1740729553000,
     "oi": 98765.0,
     "open": 480.0,

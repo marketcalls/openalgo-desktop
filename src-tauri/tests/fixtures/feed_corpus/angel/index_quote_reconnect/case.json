@@ -61,18 +61,6 @@
       "kind": "web-defect",
       "reason": "An index has no trades or book: the web sends the packet's zero total sell quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
       "ref": "lead decision 2026-11-09 (index zeros)"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop's index frames add price_change and price_change_percent. The web's Angel adapter sends no change for an index. Lead ruling 2026-11-09: price_change and price_change_percent are not docs keys, so an index frame carries them only as each broker's web adapter sends them; the desktop follows the adapter (lane wire dialect, phase B).",
-      "ref": "feed::protocol::market_data (index branch); NormalizedTick::derive_change; lead ruling 2026-11-09"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop's index frames add price_change and price_change_percent. The web's Angel adapter sends no change for an index. Lead ruling 2026-11-09: price_change and price_change_percent are not docs keys, so an index frame carries them only as each broker's web adapter sends them; the desktop follows the adapter (lane wire dialect, phase B).",
-      "ref": "feed::protocol::market_data (index branch); NormalizedTick::derive_change; lead ruling 2026-11-09"
     }
   ]
 }
