@@ -51,6 +51,16 @@ const DATA_SUBSCRIPTION_NOTE: Record<string, string> = {
   dhan: 'Dhan requires an active Data API subscription for market data access.',
 }
 
+/**
+ * Brokers whose live prices OpenAlgo makes up (maintainer, 2026-11-09): said
+ * on the card itself, configured or not, so a trader never picks the feed
+ * without seeing it (R107-18).
+ */
+const SIMULATED_PRICES_NOTE: Record<string, string> = {
+  dhan_sandbox:
+    'Simulated prices, not market prices: the Dhan sandbox streams none, so OpenAlgo makes them up as OpenAlgo web does.',
+}
+
 function StatusBadge({ broker }: { broker: BrokerEntry }) {
   const status = brokerStatus(broker)
   if (status === 'Active') return <Badge className="bg-green-600 text-white">Active</Badge>
@@ -266,6 +276,7 @@ export default function BrokerSelect() {
           {shown.map((broker) => {
             const error = cardError?.broker === broker.id ? cardError.message : null
             const note = DATA_SUBSCRIPTION_NOTE[broker.id]
+            const simulated = SIMULATED_PRICES_NOTE[broker.id]
             return (
               <Card
                 key={broker.id}
@@ -284,6 +295,12 @@ export default function BrokerSelect() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="mt-auto space-y-3">
+                  {simulated && (
+                    <p className="flex gap-2 text-xs text-amber-700 dark:text-amber-400">
+                      <Info className="h-4 w-4 shrink-0" />
+                      {simulated}
+                    </p>
+                  )}
                   {note && (broker.configured || broker.active) && (
                     <p className="flex gap-2 text-xs text-amber-700 dark:text-amber-400">
                       <Info className="h-4 w-4 shrink-0" />
