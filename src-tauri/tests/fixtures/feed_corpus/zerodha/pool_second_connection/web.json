@@ -1,0 +1,104 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "zerodha",
+  "inputs_sha256": "02ee2128a4b63bc068b3941c79a7950bf4641385ded5e887cf25cf09d706e92f",
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "token": "2953217",
+      "brsymbol": "TCS",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_TCS_QUOTE",
+          "exchange": "NSE",
+          "symbol": "TCS",
+          "mode": 2,
+          "data": {
+            "symbol": "TCS",
+            "exchange": "NSE",
+            "mode": "quote",
+            "ltp": 1500.0,
+            "ltt": "<receipt_ms>",
+            "timestamp": "<receipt_ms>",
+            "volume": 5000,
+            "last_quantity": 10,
+            "average_price": 1499.5,
+            "total_buy_quantity": 1,
+            "total_sell_quantity": 2,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "close": 1495.0
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_QUOTE",
+          "exchange": "NSE",
+          "symbol": "INFY",
+          "mode": 2,
+          "data": {
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "mode": "quote",
+            "ltp": 1500.0,
+            "ltt": "<receipt_ms>",
+            "timestamp": "<receipt_ms>",
+            "volume": 5000,
+            "last_quantity": 10,
+            "average_price": 1499.5,
+            "total_buy_quantity": 1,
+            "total_sell_quantity": 2,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "close": 1495.0
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

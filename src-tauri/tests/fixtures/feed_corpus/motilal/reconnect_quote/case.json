@@ -64,6 +64,13 @@
       "reason": "After the reconnect the web still publishes the day OHLC it received before the outage (MotilalWebSocket.on_close clears nothing), a pre-outage value promoted as current; the desktop starts the scrip afresh on the new connection and leaves OHLC out until Motilal sends the G packet again (lead decision 2026-11-09, as for Upstox).",
       "ref": "motilal_websocket.py on_close; motilal/streaming.rs MotilalFeed::on_connected",
       "approved": true
+    },
+    {
+      "key": "missing-frame:stale-quote-after-reconnect",
+      "kind": "web-defect",
+      "reason": "The web keeps its binary stores across the reconnect, and its poll publishes the pre-outage quote (ltp 1300.5) as current on the new session's first frame, before any new data; the desktop restarts its merge after a reconnect and sends nothing until the broker does.",
+      "ref": "web_adapters/motilal.py (no reconnect store clear, as the web)",
+      "approval": "merge-restart-on-reconnect"
     }
   ]
 }

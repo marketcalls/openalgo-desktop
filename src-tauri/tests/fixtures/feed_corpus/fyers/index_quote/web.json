@@ -17,7 +17,8 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
@@ -59,6 +60,17 @@
             "update_type": "snapshot",
             "subscription_mode": 2
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

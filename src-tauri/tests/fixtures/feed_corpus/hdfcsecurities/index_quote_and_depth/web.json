@@ -45,6 +45,17 @@
             "low": 24400.0
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
@@ -105,6 +116,33 @@
             "high": 24600.0,
             "low": 24400.0
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": []
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

@@ -16,7 +16,8 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 7,
@@ -102,6 +103,33 @@
             "update_type": "snapshot",
             "subscription_mode": 2
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 1,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     },
@@ -189,6 +217,33 @@
             "update_type": "live",
             "subscription_mode": 2
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 1,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

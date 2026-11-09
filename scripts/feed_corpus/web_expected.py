@@ -45,6 +45,7 @@ sys.path.insert(0, str(HERE))
 
 from web_adapters import GLUES  # noqa: E402
 from webkit import read_body, read_frame, set_step  # noqa: E402
+from webserver import WebServer  # noqa: E402
 
 CORPUS = HERE.parent.parent / "src-tauri/tests/fixtures/feed_corpus"
 MODES = {"ltp": 1, "quote": 2, "depth": 3}
@@ -79,61 +80,38 @@ def symbols(message: dict) -> list[tuple[str, str]]:
     return [(s["symbol"], s["exchange"]) for s in items]
 
 
+def adapter_socket(step: dict) -> str:
+    """The glue socket a step's frame goes to: a further pooled market
+    connection (`main#2`, ...) is the market feed's (the replay runs one
+    web adapter; the web's pool gives each connection its own)."""
+    socket = step.get("socket", "main")
+    return "main" if socket.startswith("main#") else socket
+
+
 class Replay:
-    """A case's script against the web adapter, with the web server's
-    reference counting: the adapter is asked to subscribe a symbol and
-    mode when the first client asks, and to unsubscribe when the last
-    one lets go."""
+    """A case's script against the web: the web server's own subscription,
+    release and delivery methods (`webserver.WebServer`, lifted from
+    `websocket_proxy/server.py`) in front of the broker's web adapter (the
+    case's glue). Every step that makes the adapter publish (a push, an
+    answer a poller reads, or any other step) is a delivery point, with
+    what each client gets from it."""
 
     def __init__(self, glue, case_dir: Path):
         self.glue = glue
         self.case_dir = case_dir
-        self.held: dict[tuple, int] = {}
-        self.by_client: dict[str, set] = {}
-
-    def subscribe(self, client: str, message: dict) -> None:
-        mode = mode_of(message.get("mode", 1))
-        depth = int(message.get("depth", 5))
-        for sym, exch in symbols(message):
-            key = (sym, exch, mode, depth)
-            if key in self.by_client.setdefault(client, set()):
-                continue
-            self.by_client[client].add(key)
-            self.held[key] = self.held.get(key, 0) + 1
-            if self.held[key] == 1:
-                self.glue.subscribe(self.row(sym, exch), mode, depth)
-
-    def release(self, client: str, key: tuple) -> None:
-        self.by_client[client].discard(key)
-        self.held[key] -= 1
-        if self.held[key] == 0:
-            del self.held[key]
-            self.glue.unsubscribe(self.row(key[0], key[1]), key[2], key[3])
-
-    def unsubscribe(self, client: str, message: dict) -> None:
-        mode = mode_of(message.get("mode", 1))
-        for sym, exch in symbols(message):
-            for key in [k for k in self.by_client.get(client, set()) if k[:3] == (sym, exch, mode)]:
-                self.release(client, key)
-
-    def row(self, symbol: str, exchange: str) -> dict:
-        row = self.glue.master.by_symbol(symbol, exchange)
-        if row is None:
-            raise SystemExit(f"{symbol} on {exchange} is not in the case's instruments")
-        return row
+        self.server = WebServer(glue)
 
     def run(self, script: str, answers: list) -> tuple[list, bytes]:
         """Replay `script` with the fake broker API's first `answers`
         (`case.json` `http`); the inputs are hashed as the harness hashes
         them: the script, each step's file, then each answer's file."""
         inputs = bytearray(script.encode("utf-8"))
-        pushes = []
+        points = []
         first = [(a, read_body(self.case_dir, a.get("body"))) for a in answers]
         set_step(0)
         self.glue.start()
         for a, (body, _) in first:
             self.glue.serve(a.get("method"), a["path"], body)
-        self.glue.published = []
         for n, line in enumerate(script.splitlines(), 1):
             if not line.strip():
                 continue
@@ -142,42 +120,37 @@ class Replay:
             step = json.loads(line)
             kind = step["step"]
             client = step.get("client", "")
+            self.glue.published = []
             if kind == "send":
-                action = step["message"].get("action")
-                if action == "subscribe":
-                    self.subscribe(client, step["message"])
-                elif action == "unsubscribe":
-                    self.unsubscribe(client, step["message"])
-                elif action == "unsubscribe_all":
-                    for key in list(self.by_client.get(client, set())):
-                        self.release(client, key)
-                elif action == "subscribe_orders":
+                self.server.send(client, step["message"])
+                if step["message"].get("action") == "subscribe_orders":
                     self.glue.subscribe_orders()
             elif kind == "close_client":
-                for key in list(self.by_client.get(client, set())):
-                    self.release(client, key)
+                self.server.close(client)
             elif kind == "drop_upstream":
-                self.glue.reconnect(step.get("socket", "main"))
+                self.glue.reconnect(adapter_socket(step))
             elif kind == "push":
                 frame, file_bytes = read_frame(self.case_dir, step["frame"])
                 if file_bytes is not None:
                     inputs += file_bytes
-                self.glue.published = []
-                self.glue.push(step.get("socket", "main"), frame)
-                pushes.append({"line": n, "published": self.glue.published})
+                self.glue.push(adapter_socket(step), frame)
             elif kind == "http_serve":
                 # A new answer (an order book the poller reads next) is the
                 # web adapter's next poll.
                 body, file_bytes = read_body(self.case_dir, step.get("body"))
                 if file_bytes is not None:
                     inputs += file_bytes
-                self.glue.published = []
                 self.glue.serve(step.get("method"), step["path"], body)
-                pushes.append({"line": n, "published": self.glue.published})
+            published = self.glue.published
+            if kind in ("push", "http_serve") or published:
+                point = {"line": n, "published": published, "deliveries": self.server.deliver(published)}
+                if kind not in ("push", "http_serve"):
+                    point["step"] = kind
+                points.append(point)
         for _, (_, file_bytes) in first:
             if file_bytes is not None:
                 inputs += file_bytes
-        return pushes, bytes(inputs)
+        return points, bytes(inputs)
 
 
 def compute(case_dir: Path, web: Path, sha: str) -> dict:
@@ -195,19 +168,6 @@ def compute(case_dir: Path, web: Path, sha: str) -> dict:
         "instruments": case["instruments"],
         "pushes": pushes,
     }
-
-
-def mode_pair(published: list, mode: int, frame: dict):
-    market = [
-        p for p in published
-        if p["kind"] == "market"
-        and all(k not in p or p[k] == frame.get(k) for k in ("symbol", "exchange"))
-    ]
-    same = [p for p in market if p["mode"] == mode]
-    if same:
-        return same[0]
-    richer = sorted((p for p in market if p["mode"] > mode), key=lambda p: p["mode"])
-    return richer[0] if richer else None
 
 
 def shown(obj: dict, key: str) -> str:
@@ -233,43 +193,116 @@ def shape(v):
     return None
 
 
+class Deliveries:
+    """One delivery point's web deliveries, each consumed once per held
+    mode it serves (harness/web.rs `Deliveries`)."""
+
+    def __init__(self, point: dict):
+        self.point = point
+        self.used: set = set()
+
+    def pub(self, d: dict) -> dict:
+        return self.point["published"][d["publication"]]
+
+    def market(self, client: str, symbol: str, exchange: str, mode: int):
+        """The publication a client's frame at `mode` answers: the next
+        delivery serving that held mode, else (the web's fan-out beyond the
+        modes held) the next of that mode or the lowest richer one."""
+        ds = [
+            (i, d) for i, d in enumerate(self.point["deliveries"])
+            if d["client"] == client and "order" not in d
+            and self.pub(d).get("symbol") == symbol and self.pub(d).get("exchange") == exchange
+        ]
+        for i, d in ds:
+            if mode in d["serves"] and (i, mode) not in self.used:
+                self.used.add((i, mode))
+                return self.pub(d)
+        rest = [
+            (i, d) for i, d in ds
+            if mode not in d["serves"] and d["topic_mode"] >= mode and (i, f"fold{mode}") not in self.used
+        ]
+        rest.sort(key=lambda x: (x[1]["topic_mode"] != mode, x[1]["topic_mode"], x[0]))
+        if rest:
+            i, d = rest[0]
+            self.used.add((i, f"fold{mode}"))
+            return self.pub(d)
+        return None
+
+    def order(self, client: str, orderid):
+        ds = [
+            (i, d) for i, d in enumerate(self.point["deliveries"])
+            if d["client"] == client and "order" in d and (i, "order") not in self.used
+        ]
+        pick = next(((i, d) for i, d in ds if self.pub(d)["frame"].get("orderid") == orderid), None)
+        pick = pick or (ds[0] if ds else None)
+        if pick is None:
+            return None
+        self.used.add((pick[0], "order"))
+        return self.pub(pick[1])
+
+    def unconsumed(self) -> list[str]:
+        """Every frame the web sends a client that answers one of its held
+        modes and no step of the case accounts for (a receive, or a silence
+        naming it). One web frame may answer several held modes (the
+        desktop sends a frame per held mode), but it is sent once, so one
+        of them accounts for it."""
+        out = []
+        for i, d in enumerate(self.point["deliveries"]):
+            if not d["serves"] or any((i, s) in self.used for s in d["serves"]):
+                continue
+            pub = self.pub(d)
+            what = (
+                f"order update {pub['frame'].get('orderid')}" if "order" in d
+                else f"{pub['exchange']} {pub['symbol']} at mode {d['mode']} (publication {d['publication']}, "
+                f"topic mode {d['topic_mode']}): {json.dumps(pub['data'], sort_keys=True)}"
+            )
+            out.append(f"unconsumed: line {self.point['line']}: the web delivers to client {d['client']} {what}")
+        return out
+
+
 def diff(case_dir: Path, out: dict) -> list[str]:
     """What the harness's web check would find (harness/web.rs)."""
-    pushes = {p["line"]: p["published"] for p in out["pushes"]}
+    points = {p["line"]: p for p in out["pushes"]}
     case = json.loads((case_dir / "case.json").read_text())
     random_keys = {d["key"] for d in case.get("deviations", []) if d.get("kind") == "random-values"}
     lines = []
-    last = None
-    orders_seen = 0
+    current = None
     script = (case_dir / "script.jsonl").read_text(encoding="utf-8")
     for n, line in enumerate(script.splitlines(), 1):
         if not line.strip():
             continue
         step = json.loads(line)
-        if step["step"] in ("push", "http_serve"):
-            last, orders_seen = n, 0
-        elif step["step"] == "silence" and "web" in step and last is not None:
+        if n in points:
+            if current is not None:
+                lines += current.unconsumed()
+            current = Deliveries(points[n])
+            continue
+        if current is None:
+            continue
+        if step["step"] == "silence" and "web" in step:
             w = step["web"]
-            p = mode_pair(pushes[last], w["mode"], w)
+            p = current.market(step.get("client", ""), w["symbol"], w["exchange"], w["mode"])
             if p is None:
-                lines.append(f"(line {n}: the web publishes no such frame either)")
+                lines.append(f"(line {n}: the web delivers no such frame either)")
             else:
-                lines.append(f"missing-frame: line {n}: web {json.dumps(p['data'], sort_keys=True)}, desktop nothing")
-        elif step["step"] == "receive" and last is not None:
+                key = w.get("deviation", "missing-frame")
+                lines.append(f"{key}: line {n}: web {json.dumps(p['data'], sort_keys=True)}, desktop nothing")
+        elif step["step"] == "receive":
             frame = step["frame"]
             frame = json.loads((case_dir / frame).read_text()) if isinstance(frame, str) else frame
             if step.get("web") is False:
                 lines.append(f"frame: line {n}: the web sends nothing")
                 continue
+            client = step.get("client", "")
             if frame.get("type") == "order_update":
-                theirs = [p for p in pushes[last] if p["kind"] == "order"][orders_seen:orders_seen + 1]
-                orders_seen += 1
-                mine, theirs = frame, (theirs[0]["frame"] if theirs else None)
+                p = current.order(client, frame.get("orderid"))
+                mine, theirs = frame, (p["frame"] if p else None)
             else:
-                p = mode_pair(pushes[last], step.get("web_mode", frame.get("mode")), frame)
+                mode = step.get("web_mode", frame.get("mode"))
+                p = current.market(client, frame.get("symbol"), frame.get("exchange"), mode)
                 mine, theirs = frame.get("data", {}), (p["data"] if p else None)
             if theirs is None:
-                lines.append(f"(line {n}: the web publishes nothing this frame could come from)")
+                lines.append(f"(line {n}: the web delivers nothing this frame could come from)")
                 continue
             for k in sorted(set(mine) | set(theirs)):
                 w, d = shown(theirs, k), shown(mine, k)
@@ -278,6 +311,8 @@ def diff(case_dir: Path, out: dict) -> list[str]:
                     lines.append(f"{k}{'' if same else ' (type)'}: line {n}: web {w}, desktop {d}")
                 elif w != d:
                     lines.append(f"{k}: line {n}: web {w}, desktop {d}")
+    if current is not None:
+        lines += current.unconsumed()
     return lines
 
 

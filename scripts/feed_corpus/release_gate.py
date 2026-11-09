@@ -84,7 +84,7 @@ def main() -> int:
     args = ap.parse_args()
     found = holds()
     titles = {
-        "pending": "deviations naming no rule (approve.py set RULE ...)",
+        "pending": "deviations naming no rule in force (approve.py set RULE ...)",
         "old flag": "deviations still carrying \"approved\" (approve.py set drops it)",
         "open": "open gaps (fix them; an open gap is never approved)",
         "uncovered": "capabilities the web offers with no case",

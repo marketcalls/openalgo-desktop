@@ -66,6 +66,33 @@
             "change_percent": 0.37
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
+        }
       ]
     },
     {
@@ -88,6 +115,17 @@
             "close": 0.0,
             "prev_close": 0.0
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
         }
       ]
     }

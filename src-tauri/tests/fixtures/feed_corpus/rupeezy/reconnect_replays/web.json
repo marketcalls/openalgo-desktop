@@ -40,6 +40,17 @@
             "volume": 4567890
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
@@ -68,6 +79,17 @@
             "low": 803.25,
             "volume": 4569000
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }
