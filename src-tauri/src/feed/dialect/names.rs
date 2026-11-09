@@ -679,7 +679,9 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             d(Number, XTS).richer()
         }
         "jainamxts" => d(Number, XTS).richer().mode_of_holder(),
-        "definedge" => d(Number, DEFINEDGE).depth_needs_book(),
+        // definedge_adapter.py _QUOTE_FIELDS: the change only as `pc`
+        // (change_percent, percent_change), on an index too.
+        "definedge" => d(Number, DEFINEDGE).depth_needs_book().no_index_change(),
         // delta_adapter.py:470-484: one dict per subscription, with its mode.
         "deltaexchange" => d(Number, DELTA).no_ltt().richer().mode_of_holder(),
         "dhan" => d(Number, DHAN).richer(),
