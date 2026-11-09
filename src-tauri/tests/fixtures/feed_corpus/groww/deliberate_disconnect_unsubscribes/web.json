@@ -11,6 +11,12 @@
       "brsymbol": "SBIN"
     }
   ],
+  "uncompared": [
+    {
+      "line": 9,
+      "step": "disconnect"
+    }
+  ],
   "pushes": [
     {
       "line": 2,

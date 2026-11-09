@@ -6,6 +6,7 @@
 
 use super::harness::{corpus_root, deviation_problems, read_json, registry_problems, Case};
 use super::{BROKERS, WITHOUT_BROKER};
+use openalgo_desktop_lib::brokers::catalog::ALL_BROKERS;
 use std::collections::BTreeSet;
 
 fn folders(dir: &std::path::Path) -> BTreeSet<String> {
@@ -61,7 +62,7 @@ fn every_deviation_has_a_known_kind_and_a_reason() {
                 continue;
             }
             let case_json = read_json(&path);
-            for p in deviation_problems(case_json.get("deviations")) {
+            for p in deviation_problems(&broker, case_json.get("deviations")) {
                 problems.push(format!("{}/{}: {}", broker, case, p));
             }
         }
@@ -82,7 +83,7 @@ fn an_unsound_deviation_is_named() {
         {"key": "ltt", "kind": "open", "reason": " "},
         {"kind": "open", "reason": "no key", "approved": "yes", "note": "x"}
     ]);
-    let found = deviation_problems(Some(&devs));
+    let found = deviation_problems("zerodha", Some(&devs));
     let want = [
         "deviation \"oi\": kind \"guess\" is not one of",
         "deviation \"ltt\" gives no reason",
@@ -118,7 +119,7 @@ fn approvals_name_complete_rules() {
         {"key": "oi", "kind": "web-defect", "reason": "zero", "approval": "made-up"},
         {"key": "ltp", "kind": "open", "reason": "to fix", "approval": "alias-unit"}
     ]);
-    let found = deviation_problems(Some(&devs));
+    let found = deviation_problems("zerodha", Some(&devs));
     assert_eq!(found.len(), 2, "{:?}", found);
     assert!(
         found[0].contains("approval \"made-up\" is no rule"),
@@ -130,6 +131,36 @@ fn approvals_name_complete_rules() {
         "{:?}",
         found
     );
+}
+
+/// Random values are for a feed whose web output really is drawn at
+/// random: on any other broker the kind would make a value comparison a
+/// type check.
+#[test]
+fn only_a_synthetic_feed_may_declare_random_values() {
+    let devs = serde_json::json!([
+        {"key": "ltp", "kind": "random-values", "reason": "drawn at random"}
+    ]);
+    assert_eq!(
+        deviation_problems("dhan_sandbox", Some(&devs)),
+        Vec::<String>::new()
+    );
+    let found = deviation_problems("zerodha", Some(&devs));
+    assert_eq!(found.len(), 1, "{:?}", found);
+    assert!(found[0].contains("synthetic feed"), "{:?}", found);
+}
+
+/// The corpus runs exactly the app's brokers: all 38 of the catalog and
+/// no folder beside them.
+#[test]
+fn the_corpus_covers_exactly_the_catalog_brokers() {
+    let catalog: BTreeSet<&str> = ALL_BROKERS.iter().copied().collect();
+    assert_eq!(catalog.len(), 38, "the catalog: {:?}", catalog);
+    let modules: BTreeSet<&str> = BROKERS.iter().map(|(b, _)| *b).collect();
+    assert_eq!(modules, catalog, "the corpus's broker modules");
+    let on_disk = folders(&corpus_root());
+    let disk: BTreeSet<&str> = on_disk.iter().map(String::as_str).collect();
+    assert_eq!(disk, catalog, "the corpus's broker folders");
 }
 
 /// The modules still running without their broker are brokers of the

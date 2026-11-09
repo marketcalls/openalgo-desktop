@@ -45,6 +45,13 @@
       "reason": "The web sends a constant oi_change of 0 on every ticker (_normalise_ticker's defaults), although Delta's ticker carries the OI change as oi[1]; the desktop sends no invented change.",
       "ref": "delta_adapter.py:584",
       "approval": "leave-out-unsent"
+    },
+    {
+      "key": "fan-out",
+      "kind": "desktop-decision",
+      "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }

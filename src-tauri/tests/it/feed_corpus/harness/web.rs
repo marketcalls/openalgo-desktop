@@ -19,21 +19,34 @@
 //! desktop's.
 
 use super::case::{bad, read_json, Action, Case, WebFrame, WebPair, MISSING_FRAME};
-use super::deliveries::{self, Consumer};
+use super::deliveries::{self, Consumer, Paired};
 use super::invariants;
+use super::json_text;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The deviation key for a frame the web does not send at all.
 const NO_WEB_FRAME: &str = "frame";
+/// The deviation key for the web's fan-out to a lower-mode holder that
+/// answers none of its held modes.
+const FAN_OUT: &str = "fan-out";
+/// The steps the web replay does not model: `web.json` lists them
+/// (`uncompared`), and the release gate counts them.
+const UNMODELLED_STEPS: &[&str] = &["refuse_upgrades", "disconnect"];
 
 pub(crate) fn check(case: &Case) {
     let path = case.dir.join("web.json");
-    if !path.exists() {
-        return;
-    }
     let at = format!("{} web.json", case.id);
+    if !path.exists() {
+        if case.by_hand {
+            return;
+        }
+        bad(
+            &at,
+            "missing: every case is compared with the web unless its provenance is \"by-hand\"",
+        );
+    }
     let web = read_json(&path);
     let digest = hex::encode(Sha256::digest(&case.inputs));
     if web["inputs_sha256"] != digest.as_str() {
@@ -55,6 +68,7 @@ pub(crate) fn check(case: &Case) {
             ),
         );
     }
+    check_uncompared(&at, case, &web);
     let points = deliveries::points(&at, &web);
     let push_lines: BTreeSet<usize> = case
         .steps
@@ -75,14 +89,14 @@ pub(crate) fn check(case: &Case) {
     let mut cmp = Comparison {
         case,
         diffs: BTreeMap::new(),
+        unconsumed: Vec::new(),
     };
     let mut current: Option<Consumer> = None;
-    let mut unconsumed = Vec::new();
     for step in &case.steps {
         let at = format!("{} script.jsonl:{}", case.id, step.line);
         if let Some(point) = points.get(&step.line) {
             if let Some(c) = current.take() {
-                unconsumed.extend(c.unconsumed());
+                cmp.close(&c);
             }
             current = Some(Consumer::new(step.line, point));
             continue;
@@ -106,10 +120,13 @@ pub(crate) fn check(case: &Case) {
                 };
                 match (theirs, web) {
                     (Some(theirs), _) => cmp.frames(&at, frame, theirs),
-                    (None, WebPair::Nothing) => cmp.note(
-                        NO_WEB_FRAME,
-                        format!("{}: the web sends nothing for this frame", at),
-                    ),
+                    (None, WebPair::Nothing) => {
+                        c.web_false(step.line, client, frame);
+                        cmp.note(
+                            NO_WEB_FRAME,
+                            format!("{}: the web sends nothing for this frame", at),
+                        );
+                    }
                     (None, WebPair::Mode(_)) => bad(
                         &at,
                         format!(
@@ -135,25 +152,49 @@ pub(crate) fn check(case: &Case) {
                         ),
                     );
                 };
-                cmp.web_only(&at, w, theirs);
+                cmp.web_only(&at, w, theirs.publication);
             }
             _ => {}
         }
     }
     if let Some(c) = current.take() {
-        unconsumed.extend(c.unconsumed());
+        cmp.close(&c);
     }
-    if !unconsumed.is_empty() {
+    if !cmp.unconsumed.is_empty() {
         bad(
             &at,
             format!(
                 "web frames the case neither receives nor declares (a silence step naming each, deviation \"{}\"):\n  {}",
                 MISSING_FRAME,
-                unconsumed.join("\n  ")
+                cmp.unconsumed.join("\n  ")
             ),
         );
     }
     report(&at, case, &cmp.diffs);
+}
+
+/// `web.json` names exactly the steps the replay does not model, so none
+/// is taken for compared (`UNMODELLED_STEPS`, and a deep feed not made).
+fn check_uncompared(at: &str, case: &Case, web: &Value) {
+    let script = std::fs::read_to_string(case.dir.join("script.jsonl"))
+        .unwrap_or_else(|e| bad(at, format!("script.jsonl: {}", e)));
+    let mut want: Vec<Value> = Vec::new();
+    if case.deep_feed_not_made {
+        want.push(serde_json::json!({"line": 0, "step": "deep_feed_not_made"}));
+    }
+    for (n, line) in script.lines().enumerate() {
+        let step = json_text::parse(line).ok();
+        let kind = step.as_ref().and_then(|s| s["step"].as_str());
+        if let Some(kind) = kind.filter(|k| UNMODELLED_STEPS.contains(k)) {
+            want.push(serde_json::json!({"line": n + 1, "step": kind}));
+        }
+    }
+    if web["uncompared"] != Value::Array(want) {
+        bad(
+            at,
+            "its uncompared steps are not the script's: run scripts/feed_corpus/web_expected.py again",
+        );
+    }
 }
 
 fn shown(v: Option<&Value>) -> String {
@@ -182,6 +223,8 @@ fn shape(v: &Value) -> Value {
 struct Comparison<'a> {
     case: &'a Case,
     diffs: BTreeMap<String, Vec<String>>,
+    /// What the delivery points left unanswered, for every point at once.
+    unconsumed: Vec<String>,
 }
 
 impl Comparison<'_> {
@@ -189,14 +232,44 @@ impl Comparison<'_> {
         self.diffs.entry(key.to_string()).or_default().push(seen);
     }
 
-    /// The desktop's frame against the web's output: the `data` of a
-    /// market frame, the whole of an order update.
-    fn frames(&mut self, at: &str, mine: &Value, theirs: &Value) {
+    /// The end of a delivery point: what it left unanswered, and the web's
+    /// fan-out, which a case declares.
+    fn close(&mut self, point: &Consumer) {
+        self.unconsumed.extend(point.unconsumed());
+        self.unconsumed.extend(point.not_silent());
+        for seen in point.fan_out() {
+            self.note(FAN_OUT, seen);
+        }
+    }
+
+    /// The desktop's frame against the web's output: the envelope and the
+    /// `data` of a market frame, the whole of an order update.
+    fn frames(&mut self, at: &str, mine: &Value, theirs: Paired) {
+        let publication = theirs.publication;
         if mine["type"] == "order_update" {
-            self.differences(at, mine, &theirs["frame"]);
+            self.differences(at, mine, &publication["frame"]);
         } else {
-            self.keeps_invariants(at, theirs);
-            self.differences(at, &mine["data"], &theirs["data"]);
+            self.keeps_invariants(at, publication);
+            self.envelope(at, mine, theirs);
+            self.differences(at, &mine["data"], &publication["data"]);
+        }
+    }
+
+    /// The frame's envelope beside its `data`: the mode the web tags the
+    /// client's frame with and the broker it names.
+    fn envelope(&mut self, at: &str, mine: &Value, theirs: Paired) {
+        let d = theirs.delivery;
+        if mine["mode"].as_u64() != d.tag {
+            self.note(
+                "envelope.mode",
+                format!("{}: web {:?}, desktop {}", at, d.tag, mine["mode"]),
+            );
+        }
+        if mine["broker"].as_str() != d.broker.as_deref() {
+            self.note(
+                "envelope.broker",
+                format!("{}: web {:?}, desktop {}", at, d.broker, mine["broker"]),
+            );
         }
     }
 

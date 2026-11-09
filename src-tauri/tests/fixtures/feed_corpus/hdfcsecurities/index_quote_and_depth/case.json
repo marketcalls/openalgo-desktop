@@ -75,6 +75,13 @@
       "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
       "ref": "hdfcsecurities_websocket.py:666; hdfcsecurities_adapter.py:381-385",
       "approval": "index-quote-zero-left-out"
+    },
+    {
+      "key": "fan-out",
+      "kind": "desktop-decision",
+      "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }

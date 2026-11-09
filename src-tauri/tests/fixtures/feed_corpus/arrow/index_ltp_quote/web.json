@@ -13,6 +13,7 @@
       "instrumenttype": "INDEX"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -44,6 +45,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "arrow",
           "serves": [
             1
           ]
@@ -90,6 +92,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "arrow",
           "serves": [
             2
           ]

@@ -14,7 +14,7 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::{JoinHandle, JoinSet};
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tokio_tungstenite::tungstenite::http::StatusCode;
@@ -46,6 +46,8 @@ enum Out {
     Frame(Message),
     /// Close, with this code and reason if given.
     Close(Option<(u16, String)>),
+    /// A ping behind everything pushed; its pong is told on this channel.
+    Ping(oneshot::Sender<()>),
 }
 
 #[derive(Default)]
@@ -171,6 +173,21 @@ impl Upstream {
             .map_err(|_| "the connection had already closed".to_string())
     }
 
+    /// Returns once the feed has read every frame pushed so far: a ping
+    /// goes out behind them and its reader answers it when it comes back
+    /// for the next frame. With no connection open there is nothing on its
+    /// way; a connection that closes meanwhile has delivered what it will.
+    pub(crate) async fn read_up_to_now(&self) {
+        let live = self.state.lock().live.as_ref().map(|(_, tx)| tx.clone());
+        let Some(tx) = live else {
+            return;
+        };
+        let (done, answered) = oneshot::channel();
+        if tx.send(Out::Ping(done)).await.is_ok() {
+            let _ = tokio::time::timeout(DEADLINE, answered).await;
+        }
+    }
+
     /// Refuse the next `times` upgrades with HTTP `status` (a broker's 429).
     pub(crate) fn refuse(&self, status: u16, times: usize) {
         self.state.lock().refuse = Some((status, times));
@@ -247,6 +264,7 @@ async fn serve(
 ) {
     let (mut write, mut read) = ws.split();
     let mut closed = false;
+    let mut pinged: Option<oneshot::Sender<()>> = None;
     loop {
         tokio::select! {
             msg = read.next() => {
@@ -256,6 +274,12 @@ async fn serve(
                     Some(Ok(Message::Close(frame))) if state.lock().record_close && !closed => {
                         closed = true;
                         Wire::Closed(frame.map(|f| (u16::from(f.code), f.reason.to_string())))
+                    }
+                    Some(Ok(Message::Pong(_))) => {
+                        if let Some(done) = pinged.take() {
+                            let _ = done.send(());
+                        }
+                        continue;
                     }
                     Some(Ok(_)) => continue,
                     _ => {
@@ -273,6 +297,12 @@ async fn serve(
                     if write.send(m).await.is_err() {
                         break;
                     }
+                }
+                Some(Out::Ping(done)) => {
+                    if write.send(Message::Ping(Vec::new())).await.is_err() {
+                        break;
+                    }
+                    pinged = Some(done);
                 }
                 Some(Out::Close(Some((code, reason)))) => {
                     let frame = CloseFrame {

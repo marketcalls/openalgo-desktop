@@ -12,6 +12,12 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [
+    {
+      "line": 3,
+      "step": "refuse_upgrades"
+    }
+  ],
   "pushes": [
     {
       "line": 7,
@@ -47,6 +53,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "zerodha",
           "serves": [
             2
           ]

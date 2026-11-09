@@ -20,6 +20,7 @@
       "instrumenttype": "INDEX"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 5,
@@ -47,6 +48,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "dhan",
           "serves": [
             1
           ]
@@ -79,6 +81,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "dhan",
           "serves": [
             1
           ]

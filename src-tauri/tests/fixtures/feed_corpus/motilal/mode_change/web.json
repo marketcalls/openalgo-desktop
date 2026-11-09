@@ -12,6 +12,7 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 2,
@@ -43,6 +44,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "motilal",
           "serves": [
             1
           ]
@@ -80,6 +82,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "motilal",
           "serves": [
             2
           ]
@@ -179,6 +182,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "motilal",
           "serves": [
             3
           ]
@@ -216,6 +220,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "motilal",
           "serves": [
             2
           ]
@@ -247,6 +252,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "motilal",
           "serves": [
             1
           ]

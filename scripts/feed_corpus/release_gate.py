@@ -15,7 +15,13 @@
   by a case, and every broker of the catalog has its `broker.json`;
 - every broker module of the harness builds its session's broker
   (`Feeds::with_broker`): the `WITHOUT_BROKER` list in
-  `src-tauri/tests/it/feed_corpus/mod.rs` is empty.
+  `src-tauri/tests/it/feed_corpus/mod.rs` is empty;
+- every case has the web's output (`web.json`) or says it is worked out by
+  hand, and the corpus is exactly the 38 brokers of the catalog.
+
+The steps the web replay has no behaviour for (`web.json` `uncompared`:
+refused upgrades, a deliberate disconnect, a deep feed not made) are counted
+here. They do not hold the release back.
 
 A case's own result holds when its test passes (lane-test or CI); this gate
 reads the corpus's declarations and coverage, not test results. It is
@@ -36,6 +42,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import parity_matrix as pm  # noqa: E402
 
 MODULES = pm.ROOT / "src-tauri/tests/it/feed_corpus/mod.rs"
+# The catalog's size: a shrunken or unread list would otherwise pass.
+CATALOG_BROKERS = 38
 
 
 def without_broker() -> list[str]:
@@ -47,10 +55,39 @@ def without_broker() -> list[str]:
     return re.findall(r'"([a-z0-9_]+)"', body.group(1))
 
 
+def catalog_holds() -> list[str]:
+    """The corpus is exactly the catalog's brokers: a shrunken catalog would
+    leave nothing to check, and a folder of no catalog broker escapes it."""
+    catalog = pm.brokers()
+    out = []
+    if len(catalog) != CATALOG_BROKERS:
+        out.append(f"the catalog lists {len(catalog)} brokers, not {CATALOG_BROKERS}")
+    folders = {p.name for p in pm.CORPUS.iterdir() if p.is_dir()}
+    out += [f"{name}: a corpus folder of no catalog broker" for name in sorted(folders - set(catalog))]
+    return out
+
+
+def uncompared() -> list[str]:
+    """The steps the web replay does not model, case by case."""
+    return [
+        f"{web.parent.parent.name}/{web.parent.name} line {step['line']}: {step['step']}"
+        for web in sorted(pm.CORPUS.glob("*/*/web.json"))
+        for step in json.loads(web.read_text(encoding="utf-8")).get("uncompared", [])
+    ]
+
+
 def holds() -> dict[str, list[str]]:
     """What holds the release back, by reason."""
     rules = pm.approval_rules()
-    found = {"pending": [], "old flag": [], "open": [], "uncovered": [], "without broker": []}
+    found = {
+        "pending": [],
+        "old flag": [],
+        "open": [],
+        "uncovered": [],
+        "without broker": [],
+        "no web output": [],
+        "catalog": catalog_holds(),
+    }
     for broker in pm.brokers():
         bdir = pm.CORPUS / broker
         meta_path = bdir / "broker.json"
@@ -62,6 +99,8 @@ def holds() -> dict[str, list[str]]:
         for d in sorted(p for p in bdir.glob("*") if p.is_dir()):
             case = json.loads((d / "case.json").read_text(encoding="utf-8"))
             covered |= pm.covers(d)
+            if not (d / "web.json").exists() and case.get("provenance", {}).get("method") != "by-hand":
+                found["no web output"].append(f"{broker}/{d.name}")
             for dv in case.get("deviations", []):
                 where = f"{broker}/{d.name} {dv.get('key')} [{dv.get('kind')}]"
                 if dv.get("kind") == "open":
@@ -89,6 +128,8 @@ def main() -> int:
         "open": "open gaps (fix them; an open gap is never approved)",
         "uncovered": "capabilities the web offers with no case",
         "without broker": "harness modules without their broker (Feeds::with_broker)",
+        "no web output": "cases without web.json that are not worked out by hand",
+        "catalog": "the corpus is not exactly the catalog's brokers",
     }
     total = 0
     for reason, items in found.items():
@@ -98,6 +139,10 @@ def main() -> int:
             print(f"  {item}")
         if len(items) > 20 and not args.all:
             print(f"  ... and {len(items) - 20} more (--all)")
+    steps = uncompared()
+    print(f"steps the web replay does not model (counted, not a hold): {len(steps)}")
+    for step in steps if args.all else steps[:20]:
+        print(f"  {step}")
     if total:
         print("1.0.7 cannot ship from this corpus yet.")
         return 1 if args.check else 0

@@ -10,7 +10,7 @@
 
 use super::case::{Case, HttpAnswer, Socket};
 use super::http::{HttpFake, Route};
-use super::upstream::{Upstream, DEADLINE};
+use super::upstream::{until, Upstream, DEADLINE};
 use crate::feed_support::{brokers, eventually, API_KEY, USER_ID};
 use openalgo_desktop_lib::brokers::common::streaming::{
     BrokerFeed, FeedEvent, OrderFeed, OrderUpdate,
@@ -502,6 +502,30 @@ impl World {
         }
     }
 
+    /// Nothing the fake brokers sent so far is still on its way to a
+    /// client's socket: each feed has read up to now, the tasks between a
+    /// feed and a client (the bridge, the feed server's loops, the event
+    /// bus, the clients' writers) have had enough turns, and the clients'
+    /// queues are empty. By turns of the scheduler, not by the clock, so a
+    /// slow runner cannot make a frame look absent (`World`'s pipeline runs
+    /// on the test's own thread: `corpus_cases!`).
+    pub(crate) async fn drain(&self) {
+        for up in self.upstreams.values() {
+            up.read_up_to_now().await;
+        }
+        for _ in 0..PIPELINE_TURNS {
+            tokio::task::yield_now().await;
+        }
+        // Bounded: a queue that does not empty is for the read after this to
+        // report, not this wait.
+        let _ = until(|| {
+            let buses = self.bus.queue_depths().iter().all(|q| q.depth == 0);
+            let clients = self.server.queue_lengths().iter().all(|n| *n == 0);
+            (buses && clients).then_some(())
+        })
+        .await;
+    }
+
     pub(crate) fn http(&self) -> &HttpFake {
         &self.http
     }
@@ -572,6 +596,12 @@ fn route(a: &HttpAnswer, urls: &BTreeMap<Socket, String>, http: &str) -> Route {
     r.record = a.record;
     r
 }
+
+/// Scheduler turns that carry a frame from a feed to a client's socket
+/// with room to spare: a market frame crosses four tasks (reader, bridge,
+/// feed server, writer), an order update a few more (relay, broker
+/// completion over HTTP, event bus).
+const PIPELINE_TURNS: usize = 64;
 
 /// How long `broker_runtime`'s socket relay waits for the broker to
 /// complete an order update (its `ORDER_COMPLETION_DEADLINE`) before it

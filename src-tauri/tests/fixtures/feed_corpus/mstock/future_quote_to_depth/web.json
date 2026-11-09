@@ -16,6 +16,7 @@
       "instrumenttype": "FUTIDX"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -56,6 +57,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "mstock",
           "serves": [
             2
           ]
@@ -246,6 +248,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "mstock",
           "serves": [
             2
           ]
@@ -255,6 +258,7 @@
           "publication": 1,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "mstock",
           "serves": [
             3
           ]
@@ -300,6 +304,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "mstock",
           "serves": [
             2
           ]

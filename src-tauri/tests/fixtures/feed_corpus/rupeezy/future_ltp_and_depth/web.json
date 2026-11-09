@@ -16,6 +16,7 @@
       "instrumenttype": "FUT"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 5,
@@ -135,6 +136,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "rupeezy",
           "serves": [
             1
           ]
@@ -144,6 +146,7 @@
           "publication": 1,
           "mode": 1,
           "topic_mode": 3,
+          "broker": "rupeezy",
           "serves": []
         },
         {
@@ -151,6 +154,7 @@
           "publication": 1,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "rupeezy",
           "serves": [
             3
           ]
@@ -183,6 +187,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "rupeezy",
           "serves": [
             1
           ]

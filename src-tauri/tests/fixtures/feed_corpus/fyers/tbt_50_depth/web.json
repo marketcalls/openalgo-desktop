@@ -13,6 +13,7 @@
       "name": "STATE BANK OF INDIA"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 2,
@@ -110,6 +111,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "fyers",
           "serves": [
             3
           ]
@@ -197,6 +199,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "fyers",
           "serves": [
             3
           ]

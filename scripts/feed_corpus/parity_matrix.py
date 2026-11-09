@@ -86,6 +86,11 @@ def deviation_kinds() -> list[str]:
     return kinds
 
 
+# The brokers whose web feed is synthetic, so that its values are drawn at
+# random and only they may declare `random-values` (harness/case.rs).
+SYNTHETIC_FEEDS = ("dhan_sandbox",)
+
+
 def deviation_problems(name: str, case: dict, kinds: list[str], rules: dict | None = None) -> list[str]:
     """What the matrix could not count in a case's deviations (as the
     harness's `deviation_problems` checks them)."""
@@ -95,6 +100,8 @@ def deviation_problems(name: str, case: dict, kinds: list[str], rules: dict | No
         label = f"{name}: deviation {dv.get('key') or i}"
         if dv.get("kind") not in kinds:
             out.append(f"{label}: kind {dv.get('kind')!r} is not one of {', '.join(kinds)}")
+        if dv.get("kind") == "random-values" and case.get("broker") not in SYNTHETIC_FEEDS:
+            out.append(f"{label}: random-values is only for a synthetic feed ({', '.join(SYNTHETIC_FEEDS)})")
         if not str(dv.get("reason", "")).strip():
             out.append(f"{label} gives no reason")
         if "approved" in dv and not isinstance(dv["approved"], bool):

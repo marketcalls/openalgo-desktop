@@ -12,6 +12,12 @@
       "brexchange": "NSE_EQ"
     }
   ],
+  "uncompared": [
+    {
+      "line": 1,
+      "step": "refuse_upgrades"
+    }
+  ],
   "pushes": [
     {
       "line": 4,

@@ -10,6 +10,7 @@
       "token": "2885"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -37,6 +38,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "sahi",
           "serves": [
             1
           ]

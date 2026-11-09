@@ -19,6 +19,16 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [
+    {
+      "line": 12,
+      "step": "refuse_upgrades"
+    },
+    {
+      "line": 17,
+      "step": "refuse_upgrades"
+    }
+  ],
   "pushes": [
     {
       "line": 6,
@@ -60,6 +70,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "hdfcsecurities",
           "serves": [
             2
           ]
@@ -106,6 +117,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "hdfcsecurities",
           "serves": [
             2
           ]
@@ -152,6 +164,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "hdfcsecurities",
           "serves": [
             2
           ]
@@ -198,6 +211,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "hdfcsecurities",
           "serves": [
             2
           ]

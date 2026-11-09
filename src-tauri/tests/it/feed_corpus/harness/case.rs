@@ -52,6 +52,9 @@ const DEVIATION_KINDS: &[&str] = &[
 /// feed), so the web check compares its presence and JSON type, and the
 /// case's invariants bound it.
 pub(crate) const RANDOM_VALUES: &str = "random-values";
+/// The brokers whose web feed is synthetic: only their values are drawn at
+/// random, so only they may declare `random-values`.
+const SYNTHETIC_FEEDS: &[&str] = &["dhan_sandbox"];
 
 /// How the expected values were found (README, "Provenance").
 const METHODS: &[&str] = &["web-test", "web-script", "by-hand"];
@@ -437,6 +440,9 @@ pub(crate) struct Case {
     pub(crate) upstream_ignore: Vec<String>,
     /// The web commit the expected values were read at.
     pub(crate) web_sha: String,
+    /// `provenance.method` is `by-hand`: the one case that may have no
+    /// `web.json`.
+    pub(crate) by_hand: bool,
     /// The `data` keys (or `frame`, `missing-frame`) on which the desktop
     /// may differ from the web.
     pub(crate) deviations: Vec<String>,
@@ -587,13 +593,15 @@ impl Case {
                 .collect(),
             Some(_) => bad(&at, "\"http\" is an array of answers"),
         };
-        let deviations = deviations(&at, o.get("deviations"));
+        let (web_sha, by_hand) = provenance(&at, o.get("provenance"));
+        let deviations = deviations(&at, broker, o.get("deviations"));
         Case {
             http,
             orders,
             depth_levels: depth_levels(&at, o.get("depth_levels")),
             upstream_ignore: strings(&at, "upstream_ignore", o.get("upstream_ignore")),
-            web_sha: provenance(&at, o.get("provenance")),
+            web_sha,
+            by_hand,
             deviations: deviations.iter().map(|(k, _)| k.clone()).collect(),
             random: deviations
                 .iter()
@@ -679,7 +687,7 @@ fn check_scenarios(at: &str, v: Option<&Value>) {
 }
 
 /// The web commit, after checking the provenance is complete.
-fn provenance(at: &str, v: Option<&Value>) -> String {
+fn provenance(at: &str, v: Option<&Value>) -> (String, bool) {
     let o = v
         .and_then(Value::as_object)
         .unwrap_or_else(|| bad(at, "no \"provenance\" object"));
@@ -703,7 +711,7 @@ fn provenance(at: &str, v: Option<&Value>) -> String {
         );
     }
     strings(at, "provenance.notes", o.get("notes"));
-    sha.to_string()
+    (sha.to_string(), method == "by-hand")
 }
 
 /// Take the `refuse_upgrades` steps that open the script (notes aside) out
@@ -735,8 +743,8 @@ fn refusals_at_start(steps: &mut Vec<Step>) -> BTreeMap<Socket, (u16, usize)> {
 
 /// The keys the deviations cover, with their kinds, after checking each
 /// is complete (`deviation_problems`).
-fn deviations(at: &str, v: Option<&Value>) -> Vec<(String, String)> {
-    let problems = deviation_problems(v);
+fn deviations(at: &str, broker: &str, v: Option<&Value>) -> Vec<(String, String)> {
+    let problems = deviation_problems(broker, v);
     if !problems.is_empty() {
         bad(at, problems.join("\n  "));
     }
@@ -761,7 +769,7 @@ const DEVIATION_FIELDS: &[&str] = &[
 /// on an open gap): what the parity matrix counts can be trusted only when
 /// every case has none. A deviation with no `approval` is pending, which the
 /// release gate fails on, not this check.
-pub(crate) fn deviation_problems(v: Option<&Value>) -> Vec<String> {
+pub(crate) fn deviation_problems(broker: &str, v: Option<&Value>) -> Vec<String> {
     let Some(v) = v else {
         return Vec::new();
     };
@@ -796,6 +804,15 @@ pub(crate) fn deviation_problems(v: Option<&Value>) -> Vec<String> {
                 name,
                 kind,
                 DEVIATION_KINDS.join(", ")
+            ));
+        }
+        if kind == RANDOM_VALUES && !SYNTHETIC_FEEDS.contains(&broker) {
+            out.push(format!(
+                "{}: {} is only for a synthetic feed ({}), not {}",
+                name,
+                RANDOM_VALUES,
+                SYNTHETIC_FEEDS.join(", "),
+                broker
             ));
         }
         if !o

@@ -12,5 +12,11 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [
+    {
+      "line": 3,
+      "step": "disconnect"
+    }
+  ],
   "pushes": []
 }

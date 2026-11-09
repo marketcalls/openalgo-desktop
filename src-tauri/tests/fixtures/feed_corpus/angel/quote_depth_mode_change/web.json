@@ -12,6 +12,7 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -48,6 +49,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "angel",
           "serves": [
             2
           ]

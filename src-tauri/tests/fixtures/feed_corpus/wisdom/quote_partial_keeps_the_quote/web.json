@@ -12,6 +12,7 @@
       "brexchange": "NSECM"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 2,
@@ -57,6 +58,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "wisdom",
           "serves": [
             2
           ]
@@ -97,6 +99,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "wisdom",
           "serves": [
             2
           ]

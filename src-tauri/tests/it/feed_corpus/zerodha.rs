@@ -7,7 +7,7 @@ use openalgo_desktop_lib::brokers::zerodha::streaming::KiteFeed;
 use openalgo_desktop_lib::brokers::zerodha::ZerodhaBroker;
 use std::sync::Arc;
 
-fn feeds(env: &Env) -> Feeds {
+pub(super) fn feeds(env: &Env) -> Feeds {
     let symbols = env.symbols();
     Feeds::market(KiteFeed::with_url(
         &env.url("main"),

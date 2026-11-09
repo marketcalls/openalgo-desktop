@@ -16,7 +16,7 @@ use super::upstream::{until, Received};
 use super::web;
 use super::world::{Env, Feeds, World};
 use crate::feed_support::Client;
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -80,6 +80,28 @@ async fn next_frame(c: &mut Client, d: Duration) -> Option<Value> {
     }
 }
 
+/// Every frame already on its way to client `c` that no step has read
+/// (up to [`LEFTOVER_FRAMES`]: a synthetic feed never stops): the pipeline
+/// is run dry, then a ping goes to the feed server and its pong, written
+/// after everything the client was sent before it, ends the read. A silence
+/// is therefore not a guess at how long a frame can take.
+async fn frames_on_their_way(world: &World, c: &mut Client) -> Vec<Value> {
+    world.drain().await;
+    let mut frames = Vec::new();
+    let ping = Message::Text(r#"{"action":"ping"}"#.to_string());
+    if c.ws.send(ping).await.is_err() {
+        return frames;
+    }
+    while frames.len() < LEFTOVER_FRAMES {
+        match next_frame(c, RECV).await {
+            Some(v) if v["type"] == "pong" => break,
+            Some(v) => frames.push(v),
+            None => break,
+        }
+    }
+    frames
+}
+
 /// Requests, one per line, for a failure message.
 fn listed(items: &[impl std::fmt::Display]) -> String {
     if items.is_empty() {
@@ -126,8 +148,10 @@ impl Runner<'_> {
             }
             Action::Receive { client, frame, .. } => self.receive(&at, client, frame).await,
             Action::Silence { client, ms, .. } => {
+                tokio::time::sleep(Duration::from_millis(*ms)).await;
+                let world = self.world;
                 let c = self.known(&at, client);
-                if let Some(v) = next_frame(c, Duration::from_millis(*ms)).await {
+                for v in frames_on_their_way(world, c).await {
                     self.record(&at, &v);
                     self.mismatch(&at, format!("client {} received {}", client, v));
                 }
@@ -465,12 +489,10 @@ impl Runner<'_> {
     async fn finish(&mut self) {
         let id = self.case.id.clone();
         let mut unexpected = Vec::new();
+        tokio::time::sleep(SETTLE).await;
+        let world = self.world;
         for (name, c) in self.clients.iter_mut() {
-            // Every frame left, up to a bound: a synthetic feed never stops.
-            for _ in 0..LEFTOVER_FRAMES {
-                let Some(v) = next_frame(c, SETTLE).await else {
-                    break;
-                };
+            for v in frames_on_their_way(world, c).await {
                 unexpected.push((name.clone(), v));
             }
         }
@@ -529,5 +551,65 @@ impl Runner<'_> {
                 format!("invariants no received frame has the key of: {:?}", idle),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::feed_corpus::zerodha;
+
+    /// A loaded runner grants turns slowly: with another task holding the
+    /// thread for 150 ms a turn, a frame takes longer to cross the pipeline
+    /// than the time-boxed wait (the 300 ms a silence used to be) allows,
+    /// so that wait reports silence with the frame on its way. The drain
+    /// counts turns, not time, and finds it.
+    #[tokio::test]
+    async fn a_frame_a_slow_runner_holds_up_is_still_seen() {
+        let case = Case::load("zerodha", "quote_mode");
+        let world = World::start(&case, zerodha::feeds).await;
+        let mut r = Runner {
+            case: &case,
+            world: &world,
+            clients: BTreeMap::new(),
+            pushes: Vec::new(),
+            invariants_applied: vec![0; case.invariants.len()],
+            mismatches: Vec::new(),
+        };
+        let push = case
+            .steps
+            .iter()
+            .position(|s| matches!(s.action, Action::Push { .. }))
+            .expect("the case pushes a frame");
+        for s in &case.steps[..push] {
+            r.step(s).await;
+        }
+        let client = case.steps[push..]
+            .iter()
+            .find_map(|s| match &s.action {
+                Action::Receive { client, .. } => Some(client.clone()),
+                _ => None,
+            })
+            .expect("a client receives the pushed frame");
+
+        let hog = tokio::spawn(async {
+            for _ in 0..8 {
+                std::thread::sleep(Duration::from_millis(150));
+                tokio::task::yield_now().await;
+            }
+        });
+        tokio::task::yield_now().await;
+        r.step(&case.steps[push]).await;
+
+        let c = r.known("probe", &client);
+        assert_eq!(
+            next_frame(c, Duration::from_millis(300)).await,
+            None,
+            "the turns granted were not slow enough to model a loaded runner"
+        );
+        let late = frames_on_their_way(&world, r.known("probe", &client)).await;
+        assert_eq!(late.len(), 1, "{:?}", late);
+        assert_eq!(late[0]["type"], "market_data", "{:?}", late);
+        hog.await.expect("the task that held the thread ended");
     }
 }

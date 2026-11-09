@@ -230,7 +230,7 @@ class WebServer:
             pub = published[index]
             if pub["kind"] == "market":
                 out.append({"client": client, "publication": index, "mode": message["mode"],
-                            "topic_mode": pub["mode"]})
+                            "topic_mode": pub["mode"], "broker": message.get("broker")})
             else:
                 out.append({"client": client, "publication": index, "order": True})
         # The server fans out from Python sets, whose order changes from run

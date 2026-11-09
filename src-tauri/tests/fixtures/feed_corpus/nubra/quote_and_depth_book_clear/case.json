@@ -55,6 +55,13 @@
       "reason": "The book has no bids after this message; the web sends bid 0, the desktop leaves the key out (a side the book does not have is not a price; R107-06, the review: omission is the authorized alternative to the zero).",
       "ref": "nubra_adapter.py:878-892",
       "approval": "leave-out-unsent"
+    },
+    {
+      "key": "fan-out",
+      "kind": "desktop-decision",
+      "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }

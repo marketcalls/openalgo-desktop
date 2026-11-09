@@ -12,6 +12,7 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 4,
@@ -40,6 +41,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "mstock",
           "serves": [
             1
           ]

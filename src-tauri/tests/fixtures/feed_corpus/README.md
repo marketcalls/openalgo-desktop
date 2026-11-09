@@ -132,7 +132,7 @@ One step per line. Every step may carry a `"note"` for the reader;
 | --- | --- | --- |
 | `send` | `client`, `message`, `reply` | Client `client` (connected and authenticated on first use) sends `message`; the reply must equal `reply` exactly, or, without `reply`, have `"status": "success"`. |
 | `receive` | `client`, `frame`, `web`, `web_mode` | The client's next frame must equal `frame` (a file under the case, or the frame inline). `web`/`web_mode`: see "The web's output". |
-| `silence` | `client`, `ms`, `web` | Nothing reaches the client for `ms` (default 300); `web` names a frame the web sends here (see "The web's output"). |
+| `silence` | `client`, `ms`, `web` | Nothing reaches the client for `ms` (default 300), and nothing is on its way to it then: every frame a fake broker has sent has been read, the tasks between a feed and a client have had their turns, and a ping to the feed server comes back with no frame before it (so a slow runner cannot pass as silence). `web` names a frame the web sends here (see "The web's output"). |
 | `close_client` | `client` | The client closes its socket. |
 | `push` | `socket`, `frame`, `connection` | The fake broker sends `frame` on the open connection (of `socket`, default `main`; on connection `connection` if named). |
 | `upstream_receives` | `socket`, `frames`, `any_order`, `connection` | The feed's next frames to the broker are exactly `frames`, in order (or in any order), all on `connection` if named. |
@@ -345,14 +345,26 @@ frame, `{"step": "silence", "client": "a", "web": {"symbol": "BTCUSD.P",
 Where a case has web-only frames of more than one cause, each cause gets
 its own reason and approval: the step adds `"deviation":
 "missing-frame:<label>"` in `web`, and the case declares that key.
-A web frame no step accounts for fails the case, naming it; the web's
-fan-out to a lower-mode holder that answers none of its held modes need
-not be (the approved `one-frame-per-held-mode` rule). A
+A web frame no step accounts for fails the case, naming it. The web's
+fan-out to a lower-mode holder that answers none of its held modes (a
+delivery with `serves: []`) is a deviation the case declares, with key
+`fan-out`, kind `desktop-decision` and the approved
+`one-frame-per-held-mode` rule (`web_expected.py --diff` prints each one).
+The check goes both ways for a `"web": false` frame: if the web does send
+that client a frame for the instrument (or order id) that nothing paired
+with, the mark is wrong and the case fails. The frame's envelope is
+compared as well as its `data`: `envelope.mode` for the mode the web tags
+the client's frame with, `envelope.broker` for the broker it names.
+Every case needs `web.json` unless its provenance says `by-hand`, and
+`web.json` lists the script's steps the replay has no web behaviour for
+(`uncompared`: `refuse_upgrades`, `disconnect`, a deep feed not made),
+which `release_gate.py` counts. A
 `scripts/feed_corpus/test_oracle.py --web <tree>` holds these rules
 against the web (two packets in one frame, an unread web frame, repeated
-subscribes). A
-key of a `random-values` deviation is compared by presence and JSON type
-at every level (an object's keys, a list's length), not by value. Every
+subscribes, a wrong `"web": false`, fan-out, the envelope, the uncompared
+steps and the gate's holds). A
+key of a `random-values` deviation (allowed only for a synthetic feed,
+`dhan_sandbox`) is compared by presence and JSON type at every level (an object's keys, a list's length), not by value. Every
 key on which the desktop differs from the web must be declared:
 
 ```json

@@ -116,6 +116,13 @@
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsecurities_adapter.py:381-385",
       "approval": "leave-out-unsent"
+    },
+    {
+      "key": "fan-out",
+      "kind": "desktop-decision",
+      "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }

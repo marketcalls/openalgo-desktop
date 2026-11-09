@@ -12,6 +12,7 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -96,6 +97,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "nubra",
           "serves": [
             3
           ]
@@ -185,6 +187,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "nubra",
           "serves": [
             3
           ]

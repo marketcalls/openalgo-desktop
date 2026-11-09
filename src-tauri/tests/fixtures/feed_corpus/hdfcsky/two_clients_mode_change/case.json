@@ -81,6 +81,13 @@
       "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
       "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
       "approval": "market-state-overlay"
+    },
+    {
+      "key": "fan-out",
+      "kind": "desktop-decision",
+      "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }

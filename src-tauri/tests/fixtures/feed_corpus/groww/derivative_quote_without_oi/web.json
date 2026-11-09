@@ -16,6 +16,7 @@
       "tick_size": 0.1
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 1,
@@ -61,6 +62,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "groww",
           "serves": [
             2
           ]

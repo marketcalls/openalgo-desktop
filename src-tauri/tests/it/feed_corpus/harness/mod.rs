@@ -48,7 +48,9 @@ macro_rules! corpus_cases {
         /// The case folders this module runs.
         pub(crate) const CASES: &[&str] = &[$(stringify!($case)),+];
         $(
-            #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+            // One thread, so `World::drain` can run the pipeline dry by
+            // turns of the scheduler rather than by a guess at the time.
+            #[tokio::test]
             async fn $case() {
                 $crate::feed_corpus::harness::run($broker, stringify!($case), $feeds).await;
             }

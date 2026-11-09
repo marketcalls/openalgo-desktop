@@ -21,6 +21,7 @@
       "instrumenttype": "INDEX"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 2,
@@ -72,6 +73,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "kotak",
           "serves": [
             2
           ]
@@ -81,6 +83,7 @@
           "publication": 1,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "kotak",
           "serves": [
             1
           ]
@@ -111,6 +114,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "kotak",
           "serves": [
             1
           ]

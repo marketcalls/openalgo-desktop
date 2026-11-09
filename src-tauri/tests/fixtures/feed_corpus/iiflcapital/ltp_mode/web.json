@@ -12,6 +12,7 @@
       "brexchange": "NSEEQ"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 1,
@@ -43,6 +44,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "iiflcapital",
           "serves": [
             1
           ]
@@ -79,6 +81,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "iiflcapital",
           "serves": [
             1
           ]

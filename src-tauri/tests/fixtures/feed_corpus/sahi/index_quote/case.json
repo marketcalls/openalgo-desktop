@@ -55,6 +55,13 @@
       "reason": "The tick left the price band off (dpr_lower); the web publishes lower_circuit 0.0, as upper_circuit.",
       "ref": "sahi_mapping.py:132",
       "approval": "index-depth"
+    },
+    {
+      "key": "fan-out",
+      "kind": "desktop-decision",
+      "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }

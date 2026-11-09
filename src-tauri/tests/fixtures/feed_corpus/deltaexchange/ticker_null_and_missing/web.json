@@ -14,6 +14,7 @@
       "tick_size": 0.5
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -50,6 +51,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "deltaexchange",
           "serves": [
             2
           ]
@@ -91,6 +93,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "deltaexchange",
           "serves": [
             2
           ]
@@ -132,6 +135,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "deltaexchange",
           "serves": [
             2
           ]

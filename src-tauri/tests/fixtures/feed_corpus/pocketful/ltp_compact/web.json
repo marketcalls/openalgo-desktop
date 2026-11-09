@@ -12,6 +12,7 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -42,6 +43,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "pocketful",
           "serves": [
             1
           ]
@@ -77,6 +79,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "pocketful",
           "serves": [
             1
           ]

@@ -12,6 +12,7 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 2,
@@ -154,6 +155,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "definedge",
           "serves": [
             2
           ]
@@ -163,6 +165,7 @@
           "publication": 1,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "definedge",
           "serves": [
             3
           ]
@@ -172,6 +175,7 @@
           "publication": 1,
           "mode": 2,
           "topic_mode": 3,
+          "broker": "definedge",
           "serves": []
         }
       ]

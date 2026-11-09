@@ -23,6 +23,12 @@
       "tick_size": 0.1
     }
   ],
+  "uncompared": [
+    {
+      "line": 16,
+      "step": "disconnect"
+    }
+  ],
   "pushes": [
     {
       "line": 4,

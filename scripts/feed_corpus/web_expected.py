@@ -49,6 +49,9 @@ from webserver import WebServer  # noqa: E402
 
 CORPUS = HERE.parent.parent / "src-tauri/tests/fixtures/feed_corpus"
 MODES = {"ltp": 1, "quote": 2, "depth": 3}
+# Refused upgrades and a deliberate disconnect have no adapter counterpart
+# in the replay (harness/web.rs `UNMODELLED_STEPS`).
+UNMODELLED_STEPS = ("refuse_upgrades", "disconnect")
 
 
 def web_sha(web: Path, given: str | None) -> str:
@@ -100,6 +103,10 @@ class Replay:
         self.glue = glue
         self.case_dir = case_dir
         self.server = WebServer(glue)
+        # The script's steps the replay has no web behaviour for: named in
+        # web.json and counted by the release gate, so none is taken for
+        # compared.
+        self.uncompared: list[dict] = []
 
     def run(self, script: str, answers: list) -> tuple[list, bytes]:
         """Replay `script` with the fake broker API's first `answers`
@@ -141,6 +148,8 @@ class Replay:
                 if file_bytes is not None:
                     inputs += file_bytes
                 self.glue.serve(step.get("method"), step["path"], body)
+            elif kind in UNMODELLED_STEPS:
+                self.uncompared.append({"line": n, "step": kind})
             published = self.glue.published
             if kind in ("push", "http_serve") or published:
                 point = {"line": n, "published": published, "deliveries": self.server.deliver(published)}
@@ -159,13 +168,16 @@ def compute(case_dir: Path, web: Path, sha: str) -> dict:
     if glue_cls is None:
         raise SystemExit(f"{case_dir}: no glue for {case['broker']} in web_adapters/")
     script = (case_dir / "script.jsonl").read_text(encoding="utf-8")
-    pushes, inputs = Replay(glue_cls(web, case), case_dir).run(script, case.get("http", []))
+    replay = Replay(glue_cls(web, case), case_dir)
+    pushes, inputs = replay.run(script, case.get("http", []))
+    not_made = [{"line": 0, "step": "deep_feed_not_made"}] if case.get("deep_feed_not_made") else []
     return {
         "generated_by": "scripts/feed_corpus/web_expected.py",
         "web_sha": sha,
         "adapter": case["broker"],
         "inputs_sha256": hashlib.sha256(inputs).hexdigest(),
         "instruments": case["instruments"],
+        "uncompared": not_made + replay.uncompared,
         "pushes": pushes,
     }
 
@@ -200,6 +212,10 @@ class Deliveries:
     def __init__(self, point: dict):
         self.point = point
         self.used: set = set()
+        # The last delivery a frame paired with (its envelope is compared).
+        self.last: dict | None = None
+        # Frames the case says the web sends nothing for: (line, client, frame).
+        self.web_false: list = []
 
     def pub(self, d: dict) -> dict:
         return self.point["published"][d["publication"]]
@@ -216,6 +232,7 @@ class Deliveries:
         for i, d in ds:
             if mode in d["serves"] and (i, mode) not in self.used:
                 self.used.add((i, mode))
+                self.last = d
                 return self.pub(d)
         rest = [
             (i, d) for i, d in ds
@@ -225,6 +242,7 @@ class Deliveries:
         if rest:
             i, d = rest[0]
             self.used.add((i, f"fold{mode}"))
+            self.last = d
             return self.pub(d)
         return None
 
@@ -239,6 +257,43 @@ class Deliveries:
             return None
         self.used.add((pick[0], "order"))
         return self.pub(pick[1])
+
+    def close(self) -> list[str]:
+        """What the end of a delivery point finds (harness/deliveries.rs)."""
+        return self.unconsumed() + self.fan_out() + self.not_silent()
+
+    def _touched(self, i: int) -> bool:
+        return any(j == i for j, _ in self.used)
+
+    def fan_out(self) -> list[str]:
+        """The web's fan-out to a lower-mode holder that answers none of
+        its held modes and that no frame paired with: a case declares it
+        (deviation `fan-out`)."""
+        return [
+            f"fan-out: line {self.point['line']}: the web also sends client {d['client']} publication "
+            f"{d['publication']} (topic mode {d['topic_mode']})"
+            for i, d in enumerate(self.point["deliveries"])
+            if not d["serves"] and not self._touched(i)
+        ]
+
+    def not_silent(self) -> list[str]:
+        """A frame marked `"web": false` while the web does send that client
+        a frame for the same instrument (or order id) that nothing paired."""
+        out = []
+        for line, client, frame in self.web_false:
+            for i, d in enumerate(self.point["deliveries"]):
+                if d["client"] != client or self._touched(i):
+                    continue
+                pub = self.pub(d)
+                same = (
+                    pub["frame"].get("orderid") == frame.get("orderid") if "order" in d
+                    else frame.get("type") != "order_update"
+                    and pub.get("symbol") == frame.get("symbol") and pub.get("exchange") == frame.get("exchange")
+                )
+                if same:
+                    out.append(f"web-not-silent: line {line}: marked \"web\": false, but the web sends "
+                               f"client {client} publication {d['publication']} at line {self.point['line']}")
+        return out
 
     def unconsumed(self) -> list[str]:
         """Every frame the web sends a client that answers one of its held
@@ -274,7 +329,7 @@ def diff(case_dir: Path, out: dict) -> list[str]:
         step = json.loads(line)
         if n in points:
             if current is not None:
-                lines += current.unconsumed()
+                lines += current.close()
             current = Deliveries(points[n])
             continue
         if current is None:
@@ -292,6 +347,7 @@ def diff(case_dir: Path, out: dict) -> list[str]:
             frame = json.loads((case_dir / frame).read_text()) if isinstance(frame, str) else frame
             if step.get("web") is False:
                 lines.append(f"frame: line {n}: the web sends nothing")
+                current.web_false.append((n, step.get("client", ""), frame))
                 continue
             client = step.get("client", "")
             if frame.get("type") == "order_update":
@@ -301,6 +357,12 @@ def diff(case_dir: Path, out: dict) -> list[str]:
                 mode = step.get("web_mode", frame.get("mode"))
                 p = current.market(client, frame.get("symbol"), frame.get("exchange"), mode)
                 mine, theirs = frame.get("data", {}), (p["data"] if p else None)
+                if p is not None:
+                    tag = current.last
+                    if frame.get("mode") != tag["mode"]:
+                        lines.append(f"envelope.mode: line {n}: web {tag['mode']}, desktop {frame.get('mode')}")
+                    if frame.get("broker") != tag["broker"]:
+                        lines.append(f"envelope.broker: line {n}: web {tag['broker']}, desktop {frame.get('broker')}")
             if theirs is None:
                 lines.append(f"(line {n}: the web delivers nothing this frame could come from)")
                 continue
@@ -312,7 +374,7 @@ def diff(case_dir: Path, out: dict) -> list[str]:
                 elif w != d:
                     lines.append(f"{k}: line {n}: web {w}, desktop {d}")
     if current is not None:
-        lines += current.unconsumed()
+        lines += current.close()
     return lines
 
 

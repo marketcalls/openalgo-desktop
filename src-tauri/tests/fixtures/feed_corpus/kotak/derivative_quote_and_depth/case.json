@@ -32,5 +32,13 @@
       "Live check (maintainer, market hours): how long a new client waits for its first frame on a quiet instrument."
     ]
   },
-  "deviations": []
+  "deviations": [
+    {
+      "key": "fan-out",
+      "kind": "desktop-decision",
+      "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "one-frame-per-held-mode"
+    }
+  ]
 }

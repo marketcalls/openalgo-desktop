@@ -16,6 +16,7 @@
       "tick_size": 0.0025
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -51,6 +52,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "zerodha",
           "serves": [
             2
           ]

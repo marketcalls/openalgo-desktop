@@ -15,6 +15,7 @@
       "expiry": "25-NOV-26"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 4,
@@ -149,6 +150,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "hdfcsecurities",
           "serves": [
             3
           ]
@@ -158,6 +160,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 3,
+          "broker": "hdfcsecurities",
           "serves": []
         },
         {
@@ -165,6 +168,7 @@
           "publication": 1,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "hdfcsecurities",
           "serves": [
             2
           ]
@@ -299,6 +303,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "hdfcsecurities",
           "serves": [
             3
           ]
@@ -308,6 +313,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 3,
+          "broker": "hdfcsecurities",
           "serves": []
         },
         {
@@ -315,6 +321,7 @@
           "publication": 1,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "hdfcsecurities",
           "serves": [
             2
           ]
@@ -449,6 +456,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "hdfcsecurities",
           "serves": [
             3
           ]
@@ -458,6 +466,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 3,
+          "broker": "hdfcsecurities",
           "serves": []
         },
         {
@@ -465,6 +474,7 @@
           "publication": 1,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "hdfcsecurities",
           "serves": [
             2
           ]

@@ -12,6 +12,7 @@
       "brexchange": "NSECM"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 2,
@@ -491,6 +492,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "jainamxts",
           "serves": [
             3
           ]
@@ -500,6 +502,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "jainamxts",
           "serves": [
             3
           ]
@@ -509,6 +512,7 @@
           "publication": 1,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "jainamxts",
           "serves": [
             3
           ]
@@ -518,6 +522,7 @@
           "publication": 1,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "jainamxts",
           "serves": [
             3
           ]

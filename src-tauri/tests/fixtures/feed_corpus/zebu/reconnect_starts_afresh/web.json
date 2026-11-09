@@ -12,6 +12,7 @@
       "brexchange": "NSE"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 2,
@@ -52,6 +53,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "zebu",
           "serves": [
             2
           ]
@@ -97,6 +99,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "zebu",
           "serves": [
             2
           ]

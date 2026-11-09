@@ -12,6 +12,7 @@
       "brexchange": "NSE_EQ"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -114,6 +115,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "dhan",
           "serves": [
             3
           ]

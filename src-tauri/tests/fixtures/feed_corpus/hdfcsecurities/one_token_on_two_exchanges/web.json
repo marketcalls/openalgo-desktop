@@ -23,6 +23,7 @@
       "tick_size": 0.0025
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 5,
@@ -64,6 +65,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "hdfcsecurities",
           "serves": [
             2
           ]
@@ -110,6 +112,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "hdfcsecurities",
           "serves": [
             2
           ]

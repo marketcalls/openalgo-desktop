@@ -12,6 +12,7 @@
       "brexchange": "NSECM"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 2,
@@ -262,6 +263,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "ibulls",
           "serves": [
             3
           ]
@@ -271,6 +273,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "ibulls",
           "serves": [
             3
           ]

@@ -11,6 +11,7 @@
       "brsymbol": "SBIN"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 1,
@@ -87,6 +88,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 3,
+          "broker": "groww",
           "serves": [
             2
           ]
@@ -96,6 +98,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "groww",
           "serves": [
             3
           ]
@@ -198,6 +201,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "groww",
           "serves": [
             2
           ]
@@ -207,6 +211,7 @@
           "publication": 1,
           "mode": 2,
           "topic_mode": 3,
+          "broker": "groww",
           "serves": []
         },
         {
@@ -214,6 +219,7 @@
           "publication": 1,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "groww",
           "serves": [
             3
           ]

@@ -54,6 +54,13 @@
       "reason": "The event carries no trade time; the web sends ltt 0 (.get('LastTradedTime', 0)), the desktop leaves ltt out (docs: a field the stream does not carry is left out; never a receipt time passed off as a trade time).",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs trade",
       "approval": "leave-out-unsent"
+    },
+    {
+      "key": "fan-out",
+      "kind": "desktop-decision",
+      "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }

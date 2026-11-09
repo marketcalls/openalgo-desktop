@@ -11,6 +11,7 @@
       "brsymbol": "SBIN"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 1,
@@ -56,6 +57,7 @@
           "publication": 0,
           "mode": 1,
           "topic_mode": 1,
+          "broker": "groww",
           "serves": [
             1
           ]

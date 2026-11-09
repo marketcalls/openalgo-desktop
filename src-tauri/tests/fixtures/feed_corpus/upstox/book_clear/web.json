@@ -15,6 +15,7 @@
       "instrumenttype": "FUT"
     }
   ],
+  "uncompared": [],
   "pushes": [
     {
       "line": 3,
@@ -97,6 +98,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "upstox",
           "serves": [
             3
           ]
@@ -184,6 +186,7 @@
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
+          "broker": "upstox",
           "serves": [
             3
           ]

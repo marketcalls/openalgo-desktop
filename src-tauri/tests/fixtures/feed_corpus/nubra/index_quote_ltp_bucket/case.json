@@ -44,6 +44,13 @@
       "reason": "Once the day bucket came the web sends the bucket's close (today's price) as close, ahead of prev_close (ohlcv.get('close', prev_close)); close is the previous day's close, which the desktop keeps sending (the audit's 'Nubra bucket close' note).",
       "ref": "nubra_adapter.py:712",
       "approval": "never-copy-web-defect"
+    },
+    {
+      "key": "fan-out",
+      "kind": "desktop-decision",
+      "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }
