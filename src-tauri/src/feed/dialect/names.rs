@@ -14,9 +14,12 @@
 //! * A key the web sends from some mode up is sent in that mode and every
 //!   mode above it (the web switches some names between Quote and Depth;
 //!   a script then never meets a KeyError on the richer frame).
-//! * A web name of a time follows its adapter's unit, type and format
-//!   (Fyers and Dhan in seconds, Tradejini's IST text); `ltt` and `timestamp`
-//!   are epoch milliseconds whatever the adapter sends under those names.
+//! * A web alias follows its adapter's unit, type and format: seconds for
+//!   Fyers' and Dhan's `last_trade_time`, text for Tradejini's and for the
+//!   raw strings of the Noren family and Definedge. The docs' keys `ltt`
+//!   and `timestamp` are always epoch milliseconds, whatever the adapter
+//!   sends under those names. No key is ever sent as `null`: a value not
+//!   known leaves its key out.
 
 use super::super::source::Mode;
 use super::keys::{Key, Keys, Modes};
@@ -69,12 +72,36 @@ pub(crate) enum Source {
     TradeTime(Unit),
     /// The exchange's trade time as text, `YYYY-MM-DD HH:MM:SS` in IST, only
     /// when the broker sent one (Tradejini's `last_trade_time`: the web
-    /// writes `str(datetime.fromtimestamp(seconds))`).
+    /// writes `str(datetime.fromtimestamp(seconds))`), or in the form the
+    /// packet marks (`NormalizedTick::time_text`: Definedge).
     TradeTimeText,
+    /// The exchange's trade time as the time of day, `HH:MM:SS` in IST, only
+    /// when the broker sent one (the Noren family's `last_trade_time`, the
+    /// broker's `ltt` passed through), or in the form the packet marks.
+    TradeTimeOfDay,
+    /// The exchange's trade time in the text form the packet marks, and only
+    /// when it marks one (`NormalizedTick::time_text`): Definedge's web sends
+    /// `last_trade_time` and `ltt_time` only for a packet whose trade time is
+    /// the depth feed's `ltt` clock (`HH:MM:SS`), none for a feed time `ft`.
+    TradeTimeMarked,
     Extra(Extra),
     /// The book depth the frame streams (Dhan, the Noren family:
-    /// `depth_level`).
+    /// `depth_level`): the levels the book was served at.
     DepthLevels,
+    /// The levels the frame's book holds, its longer side (web Fyers TBT
+    /// `depth_levels`, fyers_tbt_websocket.py:519-530).
+    BookLevels,
+    /// The book packet's own time (web Fyers TBT `feed_time`).
+    BookTime(Unit),
+    /// The broker token less its first ten digits, the exchange's token
+    /// (web Fyers `exchange_token` from the fytoken, fyers_mapping.py:82);
+    /// none for an index (the web sends a placeholder `""`).
+    ExchangeToken,
+    /// The broker's trading symbol (web Fyers TBT, fyers_mapping.py:305).
+    BrokerSymbol,
+    /// The first source on a 50-level Depth frame, the second otherwise
+    /// (web Fyers names its HSM and TBT frames' `token` differently).
+    FiftyOr(&'static Source, &'static Source),
     /// The frame's mode as a number (Groww, Fyers: `subscription_mode`).
     SubscriptionMode,
     /// The web's topic, `<EXCHANGE>_<SYMBOL>_<LTP|QUOTE|DEPTH>` (Groww).
@@ -85,9 +112,6 @@ pub(crate) enum Source {
     PerMode([&'static str; 3]),
     /// The broker's instrument token, as text (`token`).
     Token,
-    /// The frame's `timestamp` in the unit the web name uses (Fyers 50-level
-    /// `feed_time`).
-    Timestamp(Unit),
     /// `true` (Fyers' 50-level frames: `is_50_depth`).
     True,
     /// The inner source, only in a Depth frame streaming 50 levels (Fyers'
@@ -163,6 +187,12 @@ pub(crate) struct Dialect {
     /// After the first book every full tick carries it, either way (lead
     /// decision 2026-11-09).
     pub depth_needs_book: bool,
+    /// Whether `data.mode` is the holder's mode rather than the mode of
+    /// the dict a `Fold::Richer` broker sends lower holders: its web
+    /// adapter publishes per subscription and writes that subscription's
+    /// mode (mStock, Delta Exchange, Jainam XTS), or writes the mode of the
+    /// one subscription it keeps per token (Angel, Pocketful).
+    pub mode_of_holder: bool,
     pub names: &'static [WebName],
 }
 
@@ -235,6 +265,13 @@ impl Dialect {
     const fn depth_needs_book(self) -> Self {
         Self {
             depth_needs_book: true,
+            ..self
+        }
+    }
+
+    const fn mode_of_holder(self) -> Self {
+        Self {
+            mode_of_holder: true,
             ..self
         }
     }
@@ -340,6 +377,8 @@ const ALICEBLUE: &[WebName] = &[
 
 const DEFINEDGE: &[WebName] = &[
     n("ltq", S::LastQuantity, Q),
+    n("last_trade_time", S::TradeTimeMarked, Q),
+    n("ltt_time", S::TradeTimeMarked, D),
     n("change_percent", S::ChangePercent, Q),
     n("percent_change", S::ChangePercent, Q),
     n("prev_oi", S::Extra(E::PreviousOi), Q),
@@ -402,9 +441,16 @@ const NOREN_DEPTH: [WebName; 5] = [
     n("52_week_low", S::Extra(E::Low52Week), D),
 ];
 
-const fn noren(timestamp: &'static str, oi_in_depth: &'static str) -> [WebName; 8] {
+/// The Noren family's names. `last_trade_time` is the broker's `ltt` passed
+/// through, the time of day (from LTP on Shoonya, from Quote on the rest).
+const fn noren(
+    timestamp: &'static str,
+    oi_in_depth: &'static str,
+    trade_time_from: Mode,
+) -> [WebName; 9] {
     [
         n(timestamp, S::Extra(E::ExchangeTime(Unit::Seconds)), L),
+        n("last_trade_time", S::TradeTimeOfDay, trade_time_from),
         n("percent_change", S::ChangePercent, Q),
         NOREN_DEPTH[0],
         NOREN_DEPTH[1],
@@ -416,16 +462,17 @@ const fn noren(timestamp: &'static str, oi_in_depth: &'static str) -> [WebName; 
 }
 
 /// Shoonya publishes OI as `open_interest` in Depth (canonical already).
-const SHOONYA: &[WebName] = &noren("shoonya_timestamp", "open_interest");
+const SHOONYA: &[WebName] = &noren("shoonya_timestamp", "open_interest", L);
 /// Flattrade and Zebu name the total OI `total_traded_value`.
-const FLATTRADE: &[WebName] = &noren("flattrade_timestamp", "total_traded_value");
-const ZEBU: &[WebName] = &noren("zebu_timestamp", "total_traded_value");
+const FLATTRADE: &[WebName] = &noren("flattrade_timestamp", "total_traded_value", Q);
+const ZEBU: &[WebName] = &noren("zebu_timestamp", "total_traded_value", Q);
 /// TradeSmart sends `oi` in Quote too (canonical).
-const TRADESMART: &[WebName] = &noren("tradesmart_timestamp", "oi");
+const TRADESMART: &[WebName] = &noren("tradesmart_timestamp", "oi", Q);
 
 /// Fyers sends its symbol feed's whole dict to LTP and Quote holders.
 const FYERS: &[WebName] = &[
-    n("token", S::Token, L),
+    // HSM frames: the exchange token; TBT 50-level frames: the ticker.
+    n("token", S::FiftyOr(&S::BrokerSymbol, &S::ExchangeToken), L),
     n("open", S::Open, L),
     n("high", S::High, L),
     n("low", S::Low, L),
@@ -455,8 +502,8 @@ const FYERS: &[WebName] = &[
     // `fyers_mapping.py` `map_to_openalgo_50_depth`: the TBT book's keys.
     n("total_buy_qty", S::FiftyLevels(&S::TotalBuyQuantity), D),
     n("total_sell_qty", S::FiftyLevels(&S::TotalSellQuantity), D),
-    n("feed_time", S::FiftyLevels(&S::Timestamp(Unit::Seconds)), D),
-    n("depth_levels", S::FiftyLevels(&S::DepthLevels), D),
+    n("feed_time", S::FiftyLevels(&S::BookTime(Unit::Seconds)), D),
+    n("depth_levels", S::FiftyLevels(&S::BookLevels), D),
     n("is_50_depth", S::FiftyLevels(&S::True), D),
 ];
 
@@ -614,6 +661,7 @@ const fn d(data_mode: DataMode, names: &'static [WebName]) -> Dialect {
         fold: Fold::PerMode,
         book_time: false,
         depth_needs_book: false,
+        mode_of_holder: false,
         names,
     }
 }
@@ -628,8 +676,10 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "sahi" => d(Label, SAHI).open_interest().index_book(),
         "iiflcapital" => d(Label, IIFLCAPITAL).open_interest(),
         "nubra" => d(Label, NUBRA).no_ltt(),
+        // angel_adapter.py:716-736: `mode` is the token's subscription's.
         "angel" => d(Number, ANGEL)
             .richer()
+            .mode_of_holder()
             .floats(&["total_buy_quantity", "total_sell_quantity"]),
         "arrow" => d(Absent, ARROW_HDFC).open_interest().richer(),
         "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest().no_index_change(),
@@ -643,11 +693,15 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "kotak" => d(Absent, KOTAK).no_index_change().index_book(),
         "upstox" => d(Absent, UPSTOX).book_time(),
         "fyers" => d(Absent, FYERS).no_ltt(),
-        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "jainamxts" | "rmoney" | "wisdom" => {
+        // These name `mode` after the packet's MessageCode; Jainam publishes
+        // once per subscribed mode with that mode (jainamxts_adapter.py:709-725).
+        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "rmoney" | "wisdom" => {
             d(Number, XTS).richer()
         }
+        "jainamxts" => d(Number, XTS).richer().mode_of_holder(),
         "definedge" => d(Number, DEFINEDGE).depth_needs_book(),
-        "deltaexchange" => d(Number, DELTA).no_ltt().richer(),
+        // delta_adapter.py:470-484: one dict per subscription, with its mode.
+        "deltaexchange" => d(Number, DELTA).no_ltt().richer().mode_of_holder(),
         "dhan" => d(Number, DHAN).richer(),
         "firstock" => d(Number, FIRSTOCK).no_index_change(),
         "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book(),
@@ -659,12 +713,22 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "groww" => d(Number, GROWW).floats(&["ltt", "volume"]),
         "indmoney" => d(Number, INDMONEY).richer().no_index_change(),
         "motilal" => d(Number, MOTILAL).no_ltt(),
-        "mstock" => d(Number, MSTOCK).richer(),
+        // mstock_adapter.py:186-202: one dict per subscription, with its
+        // mode; :362-375: the fixed packet carries an index's order flow too.
+        "mstock" => d(Number, MSTOCK)
+            .richer()
+            .mode_of_holder()
+            .index_key(Key::LastQuantity, Modes::QUOTE_UP)
+            .index_key(Key::AveragePrice, Modes::QUOTE_UP)
+            .index_key(Key::TotalBuyQuantity, Modes::QUOTE_UP)
+            .index_key(Key::TotalSellQuantity, Modes::QUOTE_UP),
         "paytm" => d(Number, PAYTM)
             .richer()
             .instrument_key(Key::LastQuantity, Modes::DEPTH),
+        // pocketful_adapter.py:565-600: `mode` is the token's subscription's.
         "pocketful" => d(Number, POCKETFUL)
             .richer()
+            .mode_of_holder()
             .no_index_change()
             .instrument_key(Key::LastQuantity, Modes::NEVER),
         "samco" => d(Number, SAMCO).no_index_change(),

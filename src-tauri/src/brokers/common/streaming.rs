@@ -46,10 +46,14 @@
 //!   book). The exchange time belongs to its packet alone and is never
 //!   kept.
 //! * **Gone:** `t.mark_cleared(QuoteField::TotalBuyQuantity)` drops a quote
-//!   field from what the bridge keeps (`mark_absent` keeps it).
+//!   field from what the bridge keeps (`mark_absent` keeps it);
+//!   `t.book_absent = true` sends a full packet's Depth frame without a book
+//!   (the last book is not shown for it, and is kept).
 //! * **Number form:** `t.numbers.set(Number::Ltp, NumberForm::Integer)` (a
 //!   whole value as an integer, as 5paisa's JSON sends it) or
-//!   `NumberForm::Double` (Jainam's 1105 text event), for this packet.
+//!   `NumberForm::Double` (Jainam's 1105 text event), for this packet;
+//!   `t.time_text = Some(TimeText::TimeOfDay)` for the text form of its trade
+//!   time (Definedge passes `HH:MM:SS` or epoch seconds through).
 //! * **Broker-only fields** ([`BrokerField`]): `t.broker_fields.set(
 //!   BrokerField::IndicativeEquilibriumPrice, BrokerValue::Float(v))`. The
 //!   set of keys is fixed in `fields.rs`, so a broker field can never
@@ -81,7 +85,7 @@ pub use fields::{
     AbsentFields, BrokerField, BrokerFields, BrokerValue, ClearedExtras, ExtraField, QuoteExtras,
     QuoteField,
 };
-pub use numbers::{Number, NumberForm, NumberForms};
+pub use numbers::{Number, NumberForm, NumberForms, TimeText};
 
 /// Longest a feed waits for a required login acknowledgement
 /// (`BrokerFeed::auth_ack_deadline`).
@@ -202,6 +206,17 @@ pub struct NormalizedTick {
     /// and the broker's names alike.
     #[serde(skip)]
     pub numbers: NumberForms,
+    /// The text form of this packet's trade time where the broker's web
+    /// adapter passes the broker's text through (`numbers.rs`); it stays
+    /// with the trade time.
+    #[serde(skip)]
+    pub time_text: Option<TimeText>,
+    /// A full packet that says it has no book (HDFC's empty depth list,
+    /// which proto3 cannot tell from a cleared book): its Depth frame goes
+    /// out without `depth` rather than with the last book, which stays for
+    /// the next packet that carries one.
+    #[serde(skip)]
+    pub book_absent: bool,
     /// What this packet says is gone (`mark_cleared`).
     #[serde(skip_serializing_if = "AbsentFields::is_empty")]
     pub cleared: AbsentFields,
@@ -286,6 +301,10 @@ pub struct NormalizedDepth {
     /// (`Orders`), its own LTP (`Ltp`).
     #[serde(skip_serializing_if = "AbsentFields::is_empty")]
     pub absent: AbsentFields,
+    /// The book packet's own feed time, epoch ms, where the broker sends one
+    /// (Fyers TBT `feed_time`, fyers_tbt_websocket.py:511).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feed_time_ms: Option<i64>,
 }
 
 /// A normalised order update (web `order_update` event fields).

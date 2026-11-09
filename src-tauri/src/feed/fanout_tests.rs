@@ -129,11 +129,15 @@ impl Feed {
     }
 
     fn client(&mut self, id: u64, key: &InstrumentKey, modes: &[Mode]) {
+        self.client_at(id, key, modes, 5);
+    }
+
+    fn client_at(&mut self, id: u64, key: &InstrumentKey, modes: &[Mode], depth: u8) {
         let o = Arc::new(Outbox::new(64, 64));
         self.registry.add_client(id, o.clone());
         self.registry.set_identity(id, "u", self.broker);
         for m in modes {
-            assert!(self.registry.subscribe(id, key, *m, 5).is_ok());
+            assert!(self.registry.subscribe(id, key, *m, depth).is_ok());
         }
         self.outboxes.insert(id, o);
     }
@@ -348,5 +352,68 @@ async fn a_one_dict_broker_sends_lower_holders_the_whole_packet() {
             .map(Vec::len),
         Some(5)
     );
+    feed.bridge.stop().await;
+}
+
+/// A Depth 5 and a Depth 20 holder of one Dhan symbol while its 20 levels
+/// stream from the depth socket: through the registry's fan-out each
+/// client's frames carry books at its own depth only, never the main
+/// feed's 5 levels in between for the 20 holder (web defect: the web sends
+/// every Depth publish of a symbol to every Depth client).
+#[tokio::test]
+async fn a_5_and_a_20_holder_each_get_books_at_their_own_depth() {
+    use super::source::{DepthBook, DepthLevel, MarketUpdate};
+    let mut feed = Feed::new("dhan");
+    let key = InstrumentKey::new("RELIANCE", "NSE");
+    feed.client_at(1, &key, &[Mode::Depth], 5);
+    feed.client_at(2, &key, &[Mode::Depth], 20);
+    let book = |n: usize, levels: u8| DepthBook {
+        buy: vec![
+            DepthLevel {
+                price: 1167.6,
+                quantity: 1,
+                orders: Some(1)
+            };
+            n
+        ],
+        sell: vec![
+            DepthLevel {
+                price: 1167.8,
+                quantity: 1,
+                orders: Some(1)
+            };
+            n
+        ],
+        levels: Some(levels),
+        time_ms: None,
+    };
+    let main = MarketUpdate {
+        mode: Mode::Depth,
+        quote: Some(Default::default()),
+        depth: Some(book(5, 5)),
+        exact_mode: true,
+        deep_live: Some(20),
+        deep_book: Some(book(20, 20)),
+        ..MarketUpdate::ltp(key.clone(), 1167.7, 1_791_000_000_000)
+    };
+    let deep = MarketUpdate {
+        depth: None,
+        ..main.clone()
+    };
+    let tick = MarketUpdate {
+        exact_mode: false,
+        ..main.clone()
+    };
+    let side = |f: &Value| f["data"]["depth"]["buy"].as_array().map(Vec::len);
+    let (mut five, mut twenty) = (Vec::new(), Vec::new());
+    for u in [&main, &deep, &main, &tick] {
+        // Drained after each update: an outbox keeps the latest frame per
+        // instrument and mode while the client is behind.
+        feed.registry.dispatch(u);
+        five.extend(feed.frames(1).await.iter().map(side));
+        twenty.extend(feed.frames(2).await.iter().map(side));
+    }
+    assert_eq!(five, [Some(5), Some(5), Some(5)]);
+    assert_eq!(twenty, [Some(20), Some(20)]);
     feed.bridge.stop().await;
 }

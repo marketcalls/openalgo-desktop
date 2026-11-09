@@ -179,6 +179,7 @@ impl Snapshot {
             // Upstox's book levels carry no order count (web
             // `upstox_adapter.py`: levels are price and quantity).
             absent: AbsentFields::of(&[QuoteField::Orders]),
+            feed_time_ms: None,
         };
         vec![FeedEvent::Tick(t), FeedEvent::Depth(depth)]
     }

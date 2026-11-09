@@ -414,6 +414,7 @@ fn a_full_tick_after_a_book_carries_that_book() {
     assert!(!crate::feed::protocol::reaches(
         &first,
         Mode::Depth,
+        5,
         "definedge"
     ));
     let book = depth_update(
@@ -422,7 +423,13 @@ fn a_full_tick_after_a_book_carries_that_book() {
         Some(map[&key].tick()),
         map[&key].book_lacks(),
     );
-    keep_book(&mut map, &key, LastBook::of(&book).expect("a book"), 1);
+    keep_book(
+        &mut map,
+        &key,
+        LastBook::of(&book).expect("a book"),
+        1,
+        false,
+    );
 
     let mut next = full_tick("SBIN", "NSE");
     next.ltp = 1168.0;
@@ -430,7 +437,12 @@ fn a_full_tick_after_a_book_carries_that_book() {
     let u = snapshot_update(key.clone(), &s).expect("a price");
     assert_eq!(u.ltp, 1168.0, "the tick's price, not the book's");
     assert_eq!(u.depth.as_ref().map(|b| b.buy[0].price), Some(1167.6));
-    assert!(crate::feed::protocol::reaches(&u, Mode::Depth, "definedge"));
+    assert!(crate::feed::protocol::reaches(
+        &u,
+        Mode::Depth,
+        5,
+        "definedge"
+    ));
     let mut quote = next.clone();
     quote.mode = 2;
     let q = snapshot_update(key.clone(), &merge(Some(&s), &quote, 1)).expect("a price");
@@ -443,8 +455,31 @@ fn a_full_tick_after_a_book_carries_that_book() {
         "a new connection"
     );
 
+    // A full packet that says it has no book (HDFC's empty depth list): no
+    // book in its frame, and the last book back with the next packet.
+    let mut bookless = next.clone();
+    bookless.book_absent = true;
+    let s_none = merge(Some(&s), &bookless, 1);
+    let none = snapshot_update(key.clone(), &s_none).expect("a price");
+    assert!(
+        none.depth.is_none() && none.deep_book.is_none(),
+        "never the old book"
+    );
+    let again = snapshot_update(key.clone(), &merge(Some(&s_none), &next, 1)).expect("a price");
+    assert_eq!(
+        again.depth.as_ref().map(|b| b.buy[0].price),
+        Some(1167.6),
+        "kept"
+    );
+
     let mut early = HashMap::new();
-    keep_book(&mut early, &key, LastBook::of(&book).expect("a book"), 1);
+    keep_book(
+        &mut early,
+        &key,
+        LastBook::of(&book).expect("a book"),
+        1,
+        false,
+    );
     let s = merge(early.get(&key), &next, 1);
     assert!(
         snapshot_update(key, &s).and_then(|u| u.depth).is_some(),

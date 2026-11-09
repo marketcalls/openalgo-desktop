@@ -11,7 +11,7 @@
 //! Production wires the broker streaming manager through `feed::bridge`;
 //! tests use [`FakeSource`].
 
-use crate::brokers::common::streaming::{BrokerFields, NumberForms, QuoteExtras};
+use crate::brokers::common::streaming::{BrokerFields, NumberForms, QuoteExtras, TimeText};
 use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
@@ -127,6 +127,15 @@ pub struct DepthLevel {
 pub struct DepthBook {
     pub buy: Vec<DepthLevel>,
     pub sell: Vec<DepthLevel>,
+    /// The levels the book was streamed at, where the broker has a deeper
+    /// socket beside its main feed: that socket's (Dhan 20, Fyers 50), or
+    /// the main feed's when the book came from there, a subscription at
+    /// the deep levels having fallen back (audit P-10). `None`: the
+    /// holder's depth.
+    pub levels: Option<u8>,
+    /// The book packet's own time, epoch ms, where the broker sends one
+    /// (Fyers TBT `feed_time`).
+    pub time_ms: Option<i64>,
 }
 
 /// The quote fields an update knows, each `None` when the broker's stream
@@ -159,6 +168,8 @@ pub struct QuoteFields {
     pub broker_fields: BrokerFields,
     /// The number forms the packet marked (`NormalizedTick::numbers`).
     pub numbers: NumberForms,
+    /// The text form of the trade time (`NormalizedTick::time_text`).
+    pub time_text: Option<TimeText>,
 }
 
 /// A normalized update from the broker feed.
@@ -184,6 +195,17 @@ pub struct MarketUpdate {
     /// The broker's instrument token, from the symbol master (the web's
     /// Arrow, HDFC, Rupeezy, Upstox and Fyers adapters send it as `token`).
     pub token: Option<Arc<str>>,
+    /// The broker's trading symbol, from the symbol master (web Fyers names
+    /// a TBT book by it, `NSE:SBIN-EQ`).
+    pub broker_symbol: Option<Arc<str>>,
+    /// The deeper socket's levels while the instrument's subscription at
+    /// them streams from that socket (Dhan 20, Fyers 50): a holder at that
+    /// depth then gets only `deep_book`, never the main feed's shallower
+    /// book in between (`protocol::book_for`).
+    pub deep_live: Option<u8>,
+    /// The instrument's book from the deeper socket, for holders at its
+    /// levels.
+    pub deep_book: Option<DepthBook>,
 }
 
 impl MarketUpdate {
@@ -199,6 +221,9 @@ impl MarketUpdate {
             depth: None,
             exact_mode: false,
             token: None,
+            broker_symbol: None,
+            deep_live: None,
+            deep_book: None,
         }
     }
 }

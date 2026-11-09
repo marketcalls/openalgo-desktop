@@ -36,6 +36,7 @@ fn quote_fields(key: &InstrumentKey, t: &NormalizedTick, known: AbsentFields) ->
         extras: t.extras,
         broker_fields: t.broker_fields.clone(),
         numbers: t.numbers,
+        time_text: t.time_text,
     }
 }
 
@@ -75,6 +76,9 @@ pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> Option<Mark
         depth: None,
         exact_mode: false,
         token: None,
+        broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     })
 }
 
@@ -85,7 +89,8 @@ pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> Option<Mark
 /// without one (`tick_update`).
 pub(in crate::feed) fn snapshot_update(key: InstrumentKey, s: &Snapshot) -> Option<MarketUpdate> {
     let mut u = tick_update(key, s.tick())?;
-    if u.mode != Mode::Depth {
+    // A packet that says it has no book shows none, the last one not either.
+    if u.mode != Mode::Depth || s.tick().book_absent {
         return Some(u);
     }
     if let Some(last) = s.book() {
@@ -95,6 +100,7 @@ pub(in crate::feed) fn snapshot_update(key: InstrumentKey, s: &Snapshot) -> Opti
         }
         u.depth = Some(last.book.clone());
     }
+    u.deep_book = s.deep_book().map(|last| last.book.clone());
     Some(u)
 }
 
@@ -154,9 +160,14 @@ pub(crate) fn depth_update(
         depth: Some(DepthBook {
             buy: side(&d.buy),
             sell: side(&d.sell),
+            levels: None,
+            time_ms: d.feed_time_ms,
         }),
         exact_mode: true,
         token: None,
+        broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     }
 }
 

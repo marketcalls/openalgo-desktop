@@ -37,6 +37,21 @@ a cleared book side) is sent.
   `timestamp`; the web leaves `ltp` out too).
 - A book without totals takes the tick's; a book without order counts
   (Upstox) sends levels without `orders`.
+- A Depth holder gets only books at its own depth. While a Dhan 20 or
+  Fyers 50 subscription streams from the broker's deeper socket, its
+  holders get that socket's books (and every tick with the last of them),
+  never the main feed's 5 levels in between; a holder at 5 gets the main
+  feed's books. After a fallback the deep holder gets the main feed's book.
+  Web defect: the web's listener (`server.py` around 2102) sends every
+  Depth publish of a symbol to every Depth client, so a Dhan 20 client
+  there sees its book alternate between 20 and 5 levels, and a 5 client
+  receives 20-level books uncut (`protocol::book_for`, `reaches`; test
+  `fanout_tests::a_5_and_a_20_holder_each_get_books_at_their_own_depth`).
+- A frame names the levels its book was served at: Dhan's `depth_level`
+  says 5 once a 20-level subscription fell back to the main feed (web
+  dhan_adapter.py:930, 1042), and Fyers sends no 50-level keys then
+  (`DepthBook::levels`, set by the bridge for a broker with a deeper
+  socket).
 - A book goes out level for level as the adapter carries it: a broker's
   fixed empty slots (price 0, quantity 0: the Zerodha golden fixtures carry
   five a side) are kept, and nothing pads a short book. The levels an
@@ -93,7 +108,17 @@ as the web's `server.py` sends them):
 - `data.mode`: `"ltp"` / `"quote"` / `"full"` (Zerodha, Sahi, IIFL Capital,
   Nubra), 1 / 2 / 3 (most), or no key (AliceBlue, Arrow, both HDFC, Kotak,
   Rupeezy, Upstox, Fyers). The app's own pages read the envelope's `mode`,
-  not this one.
+  not this one. In a lower holder's frame from a one-dict broker it is the
+  dict's own mode where the web adapter writes the packet's (Paytm, Dhan,
+  IndMoney, the XTS adapters but Jainam), and the holder's where it writes
+  the subscription's (`mode_of_holder`: mStock, Delta Exchange and Jainam
+  publish once per subscription; Angel and Pocketful write the mode of the
+  one subscription they keep per token, which on the web is the latest or
+  first subscribed when a token is held in several modes).
+- An index's order-flow fields (`last_quantity`, `average_price`, the book
+  totals) go out only where the broker's keys put them on an index
+  (mStock's fixed packet, `index_key(.., QUOTE_UP)`), under the canonical
+  and the broker's names alike; elsewhere an index has none.
 - `data.symbol`, `data.exchange` and `data.timestamp`: AliceBlue's dicts
   carry no symbol or exchange, and a timestamp in Depth only.
 - `open_interest` beside `oi` only where the adapter sends both (Zerodha,
@@ -132,25 +157,39 @@ Deliberate differences, each a web defect or a desktop rule:
 - A key whose value is not known is left out, where the web sends a default
   (`.get(x, 0)`) or a placeholder (Delta Exchange's `average_price` and
   `oi_change`, always 0).
-- The docs' keys `ltt` and `timestamp` are epoch milliseconds for every
-  broker; the web's mixed or raw units under those names (Zerodha's `ltt`
-  in seconds on full packets, XTS's raw `LastTradedTime`, Paytm's and IIFL
-  Capital's seconds, Tradejini's text `ltt`) are not copied. A broker's own
-  name of a time follows its adapter's unit, type and format (since 1.0.6:
-  Fyers' and Dhan's `last_trade_time` in seconds; Tradejini's text
-  `last_trade_time`, `YYYY-MM-DD HH:MM:SS` as Python's
-  `str(datetime.fromtimestamp(seconds))` writes it, in IST,
-  `Source::TradeTimeText`, only when the broker sent a trade time). The web
-  writes the host's local time; the desktop keeps IST everywhere, so the
-  text differs only on a web host not set to IST.
+- Times: a web alias follows its adapter's unit, type and format, while
+  the docs' keys `ltt` and `timestamp` are always epoch milliseconds, and
+  no key is ever sent as `null` (a value not known leaves its key out).
+  - Aliases: seconds for Fyers' and Dhan's `last_trade_time` (since 1.0.6);
+    text for Tradejini's `last_trade_time` (`YYYY-MM-DD HH:MM:SS` as
+    Python's `str(datetime.fromtimestamp(seconds))` writes it, in IST,
+    `Source::TradeTimeText`, only when the broker sent a trade time) and
+    for the raw strings the Noren family and Definedge pass through: the
+    Noren family's `last_trade_time` is the time of day, `HH:MM:SS` in IST
+    (`Source::TradeTimeOfDay`; from LTP on Shoonya, from Quote on Flattrade,
+    Zebu and TradeSmart), and a packet marks the form its broker sent when
+    it varies (`NormalizedTick::time_text`: Definedge's `ltt` is sometimes
+    the time of day, sometimes epoch seconds as a string). The web writes
+    the host's local time; the desktop keeps IST everywhere, so the text
+    differs only on a web host not set to IST.
+  - `ltt` and `timestamp`: the web's mixed or raw units under those names
+    (Zerodha's `ltt` in seconds on full packets, XTS's raw
+    `LastTradedTime`, Paytm's and IIFL Capital's seconds, Tradejini's text
+    `ltt`) are not copied.
 - A web key that holds a wrong value is not copied with that value: Pocketful
   publishes the average price as Depth's `ltp`, Zerodha web reads OI from the
   wrong offset; the desktop decoders keep the right values.
-- `token` (Arrow, both HDFC, Rupeezy, Upstox, Fyers) is the instrument's
-  broker token from the symbol master, as text.
+- `token` (Arrow, both HDFC, Rupeezy, Upstox) is the instrument's broker
+  token from the symbol master, as text. Fyers names its frames as its web
+  adapter does: the exchange's token (the fytoken less its first ten
+  digits, `Source::ExchangeToken`, fyers_mapping.py:82) on HSM frames and
+  the ticker (`NSE:SBIN-EQ`, the master's `brsymbol`) on TBT 50-level
+  frames; an index has no `token` (the web's `""` placeholder).
 - Fyers' `update_type` (`BrokerField::UpdateType`, text) and its 50-level
-  frame's `total_buy_qty`, `total_sell_qty`, `feed_time`, `depth_levels`,
-  `is_50_depth` (`Source::FiftyLevels`, on 50-level Depth frames only), and
+  frame's `total_buy_qty`, `total_sell_qty`, `feed_time` (the TBT
+  packet's own feed time, seconds), `depth_levels` (the levels the book
+  holds, its longer side, fyers_tbt_websocket.py:519-530), `is_50_depth`
+  (`Source::FiftyLevels`, on frames whose book was served at 50 levels), and
   the `timestamp` Upstox puts inside `depth` (`Dialect::book_time`), are
   carried since 1.0.7.
 
@@ -224,7 +263,10 @@ fix the Zerodha shape):
     with the tick's quote and the last book (`bridge::snapshot::LastBook`,
     `render::snapshot_update`; the Samco ruling). A web adapter that
     freezes Depth holders then is a web defect. A new broker connection
-    forgets the book.
+    forgets the book. A full packet that says it has no book
+    (`NormalizedTick::book_absent`: HDFC's empty depth list, which proto3
+    cannot tell from a cleared book) goes out without `depth`, never with
+    the old book, which stays for the next packet that carries one.
 - **One frame per mode the client holds, for each update**
   (`feed::registry::dispatch`): a Depth update reaches a client's Depth,
   Quote and LTP holdings, a Quote update its Quote and LTP holdings, an LTP

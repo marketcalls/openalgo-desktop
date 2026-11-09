@@ -3,6 +3,7 @@
 //! on every exchange where the broker's web adapter sends one (C04).
 
 use super::market_data;
+use crate::brokers::common::streaming::TimeText;
 use crate::brokers::common::streaming::{
     BrokerField, BrokerValue, Number, NumberForm, QuoteExtras,
 };
@@ -43,9 +44,13 @@ fn update(key: InstrumentKey) -> MarketUpdate {
         depth: Some(DepthBook {
             buy: vec![level; 5],
             sell: vec![level; 5],
+            ..Default::default()
         }),
         exact_mode: false,
         token: None,
+        broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     }
 }
 
@@ -700,6 +705,88 @@ fn a_lower_holder_gets_the_packet_as_the_brokers_web_adapter_sends_it() {
     assert!(render(&u, Mode::Quote, "zerodha").get("depth").is_none());
 }
 
+/// No key is ever sent as `null`, for any broker, mode or instrument, with
+/// every field known or none: a value not known leaves its key out.
+#[test]
+fn no_key_is_ever_null() {
+    let mut sparse = update(equity());
+    sparse.quote = Some(QuoteFields::default());
+    sparse.ltt = None;
+    for u in [update(equity()), update(index()), sparse] {
+        for broker in BROKERS {
+            for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
+                let d = render(&u, mode, broker);
+                let nulls: Vec<_> = d
+                    .as_object()
+                    .map(|o| {
+                        o.iter()
+                            .filter(|(_, v)| v.is_null())
+                            .map(|(k, _)| k.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                assert!(nulls.is_empty(), "{} {:?}: {:?}", broker, mode, nulls);
+            }
+        }
+    }
+}
+
+/// `data.mode` of a lower holder's frame from a one-dict broker: the dict's
+/// own mode where the web adapter writes the packet's (Paytm, Dhan, the XTS
+/// adapters but Jainam), the holder's where it writes each subscription's
+/// (mStock, Delta Exchange, Jainam XTS, Angel, Pocketful).
+#[test]
+fn data_mode_is_the_packets_or_the_holders_as_each_web_adapter_writes_it() {
+    let u = update(equity());
+    for broker in ["paytm", "dhan", "compositedge", "rmoney"] {
+        assert_eq!(render(&u, Mode::Ltp, broker)["mode"], 3, "{}", broker);
+    }
+    for broker in ["mstock", "deltaexchange", "jainamxts", "angel", "pocketful"] {
+        let d = render(&u, Mode::Ltp, broker);
+        assert_eq!(d["mode"], 1, "{}", broker);
+        assert_eq!(render(&u, Mode::Quote, broker)["mode"], 2, "{}", broker);
+        assert_eq!(render(&u, Mode::Depth, broker)["mode"], 3, "{}", broker);
+        assert!(
+            d.get("volume").is_some(),
+            "still the whole packet: {}",
+            broker
+        );
+    }
+}
+
+/// An index's order flow goes out where the broker's web adapter sends it
+/// (mStock's fixed packet, under its canonical and web names alike) and
+/// nowhere else; a field the packet did not carry is still left out.
+#[test]
+fn an_index_carries_order_flow_where_its_web_adapter_sends_it() {
+    let u = update(index());
+    let m = render(&u, Mode::Quote, "mstock");
+    assert_eq!(m["last_quantity"], 7);
+    assert_eq!(m["last_trade_quantity"], 7);
+    assert_eq!(m["average_price"], 100.75);
+    assert_eq!(m["total_buy_quantity"], 300);
+    assert_eq!(m["total_sell_quantity"], 400);
+    let z = render(&u, Mode::Quote, "zerodha");
+    for k in [
+        "last_quantity",
+        "average_price",
+        "total_buy_quantity",
+        "total_sell_quantity",
+    ] {
+        assert!(z.get(k).is_none(), "{}: {}", k, z);
+    }
+    assert!(data_at(index(), Mode::Ltp, "mstock")
+        .get("last_trade_quantity")
+        .is_none());
+    let mut sparse = update(index());
+    if let Some(q) = sparse.quote.as_mut() {
+        q.average_price = None;
+    }
+    assert!(render(&sparse, Mode::Quote, "mstock")
+        .get("average_price")
+        .is_none());
+}
+
 /// A key goes out as a double where the broker's web form writes one: by
 /// the broker's list, for canonical keys and its own names alike (Groww's
 /// LTP `volume`), or for one packet (Jainam's 1105 text event, `ltq`).
@@ -760,14 +847,18 @@ fn book_meta_keys_follow_the_broker() {
         q.broker_fields
             .set(BrokerField::UpdateType, BrokerValue::Text("live"));
     }
+    if let Some(b) = u.depth.as_mut() {
+        b.time_ms = Some(1_791_000_000_000);
+    }
     let fifty: Value = serde_json::from_str(&market_data(&u, Mode::Depth, 50, "fyers")).unwrap();
     let d = &fifty["data"];
     assert_eq!(
         (d["is_50_depth"].as_bool(), d["depth_levels"].as_u64()),
-        (Some(true), Some(50))
+        (Some(true), Some(5)),
+        "the levels the book holds"
     );
     assert_eq!(d["total_buy_qty"], 300);
-    assert_eq!(d["feed_time"], 1_791_000_000);
+    assert_eq!(d["feed_time"], 1_791_000_000, "the book packet's own time");
     assert_eq!(d["update_type"], "live");
     let five = render(&u, Mode::Depth, "fyers");
     assert!(five.get("is_50_depth").is_none() && five.get("total_buy_qty").is_none());
@@ -776,6 +867,123 @@ fn book_meta_keys_follow_the_broker() {
     assert!(render(&u, Mode::Depth, "zerodha")["depth"]
         .get("timestamp")
         .is_none());
+}
+
+/// The levels a frame names are those its book was served at: Dhan's
+/// `depth_level` says 5, and Fyers sends no 50-level keys, once a deep
+/// subscription fell back to the main feed (audit P-10; web Dhan
+/// dhan_adapter.py:930, 1042).
+#[test]
+fn a_fallen_back_book_names_the_levels_it_was_served_at() {
+    let data = |u: &MarketUpdate, depth, broker| -> Value {
+        let v: Value = serde_json::from_str(&market_data(u, Mode::Depth, depth, broker)).unwrap();
+        v["data"].clone()
+    };
+    let levels = |u: &mut MarketUpdate, l| {
+        if let Some(b) = u.depth.as_mut() {
+            b.levels = l;
+        }
+    };
+    let mut u = update(equity());
+    assert_eq!(data(&u, 20, "dhan")["depth_level"], 20, "no deep socket");
+    levels(&mut u, Some(20));
+    assert_eq!(data(&u, 20, "dhan")["depth_level"], 20, "the deep book");
+    assert_eq!(data(&u, 5, "dhan")["depth_level"], 5, "a holder at 5");
+    levels(&mut u, Some(5));
+    assert_eq!(data(&u, 20, "dhan")["depth_level"], 5, "fallen back");
+    assert!(data(&u, 50, "fyers").get("is_50_depth").is_none());
+    levels(&mut u, Some(50));
+    assert_eq!(data(&u, 50, "fyers")["is_50_depth"], true);
+}
+
+/// A Depth 5 and a Depth 20 holder of one Dhan symbol while its 20 levels
+/// stream from the depth socket: each gets only books at its own depth,
+/// the 20 holder never the main feed's 5 levels in between (web defect:
+/// the web sends every Depth publish of a symbol to every Depth client);
+/// after the fallback the 20 holder gets the main feed's book, named 5.
+#[test]
+fn each_depth_holder_gets_only_books_at_its_own_depth() {
+    use super::reaches;
+    let book = |n: usize, levels: u8| DepthBook {
+        buy: vec![
+            DepthLevel {
+                price: 101.0,
+                quantity: 1,
+                orders: Some(1)
+            };
+            n
+        ],
+        sell: vec![
+            DepthLevel {
+                price: 101.5,
+                quantity: 1,
+                orders: Some(1)
+            };
+            n
+        ],
+        levels: Some(levels),
+        time_ms: None,
+    };
+    let frame = |u: &MarketUpdate, depth: u8| -> Option<Value> {
+        reaches(u, Mode::Depth, depth, "dhan").then(|| {
+            let v: Value =
+                serde_json::from_str(&market_data(u, Mode::Depth, depth, "dhan")).unwrap();
+            v["data"].clone()
+        })
+    };
+    let side = |d: &Value| d["depth"]["buy"].as_array().map(Vec::len);
+    let mut main = update(equity());
+    main.exact_mode = true;
+    main.depth = Some(book(5, 5));
+    main.deep_live = Some(20);
+    main.deep_book = Some(book(20, 20));
+    let five = frame(&main, 5).expect("a 5 holder hears the main book");
+    assert_eq!(
+        (side(&five), five["depth_level"].as_u64()),
+        (Some(5), Some(5))
+    );
+    assert!(frame(&main, 20).is_none(), "never the 5 levels in between");
+
+    let mut deep = main.clone();
+    deep.depth = None;
+    let twenty = frame(&deep, 20).expect("the 20 holder hears its book");
+    assert_eq!(
+        (side(&twenty), twenty["depth_level"].as_u64()),
+        (Some(20), Some(20))
+    );
+    assert!(frame(&deep, 5).is_none(), "the 5 holder has its own book");
+
+    let mut tick = main.clone();
+    tick.exact_mode = false;
+    assert_eq!(frame(&tick, 5).as_ref().and_then(side), Some(5));
+    assert_eq!(frame(&tick, 20).as_ref().and_then(side), Some(20));
+
+    let mut fell_back = main.clone();
+    fell_back.deep_live = None;
+    let twenty = frame(&fell_back, 20).expect("after the fallback, the main book");
+    assert_eq!(
+        (side(&twenty), twenty["depth_level"].as_u64()),
+        (Some(5), Some(5))
+    );
+}
+
+/// Fyers' `token` is the exchange's token (the fytoken less its first ten
+/// digits) on HSM frames and the ticker on TBT 50-level frames, and none on
+/// an index (the web's `""` placeholder, declared by the Fyers lane).
+#[test]
+fn fyers_names_its_frames_by_the_token_the_web_uses() {
+    let mut u = update(equity());
+    u.token = Some(std::sync::Arc::from("10100000003045"));
+    u.broker_symbol = Some(std::sync::Arc::from("NSE:SBIN-EQ"));
+    for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
+        assert_eq!(render(&u, mode, "fyers")["token"], "3045", "{:?}", mode);
+    }
+    let fifty: Value = serde_json::from_str(&market_data(&u, Mode::Depth, 50, "fyers")).unwrap();
+    assert_eq!(fifty["data"]["token"], "NSE:SBIN-EQ");
+    assert_eq!(render(&u, Mode::Quote, "upstox")["token"], "10100000003045");
+    let mut i = update(index());
+    i.token = u.token.clone();
+    assert!(render(&i, Mode::Quote, "fyers").get("token").is_none());
 }
 
 /// Tradejini's Quote and Depth frames carry `last_trade_time` as that
@@ -803,7 +1011,7 @@ fn tradejini_names_the_trade_time_as_text() {
 fn a_trade_time_goes_out_as_ist_text() {
     // 1791000000 s is 2026-10-03 04:00:00 UTC, 09:30:00 IST.
     assert_eq!(
-        super::time_text(1_791_000_000_250),
+        super::time_text(1_791_000_000_250, TimeText::DateTime),
         Some(Value::from("2026-10-03 09:30:00"))
     );
     let mut u = update(equity());
@@ -832,6 +1040,90 @@ fn a_trade_time_goes_out_as_ist_text() {
         super::value(crate::feed::dialect::Source::TradeTimeText, &frame),
         None
     );
+}
+
+/// A trade time as the time of day (the Noren family's `last_trade_time`),
+/// and in the text form a packet marks (Definedge passes `HH:MM:SS` or
+/// epoch seconds through), only when the broker sent a trade time.
+#[test]
+fn a_trade_time_goes_out_in_the_text_form_of_its_packet() {
+    use crate::feed::dialect::Source;
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.trade_time = Some(1_791_000_000_000);
+    }
+    let q = u.quote.clone().unwrap_or_default();
+    let frame = super::Frame {
+        update: &u,
+        q: &q,
+        mode: Mode::Quote,
+        content: Mode::Quote,
+        depth: 5,
+        broker: "shoonya",
+    };
+    let at = |source, frame: &super::Frame<'_>| super::value(source, frame);
+    assert_eq!(
+        at(Source::TradeTimeOfDay, &frame),
+        Some(Value::from("09:30:00"))
+    );
+    let mut marked = q.clone();
+    marked.time_text = Some(TimeText::EpochSeconds);
+    let f = super::Frame {
+        q: &marked,
+        ..frame
+    };
+    assert_eq!(
+        at(Source::TradeTimeText, &f),
+        Some(Value::from("1791000000"))
+    );
+    assert_eq!(
+        at(Source::TradeTimeOfDay, &f),
+        Some(Value::from("1791000000"))
+    );
+    marked.time_text = Some(TimeText::TimeOfDay);
+    let f = super::Frame {
+        q: &marked,
+        ..frame
+    };
+    assert_eq!(at(Source::TradeTimeText, &f), Some(Value::from("09:30:00")));
+    let mut unsent = q.clone();
+    unsent.trade_time = None;
+    let f = super::Frame {
+        q: &unsent,
+        ..frame
+    };
+    assert_eq!(at(Source::TradeTimeOfDay, &f), None);
+}
+
+/// Definedge's `last_trade_time` (Quote up) and `ltt_time` (Depth) go only
+/// with a packet that marked its trade time's text form (the depth feed's
+/// `ltt` clock); a packet whose trade time is the feed time sends neither.
+#[test]
+fn definedge_names_a_trade_time_only_from_its_clock() {
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.trade_time = Some(1_791_000_000_000);
+    }
+    for mode in [Mode::Quote, Mode::Depth] {
+        let d = render(&u, mode, "definedge");
+        assert!(
+            d.get("last_trade_time").is_none() && d.get("ltt_time").is_none(),
+            "{}",
+            d
+        );
+    }
+    if let Some(q) = u.quote.as_mut() {
+        q.time_text = Some(TimeText::TimeOfDay);
+    }
+    let quote = render(&u, Mode::Quote, "definedge");
+    assert_eq!(quote["last_trade_time"], "09:30:00");
+    assert!(quote.get("ltt_time").is_none(), "Depth only");
+    let depth = render(&u, Mode::Depth, "definedge");
+    assert_eq!(depth["last_trade_time"], "09:30:00");
+    assert_eq!(depth["ltt_time"], "09:30:00");
+    assert!(data_at(equity(), Mode::Ltp, "definedge")
+        .get("last_trade_time")
+        .is_none());
 }
 
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,
