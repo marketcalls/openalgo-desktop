@@ -29,7 +29,7 @@ fn feeds(env: &Env) -> Feeds {
     // api key ::: client code ::: access token, fake values.
     let auth = AuthToken::new("key:::c:::t");
     let feeds = Feeds::boxed(broker.create_feed(&auth).expect("5paisa's market feed"))
-        .with_broker(broker.clone());
+        .with_broker(broker.clone(), &auth);
     if !env.orders() {
         return feeds;
     }

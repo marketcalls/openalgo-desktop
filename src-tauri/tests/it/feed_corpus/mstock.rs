@@ -6,6 +6,7 @@
 use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::mstock::streaming::MstockFeed;
 use openalgo_desktop_lib::brokers::mstock::MstockBroker;
+use openalgo_desktop_lib::brokers::types::AuthToken;
 use std::sync::Arc;
 
 fn feeds(env: &Env) -> Feeds {
@@ -15,7 +16,8 @@ fn feeds(env: &Env) -> Feeds {
         env.http_url(),
         env.url("main"),
     );
-    Feeds::market(MstockFeed::new(&env.url("main"), "jwt", "key")).with_broker(Arc::new(broker))
+    Feeds::market(MstockFeed::new(&env.url("main"), "jwt", "key"))
+        .with_broker(Arc::new(broker), &AuthToken::new("jwt"))
 }
 
 corpus_cases!(

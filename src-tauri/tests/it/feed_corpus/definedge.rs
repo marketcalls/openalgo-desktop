@@ -5,6 +5,7 @@
 use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::definedge::streaming::{DefinedgeFeed, DefinedgeOrderFeed};
 use openalgo_desktop_lib::brokers::definedge::{DefinedgeBroker, Endpoints};
+use openalgo_desktop_lib::brokers::types::AuthToken;
 use std::sync::Arc;
 
 fn feeds(env: &Env) -> Feeds {
@@ -29,7 +30,7 @@ fn feeds(env: &Env) -> Feeds {
             "t",
             env.symbols(),
         ))
-        .with_broker(Arc::new(broker))
+        .with_broker(Arc::new(broker), &AuthToken::new("t"))
 }
 
 corpus_cases!(

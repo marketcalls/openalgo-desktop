@@ -23,7 +23,7 @@ fn feeds(env: &Env) -> Feeds {
                 .create_order_feed(&auth)
                 .expect("Motilal's order socket"),
         )
-        .with_broker(broker)
+        .with_broker(broker, &auth)
 }
 
 corpus_cases!(

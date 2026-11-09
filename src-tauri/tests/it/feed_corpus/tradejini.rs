@@ -21,10 +21,11 @@ fn feeds(env: &Env) -> Feeds {
         env.http_url(),
         format!("{}/v2.1/stream", env.url("main")),
     ));
+    let auth = AuthToken::new("key:tok");
     let feed = broker
-        .create_feed(&AuthToken::new("key:tok"))
+        .create_feed(&auth)
         .expect("Tradejini's market data feed");
-    Feeds::boxed(feed).with_broker(broker)
+    Feeds::boxed(feed).with_broker(broker, &auth)
 }
 
 corpus_cases!(
