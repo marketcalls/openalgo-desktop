@@ -39,22 +39,10 @@
       "approved": true
     },
     {
-      "key": "upper_circuit",
+      "key": "mode",
       "kind": "open",
-      "reason": "With Depth open on the instrument the web's Quote topic carries the full packet's dict, its circuit limits included (mstock_adapter.py:186-210, 425-426); the desktop's Depth frame now carries them, its Quote frame cut from the same full packet does not. Lead decision (C08): lower-mode frames of a one-dict broker carry the richer packet's keys as the web sends them; lane wire's step 2 (the one-dict fold) brings it.",
-      "ref": "audit C08; decisions 2026-11-09 02:40"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "With Depth open on the instrument the web's Quote topic carries the full packet's dict, its circuit limits included (mstock_adapter.py:186-210, 425-426); the desktop's Depth frame now carries them, its Quote frame cut from the same full packet does not. Lead decision (C08): lower-mode frames of a one-dict broker carry the richer packet's keys as the web sends them; lane wire's step 2 (the one-dict fold) brings it.",
-      "ref": "audit C08; decisions 2026-11-09 02:40"
-    },
-    {
-      "key": "depth",
-      "kind": "open",
-      "reason": "With Depth open on the instrument mStock sends full packets, and the web's Quote topic carries the full packet's normalised dict, its book included (mstock_adapter.py:186-210, normalised by the packet's own mode). Lead decision (C08): lower-mode frames of a one-dict broker carry the richer packet's keys as the web sends them; lane wire's step 2 (the one-dict fold) brings it.",
-      "ref": "audit C08; decisions 2026-11-09 02:40"
+      "reason": "A Quote frame cut from a full packet carries the whole packet's dict, book and circuits included, as the web's one-dict publish does (Fold::Richer). The web writes the holder's subscription mode into that dict (mstock_adapter.py:198-203, market_data.update({'mode': mode}) per subscription), so its Quote topic says 2; the desktop's renderer writes the dict's own mode, 3. A dialect switch for the holder's mode is lane wire's (asked of the lead 2026-11-09).",
+      "ref": "audit C08; feed/protocol/market.rs canonical (data.mode = content)"
     }
   ]
 }
