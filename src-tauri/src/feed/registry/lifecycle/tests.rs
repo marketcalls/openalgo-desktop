@@ -237,12 +237,13 @@ fn an_owner_joining_during_a_release_keeps_the_key() {
     let src = FakeSource::new([reliance()]);
     let r = registry(&src, &[7, 8]);
     subscribe(&r, 7, &reliance(), Mode::Quote, 5).unwrap();
-    let Release::Waiting(release) = r.begin_unsubscribe(7, &reliance(), Mode::Quote) else {
+    let Release::Waiting { answer, ticket } = r.begin_unsubscribe(7, &reliance(), Mode::Quote)
+    else {
         panic!("the last owner waits for the source")
     };
     assert_eq!(subscribe(&r, 8, &reliance(), Mode::Quote, 5), Ok(()));
-    let outcome = release.now_or_never().expect("answered");
-    r.finish_unsubscribe(7, &reliance(), Mode::Quote, &outcome);
+    let outcome = answer.now_or_never().expect("answered");
+    r.finish_unsubscribe(7, &reliance(), Mode::Quote, ticket, &outcome);
     assert_eq!(outcome, Ok(()));
     assert_eq!(holds(&r), 1);
     assert_eq!(src.active(), vec![(reliance(), Mode::Quote, 5)]);
