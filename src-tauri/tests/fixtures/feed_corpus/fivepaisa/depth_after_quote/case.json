@@ -29,12 +29,5 @@
       "FEED and DEPTH are the web test's frames; DEPTH5 is DEPTH with five levels a side and new totals, DEPTH_EMPTY with no levels and zero totals (worked here)."
     ]
   },
-  "deviations": [
-    {
-      "key": "open",
-      "kind": "open",
-      "reason": "The 5paisa web adapter passes 5paisa's JSON number on as it came, so a whole price (the web test's OpenRate 445) goes out as an integer (445) where the desktop sends a float (445.0). Same value, another JSON type: follows the web adapter in Phase B through lane wire's per-broker number types (5paisa: a price keeps the type of the frame's value).",
-      "ref": "fivepaisa_adapter.py:_quote_fields (feed.get(\"OpenRate\", 0)); feed/dialect.rs (lane wire)"
-    }
-  ]
+  "deviations": []
 }

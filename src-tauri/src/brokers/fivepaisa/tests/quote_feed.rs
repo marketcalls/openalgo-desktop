@@ -108,7 +108,7 @@ fn a_depth_frame_carries_the_latest_quote_fields() {
     assert_eq!(d["volume"], 1200, "{}", d);
     assert_eq!(
         (&d["open"], &d["high"], &d["low"], &d["close"]),
-        (&json!(445.0), &json!(447.2), &json!(439.5), &json!(442.9)),
+        (&json!(445), &json!(447.2), &json!(439.5), &json!(442.9)),
         "{}",
         d
     );
@@ -466,4 +466,23 @@ fn a_book_has_the_levels_5paisa_sent() {
         cleared
     );
     assert_eq!(cleared["ltp"], 440.1, "{}", cleared);
+}
+
+/// The web passes 5paisa's JSON numbers on as they came: the web test's
+/// `"OpenRate": 445` goes out as 445, a price with a fraction as a double,
+/// and a held price keeps the form 5paisa first wrote it in.
+#[test]
+fn a_whole_price_goes_out_as_5paisa_wrote_it() {
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let mut frames = Frames::new("fivepaisa");
+    let d = frames
+        .at(&send(&mut f, feed_frame()), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert!(d["open"].is_i64() && d["open"] == 445, "{}", d);
+    assert!(d["high"].is_f64() && d["bid_price"].is_f64(), "{}", d);
+    let held = with(feed_frame(), json!({"OpenRate": 0, "High": 448}));
+    let d = frames.at(&send(&mut f, held), Mode::Quote).pop().unwrap();
+    assert!(d["open"].is_i64() && d["open"] == 445, "held: {}", d);
+    assert!(d["high"].is_i64() && d["high"] == 448, "{}", d);
 }

@@ -35,7 +35,7 @@
 use super::mapping::{ms_date_epoch, num, text};
 use crate::brokers::common::streaming::{
     now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
+    NormalizedDepth, NormalizedTick, Number, NumberForm, QuoteField, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -245,7 +245,30 @@ fn quote_tick(sub: &SubInfo, m: &Value) -> NormalizedTick {
     t.extras.bid_quantity = quantity_of(m, "BidQty");
     t.extras.ask_price = price_of(m, "OffRate");
     t.extras.ask_quantity = quantity_of(m, "OffQty");
+    mark_whole_prices(&mut t, m);
     t
+}
+
+/// The web passes 5paisa's JSON numbers on as they came, so a price 5paisa
+/// writes as a whole number (`"OpenRate": 445`) goes out as an integer and
+/// one with a fraction as a double; a held price keeps the form it came in.
+fn mark_whole_prices(t: &mut NormalizedTick, m: &Value) {
+    const PRICES: [(&str, Number); 9] = [
+        ("LastRate", Number::Ltp),
+        ("OpenRate", Number::Open),
+        ("High", Number::High),
+        ("Low", Number::Low),
+        ("PClose", Number::Close),
+        ("AvgRate", Number::AveragePrice),
+        ("BidRate", Number::BidPrice),
+        ("OffRate", Number::AskPrice),
+        ("ChgPcnt", Number::ChangePercent),
+    ];
+    for (key, number) in PRICES {
+        if m.get(key).is_some_and(|v| v.is_i64() || v.is_u64()) {
+            t.numbers.set(number, NumberForm::Integer);
+        }
+    }
 }
 
 /// A price the frame (its prices already held) carries: none for a missing
@@ -343,8 +366,9 @@ impl FivepaisaFeed {
                 if let Some(prev) = snap.get(*f) {
                     merged.insert((*f).to_string(), prev.clone());
                 }
-            } else {
-                snap.insert((*f).to_string(), json!(v));
+            } else if let Some(sent) = frame.get(*f) {
+                // As 5paisa wrote it, so a held price keeps its JSON form.
+                snap.insert((*f).to_string(), sent.clone());
             }
         }
         Value::Object(merged)
