@@ -1,0 +1,37 @@
+{
+  "broker": "paytm",
+  "summary": "A Quote subscription: a QUOTE packet with no trade time (0) gives a Quote frame without ltt.",
+  "scenarios": [
+    "absent-field",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_quote_packet",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "A trade time of 0 is no trade yet: the frame has no `ltt` (lead decision 2026-11-09, review round: never the receipt time); the web sends `ltt: 0`."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). A trade time of 0 is no trade yet; the web passes the 0 on as ltt, the desktop leaves ltt out and never puts the receipt time in its place (lead decision 2026-11-09, review round).",
+      "ref": "paytm_adapter.py:709",
+      "approval": "leave-out-unsent"
+    }
+  ]
+}

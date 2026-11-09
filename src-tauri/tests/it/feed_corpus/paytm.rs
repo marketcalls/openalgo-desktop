@@ -36,5 +36,7 @@ corpus_cases!(
         future_quote_then_depth,
         reconnect_replays,
         depth_20_refused_by_the_web,
+        quote_cut_short,
+        quote_untimed_packet,
     ]
 );

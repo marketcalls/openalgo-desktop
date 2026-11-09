@@ -55,5 +55,6 @@ corpus_cases!(
         reconnect_forgets_oi,
         order_lifecycle,
         order_token_on_two_exchanges,
+        quote_untimed_packet,
     ]
 );

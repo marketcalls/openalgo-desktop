@@ -1,0 +1,21 @@
+# Paytm Money binary frame: one QUOTE packet for RELIANCE with no trade time (0).
+# -- QUOTE (67 bytes)
+3e                      # packet code 62
+9a81bb44                # ltp 1500.05
+00000000                # last trade time 0: no trade yet
+450b0000                # security id 2885
+01                      # tradable
+02                      # mode
+19000000                # last traded quantity 25
+0058bb44                # average price 1498.75
+15bf3400                # volume 3456789
+c0d40100                # total buy quantity 120000
+d07e0100                # total sell quantity 98000
+0090ba44                # open 1492.5
+9a09ba44                # previous close 1488.3
+66c6bc44                # high 1510.2
+33a3b944                # low 1485.1
+713d4a3f                # change percent 0.79
+00003c41                # change 11.75
+661ec944                # 52-week high 1608.95
+00309644                # 52-week low 1201.5

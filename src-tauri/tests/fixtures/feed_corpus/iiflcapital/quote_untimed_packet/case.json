@@ -1,0 +1,51 @@
+{
+  "broker": "iiflcapital",
+  "summary": "A Quote subscription: a market-feed packet with no trade time (0) gives a Quote frame without ltt.",
+  "scenarios": [
+    "absent-field",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSEEQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::IiflCapitalWebSocket._parse_market_feed",
+      "broker/iiflcapital/streaming/iiflcapital_adapter.py::IiflCapitalWebSocketAdapter._handle_ticks"
+    ],
+    "notes": [
+      "A trade time of 0 is no trade yet: the frame has no `ltt` (lead decision 2026-11-09, review round: never the receipt time); the web sends `ltt: 0`."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). A trade time of 0 is no trade yet; the web passes the 0 on as ltt, the desktop leaves ltt out and never puts the receipt time in its place (lead decision 2026-11-09, review round).",
+      "ref": "iiflcapital_websocket.py:171, 188; iiflcapital_adapter.py:386",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
+      "approval": "never-copy-web-defect"
+    },
+    {
+      "key": "ask",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
+      "approval": "never-copy-web-defect"
+    }
+  ]
+}

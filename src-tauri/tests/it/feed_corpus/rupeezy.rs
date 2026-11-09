@@ -33,5 +33,6 @@ corpus_cases!(
         index_quote,
         future_ltp_and_depth,
         reconnect_replays,
+        quote_cut_and_unknown_packets,
     ]
 );

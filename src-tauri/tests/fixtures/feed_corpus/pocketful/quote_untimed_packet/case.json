@@ -1,0 +1,40 @@
+{
+  "broker": "pocketful",
+  "summary": "A Quote subscription: a detailed packet with no trade time (0) gives a Quote frame without ltt.",
+  "scenarios": [
+    "absent-field",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/api/packet_decoder.py::decodeDetailedMarketData",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_detailed_data"
+    ],
+    "notes": [
+      "A trade time of 0 is no trade yet: the frame has no `ltt` (lead decision 2026-11-09, review round: never the receipt time); the web sends `ltt: 0`."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). A trade time of 0 is no trade yet; the web passes the 0 on as ltt, the desktop leaves ltt out and never puts the receipt time in its place (lead decision 2026-11-09, review round).",
+      "ref": "pocketful_adapter.py:583",
+      "approval": "leave-out-unsent"
+    }
+  ]
+}

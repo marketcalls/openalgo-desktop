@@ -35,6 +35,7 @@ corpus_cases!(
         reconnect_replays,
         two_clients_ltp_and_quote,
         snapquote_average_beside_a_trade_price,
+        quote_untimed_packet,
         order_packets,
     ]
 );
