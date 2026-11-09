@@ -4,8 +4,8 @@
 //! every deviation of every case is sound, so the parity matrix that
 //! counts them can be trusted.
 
-use super::harness::{corpus_root, deviation_problems, read_json, Case};
-use super::BROKERS;
+use super::harness::{corpus_root, deviation_problems, read_json, registry_problems, Case};
+use super::{BROKERS, WITHOUT_BROKER};
 use std::collections::BTreeSet;
 
 fn folders(dir: &std::path::Path) -> BTreeSet<String> {
@@ -100,4 +100,50 @@ fn an_unsound_deviation_is_named() {
         );
     }
     assert_eq!(found.len(), want.len(), "{:?}", found);
+}
+
+/// Every rule a deviation may name says who decided it, when, where it is
+/// written, and quotes it; an approval names one of them and never sits on
+/// an open gap.
+#[test]
+fn approvals_name_complete_rules() {
+    let problems = registry_problems();
+    assert!(
+        problems.is_empty(),
+        "approvals.json:\n  {}",
+        problems.join("\n  ")
+    );
+    let devs = serde_json::json!([
+        {"key": "ltt", "kind": "web-defect", "reason": "seconds", "approval": "alias-unit"},
+        {"key": "oi", "kind": "web-defect", "reason": "zero", "approval": "made-up"},
+        {"key": "ltp", "kind": "open", "reason": "to fix", "approval": "alias-unit"}
+    ]);
+    let found = deviation_problems(Some(&devs));
+    assert_eq!(found.len(), 2, "{:?}", found);
+    assert!(
+        found[0].contains("approval \"made-up\" is no rule"),
+        "{:?}",
+        found
+    );
+    assert!(
+        found[1].contains("an open gap is never approved"),
+        "{:?}",
+        found
+    );
+}
+
+/// The modules still running without their broker are brokers of the
+/// corpus, each listed once.
+#[test]
+fn the_without_broker_list_names_corpus_brokers() {
+    let brokers: BTreeSet<&str> = BROKERS.iter().map(|(b, _)| *b).collect();
+    let mut seen = BTreeSet::new();
+    for b in WITHOUT_BROKER {
+        assert!(
+            brokers.contains(b),
+            "WITHOUT_BROKER names {}, no corpus broker",
+            b
+        );
+        assert!(seen.insert(b), "WITHOUT_BROKER lists {} twice", b);
+    }
 }
