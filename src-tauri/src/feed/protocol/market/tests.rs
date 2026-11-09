@@ -3,6 +3,7 @@
 //! on every exchange where the broker's web adapter sends one (C04).
 
 use super::market_data;
+use crate::brokers::common::streaming::TimeText;
 use crate::brokers::common::streaming::{
     BrokerField, BrokerValue, Number, NumberForm, QuoteExtras,
 };
@@ -695,6 +696,88 @@ fn a_lower_holder_gets_the_packet_as_the_brokers_web_adapter_sends_it() {
     assert!(render(&u, Mode::Quote, "zerodha").get("depth").is_none());
 }
 
+/// No key is ever sent as `null`, for any broker, mode or instrument, with
+/// every field known or none: a value not known leaves its key out.
+#[test]
+fn no_key_is_ever_null() {
+    let mut sparse = update(equity());
+    sparse.quote = Some(QuoteFields::default());
+    sparse.ltt = None;
+    for u in [update(equity()), update(index()), sparse] {
+        for broker in BROKERS {
+            for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
+                let d = render(&u, mode, broker);
+                let nulls: Vec<_> = d
+                    .as_object()
+                    .map(|o| {
+                        o.iter()
+                            .filter(|(_, v)| v.is_null())
+                            .map(|(k, _)| k.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                assert!(nulls.is_empty(), "{} {:?}: {:?}", broker, mode, nulls);
+            }
+        }
+    }
+}
+
+/// `data.mode` of a lower holder's frame from a one-dict broker: the dict's
+/// own mode where the web adapter writes the packet's (Paytm, Dhan, the XTS
+/// adapters but Jainam), the holder's where it writes each subscription's
+/// (mStock, Delta Exchange, Jainam XTS, Angel, Pocketful).
+#[test]
+fn data_mode_is_the_packets_or_the_holders_as_each_web_adapter_writes_it() {
+    let u = update(equity());
+    for broker in ["paytm", "dhan", "compositedge", "rmoney"] {
+        assert_eq!(render(&u, Mode::Ltp, broker)["mode"], 3, "{}", broker);
+    }
+    for broker in ["mstock", "deltaexchange", "jainamxts", "angel", "pocketful"] {
+        let d = render(&u, Mode::Ltp, broker);
+        assert_eq!(d["mode"], 1, "{}", broker);
+        assert_eq!(render(&u, Mode::Quote, broker)["mode"], 2, "{}", broker);
+        assert_eq!(render(&u, Mode::Depth, broker)["mode"], 3, "{}", broker);
+        assert!(
+            d.get("volume").is_some(),
+            "still the whole packet: {}",
+            broker
+        );
+    }
+}
+
+/// An index's order flow goes out where the broker's web adapter sends it
+/// (mStock's fixed packet, under its canonical and web names alike) and
+/// nowhere else; a field the packet did not carry is still left out.
+#[test]
+fn an_index_carries_order_flow_where_its_web_adapter_sends_it() {
+    let u = update(index());
+    let m = render(&u, Mode::Quote, "mstock");
+    assert_eq!(m["last_quantity"], 7);
+    assert_eq!(m["last_trade_quantity"], 7);
+    assert_eq!(m["average_price"], 100.75);
+    assert_eq!(m["total_buy_quantity"], 300);
+    assert_eq!(m["total_sell_quantity"], 400);
+    let z = render(&u, Mode::Quote, "zerodha");
+    for k in [
+        "last_quantity",
+        "average_price",
+        "total_buy_quantity",
+        "total_sell_quantity",
+    ] {
+        assert!(z.get(k).is_none(), "{}: {}", k, z);
+    }
+    assert!(data_at(index(), Mode::Ltp, "mstock")
+        .get("last_trade_quantity")
+        .is_none());
+    let mut sparse = update(index());
+    if let Some(q) = sparse.quote.as_mut() {
+        q.average_price = None;
+    }
+    assert!(render(&sparse, Mode::Quote, "mstock")
+        .get("average_price")
+        .is_none());
+}
+
 /// A key goes out as a double where the broker's web form writes one: by
 /// the broker's list, for canonical keys and its own names alike (Groww's
 /// LTP `volume`), or for one packet (Jainam's 1105 text event, `ltq`).
@@ -798,7 +881,7 @@ fn tradejini_names_the_trade_time_as_text() {
 fn a_trade_time_goes_out_as_ist_text() {
     // 1791000000 s is 2026-10-03 04:00:00 UTC, 09:30:00 IST.
     assert_eq!(
-        super::time_text(1_791_000_000_250),
+        super::time_text(1_791_000_000_250, TimeText::DateTime),
         Some(Value::from("2026-10-03 09:30:00"))
     );
     let mut u = update(equity());
@@ -827,6 +910,59 @@ fn a_trade_time_goes_out_as_ist_text() {
         super::value(crate::feed::dialect::Source::TradeTimeText, &frame),
         None
     );
+}
+
+/// A trade time as the time of day (the Noren family's `last_trade_time`),
+/// and in the text form a packet marks (Definedge passes `HH:MM:SS` or
+/// epoch seconds through), only when the broker sent a trade time.
+#[test]
+fn a_trade_time_goes_out_in_the_text_form_of_its_packet() {
+    use crate::feed::dialect::Source;
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.trade_time = Some(1_791_000_000_000);
+    }
+    let q = u.quote.clone().unwrap_or_default();
+    let frame = super::Frame {
+        update: &u,
+        q: &q,
+        mode: Mode::Quote,
+        content: Mode::Quote,
+        depth: 5,
+        broker: "shoonya",
+    };
+    let at = |source, frame: &super::Frame<'_>| super::value(source, frame);
+    assert_eq!(
+        at(Source::TradeTimeOfDay, &frame),
+        Some(Value::from("09:30:00"))
+    );
+    let mut marked = q.clone();
+    marked.time_text = Some(TimeText::EpochSeconds);
+    let f = super::Frame {
+        q: &marked,
+        ..frame
+    };
+    assert_eq!(
+        at(Source::TradeTimeText, &f),
+        Some(Value::from("1791000000"))
+    );
+    assert_eq!(
+        at(Source::TradeTimeOfDay, &f),
+        Some(Value::from("1791000000"))
+    );
+    marked.time_text = Some(TimeText::TimeOfDay);
+    let f = super::Frame {
+        q: &marked,
+        ..frame
+    };
+    assert_eq!(at(Source::TradeTimeText, &f), Some(Value::from("09:30:00")));
+    let mut unsent = q.clone();
+    unsent.trade_time = None;
+    let f = super::Frame {
+        q: &unsent,
+        ..frame
+    };
+    assert_eq!(at(Source::TradeTimeOfDay, &f), None);
 }
 
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,

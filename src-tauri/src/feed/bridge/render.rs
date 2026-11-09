@@ -36,6 +36,7 @@ fn quote_fields(key: &InstrumentKey, t: &NormalizedTick, known: AbsentFields) ->
         extras: t.extras,
         broker_fields: t.broker_fields.clone(),
         numbers: t.numbers,
+        time_text: t.time_text,
     }
 }
 
