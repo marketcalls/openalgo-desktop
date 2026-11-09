@@ -25,6 +25,7 @@ corpus_cases!(
         future_quote_oi,
         reconnect_replays,
         two_clients_ltp_and_quote,
+        snapquote_average_beside_a_trade_price,
         order_packets,
     ]
 );

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "pocketful",
-  "inputs_sha256": "b7235583955970df5672af9f3238753db0b088fab2ae9b652a12b84f2f9cbf18",
+  "inputs_sha256": "22b94dded9d30a2f3a6e894ef9fb3946878deaa12d5a95c36075adab5ab80b83",
   "instruments": [
     {
       "symbol": "RELIANCE",

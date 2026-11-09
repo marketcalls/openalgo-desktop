@@ -1008,3 +1008,65 @@ async fn data_calls_never_queue_ahead_of_an_order() {
         .unwrap_err();
     assert_eq!(e.client_message(), BUSY_MESSAGE);
 }
+
+/// R107-07: a snapquote has no trade price (`packet_decoder.py:83-137`).
+/// Its average trade price goes out as the average, never as `ltp`: the
+/// tick does not know a price (so it only updates the snapshot) and the
+/// book brings none, so a Depth frame shows the last real trade price.
+#[test]
+fn a_snapquote_average_is_not_a_trade_price() {
+    use crate::brokers::common::streaming::QuoteField;
+    let mut f = PocketfulFeed::new("wss://x", "c", "t", master());
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", "NSE", FeedMode::Depth)]);
+    let ev = f.parse(&Message::Binary(snapquote_packet(1, 3045)));
+    match &ev[..] {
+        [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
+            assert_eq!(t.mode, 3, "the packet's own mode");
+            assert!(!t.knows(QuoteField::Ltp), "no trade price: {:?}", t);
+            assert_eq!(t.ltp, 0.0);
+            assert!(t.knows(QuoteField::AveragePrice));
+            assert_eq!(t.average_price, 811.5);
+            assert_eq!((t.open, t.close, t.volume), (800.0, 805.0, 3_333_333));
+            assert!(d.absent.contains(QuoteField::Ltp), "{:?}", d);
+            assert_eq!(d.ltp, 0.0);
+            assert_eq!(d.buy[0].price, 812.0);
+        }
+        other => panic!("{:?}", other),
+    }
+}
+
+/// R107-07, lead decision 2026-11-09: a Depth subscription also runs the
+/// detailed stream, whose packets carry the trade price a snapquote lacks;
+/// both go when Depth goes.
+#[test]
+fn a_depth_subscription_streams_the_trade_price_beside_the_book() {
+    let mut f = PocketfulFeed::new("wss://x", "c", "t", master());
+    let texts = |frames: Vec<Message>| -> Vec<Value> {
+        frames
+            .iter()
+            .map(|m| match m {
+                Message::Text(t) => json(t),
+                other => panic!("{:?}", other),
+            })
+            .collect()
+    };
+    let frames = f.subscribe_frames(&[
+        sub("SBIN", "NSE", "3045", "NSE", FeedMode::Depth),
+        sub("INFY", "NSE", "1594", "NSE", FeedMode::Quote),
+    ]);
+    assert_eq!(
+        texts(frames),
+        vec![
+            json!({"a":"subscribe","v":[[1,3045],[1,1594]],"m":"marketdata"}),
+            json!({"a":"subscribe","v":[[1,3045]],"m":"full_snapquote"}),
+        ]
+    );
+    let un = f.unsubscribe_frames(&[sub("SBIN", "NSE", "3045", "NSE", FeedMode::Depth)]);
+    assert_eq!(
+        texts(un),
+        vec![
+            json!({"a":"unsubscribe","v":[[1,3045]],"m":"marketdata"}),
+            json!({"a":"unsubscribe","v":[[1,3045]],"m":"full_snapquote"}),
+        ]
+    );
+}
