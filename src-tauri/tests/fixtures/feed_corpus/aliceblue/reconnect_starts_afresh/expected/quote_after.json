@@ -6,7 +6,6 @@
   "broker": "aliceblue",
   "data": {
     "ltp": 1297.0,
-    "ltt": "<receipt_ms>",
     "volume": 4570000,
     "last_quantity": 20,
     "average_price": 1292.33,

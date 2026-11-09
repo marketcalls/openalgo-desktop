@@ -1,6 +1,6 @@
 {
   "broker": "firstock",
-  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first tick after the reconnect has no trade time, and the frame does not take the last connection's (it falls back to the receipt time).",
+  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first tick after the reconnect has no trade time, and the frame leaves ltt out rather than take the last connection's or pass a receipt time off as one. The next tick with a time brings ltt back, and a partial tick after it keeps that time.",
   "scenarios": [
     "reconnect",
     "first-full-packet",
@@ -24,20 +24,21 @@
       "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._resubscribe_all"
     ],
     "notes": [
-      "Partial updates overlay within a connection only: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. The desktop drops its snapshots on a new connection; the web's Firstock adapter keeps its own (declared)."
+      "Partial updates overlay within a connection only: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. The desktop drops its snapshots on a new connection; the web's Firstock adapter keeps its own (declared).",
+      "Lead ruling (round 3 review): on a partial-update feed, no trade time yet in this connection means ltt is left out; a receipt time is never passed off as a trade time."
     ]
   },
   "deviations": [
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "The web's Firstock snapshot survives the reconnect, so the first tick of the new connection, which has no i_last_trade_time, goes out with the last connection's trade time: a value from before the outage presented as current. The desktop starts each connection afresh and falls back to the receipt time.",
+      "reason": "The web's Firstock snapshot survives the reconnect, so the first tick of the new connection, which has no i_last_trade_time, goes out with the last connection's trade time: a value from before the outage presented as current. The desktop starts each connection afresh and, with no trade time yet on it, leaves ltt out rather than pass a receipt time off as one.",
       "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0)); market_snapshots kept across a reconnect",
-      "approval": "merge-restart-on-reconnect",
+      "approval": "do-not-invent-data",
       "allows": [
         [
           1794302700,
-          "<receipt_ms>"
+          "<absent>"
         ]
       ]
     },
@@ -48,6 +49,10 @@
         [
           1794302700,
           1794302700000
+        ],
+        [
+          1794302765,
+          1794302765000
         ]
       ],
       "kind": "web-defect",

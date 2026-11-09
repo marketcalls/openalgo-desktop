@@ -13,7 +13,7 @@ use super::{auth, funds, WindowLimiter};
 use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product, Validity};
 use crate::brokers::common::relay::{Session, READY};
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+    BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedTick, QuoteField,
 };
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::types::*;
@@ -755,6 +755,44 @@ fn the_change_is_only_the_pc_aliceblue_sent() {
     let t = tick(json!({"t":"tf","e":"NSE","tk":"3045","lp":"814"}));
     assert!(t.knows(QuoteField::Change));
     assert_eq!(t.change_percent, 0.53, "a partial update keeps it");
+}
+
+/// No feed time yet on this connection: `ltt` is left out, never a receipt
+/// time passed off as one (lead ruling, do-not-invent-data). A packet with a
+/// time brings it, a partial update keeps it, a new connection starts
+/// without.
+#[test]
+fn ltt_waits_for_the_connections_first_feed_time() {
+    fn tick(f: &mut AliceBlueFeed, packet: Value) -> NormalizedTick {
+        let events = f.parse(&Message::Text(packet.to_string()));
+        match events.into_iter().next() {
+            Some(FeedEvent::Tick(t)) => t,
+            other => panic!("tick expected, got {other:?}"),
+        }
+    }
+    let left_out = |t: &NormalizedTick| t.absent.contains(QuoteField::LastTradeTime);
+    let mut f = feed();
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Quote)]);
+    f.parse(&Message::Text(READY.into()));
+
+    let t = tick(
+        &mut f,
+        json!({"t":"tk","e":"NSE","tk":"3045","lp":"812.35"}),
+    );
+    assert!(left_out(&t), "no time yet on this connection");
+    let t = tick(
+        &mut f,
+        json!({"t":"tf","e":"NSE","tk":"3045","lp":"813","ft":"1794302765"}),
+    );
+    assert!(!left_out(&t));
+    assert_eq!(t.last_trade_time_ms, 1_794_302_765_000);
+    let t = tick(&mut f, json!({"t":"tf","e":"NSE","tk":"3045","lp":"814"}));
+    assert!(!left_out(&t), "a partial update keeps it");
+    assert_eq!(t.last_trade_time_ms, 1_794_302_765_000);
+
+    f.on_connected();
+    let t = tick(&mut f, json!({"t":"tk","e":"NSE","tk":"3045","lp":"815"}));
+    assert!(left_out(&t), "a new connection starts without one");
 }
 
 #[test]
