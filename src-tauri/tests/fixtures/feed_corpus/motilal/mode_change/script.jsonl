@@ -1,0 +1,30 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": ["frames/register.hex"]}
+{"step": "push", "frame": "frames/ltp_1.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltp_1.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "note": "LTP to Quote."}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "silence", "client": "a", "note": "Motilal streams every packet type for a registered scrip: the mode change is the desktop's alone, nothing goes to the broker."}
+{"step": "push", "frame": "frames/ltp_2.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_2.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}, "note": "Quote to Depth."}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "silence", "client": "a", "note": "Motilal streams every packet type for a registered scrip: the mode change is the desktop's alone, nothing goes to the broker."}
+{"step": "push", "frame": "frames/ltp_3.hex", "note": "A trade, no book yet: no Depth frame on either side."}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/level1.hex", "note": "The first book level: Depth on both sides."}
+{"step": "receive", "client": "a", "frame": "expected/depth_3.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "note": "Depth to Quote."}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}}
+{"step": "silence", "client": "a", "note": "Motilal streams every packet type for a registered scrip: the mode change is the desktop's alone, nothing goes to the broker."}
+{"step": "push", "frame": "frames/ltp_4.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_4.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "note": "Quote to LTP."}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "silence", "client": "a", "note": "Motilal streams every packet type for a registered scrip: the mode change is the desktop's alone, nothing goes to the broker."}
+{"step": "push", "frame": "frames/ltp_5.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltp_5.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": ["frames/unregister.hex"]}

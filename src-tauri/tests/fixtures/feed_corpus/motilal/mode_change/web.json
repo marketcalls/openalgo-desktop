@@ -1,0 +1,200 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "motilal",
+  "inputs_sha256": "91ddef36cd8e038debecf33afd8e9ea7abbf789c26ae7fbd5614907f85dfdda2",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 1,
+          "data": {
+            "ltp": 1300.5,
+            "volume": 40000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1301.0,
+            "ltq": 10,
+            "volume": 40010,
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": 0,
+            "average_price": 1298.5,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 15,
+      "published": []
+    },
+    {
+      "line": 17,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "ltp": 1301.5,
+            "volume": 40015,
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": 0,
+            "upper_circuit": 0,
+            "lower_circuit": 0,
+            "oi": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1300.0,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1301.0,
+                  "quantity": 20,
+                  "orders": 2
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            },
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 22,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1302.0,
+            "ltq": 20,
+            "volume": 40035,
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": 0,
+            "average_price": 1299.0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 27,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 1,
+          "data": {
+            "ltp": 1302.5,
+            "volume": 40050,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# A: last trade (web MotilalWebSocket._parse_ltp_packet)
+4e                      # exchange character N (NSE and NSEFO share it)
+450b0000                # scrip 2885
+c037fd46                # packet time, read by neither the web nor the desktop
+41                      # type A
+00a0a244                # rate 1301.0 (f32, rupees)
+0a000000                # last traded quantity 10
+4a9c0000                # cumulative volume 40010
+0050a244                # average trade price 1298.5 (f32)
+00000000                # open interest 0

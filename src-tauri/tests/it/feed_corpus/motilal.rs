@@ -43,5 +43,6 @@ corpus_cases!(
         order_session_refused,
         depth_20_refused,
         market_logout,
+        mode_change,
     ]
 );
