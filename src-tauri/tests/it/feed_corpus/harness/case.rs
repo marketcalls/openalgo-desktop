@@ -87,10 +87,11 @@ impl Socket {
 pub(crate) enum Wire {
     Text(String),
     Binary(Vec<u8>),
-    /// The feed's close frame, with its code if it gave one; recorded only
-    /// after a `disconnect` step.
-    Closed(Option<u16>),
-    /// The connection ended without a close frame (after a `disconnect`).
+    /// The feed's close frame, with its code and reason if it gave them;
+    /// recorded on a socket whose script expects a close or disconnects it
+    /// (`Case::close_sockets`).
+    Closed(Option<(u16, String)>),
+    /// The connection ended without a close frame (on such a socket).
     Ended,
 }
 
@@ -99,8 +100,8 @@ impl std::fmt::Display for Wire {
         match self {
             Wire::Text(t) => write!(f, "text {}", t),
             Wire::Binary(b) => write!(f, "binary {}", hex::encode(b)),
-            Wire::Closed(Some(code)) => write!(f, "close {}", code),
-            Wire::Closed(None) => write!(f, "close"),
+            Wire::Closed(Some((code, reason))) => write!(f, "close {} {:?}", code, reason),
+            Wire::Closed(None) => write!(f, "close without a code"),
             Wire::Ended => write!(f, "the connection ended without a close frame"),
         }
     }
@@ -164,9 +165,28 @@ pub(crate) enum Expect {
     BinaryJson(Value),
     Text(String),
     Binary(Vec<u8>),
-    /// The feed's close frame (with this code, if named): `{"close": 1000}`,
-    /// or `{"close": null}` for any.
-    Close(Option<u16>),
+    /// The feed's close frame: `{"close": null}` any, `{"close": 1000}`
+    /// with that code, `{"close": {"code": 4001, "reason": "..."}}` with
+    /// that code and reason.
+    Close(CloseExpect),
+}
+
+/// What a close frame the feed sends must carry (`None`: anything).
+#[derive(Debug, Clone, Default)]
+pub(crate) struct CloseExpect {
+    pub(crate) code: Option<u16>,
+    pub(crate) reason: Option<String>,
+}
+
+impl CloseExpect {
+    fn matches(&self, got: Option<&(u16, String)>) -> bool {
+        let code = self.code.is_none_or(|c| got.is_some_and(|(g, _)| *g == c));
+        let reason = self
+            .reason
+            .as_ref()
+            .is_none_or(|r| got.is_some_and(|(_, g)| g == r));
+        code && reason
+    }
 }
 
 impl Expect {
@@ -180,7 +200,7 @@ impl Expect {
             }
             (Expect::Text(s), Wire::Text(t)) => s == t,
             (Expect::Binary(b), Wire::Binary(x)) => b == x,
-            (Expect::Close(want), Wire::Closed(got)) => want.is_none() || want == got,
+            (Expect::Close(want), Wire::Closed(got)) => want.matches(got.as_ref()),
             _ => false,
         }
     }
@@ -193,8 +213,16 @@ impl std::fmt::Display for Expect {
             Expect::BinaryJson(v) => write!(f, "binary json {}", v),
             Expect::Text(t) => write!(f, "text {}", t),
             Expect::Binary(b) => write!(f, "binary {}", hex::encode(b)),
-            Expect::Close(Some(code)) => write!(f, "close {}", code),
-            Expect::Close(None) => write!(f, "close"),
+            Expect::Close(c) => {
+                write!(f, "close")?;
+                if let Some(code) = c.code {
+                    write!(f, " {}", code)?;
+                }
+                if let Some(reason) = &c.reason {
+                    write!(f, " {:?}", reason)?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -380,6 +408,11 @@ pub(crate) struct Case {
     /// The fake sockets the script uses; a broker's order or deep-book
     /// feed is connected only when its socket is one of them.
     pub(crate) sockets: BTreeSet<Socket>,
+    /// The sockets whose script expects the feed's close (an
+    /// `upstream_receives` naming `{"close": ..}`, or a `disconnect`): every
+    /// close the feed makes on them is recorded from the start, as a frame
+    /// it sent.
+    pub(crate) close_sockets: BTreeSet<Socket>,
     /// What the fake broker API answers from the start (`case.json`
     /// `http`).
     pub(crate) http: Vec<HttpAnswer>,
@@ -459,6 +492,18 @@ impl Case {
         let mut inputs = script.clone().into_bytes();
         let steps = read_script(&id, &dir, &script, &mut inputs);
         let sockets: BTreeSet<Socket> = steps.iter().filter_map(|s| s.action.socket()).collect();
+        let close_sockets: BTreeSet<Socket> = steps
+            .iter()
+            .filter_map(|s| match &s.action {
+                Action::Disconnect { socket } => Some(*socket),
+                Action::UpstreamReceives { socket, frames, .. }
+                    if frames.iter().any(|f| matches!(f, Expect::Close(_))) =>
+                {
+                    Some(*socket)
+                }
+                _ => None,
+            })
+            .collect();
         let orders = sockets.contains(&Socket::Orders)
             || steps.iter().any(|s| {
                 matches!(&s.action, Action::Send { message, .. }
@@ -499,6 +544,7 @@ impl Case {
             instruments_json,
             steps,
             sockets,
+            close_sockets,
             inputs,
         }
     }
@@ -1141,20 +1187,45 @@ fn upstream_frame(at: &str, dir: &Path, v: &Value) -> Expect {
         .filter(|o| o.len() == 1)
         .and_then(|o| o.get("close"))
     {
-        return Expect::Close(match code {
-            Value::Null | Value::Bool(true) => None,
-            c => Some(
-                c.as_u64()
-                    .and_then(|c| u16::try_from(c).ok())
-                    .unwrap_or_else(|| bad(at, "\"close\" is a close code, or null for any")),
-            ),
-        });
+        return Expect::Close(close_expect(at, code));
     }
     match inline(at, v) {
         ("hex", s) => Expect::Binary(decode_hex(at, s.as_str().unwrap_or_default())),
         ("text", s) => Expect::Text(s.as_str().unwrap_or_default().to_string()),
         ("binary_json", json) => Expect::BinaryJson(json.clone()),
         (_, json) => Expect::Json(json.clone()),
+    }
+}
+
+/// `{"close": ..}`: null (or true) for any close frame, a code, or
+/// `{"code", "reason"}`.
+fn close_expect(at: &str, v: &Value) -> CloseExpect {
+    let code = |c: &Value| {
+        c.as_u64()
+            .and_then(|c| u16::try_from(c).ok())
+            .unwrap_or_else(|| bad(at, "a close \"code\" is a number"))
+    };
+    match v {
+        Value::Null | Value::Bool(true) => CloseExpect::default(),
+        Value::Number(_) => CloseExpect {
+            code: Some(code(v)),
+            reason: None,
+        },
+        Value::Object(o) => {
+            allow_keys(at, o, &["code", "reason"]);
+            CloseExpect {
+                code: o.get("code").map(code),
+                reason: o.get("reason").map(|r| {
+                    r.as_str()
+                        .map(String::from)
+                        .unwrap_or_else(|| bad(at, "a close \"reason\" is a string"))
+                }),
+            }
+        }
+        _ => bad(
+            at,
+            "\"close\" is null (any), a code, or {\"code\", \"reason\"}",
+        ),
     }
 }
 
@@ -1189,5 +1260,27 @@ fn expected_frame(at: &str, dir: &Path, v: &Value) -> Value {
         }
         None if v.is_object() => v.clone(),
         None => bad(at, "\"frame\" is a file name or the frame"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// A close the feed makes is matched by code and reason as named, and
+    /// never by an end without a close frame.
+    #[test]
+    fn a_close_expectation_names_what_it_checks() {
+        let got = Wire::Closed(Some((4001, "Invalid session".to_string())));
+        let close = |v: Value| upstream_frame("t", Path::new("."), &json!({ "close": v }));
+        assert!(close(Value::Null).matches(&got));
+        assert!(close(json!(4001)).matches(&got));
+        assert!(!close(json!(1000)).matches(&got));
+        assert!(close(json!({"code": 4001, "reason": "Invalid session"})).matches(&got));
+        assert!(!close(json!({"reason": "Expired"})).matches(&got));
+        assert!(!close(json!({"code": 4001})).matches(&Wire::Closed(None)));
+        assert!(close(Value::Null).matches(&Wire::Closed(None)));
+        assert!(!close(Value::Null).matches(&Wire::Ended));
     }
 }
