@@ -1,0 +1,20 @@
+# HDFC Sky protobuf GenericDTOList: a full MBP packet, INFY on connection 2
+# Written by scripts/feed_corpus/protolite.py from the web's hdfcsky_market_pb2.py.
+# packetType is absent: NSE_CM_ALL is 0, the proto3 default a sender leaves out.
+0a66                  # genericDTOList (GenericDTO, 102 bytes)
+08ba0c                #   instrumentId = 1594
+125a                  #   mbpData (MBPData, 90 bytes)
+090000000000269c40    #     lastTradedPrice = 1801.5
+1080e2cfaa06          #     lastTradeTime = 1700000000
+290000000000f89b40    #     openPrice = 1790.0
+3100000000003a9c40    #     highPrice = 1806.5
+390000000000f89b40    #     closingPrice = 1790.0
+410000000000e49b40    #     lowPrice = 1785.0
+488827                #     volumeTradedToday = 5000
+5002                  #     lastTradeQuantity = 2
+590000000000249c40    #     averageTradePrice = 1801.0
+68e807                #     totalBuyQuantity = 1000
+70b009                #     totalSellQuantity = 1200
+7900000000002c9940    #     lowerCircuitLimit = 1611.0
+81010000000000c49e40  #     upperCircuitLimit = 1969.0
+4080d095ffbc31        #   packetTimestamp = 1700000000000

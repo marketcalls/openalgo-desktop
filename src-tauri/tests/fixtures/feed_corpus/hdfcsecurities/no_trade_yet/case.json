@@ -38,84 +38,84 @@
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsecurities_adapter.py:381-385",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "change",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no last traded price (proto3 0); the web publishes ltp 0 and a change of ltp - close from it (-1495.0, -100.0%), a price and a change no trade made. The desktop marks the price absent: no LTP or Quote frame, and the Depth frame keeps ltp 0 with no change. Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
       "ref": "hdfcsecurities_adapter.py:371-378; investright::finish",
-      "approved": true
+      "approval": "no-price-packet"
     },
     {
       "key": "change_percent",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no last traded price (proto3 0); the web publishes ltp 0 and a change of ltp - close from it (-1495.0, -100.0%), a price and a change no trade made. The desktop marks the price absent: no LTP or Quote frame, and the Depth frame keeps ltp 0 with no change. Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
       "ref": "hdfcsecurities_adapter.py:371-378; investright::finish",
-      "approved": true
+      "approval": "no-price-packet"
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsecurities_adapter.py:381-385",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsecurities_adapter.py:381-385",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsecurities_adapter.py:381-385",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "Two causes, one key. Before the first trade the packet has no lastTradeTime and the web sends its packet time as ltt (a time no trade happened at), where the desktop leaves ltt out; on the traded packets the web sends lastTradeTime in epoch seconds unconverted, where the desktop sends ms. Lead decisions: the trade-time fallback is absent; ltt in seconds -> ms (wrong unit).",
       "ref": "hdfcsecurities_adapter.py:367; investright::set_trade_time",
-      "approved": true
+      "approval": "no-packet-time-as-trade-time"
     },
     {
       "key": "missing-frame",
       "kind": "web-defect",
       "reason": "Before the first trade the web publishes a Quote frame with ltp 0 and a change from it; the desktop sends a Quote holder no frame with a zero price (the book goes to the Depth holder). Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
       "ref": "hdfcsecurities_adapter.py:371-378; investright::finish",
-      "approved": true
+      "approval": "no-price-packet"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsecurities_adapter.py:381-385",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsecurities_adapter.py:381-385",
-      "approved": true
+      "approval": "leave-out-unsent"
     }
   ]
 }

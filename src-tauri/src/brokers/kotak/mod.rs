@@ -150,6 +150,9 @@ pub struct KotakBroker {
     pub(crate) http: reqwest::Client,
     pub(crate) login_base_url: String,
     pub(crate) feed_config_url: String,
+    /// The market-data host when the feed config names none for the data
+    /// centre or cannot be read: SFeed's default (web `DEFAULT_SFEED_URL`).
+    pub(crate) feed_fallback: String,
     /// Scrip-master hosts tried after the session's own `baseUrl`.
     pub(crate) scrip_fallback_bases: Vec<String>,
     pub(crate) scrip_cdn: String,
@@ -189,6 +192,7 @@ impl KotakBroker {
             http: http::client(),
             login_base_url: login_base_url.into(),
             feed_config_url: feed_config_url.into(),
+            feed_fallback: feed_config::DEFAULT_SFEED_URL.to_string(),
             scrip_fallback_bases: SCRIP_MASTER_FALLBACK_BASES
                 .iter()
                 .map(|s| s.to_string())
@@ -202,6 +206,14 @@ impl KotakBroker {
             ucc: Mutex::new(None),
             holding_costs: carry_cost::HoldingCosts::default(),
         }
+    }
+
+    /// Replace the market-data host used when the feed config names none or
+    /// cannot be read (tests: an address on loopback, so a lookup that fails
+    /// never dials Kotak's own host).
+    pub fn with_feed_fallback(mut self, url: impl Into<String>) -> Self {
+        self.feed_fallback = url.into();
+        self
     }
 
     /// Replace the scrip-master fallbacks (tests).
@@ -486,6 +498,7 @@ impl Broker for KotakBroker {
             feed.with_lookup(
                 self.http.clone(),
                 self.feed_config_url.clone(),
+                self.feed_fallback.clone(),
                 s.data_center.clone(),
                 self.feed_url.clone(),
             )

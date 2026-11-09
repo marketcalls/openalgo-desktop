@@ -43,7 +43,7 @@
       "kind": "web-defect",
       "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
       "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
-      "approved": true
+      "approval": "alias-unit"
     }
   ]
 }

@@ -26,11 +26,16 @@ pub fn to_wss(url: &str) -> String {
 }
 
 /// The market-data URL a config answer gives a data centre, and the
-/// source (`sh` SFeed, `ks` cdtstream). The legacy HSM source (`hs`) falls
-/// back to the default SFeed host with no source, and says so, as on the
-/// web (`kotak_feed_config.py`): OpenAlgo reads only the SFeed protocol,
-/// and nothing has selected HSM since September 2026.
-pub fn feed_url_from_config(configs: &Value, data_center: &str) -> (Option<String>, String) {
+/// source (`sh` SFeed, `ks` cdtstream); `fallback` (the broker's: the
+/// default SFeed host in the app) where it names none. The legacy HSM
+/// source (`hs`) falls back with no source, and says so, as on the web
+/// (`kotak_feed_config.py`): OpenAlgo reads only the SFeed protocol, and
+/// nothing has selected HSM since September 2026.
+pub fn feed_url_from_config(
+    configs: &Value,
+    data_center: &str,
+    fallback: &str,
+) -> (Option<String>, String) {
     let get = |k: String| {
         configs
             .get(&k)
@@ -39,7 +44,7 @@ pub fn feed_url_from_config(configs: &Value, data_center: &str) -> (Option<Strin
             .filter(|s| !s.is_empty())
     };
     let Some(source) = get(format!("{}_broadcast_source", data_center)) else {
-        return (None, DEFAULT_SFEED_URL.to_string());
+        return (None, fallback.to_string());
     };
     if source == "hs" {
         tracing::warn!(
@@ -49,31 +54,33 @@ pub fn feed_url_from_config(configs: &Value, data_center: &str) -> (Option<Strin
         // No source is recorded: the default SFeed host is what streams, as
         // the warning says. The web recorded "hs" and so built its HSM
         // client after all, until openalgo#2376.
-        return (None, DEFAULT_SFEED_URL.to_string());
+        return (None, fallback.to_string());
     }
     let url = get(format!("{}_{}_broadcast_endpoint", data_center, source))
         .map(|u| to_wss(&u))
-        .unwrap_or_else(|| DEFAULT_SFEED_URL.to_string());
+        .unwrap_or_else(|| fallback.to_string());
     (Some(source), url)
 }
 
 /// Look up and remember the feed URL for `data_center` (web
-/// `fetch_feed_config`, 5 s budget). Any failure leaves the default.
+/// `fetch_feed_config`, 5 s budget). Any failure leaves the broker's
+/// fallback.
 pub async fn resolve_feed_url(b: &KotakBroker, data_center: &str) -> String {
-    let url = lookup_feed_url(&b.http, &b.feed_config_url, data_center).await;
+    let url = lookup_feed_url(&b.http, &b.feed_config_url, &b.feed_fallback, data_center).await;
     *b.feed_url.lock() = Some((data_center.to_string(), url.clone()));
     url
 }
 
-/// The feed URL the config service names for `data_center`, else the
-/// default.
+/// The feed URL the config service names for `data_center`, else
+/// `fallback`.
 pub(super) async fn lookup_feed_url(
     http: &reqwest::Client,
     config_url: &str,
+    fallback: &str,
     data_center: &str,
 ) -> String {
     if data_center.is_empty() {
-        DEFAULT_SFEED_URL.to_string()
+        fallback.to_string()
     } else {
         let resp = http
             .get(config_url)
@@ -88,7 +95,7 @@ pub(super) async fn lookup_feed_url(
                         .and_then(|d| d.get("configs"))
                         .cloned()
                         .unwrap_or(Value::Null);
-                    let (source, url) = feed_url_from_config(&configs, data_center);
+                    let (source, url) = feed_url_from_config(&configs, data_center, fallback);
                     tracing::info!(
                         "Kotak data centre {} streams from source {}",
                         data_center,
@@ -96,18 +103,18 @@ pub(super) async fn lookup_feed_url(
                     );
                     url
                 }
-                Err(_) => DEFAULT_SFEED_URL.to_string(),
+                Err(_) => fallback.to_string(),
             },
             Ok(r) => {
                 tracing::warn!(status = r.status().as_u16(), "Kotak feed config refused");
-                DEFAULT_SFEED_URL.to_string()
+                fallback.to_string()
             }
             Err(e) => {
                 tracing::warn!(
                     "Kotak feed config lookup failed: {}",
                     crate::brokers::common::redact::url_safe_error(&e)
                 );
-                DEFAULT_SFEED_URL.to_string()
+                fallback.to_string()
             }
         }
     }
@@ -118,15 +125,17 @@ pub(super) async fn lookup_feed_url(
 pub(super) struct FeedLookup {
     pub(super) http: reqwest::Client,
     pub(super) config_url: String,
+    /// The host when the config names none or cannot be read.
+    pub(super) fallback: String,
     pub(super) data_center: String,
     /// The broker's cache, filled once resolved.
     pub(super) cache: std::sync::Arc<parking_lot::Mutex<Option<(String, String)>>>,
 }
 
-/// The remembered feed URL for `data_center`, else the default.
+/// The remembered feed URL for `data_center`, else the broker's fallback.
 pub fn cached_feed_url(b: &KotakBroker, data_center: &str) -> String {
     match b.feed_url.lock().as_ref() {
         Some((dc, url)) if dc == data_center => url.clone(),
-        _ => DEFAULT_SFEED_URL.to_string(),
+        _ => b.feed_fallback.clone(),
     }
 }

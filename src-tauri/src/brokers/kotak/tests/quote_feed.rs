@@ -381,7 +381,7 @@ fn an_hs_data_centre_falls_back_to_sfeed_with_no_source() {
         "E99_hs_broadcast_endpoint": "mlhsm.kotaksecurities.com",
     });
     assert_eq!(
-        feed_url_from_config(&cfg, "E99"),
+        feed_url_from_config(&cfg, "E99", DEFAULT_SFEED_URL),
         (None, DEFAULT_SFEED_URL.into())
     );
 }

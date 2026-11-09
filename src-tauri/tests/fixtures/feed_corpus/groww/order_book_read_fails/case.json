@@ -1,0 +1,72 @@
+{
+  "broker": "groww",
+  "summary": "Order-book reads Groww refuses: a refused CASH list fails the poll, which publishes nothing and keeps its baseline; a refused FNO list beside a good CASH list is skipped; the open order the next good read finds is relayed against the baseline from before the failures.",
+  "scenarios": [
+    "order-open"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "http": [
+    {
+      "method": "GET",
+      "path": "/v1/order/list?segment=CASH&page=0&page_size=100",
+      "body": {
+        "json": {
+          "status": "SUCCESS",
+          "payload": {
+            "order_list": []
+          }
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v1/order/list?segment=FNO&page=0&page_size=100",
+      "body": {
+        "json": {
+          "status": "SUCCESS",
+          "payload": {
+            "order_list": []
+          }
+        }
+      }
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter._poll_loop",
+      "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter._publish_order",
+      "services/orderbook_service.py::get_orderbook_with_auth",
+      "broker/groww/api/order_api.py::direct_get_order_book",
+      "broker/groww/api/order_api.py::_get_paged",
+      "broker/groww/mapping/order_data.py::map_order_data",
+      "subscribers/wsproxy_subscriber.py::on_order_update",
+      "test/test_groww_review_fixes.py::REFUSED"
+    ],
+    "notes": [
+      "The refusal is Groww's documented failure envelope, the body the web's own test uses for a refused request (test_groww_review_fixes.py:48), answered with HTTP 200 so that only its status field says it failed, as _get_paged and orders.rs paged both read it.",
+      "Web: a CASH list that fails makes direct_get_order_book return an error before the FNO list is read (order_api.py:139-145), get_orderbook_with_auth answers not success, and _poll_loop logs it and keeps its baseline (order_adapter.py:476-479); an FNO list that fails is skipped (order_api.py:146). Each answer the case serves is one poll of the web's own loop (web_adapters/groww.py through polling.py).",
+      "Desktop: orders.rs raw_orders returns the same error for a refused CASH list and skips a refused FNO one; common/order_poll.rs keeps its snapshot across a failed read and polls again after a backoff (2 s after one failure at the case's 1 s interval; the web polls at its interval). The backoff changes when the next read comes, not what it publishes."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "pending_quantity",
+      "kind": "web-defect",
+      "reason": "The web relays pending_quantity 0 for a working order: its Groww order book has no pending quantity. The desktop sends Groww's remaining_quantity.",
+      "ref": "order_data.py:58-86; order_adapter.py:512",
+      "approval": "adapter-keys-carried"
+    }
+  ]
+}

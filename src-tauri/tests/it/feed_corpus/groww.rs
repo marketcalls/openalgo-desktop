@@ -57,5 +57,6 @@ corpus_cases!(
         unsupported_exchanges,
         deliberate_disconnect_unsubscribes,
         order_book_polling,
+        order_book_read_fails,
     ]
 );

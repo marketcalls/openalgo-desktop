@@ -64,7 +64,7 @@
       "subscribers/wsproxy_subscriber.py::on_order_update"
     ],
     "notes": [
-      "Each answer to the CASH order list is one poll of the web's poller (web_adapters/groww.py serve and poll); the FNO list stays empty. The web's Groww order book carries no filled_quantity, pending_quantity, average_price or rejection reason (order_data.py:58-86, :118-145), so its poller sees a fill only as a status change and relays zeros and an empty reason.",
+      "Each answer to the CASH order list is one poll of the web's own poll loop (web_adapters/groww.py through polling.py); the FNO list stays empty. The web's Groww order book carries no filled_quantity, pending_quantity, average_price or rejection reason (order_data.py:58-86, :118-145), so its poller sees a fill only as a status change and relays zeros and an empty reason.",
       "The desktop reads both segment lists (brokers/groww/orders.rs::raw_orders), maps each row (mapping.rs::map_order: pending from remaining_quantity, rejection_reason from remark) and publishes every row whose (status, filled quantity) changed or that is new (common/order_poll.rs::diff).",
       "The book rows follow Groww's 04-orders List orders fields; the RMS text is a full margin refusal as Groww's remark carries it. The order from the Groww app is a MARKET order whose row carries its protected limit price (1497.95)."
     ]
@@ -75,35 +75,35 @@
       "kind": "web-defect",
       "reason": "The web relays average_price 0.0 for a filled order: its Groww order book has no average fill price. The desktop sends Groww's average_fill_price.",
       "ref": "order_data.py:58-86; order_adapter.py:513",
-      "approved": true
+      "approval": "adapter-keys-carried"
     },
     {
       "key": "filled_quantity",
       "kind": "web-defect",
       "reason": "The web relays filled_quantity 0 for a filled order: its Groww order book has no filled quantity. The desktop sends Groww's filled_quantity.",
       "ref": "order_data.py:58-86; order_adapter.py:511",
-      "approved": true
+      "approval": "adapter-keys-carried"
     },
     {
       "key": "frame",
       "kind": "web-defect",
       "reason": "A partial fill leaves the status open, and the web's poller compares (status, filled quantity) with a filled quantity its Groww book never has, so it relays nothing until the order completes. The desktop relays the partial fill.",
       "ref": "order_adapter.py:463-475",
-      "approved": true
+      "approval": "adapter-keys-carried"
     },
     {
       "key": "pending_quantity",
       "kind": "web-defect",
       "reason": "The web relays pending_quantity 0 for a working order: its Groww order book has no pending quantity. The desktop sends Groww's remaining_quantity.",
       "ref": "order_data.py:58-86; order_adapter.py:512",
-      "approved": true
+      "approval": "adapter-keys-carried"
     },
     {
       "key": "rejection_reason",
       "kind": "web-defect",
       "reason": "The web relays an empty rejection_reason: its Groww order book drops Groww's remark. The desktop sends the remark, the reason RMS gave.",
       "ref": "order_data.py:58-86; order_adapter.py:514-516",
-      "approved": true
+      "approval": "adapter-keys-carried"
     }
   ]
 }

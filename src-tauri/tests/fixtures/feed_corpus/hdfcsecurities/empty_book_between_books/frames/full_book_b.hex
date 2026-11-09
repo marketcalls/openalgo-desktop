@@ -1,0 +1,35 @@
+# HDFC Securities protobuf GenericDTOList: a full MBP packet with a new book: two bids and one ask
+# Written by scripts/feed_corpus/protolite.py from the web's hdfcsecurities_market_pb2.py.
+# packetType is absent: NSE_CM_ALL is 0, the proto3 default a sender leaves out.
+0a9b01                # genericDTOList (GenericDTO, 155 bytes)
+08c516                #   instrumentId = 2885
+128e01                #   mbpData (MBPData, 142 bytes)
+096666666666749740    #     lastTradedPrice = 1501.1
+1082e2cfaa06          #     lastTradeTime = 1700000002
+290000000000489740    #     openPrice = 1490.0
+310000000000989740    #     highPrice = 1510.0
+3900000000005c9740    #     closingPrice = 1495.0
+410000000000209740    #     lowPrice = 1480.0
+48ac61                #     volumeTradedToday = 12460
+5002                  #     lastTradeQuantity = 2
+5933333333336d9740    #     averageTradePrice = 1499.3
+6232                  #     marketDepthDTOList (MarketDepthDTOList, 50 bytes)
+0a0f                  #       marketDepthDTO (MarketDepthDTO, 15 bytes)
+0828                  #         quantity = 40
+113333333333749740    #         price = 1501.05
+1802                  #         numberOfOrders = 2
+2001                  #         buyFlag = True
+0a10                  #       marketDepthDTO (MarketDepthDTO, 16 bytes)
+088201                #         quantity = 130
+110000000000749740    #         price = 1501.0
+1805                  #         numberOfOrders = 5
+2001                  #         buyFlag = True
+0a0d                  #       marketDepthDTO (MarketDepthDTO, 13 bytes)
+0846                  #         quantity = 70
+11cdcccccccc749740    #         price = 1501.2
+1803                  #         numberOfOrders = 3
+68b228                #     totalBuyQuantity = 5170
+70842f                #     totalSellQuantity = 6020
+79cdcccccccc079540    #     lowerCircuitLimit = 1345.95
+81013333333333b49940  #     upperCircuitLimit = 1645.05
+40d0df95ffbc31        #   packetTimestamp = 1700000002000

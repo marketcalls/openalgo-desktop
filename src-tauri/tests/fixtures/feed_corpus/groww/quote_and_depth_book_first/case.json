@@ -41,7 +41,7 @@
       "kind": "desktop-decision",
       "reason": "A book before the first price: the web's merged entry has no ltp yet and leaves it out; the desktop's Depth frame keeps ltp (0) and timestamp, which the SDK's Depth callback reads (1.0.6 decision).",
       "ref": "CLAUDE.md (depth frame before its instrument's first tick); groww_adapter.py:64-73",
-      "approved": true
+      "approval": "per-broker-wire-shape"
     },
     {
       "key": "missing-frame",

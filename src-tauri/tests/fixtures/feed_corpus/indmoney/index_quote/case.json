@@ -34,58 +34,58 @@
     {
       "key": "volume",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The index packet carries no volume; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (docs; lead decision on web zeros, 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "bid_price",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The index packet carries no best bid; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (docs; lead decision on web zeros, 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "bid_qty",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The index packet carries no best bid quantity; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (docs; lead decision on web zeros, 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "ask_price",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The index packet carries no best ask; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (docs; lead decision on web zeros, 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "ask_qty",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The index packet carries no best ask quantity; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (docs; lead decision on web zeros, 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The index packet carries no average traded price; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (docs; lead decision on web zeros, 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "oi",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The index packet carries no open interest; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (docs; lead decision on web zeros, 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "oi_change",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The index packet carries no OI change; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (docs; lead decision on web zeros, 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "leave-out-unsent"
     }
   ]
 }

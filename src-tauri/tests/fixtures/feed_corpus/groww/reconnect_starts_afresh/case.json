@@ -38,30 +38,30 @@
     {
       "key": "close",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's close. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
+      "approval": "merge-restart-on-reconnect"
     },
     {
       "key": "high",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's high. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
+      "approval": "merge-restart-on-reconnect"
     },
     {
       "key": "low",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's low. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
+      "approval": "merge-restart-on-reconnect"
     },
     {
       "key": "open",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's open. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
+      "approval": "merge-restart-on-reconnect"
     }
   ]
 }

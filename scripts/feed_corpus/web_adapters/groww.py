@@ -22,21 +22,28 @@ A dropped socket is the web client's own reconnect
 (nats_websocket.py:271-328, `_resubscribe_all`): new sids, and the adapter
 is not told, so its merge cache keeps the old session's values.
 
-Order updates are the web's REST poll of the order book
-(`websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter`): each
-answer the fake broker API gives the CASH order list is the poller's next
-read. The order book is the web's own Groww mapping (`map_order_data`,
-`transform_order_data`, `format_order_data`, `openalgo_exchange`) after
-`direct_get_order_book` resolves each row's exchange and symbol
-(order_api.py:152-161, on the case's master); the poll diff and the
-published fields are written from order_adapter.py:456-475 and :490-517,
-since `_poll_loop` and `_publish_order` import the app.
+Order updates: the web's own order-book poller (`polling.py`:
+`PollingOrderUpdateAdapter._poll_loop` and `_publish_order`,
+`services/orderbook_service.py`) over Groww's own `get_order_book`
+(`broker/groww/api/order_api.py`: `direct_get_order_book` and `_get_paged`
+read the CASH then the FNO order list page by page through `groww_request`,
+a CASH read that fails is the poll's error and an FNO one is skipped, each
+order's exchange and symbol resolved on the case's master) and its
+`broker/groww/mapping/order_data.py`. Every order-list answer the case
+serves (case.json `http`, then each `http_serve`) is what the fake broker
+API answers from then on (`GrowwRest`); one served after the order
+subscription is the poller's next read. Stand-ins: the httpx client
+(`GrowwRest`), the master lookup (`get_oa_symbol`), and the backpressure
+ceiling (none, as under eventlet and the development server:
+`check_queue_wait` and `cap_server_delay` let every wait through).
 """
 
-import copy
+import email.utils
 import json
 import types
+import urllib.parse
 
+from web_adapters.polling import POLLING_SOURCES, Polling
 from webkit import Glue, Source
 
 PROTOBUF_NAMES = [
@@ -49,13 +56,53 @@ PROTOBUF_NAMES = [
 
 ORDER_NAMES = [
     "GROWW_ORDER_STATUS_MAP", "GROWW_PRICETYPE_MAP", "map_order_status", "_orders_from",
-    "map_order_data", "transform_order_data",
+    "map_order_data", "calculate_order_statistics", "transform_order_data",
+]
+ORDER_API_NAMES = [
+    "GROWW_BASE_URL", "GROWW_ORDER_LIST_URL", "_ORDER_LIST_PAGE_SIZE", "_groww_headers",
+    "_get_paged", "direct_get_order_book", "get_order_book", "_groww_error_message",
+]
+RATE_LIMIT_NAMES = [
+    "MIN_INTERVAL", "MAX_RETRIES", "BASE_BACKOFF", "_lock", "_last_call_time", "_queue_kind",
+    "apply_rate_limit", "retry_delay", "groww_request",
+]
+EMPTY_BOOK_NAMES = [
+    "_EMPTY_BOOK_MARKERS", "_EMPTY_BOOK_MAX_CHARS", "MESSAGE_FIELDS", "_field", "says_no_positions",
 ]
 ORDER_LIST = "/v1/order/list"
 
 
-class Groww(Glue):
+class GrowwRest:
+    """The httpx client `groww_request` calls (`request`), answering from
+    the case's fake broker API as the harness does: a path with a query
+    answers exactly that path and query, a path without one any query, and
+    a path nothing answers is a 404 with no body."""
+
+    def __init__(self, answers):
+        self.answers = answers
+
+    def request(self, method, url, params=None, **_):
+        path = urllib.parse.urlsplit(url).path
+        query = urllib.parse.urlencode(params or {})
+        body = self.answers.get(f"{path}?{query}" if query else path, self.answers.get(path))
+        return GrowwReply(404, "") if body is None else GrowwReply(200, body)
+
+
+class GrowwReply:
+    """An httpx response as `_get_paged` reads it."""
+
+    def __init__(self, status_code, text):
+        self.status_code = status_code
+        self.text = text
+        self.headers = {}
+
+    def json(self):
+        return json.loads(self.text)
+
+
+class Groww(Polling, Glue):
     broker = "groww"
+    order_book_path = ORDER_LIST
     sources = [
         Source("broker/groww/streaming/groww_protobuf.py", None, PROTOBUF_NAMES),
         Source("broker/groww/streaming/groww_protobuf.py", "MiniProtobufParser"),
@@ -72,21 +119,34 @@ class Groww(Glue):
             ["_on_data", "_normalize_market_data", "_maybe_clear_cache_entry"],
         ),
         Source("broker/groww/mapping/order_data.py", None, ORDER_NAMES),
-        Source("services/orderbook_service.py", None, ["format_decimal", "format_order_data"]),
         Source(
             "broker/groww/mapping/transform_data.py",
             None,
-            ["EXCHANGE_NSE", "EXCHANGE_BSE", "SEGMENT_FNO", "openalgo_exchange"],
+            ["EXCHANGE_NSE", "EXCHANGE_BSE", "SEGMENT_CASH", "SEGMENT_FNO", "openalgo_exchange"],
         ),
+        Source("broker/groww/api/rate_limiter.py", None, RATE_LIMIT_NAMES),
+        Source("utils/position_read.py", None, EMPTY_BOOK_NAMES),
+        Source("broker/groww/api/order_api.py", None, ORDER_API_NAMES),
+        *POLLING_SOURCES,
     ]
 
     def stubs(self):
-        # nats_websocket.py imports the decoder as a module (`from . import
-        # groww_protobuf`); its one call goes to the lifted function.
+        def get_oa_symbol(brsymbol, exchange):
+            row = self.master.by_brsymbol(brsymbol, exchange)
+            return row["symbol"] if row else None
+
         return {
+            **self.polling_stubs(),
+            # nats_websocket.py imports the decoder as a module (`from . import
+            # groww_protobuf`); its one call goes to the lifted function.
             "groww_protobuf": types.SimpleNamespace(
                 parse_groww_market_data=lambda data: self.web["parse_groww_market_data"](data)
-            )
+            ),
+            "get_oa_symbol": get_oa_symbol,
+            "get_httpx_client": lambda: GrowwRest(self.answers),
+            "check_queue_wait": lambda wait_seconds, kind="data": None,
+            "cap_server_delay": lambda seconds, kind="data": seconds,
+            "parsedate_to_datetime": email.utils.parsedate_to_datetime,
         }
 
     def start(self):
@@ -109,10 +169,8 @@ class Groww(Glue):
         # Per instrument, in subscribe order: its price and book subject keys.
         self.subjects = {}
         self.next_sid = 1
-        # The order list per segment as the fake answers it, and the poll's
-        # snapshot (None until its first, silent read).
-        self.order_lists = {}
-        self.baseline = None
+        # What the fake broker API answers, by path (with its query).
+        self.answers = {}
 
     def subscribe(self, row, mode, depth):
         symbol, exchange = row["symbol"], row["exchange"]
@@ -180,58 +238,18 @@ class Groww(Glue):
             self.ws._process_binary_nats_message(frame)
 
     def serve(self, method, path, body):
-        if not path.startswith(ORDER_LIST + "?"):
-            return
-        segment = "FNO" if "segment=FNO" in path else "CASH"
-        self.order_lists[segment] = json.loads(body)["payload"]["order_list"]
-        if segment == "CASH":
-            self.poll()
+        """The fake broker API answers the order list with `body` from now
+        on; once the order subscription runs, that is the poller's next read
+        (both segments, as `direct_get_order_book` reads them). The
+        subscription's first, silent read is what case.json `http` answers
+        (`empty_book` is not used)."""
+        if not path.startswith(self.order_book_path + "?"):
+            raise SystemExit(f"the groww glue serves no {path}")
+        self.answers[path] = body
+        if self.poller is not None:
+            self.next_poll(None)
 
-    def order_book(self):
-        """get_orderbook_with_auth (orderbook_service.py:149-167) on
-        direct_get_order_book's rows (order_api.py:130-164)."""
-        rows = copy.deepcopy(self.order_lists.get("CASH", []) + self.order_lists.get("FNO", []))
-        for o in rows:
-            exchange = self.web["openalgo_exchange"](o.get("exchange", ""), o.get("segment", ""))
-            known = self.master.by_brsymbol(o["trading_symbol"], exchange)
-            o["brsymbol"], o["brexchange"] = o["trading_symbol"], o.get("exchange", "")
-            o["exchange"] = exchange
-            o["symbol"] = known["symbol"] if known else o["trading_symbol"]
-        mapped = self.web["map_order_data"](order_data={"data": rows, "order_list": rows})
-        return self.web["format_order_data"](self.web["transform_order_data"](mapped))
-
-    def poll(self):
-        """One read of _poll_loop (order_adapter.py:456-475): the first
-        seeds the snapshot silently."""
-        snapshot, by_id = {}, {}
-        for order in self.order_book():
-            orderid = str(order.get("orderid", ""))
-            if not orderid:
-                continue
-            snapshot[orderid] = (order.get("order_status", ""), int(order.get("filled_quantity") or 0))
-            by_id[orderid] = order
-        if self.baseline is not None:
-            for orderid, state in snapshot.items():
-                if self.baseline.get(orderid) != state:
-                    self.publish_order(by_id[orderid])
-        self.baseline = snapshot
-
-    def publish_order(self, order):
-        """_publish_order's OrderUpdateEvent fields (order_adapter.py:494-517)."""
-        raw_status = str(order.get("order_status", "")).strip().lower()
-        self.order({
-            "orderid": str(order.get("orderid", "")),
-            "symbol": order.get("symbol", ""),
-            "exchange": order.get("exchange", ""),
-            "action": str(order.get("action", "")).upper(),
-            "quantity": int(order.get("quantity") or 0),
-            "price": float(order.get("price") or 0),
-            "trigger_price": float(order.get("trigger_price") or 0),
-            "pricetype": order.get("pricetype", ""),
-            "product": order.get("product", ""),
-            "order_status": raw_status,
-            "filled_quantity": int(order.get("filled_quantity") or 0),
-            "pending_quantity": int(order.get("pending_quantity") or 0),
-            "average_price": float(order.get("average_price") or 0),
-            "rejection_reason": order.get("rejection_reason", "") if raw_status == "rejected" else "",
-        })
+    def order_book_reply(self, auth, served):
+        """Groww's own `get_order_book` (order_api.py:176-188) on what the
+        fake broker API answers now."""
+        return self.web["get_order_book"](auth)

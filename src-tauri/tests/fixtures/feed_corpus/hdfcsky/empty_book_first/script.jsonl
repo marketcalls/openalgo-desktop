@@ -1,0 +1,6 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]}}]}
+{"step": "push", "frame": "frames/full_empty_first.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth_no_book.json", "note": "Before any book: the Depth frame of a full packet with an empty level list has no depth key."}
+{"step": "push", "frame": "frames/full_book_after_empty.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}

@@ -1,0 +1,28 @@
+{
+  "type": "market_data",
+  "symbol": "INFY",
+  "exchange": "NSE",
+  "mode": 2,
+  "data": {
+    "symbol": "INFY",
+    "exchange": "NSE",
+    "token": "1594",
+    "ltp": 1801.5,
+    "last_price": 1801.5,
+    "ltt": 1700000000000,
+    "timestamp": 1700000000000,
+    "close": 1790.0,
+    "prev_close": 1790.0,
+    "change": 11.5,
+    "change_percent": 0.64,
+    "volume": 5000,
+    "last_quantity": 2,
+    "average_price": 1801.0,
+    "total_buy_quantity": 1000,
+    "total_sell_quantity": 1200,
+    "open": 1790.0,
+    "high": 1806.5,
+    "low": 1785.0
+  },
+  "broker": "hdfcsecurities"
+}

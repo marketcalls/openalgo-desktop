@@ -39,15 +39,36 @@ broker, symbol, time and the frame text.
   perpetual.
 - **Nubra:** the message time as the timestamp.
 - **Kotak:** a subscribe made during login is sent once; the order socket's
-  login fallback after 10 s (needs a session that answers slowly).
+  login fallback after 10 s (needs a session that answers slowly), and which
+  of the two `cn` encodings Kotak accepts; the packet's change (`nc`) agrees
+  with the price; whether SFeed ever sends zero rows inside its level counts;
+  mini (touch line) packets carry the previous close; how long a new client
+  waits for its first frame on a quiet instrument.
 - **Sahi:** with a sixth streaming app, the 4429 stop and the "close other
-  Sahi streaming apps" message, then prices back when an app reconnects.
-- **Groww:** an idle feed stays connected without WebSocket pings.
+  Sahi streaming apps" message, then prices back when an app reconnects; an
+  NFO tick carries open interest and the price band, an equity tick leaves
+  open interest out; book levels are never padded by Sahi; an index's depth
+  tick has no levels.
+- **Groww:** an idle feed stays connected without WebSocket pings; whether a
+  price message ever leaves the LTP out; whether a book arrives before the
+  first price; books that empty a side; `remaining_quantity` on cancelled
+  and rejected orders and whether a MARKET order's row carries a protected
+  price (needs an order).
 - **IndMoney:** Depth refused; /trading and the depth panels show the quote
-  and the note; whether the idle price socket is ever closed by IndMoney.
+  and the note; whether the idle price socket is ever closed by IndMoney;
+  whether INDstocks' 0 means "unchanged" or is sometimes a real zero (the
+  desktop, like the web, reads it as nothing new), and whether equity quotes
+  carry `oi: 0`; whether the packet time is a trade time or a send time;
+  ticks that name only the bare token; whether the inferred order statuses
+  C and J occur, and the order id of an order placed in the INDmoney app
+  (needs an order).
 - **HDFC Sky / HDFC Securities:** a second connection past 300 symbols (Sky);
   whether an empty book list means unchanged or cleared; how long a new
-  client waits for its first frame on a quiet instrument.
+  client waits for its first frame on a quiet instrument; the trade time
+  reads as now in milliseconds; whether LTP-type packets carry a closing
+  price; an index packet's packet time; OI and circuit partial packets merge
+  without a zero price; switching a symbol between LTP and Quote or Depth
+  keeps it streaming; the text of HDFC Securities' token-expiry frame.
 - **5paisa:** whether whole prices come as JSON integers; zero prices after a
   reconnect; a market order's price and a cancelled order's reason in polled
   order updates (needs an order).

@@ -1,0 +1,57 @@
+{
+  "broker": "hdfcsecurities",
+  "summary": "A Depth subscription whose first full packet sends an empty level list (no book yet): its Depth frame has no depth key; the next packet's book then reaches the client.",
+  "scenarios": [
+    "first-full-packet",
+    "absent-field",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._parse_packet",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._on_ticks",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._merge_partial",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "The first full packet sends MarketDepthDTOList with no marketDepthDTO in it (the wrapper present, the repeated field empty), before any book on the connection. Both sides publish its Depth frame without a depth key; the next packet's five levels then go out as sent. Live check: does HDFC's empty book list mean unchanged or cleared (lead ruling 2026-11-09)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
+      "approval": "alias-unit"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approval": "leave-out-unsent"
+    }
+  ]
+}

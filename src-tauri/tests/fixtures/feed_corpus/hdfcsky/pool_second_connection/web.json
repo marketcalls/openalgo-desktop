@@ -1,0 +1,208 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "hdfcsky",
+  "inputs_sha256": "158620f3316bfaf141b6231cd3987c78700ec7e417d2143bb1a846a3c21abca2",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_QUOTE",
+          "exchange": "NSE",
+          "symbol": "INFY",
+          "mode": 2,
+          "data": {
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "token": "1594",
+            "ltp": 1801.5,
+            "last_price": 1801.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000000,
+            "close": 1790.0,
+            "prev_close": 1790.0,
+            "change": 11.5,
+            "change_percent": 0.64,
+            "volume": 5000,
+            "last_quantity": 2,
+            "average_price": 1801.0,
+            "total_buy_quantity": 1000,
+            "total_sell_quantity": 1200,
+            "open": 1790.0,
+            "high": 1806.5,
+            "low": 1785.0,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000000,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.5,
+            "change_percent": 0.37,
+            "volume": 12345,
+            "last_quantity": 2,
+            "average_price": 1500.0,
+            "total_buy_quantity": 1000,
+            "total_sell_quantity": 1200,
+            "open": 1495.0,
+            "high": 1505.5,
+            "low": 1490.0,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 14,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.8,
+            "last_price": 1500.8,
+            "ltt": 1700000002,
+            "timestamp": 1700000002000,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.8,
+            "change_percent": 0.39,
+            "volume": 12400,
+            "last_quantity": 2,
+            "average_price": 1500.3,
+            "total_buy_quantity": 1000,
+            "total_sell_quantity": 1200,
+            "open": 1495.0,
+            "high": 1505.8,
+            "low": 1490.0,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 20,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_QUOTE",
+          "exchange": "NSE",
+          "symbol": "INFY",
+          "mode": 2,
+          "data": {
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "token": "1594",
+            "ltp": 1802.0,
+            "last_price": 1802.0,
+            "ltt": 1700000003,
+            "timestamp": 1700000003000,
+            "close": 1790.0,
+            "prev_close": 1790.0,
+            "change": 12.0,
+            "change_percent": 0.67,
+            "volume": 5100,
+            "last_quantity": 2,
+            "average_price": 1801.5,
+            "total_buy_quantity": 1000,
+            "total_sell_quantity": 1200,
+            "open": 1790.0,
+            "high": 1807.0,
+            "low": 1785.0,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

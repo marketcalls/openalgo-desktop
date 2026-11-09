@@ -1,0 +1,7 @@
+{
+  "status": "FAILURE",
+  "error": {
+    "code": "GA003",
+    "message": "Unable to serve request currently"
+  }
+}

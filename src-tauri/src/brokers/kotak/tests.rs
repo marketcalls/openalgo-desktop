@@ -1173,18 +1173,20 @@ fn depth_holders_see_every_packets_price_with_the_cached_book() {
 fn feed_config_and_dividers() {
     let cfg = j(fixture!("responses.json"))["feed_config"]["data"]["configs"].clone();
     assert_eq!(
-        feed_url_from_config(&cfg, "E43"),
+        feed_url_from_config(&cfg, "E43", DEFAULT_SFEED_URL),
         (
             Some("sh".into()),
             "wss://sfeed-e43.kotaksecurities.com/apifeed".into()
         )
     );
     assert_eq!(
-        feed_url_from_config(&cfg, "E21").1,
+        feed_url_from_config(&cfg, "E21", DEFAULT_SFEED_URL).1,
         "wss://cdtstream-e21.kotaksecurities.com/feed"
     );
     // HSM routes fall back to the SFeed default and say so, as on the web.
-    let (hs, kept) = crate::services::error_log::kept_while(|| feed_url_from_config(&cfg, "E10"));
+    let (hs, kept) = crate::services::error_log::kept_while(|| {
+        feed_url_from_config(&cfg, "E10", DEFAULT_SFEED_URL)
+    });
     assert_eq!(hs, (None, DEFAULT_SFEED_URL.into()));
     assert!(
         kept.iter()
@@ -1193,7 +1195,7 @@ fn feed_config_and_dividers() {
         kept
     );
     assert_eq!(
-        feed_url_from_config(&cfg, "E99"),
+        feed_url_from_config(&cfg, "E99", DEFAULT_SFEED_URL),
         (None, DEFAULT_SFEED_URL.into())
     );
     assert_eq!(to_wss("http://h/x"), "ws://h/x");
@@ -1361,6 +1363,26 @@ async fn resumed_session_restores_the_ucc_and_resolves_the_feed_host() {
     ));
     b.on_logout().await;
     assert!(b.feed_url.lock().is_none());
+}
+
+/// A broker given a fallback host dials it, never Kotak's own SFeed host,
+/// when the feed config cannot be read: the feed corpus points it at
+/// loopback, so a broken config route fails its case without leaving the
+/// machine.
+#[tokio::test]
+async fn a_feed_lookup_that_fails_dials_the_fallback_the_broker_was_given() {
+    let fallback = "ws://127.0.0.1:0/apifeed";
+    let b = KotakBroker::with_urls(master(), "http://127.0.0.1:9", "http://127.0.0.1:9/cfg")
+        .with_feed_fallback(fallback);
+    assert_eq!(feed_config::cached_feed_url(&b, "E43"), fallback);
+    let auth = AuthToken::new("tok:::sid:::https://h.example:::acc:::E43");
+    let mut f = b.create_feed(&auth).unwrap();
+    f.prepare().await.unwrap();
+    assert_eq!(f.ws_request().unwrap().uri().to_string(), fallback);
+    assert_eq!(
+        b.feed_url.lock().clone(),
+        Some(("E43".to_string(), fallback.to_string()))
+    );
 }
 
 // ---------------------------------------------------------------------------

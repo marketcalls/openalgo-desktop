@@ -274,6 +274,18 @@
       "date": "2026-11-09",
       "source": ".lane/107/decisions.md",
       "rule": "AliceBlue real depth order counts (web 0 = web defect). A changed-keys packet's explicit 0/0 level clears it (web stale side = web defect; maintainer live check)."
+    },
+    "indmoney-equity-oi-zero": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": "lead's message to bk-b, 2026-11-09 (IndMoney questions)",
+      "rule": "3. Approved: equity oi/oi_change 0 from INDstocks left out, declared web defect."
+    },
+    "no-packet-time-as-trade-time": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": "lead's message to bk-b, 2026-11-09 (HDFC questions)",
+      "rule": "(a) Approved: index ltt left out where the web uses the packet or receipt time as a trade time (no trade on an index; the 1.0.6 rule \"no receipt time passed off as a trade time\"; only a golden fixture outranks it, as with Zerodha's 44-byte quote)."
     }
   }
 }
