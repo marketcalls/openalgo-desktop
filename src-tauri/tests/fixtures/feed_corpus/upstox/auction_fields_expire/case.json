@@ -1,6 +1,6 @@
 {
   "broker": "upstox",
-  "summary": "The closing-auction fields come with one tick and go with the next one that does not carry them (they are never cached).",
+  "summary": "The closing-auction fields come with one tick and go with the next one that does not carry them (never cached); the LTPC's wrapped equilibrium price goes out even at an explicit 0.",
   "scenarios": [
     "partial-packet",
     "absent-field"

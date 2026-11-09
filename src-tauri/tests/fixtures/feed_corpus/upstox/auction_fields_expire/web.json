@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "upstox",
-  "inputs_sha256": "577e50a487fb7da0344ca976a54929d502d6e19f5d1abe4f393af33b09860a28",
+  "inputs_sha256": "3191ca50b607b30a15c6d575eca82d0cec3ab61069dd309f1a1260be566d396f",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -71,6 +71,35 @@
             "ltt": 1740729561000,
             "last_trade_time": 1740729561000,
             "timestamp": 1740729567600
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "NSE_EQ|INE002A01018",
+            "ltp": 1301.75,
+            "close": 1295.0,
+            "last_trade_quantity": 2,
+            "last_quantity": 2,
+            "volume": 50006,
+            "average_price": 1299.7,
+            "total_buy_quantity": 9020,
+            "total_sell_quantity": 8020,
+            "ltt": 1740729562000,
+            "last_trade_time": 1740729562000,
+            "timestamp": 1740729568600,
+            "indicative_equilibrium_price": 0.0
           }
         }
       ]

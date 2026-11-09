@@ -1,0 +1,30 @@
+# A full packet whose LTPC names the indicative equilibrium price as an explicit 0.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_EQ|INE002A01018": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 1301.75,
+#         "ltt": "1740729562000",
+#         "ltq": "2",
+#         "cp": 1295.0,
+#         "iep": 0.0
+#        },
+#        "atp": 1299.7,
+#        "vtt": "50006",
+#        "tbq": 9020.0,
+#        "tsq": 8020.0
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729568600"
+#   }
+080112640a134e53455f45517c494e45303032413031303138124d12490a470a
+260900000000005794401090e7c4dcd43218022100000000003c94402a090900
+0000000000000029cdcccccccc4e944030d686034900000000009ec140510000
+00000054bf40200118d89ac5dcd432

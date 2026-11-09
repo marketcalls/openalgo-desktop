@@ -1,0 +1,16 @@
+# A quote packet (code 4) for NIFTY25NOV26FUT: no OI high or low in it.
+04                      # response code 4 (quote)
+3200                    # message length 50, header included
+02                      # exchange segment 2 (NSE_FNO)
+cfcb0000                # security id 52175
+0019bf46                # ltp 24460.5
+4b00                    # last traded quantity 75
+28e3f26a                # last trade time, epoch s
+00f7be46                # average traded price 24443.5
+700a1700                # volume 1510000
+801a0600                # total sell quantity 400000
+d0dd0600                # total buy quantity 450000
+00b4be46                # open 24410.0
+00000000                # day close (0 until the market closes)
+0068bf46                # high 24500.0
+0078be46                # low 24380.0

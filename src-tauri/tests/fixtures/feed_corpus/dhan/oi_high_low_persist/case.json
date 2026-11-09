@@ -1,0 +1,33 @@
+{
+  "broker": "dhan",
+  "summary": "OI high and low from a full packet are the day's market state: they stay on the Depth frames of later quote and ticker packets, which do not carry them, until a new connection (R107-12).",
+  "scenarios": [
+    "derivative-oi",
+    "partial-packet",
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "52175",
+      "brsymbol": "NIFTY-Nov2026-FUT",
+      "brexchange": "NSE_FNO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket._parse_regular_message",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._normalize_5depth_data"
+    ],
+    "notes": [
+      "The web sends oi_high and oi_low only with a full packet's dict; the desktop keeps them as market state (lead: market-state values overlay and go only on an explicit clear)."
+    ]
+  },
+  "deviations": []
+}

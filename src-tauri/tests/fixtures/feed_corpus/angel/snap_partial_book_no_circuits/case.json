@@ -1,0 +1,35 @@
+{
+  "broker": "angel",
+  "summary": "A SNAP_QUOTE with three bids and two asks and no circuit limits: the empty fixed slots stay as Angel sent them, and circuits of 0 are not limits.",
+  "scenarios": [
+    "partial-packet",
+    "absent-field",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "52175",
+      "brsymbol": "NIFTY25NOV26FUT",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/angel/streaming/smartWebSocketV2.py::SmartWebSocketV2._parse_binary_data",
+      "broker/angel/streaming/angel_adapter.py::AngelWebSocketAdapter._on_data",
+      "broker/angel/streaming/angel_adapter.py::AngelWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": []
+  },
+  "deviations": [],
+  "upstream_ignore": [
+    "ping"
+  ]
+}

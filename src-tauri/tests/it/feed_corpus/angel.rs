@@ -39,5 +39,6 @@ corpus_cases!(
         quote_depth_mode_change,
         order_lifecycle,
         depth_reconnect,
+        snap_partial_book_no_circuits,
     ]
 );

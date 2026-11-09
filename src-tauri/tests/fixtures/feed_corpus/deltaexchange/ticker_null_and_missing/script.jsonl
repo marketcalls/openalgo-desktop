@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"type": "subscribe", "payload": {"channels": [{"name": "ticker", "symbols": ["BTCUSD"]}]}}}]}
+{"step": "push", "frame": "frames/ticker.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "push", "frame": "frames/ticker_nulls.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote_nulls.json"}
+{"step": "push", "frame": "frames/ticker_mark_only.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote_mark_only.json"}

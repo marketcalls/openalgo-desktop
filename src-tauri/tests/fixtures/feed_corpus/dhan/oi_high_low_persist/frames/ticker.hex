@@ -1,0 +1,7 @@
+# A ticker packet (code 2): the LTP and trade time only.
+02                      # response code 2 (ticker)
+1000                    # message length 16, header included
+02                      # exchange segment 2 (NSE_FNO)
+cfcb0000                # security id 52175
+001abf46                # ltp 24461.0
+29e3f26a                # last trade time, epoch s

@@ -1,0 +1,30 @@
+{
+  "broker": "deltaexchange",
+  "summary": "A ticker whose arrays are present with nulls publishes 0 for them (the web's rule); the next ticker without those arrays keeps those values.",
+  "scenarios": [
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "BTCUSDFUT",
+      "exchange": "CRYPTO",
+      "token": "27",
+      "brsymbol": "BTCUSD",
+      "brexchange": "CRYPTO",
+      "instrumenttype": "FUT",
+      "tick_size": 0.5
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._on_data",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_ticker",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_book"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

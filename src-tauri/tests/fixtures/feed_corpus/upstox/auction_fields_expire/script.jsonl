@@ -4,3 +4,5 @@
 {"step": "receive", "client": "a", "frame": "expected/quote_auction.json"}
 {"step": "push", "frame": "frames/normal.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_after.json"}
+{"step": "push", "frame": "frames/wrapper_zero.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_wrapper_zero.json"}

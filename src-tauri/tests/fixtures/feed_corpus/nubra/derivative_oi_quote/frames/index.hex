@@ -1,0 +1,25 @@
+# An index-channel message for the option, with its open interest in volume_oi.
+# Any(Any(BatchWebSocketIndexMessage)), the inner message:
+#   {
+#    "instruments": [
+#     {
+#      "indexname": "NIFTY25NOV2625000CE",
+#      "timestamp": 1740729566039,
+#      "index_value": 14785,
+#      "high_index_value": 15500,
+#      "low_index_value": 13900,
+#      "prev_close": 14100,
+#      "volume": 750000,
+#      "volume_oi": 2450000,
+#      "exchange": "NSE"
+#     }
+#    ],
+#    "timestamp": 1740729566039
+#   }
+0a27747970652e676f6f676c65617069732e636f6d2f676f6f676c652e70726f
+746f6275662e416e791298010a55747970652e676f6f676c65617069732e636f
+6d2f70726f746f732e7a616e736b6172736563757269746965732e6e75627261
+66726f6e74656e642e4261746368576562536f636b6574496e6465784d657373
+616765123f1a360a134e4946545932354e4f5632363235303030434510d786c5
+dcd43218c173208c7928cc6c48946e30b0e32d58d0c4950152034e534508d786
+c5dcd432

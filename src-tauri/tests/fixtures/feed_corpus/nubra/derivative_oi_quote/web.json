@@ -1,0 +1,46 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "nubra",
+  "inputs_sha256": "a1573d096583a0dc33052bacc72c54c38f3484e28120d2117c88f01e8478a2fc",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV2625000CE",
+      "exchange": "NFO",
+      "token": "52175",
+      "brsymbol": "NIFTY25NOV2625000CE",
+      "brexchange": "NSE",
+      "expiry": "25-NOV-26",
+      "strike": 25000.0,
+      "lotsize": 75,
+      "instrumenttype": "CE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV2625000CE_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV2625000CE",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV2625000CE",
+            "exchange": "NFO",
+            "mode": "quote",
+            "ltp": 147.85,
+            "open": 0,
+            "high": 155.0,
+            "low": 139.0,
+            "close": 141.0,
+            "volume": 750000,
+            "prev_close": 141.0,
+            "timestamp": 1740729566039
+          }
+        }
+      ]
+    }
+  ]
+}

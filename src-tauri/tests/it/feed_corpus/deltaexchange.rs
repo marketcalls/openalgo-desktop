@@ -23,5 +23,7 @@ corpus_cases!(
         book_then_ticker_depth,
         reconnect_then_mark_only,
         reconnect_then_book_before_price,
+        book_clear,
+        ticker_null_and_missing,
     ]
 );

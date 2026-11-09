@@ -41,6 +41,7 @@ corpus_cases!(
         one_sided_book_clear,
         book_before_price,
         book_first_after_reconnect,
-        equity_quote_and_ltp
+        equity_quote_and_ltp,
+        derivative_oi_quote
     ]
 );
