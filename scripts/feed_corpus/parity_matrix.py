@@ -17,7 +17,10 @@ cell names the corpus cases that cover it and their result:
   against the web's own output when it has `web.json` (else it is worked
   by hand, marked "by hand"); otherwise it lists its deviations by kind,
   approved or pending (`case.json` `deviations[].approved`), and any
-  `open` one is a gap 1.0.7 cannot ship with.
+  `open` one is a gap 1.0.7 cannot ship with;
+- a scenario the broker's stream cannot produce is named in its
+  `broker.json` `not_applicable` (`{"partial-packet": "why"}`) and listed
+  as not applicable, with the reason, instead of as not yet covered.
 
 A case's result holds when its test passes (lane-test or CI). Standard
 library only.
@@ -198,6 +201,12 @@ def build() -> str:
             # HDFC) has no order scenario to cover.
             missing = [s for s in missing if not s.startswith("order-")]
             missing.append("(order updates: not offered by the web)")
+        not_applicable = (meta or {}).get("not_applicable", {})
+        unknown = sorted(set(not_applicable) - set(names))
+        if unknown:
+            problems.append(f"{broker} broker.json: not_applicable names no scenario: {unknown}")
+        missing = [s for s in missing if s not in not_applicable]
+        missing += [f"({s}: not applicable: {why})" for s, why in sorted(not_applicable.items())]
         if cases:
             scen.append((broker, sorted(seen, key=names.index), missing))
     if problems:

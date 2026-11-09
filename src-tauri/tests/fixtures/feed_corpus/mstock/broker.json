@@ -33,5 +33,8 @@
   "notes": [
     "mStock streams five levels on every exchange; the web adapter refuses a Depth subscribe at any other level (INVALID_DEPTH, mstock_adapter.py:239-242).",
     "The web has no order-update adapter for mStock (not in services/order_update_service.py _BROKER_FACTORIES or _POLLING_BROKERS), and neither has the desktop."
-  ]
+  ],
+  "not_applicable": {
+    "partial-packet": "every mStock packet is a full snapshot of its mode (the 51-byte LTP, 123-byte Quote and 379-byte full layouts, mstockwebsocket.py:154-360): no packet carries part of a mode's fields"
+  }
 }
