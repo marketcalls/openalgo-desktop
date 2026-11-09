@@ -115,6 +115,36 @@ describe('Broker feed connections card', () => {
     expect(note).not.toHaveTextContent('internet connection')
   })
 
+  it('turns red and says which connection streams nothing when a further one was refused', () => {
+    const pooled = (second: FeedConnection['state']) => ({
+      ...feed('market_data', connection({})),
+      connections: {
+        per_connection: 1000,
+        most: 3,
+        open: [
+          { instruments: 1000, state: 'connected' as const },
+          { instruments: 1, state: second },
+        ],
+      },
+    })
+    const { unmount } = render(
+      <FeedConnectionsCard read={read([pooled('auth_failed')])} now={NOW} />
+    )
+    expect(cardOf('Broker Feed Connections').className).toMatch(/red/)
+    expect(rowValue('Broker market data')).toBe('Connected')
+    expect(rowValue('Connection 2')).toBe('Refused by the broker, 1 symbol')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Connection 2 of the market data feed carries 1 symbol and is not streaming (refused by the broker); their prices have stopped. Log in to your broker again.'
+    )
+    unmount()
+
+    render(<FeedConnectionsCard read={read([pooled('reconnecting')])} now={NOW} />)
+    expect(cardOf('Broker Feed Connections').className).toMatch(/yellow/)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /Connection 2 of the market data feed carries 1 symbol and is not streaming \(reconnecting\)/
+    )
+  })
+
   it('warns while a feed is reconnecting', () => {
     const now = connection({
       state: 'reconnecting',

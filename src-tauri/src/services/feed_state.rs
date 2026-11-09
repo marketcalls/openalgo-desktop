@@ -55,12 +55,38 @@ pub fn order_updates(ctx: &AppState) -> Value {
 }
 
 /// Whether the `market_data` block warns for what this module adds: a
-/// subscription the broker connection refused, or an order feed that is
-/// down or did not start.
+/// subscription the broker connection refused, an order feed that is down
+/// or did not start, or a pooled connection that carries instruments and
+/// is not streaming (review R107-16: the first connection being up says
+/// nothing about the others).
 pub fn needs_attention(block: &Value) -> bool {
     let refused = block["subscriptions"]["refused"].as_u64().unwrap_or(0) > 0;
     let orders = &block["order_updates"];
-    refused || orders["source"] == "not_started" || orders["connected"] == json!(false)
+    let pool_down = block["broker_feeds"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|feed| !silent_connections(feed).is_empty());
+    refused
+        || pool_down
+        || orders["source"] == "not_started"
+        || orders["connected"] == json!(false)
+}
+
+/// The connections of one feed's entry that carry instruments and are not
+/// streaming, each as (its number from 1, instruments, state).
+pub(crate) fn silent_connections(feed: &Value) -> Vec<(usize, u64, String)> {
+    feed["connections"]["open"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .filter_map(|(i, c)| {
+            let instruments = c["instruments"].as_u64().unwrap_or(0);
+            let state = c["state"].as_str().unwrap_or("disconnected");
+            (instruments > 0 && state != "connected").then(|| (i + 1, instruments, state.into()))
+        })
+        .collect()
 }
 
 /// A feed's open connections: the instruments each carries and its state,
@@ -81,6 +107,35 @@ pub fn connections(feed: &WebSocketManager) -> Value {
 mod tests {
     use super::*;
     use crate::websocket::PoolLimits;
+
+    /// Review R107-16: the first connection streaming, the second refused
+    /// or reconnecting with an instrument on it: the block warns, and
+    /// names that connection.
+    #[test]
+    fn a_secondary_connection_that_does_not_stream_warns() {
+        let feed = |second: &str| {
+            json!({"connections": {"open": [
+                {"instruments": 1000, "state": "connected"},
+                {"instruments": 1, "state": second},
+            ]}})
+        };
+        for second in ["auth_failed", "reconnecting"] {
+            let block = json!({"broker_feeds": [feed(second)]});
+            assert!(needs_attention(&block), "{second}");
+            assert_eq!(
+                silent_connections(&feed(second)),
+                vec![(2, 1, second.to_string())]
+            );
+        }
+        let calm = json!({"broker_feeds": [feed("connected")]});
+        assert!(!needs_attention(&calm));
+        // An idle extra connection on its way out carries nothing.
+        let idle = json!({"broker_feeds": [{"connections": {"open": [
+            {"instruments": 3, "state": "connected"},
+            {"instruments": 0, "state": "disconnected"},
+        ]}}]});
+        assert!(!needs_attention(&idle));
+    }
 
     #[test]
     fn a_feed_lists_its_room_and_no_connection_before_it_starts() {

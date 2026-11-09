@@ -256,7 +256,13 @@ function feedWords(feed: BrokerFeedLosses): string {
   const open = feed.connections?.open ?? []
   if (open.length < 2) return updates
   const instruments = open.reduce((n, c) => n + c.instruments, 0)
-  return `${updates}, ${instruments.toLocaleString('en-IN')} symbols on ${open.length} connections`
+  const all = `${updates}, ${instruments.toLocaleString('en-IN')} symbols on ${open.length} connections`
+  // A further connection that carries symbols and is not up streams none
+  // of them (review R107-16).
+  const silent = open
+    .filter((c, i) => i > 0 && c.instruments > 0 && c.state !== 'connected')
+    .reduce((n, c) => n + c.instruments, 0)
+  return silent > 0 ? `${all}; ${silent.toLocaleString('en-IN')} of them not streaming` : all
 }
 
 /** What one reader skipped on every broker feed since OpenAlgo started. */
