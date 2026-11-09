@@ -29,10 +29,17 @@
     ],
     "notes": [
       "Lead decision (bk-b phase B, round 2 item c): a full packet whose lastTradedPrice is 0 (proto3: not sent) marks the price absent, so no LTP or Quote frame goes out for it; its book still reaches Depth holders with ltp 0 (the 1.0.6 depth-before-first-quote rule).",
-      "The web publishes the Quote topic for that packet with ltp 0 and a change of -1495.0 (ltp - close with ltp 0): web defect, approved. The Quote client's silence cannot declare it yet: a frame the web sends and the desktop does not is the corpus's missing-frame deviation, not on the base; this step becomes one when it lands."
+      "The web publishes the Quote topic for the no-trade packet with ltp 0 and a change of -1495.0 (ltp - close with ltp 0); the Quote client's silence names that frame (missing-frame, web defect, approved). The Depth frame leaves out the trade time and the open, high, low, volume, last quantity and average price the packet never sent (feed/bridge/snapshot.rs sent_without_price); the web's packet-time ltt and zeros are declared web defects."
     ]
   },
   "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
+      "ref": "hdfcsecurities_adapter.py:381-385",
+      "approved": true
+    },
     {
       "key": "change",
       "kind": "web-defect",
@@ -48,10 +55,38 @@
       "approved": true
     },
     {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
+      "ref": "hdfcsecurities_adapter.py:381-385",
+      "approved": true
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
+      "ref": "hdfcsecurities_adapter.py:381-385",
+      "approved": true
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
+      "ref": "hdfcsecurities_adapter.py:381-385",
+      "approved": true
+    },
+    {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
-      "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
+      "reason": "Two causes, one key. Before the first trade the packet has no lastTradeTime and the web sends its packet time as ltt (a time no trade happened at), where the desktop leaves ltt out; on the traded packets the web sends lastTradeTime in epoch seconds unconverted, where the desktop sends ms. Lead decisions: the trade-time fallback is absent; ltt in seconds -> ms (wrong unit).",
+      "ref": "hdfcsecurities_adapter.py:367; investright::set_trade_time",
+      "approved": true
+    },
+    {
+      "key": "missing-frame",
+      "kind": "web-defect",
+      "reason": "Before the first trade the web publishes a Quote frame with ltp 0 and a change from it; the desktop sends a Quote holder no frame with a zero price (the book goes to the Depth holder). Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
+      "ref": "hdfcsecurities_adapter.py:371-378; investright::finish",
       "approved": true
     },
     {
@@ -62,6 +97,13 @@
       "approved": true
     },
     {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
+      "ref": "hdfcsecurities_adapter.py:381-385",
+      "approved": true
+    },
+    {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
@@ -69,16 +111,11 @@
       "approved": true
     },
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
+      "ref": "hdfcsecurities_adapter.py:381-385",
+      "approved": true
     }
   ]
 }

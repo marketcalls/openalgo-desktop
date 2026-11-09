@@ -56,18 +56,6 @@
       "approved": true
     },
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
-    },
-    {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",

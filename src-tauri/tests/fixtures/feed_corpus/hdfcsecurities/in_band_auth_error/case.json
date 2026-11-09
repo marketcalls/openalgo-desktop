@@ -60,18 +60,6 @@
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
       "approved": true
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
     }
   ]
 }

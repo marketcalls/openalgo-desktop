@@ -44,18 +44,6 @@
       "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
       "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
       "approved": true
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
     }
   ]
 }

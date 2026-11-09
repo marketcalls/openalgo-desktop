@@ -81,18 +81,6 @@
       "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
       "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
       "approved": true
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The HDFC Sky web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsky_adapter.py:425-432; feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The HDFC Sky web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
-      "ref": "hdfcsky_adapter.py:425-432; feed/dialect/names.rs"
     }
   ]
 }
