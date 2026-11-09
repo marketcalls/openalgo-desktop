@@ -54,8 +54,10 @@ def approval_rules() -> dict:
 
 
 def approved(dv: dict, rules: dict) -> bool:
-    """A deviation names the rule it follows (never an open gap)."""
-    return dv.get("kind") != "open" and dv.get("approval") in rules
+    """A deviation names the rule in force it follows (never an open gap,
+    never a rule a later decision withdrew)."""
+    rule = rules.get(dv.get("approval"))
+    return dv.get("kind") != "open" and rule is not None and "superseded_by" not in rule
 
 
 def scenarios() -> list[str]:
@@ -100,6 +102,9 @@ def deviation_problems(name: str, case: dict, kinds: list[str], rules: dict | No
         if "approval" in dv:
             if dv["approval"] not in rules:
                 out.append(f"{label}: approval {dv['approval']!r} is no rule in approvals.json")
+            elif "superseded_by" in rules[dv["approval"]]:
+                newer = rules[dv["approval"]]["superseded_by"]
+                out.append(f"{label}: approval {dv['approval']!r} cites a withdrawn rule: {newer!r} replaced it")
             if dv.get("kind") == "open":
                 out.append(f"{label}: an open gap is never approved")
     return out

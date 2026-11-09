@@ -356,9 +356,14 @@ python3 scripts/feed_corpus/approve.py add-rule dhan-ltt-seconds --by lead \
 
 `set` writes the rule on every matching deviation (by `--case`, `--key`,
 `--kind`, `--reason-has`; `--dry-run` shows them), drops `approved`, and
-refuses a rule the registry does not have or an open gap. Add a rule only
-for a decision the lead or the maintainer made, quoted word for word; a
-rule's quote is never edited.
+refuses a rule the registry does not have, a withdrawn rule, or an open
+gap. Add a rule only for a decision the lead or the maintainer made,
+quoted word for word; a rule's quote is never edited. A rule a later
+decision withdrew carries `"superseded_by": "<the rule that replaced it>"`,
+and no deviation may cite it (the harness refuses it, the gate counts it
+as pending). `list` ends with each broker's count of deviations, approved,
+still to do and old flags: a broker is done when its "to do" and "old
+flag" are 0.
 
 A deviation no difference shows any more fails the case, so remove it with
 the fix. `feed_corpus::inventory::every_deviation_has_a_known_kind_and_a_reason`
