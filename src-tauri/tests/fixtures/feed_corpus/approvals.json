@@ -35,7 +35,8 @@
       "by": "lead",
       "date": "2026-11-09",
       "source": ".lane/107/decisions.md",
-      "rule": "Index price_change where the web sends none: keep only if the docs define it for the mode and it comes from the broker's own previous close; else leave out."
+      "rule": "Index price_change where the web sends none: keep only if the docs define it for the mode and it comes from the broker's own previous close; else leave out.",
+      "superseded_by": "merge-restart-on-reconnect"
     },
     "one-frame-per-held-mode": {
       "by": "lead",
@@ -95,7 +96,8 @@
       "by": "lead",
       "date": "2026-11-09",
       "source": ".lane/107/decisions.md",
-      "rule": "Depth holder with no book known still gets a Depth frame per tick, depth key left out (wire; all brokers; a web adapter that stays silent instead = web defect). HDFC Securities snapshot cleared on reconnect."
+      "rule": "Depth holder with no book known still gets a Depth frame per tick, depth key left out (wire; all brokers; a web adapter that stays silent instead = web defect). HDFC Securities snapshot cleared on reconnect.",
+      "superseded_by": "depth-without-book-refined"
     },
     "indmoney-depth-refused": {
       "by": "lead",
@@ -252,6 +254,13 @@
       "date": "2026-11-09",
       "source": ".lane/107/review-fixes.md",
       "rule": "Dhan f32 prices: the desktop renders the shortest round-trip decimal of the f32 (the intended tick, 954.1); the web's widened value (954.0999755859375) is declared as a web defect with the same reason as IIFL Capital's noise; pin it with non-binary-exact values."
+    },
+    "per-packet-only-persistent-extras": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Per-packet values (exchange_time_ms, any time or per-event value) are never carried to the next packet; only persistent extras (circuits, 52-week, previous OI, day close) overlay in the snapshot (wire).",
+      "superseded_by": "market-state-overlay"
     }
   }
 }
