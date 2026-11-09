@@ -6,5 +6,7 @@
     "no_web_reply": 2,
     "refuse_upgrades": 8
   },
-  "raised_by": {}
+  "raised_by": {
+    "refuse_upgrades": "uncompared-dhan-deep-socket-refused"
+  }
 }

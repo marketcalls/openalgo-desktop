@@ -772,6 +772,17 @@
           "web-defect"
         ]
       }
+    },
+    "uncompared-dhan-deep-socket-refused": {
+      "by": "lead",
+      "date": "2026-11-10",
+      "source": ".lane/107/decisions.md (lead, 2026-11-10)",
+      "rule": "The replay drives the web adapter's message handlers and has no socket to refuse. This step keeps Dhan's 20-level socket down so the case can pin that a 20-level holder gets the main feed's 5-level book and never its last 20-level book; there is no web behaviour to compare at that step.",
+      "scope": {
+        "cases": [
+          "dhan/depth_20_socket_down_forgets_its_book"
+        ]
+      }
     }
   }
 }
