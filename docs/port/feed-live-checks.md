@@ -63,6 +63,8 @@ broker, symbol, time and the frame text.
 - **Paytm Money, Pocketful, Arrow, Rupeezy, IIFL Capital:** Pocketful's
   `last_traded_time` epoch and its signed compact change; Paytm's
   concatenated packets; IIFL Capital's OI after a reconnect.
+- **Pocketful:** a Depth subscription runs `marketdata` and `full_snapquote`
+  on one token: both streams arrive, and Depth keeps the real last price.
 - **Shoonya, Flattrade, Zebu, TradeSmart:** the silence watchdog on a real
   quiet session (no false reconnect after hours); whether frames always
   carry the exchange; real `toi` and `oi` values on an NFO contract.
