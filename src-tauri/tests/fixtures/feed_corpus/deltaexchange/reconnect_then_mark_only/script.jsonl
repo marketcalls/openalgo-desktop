@@ -1,0 +1,11 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"type": "subscribe", "payload": {"channels": [{"name": "ticker", "symbols": ["BTCUSD"]}]}}}, {"json": {"type": "subscribe", "payload": {"channels": [{"name": "ob_l2", "symbols": ["BTCUSD"]}]}}}]}
+{"step": "push", "frame": "frames/book.json"}
+{"step": "receive", "client": "a", "frame": "expected/book.json"}
+{"step": "push", "frame": "frames/ticker.json"}
+{"step": "receive", "client": "a", "frame": "expected/full.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2}
+{"step": "upstream_receives", "frames": [{"json": {"type": "subscribe", "payload": {"channels": [{"name": "ticker", "symbols": ["BTCUSD"]}]}}}, {"json": {"type": "subscribe", "payload": {"channels": [{"name": "ob_l2", "symbols": ["BTCUSD"]}]}}}], "connection": 2}
+{"step": "push", "frame": "frames/ticker_mark_only.json"}
+{"step": "receive", "client": "a", "frame": "expected/mark_only_after_reconnect.json"}

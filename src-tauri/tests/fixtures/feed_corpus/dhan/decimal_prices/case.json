@@ -1,0 +1,29 @@
+{
+  "broker": "dhan",
+  "summary": "Prices not exact in an f32 (LTP 954.1, previous close 1279.35, OHLC, average and book levels): the desktop sends each as the shortest decimal that reads back to the same f32, the price Dhan meant; the web widens the f32 (954.0999755859375) (R107-19, lead decision).",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket._parse_regular_message",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._normalize_5depth_data"
+    ],
+    "notes": [
+      "The review's probe: LTP bytes 66 86 6e 44; the web yields 954.0999755859375, the desktop 954.1."
+    ]
+  },
+  "deviations": []
+}

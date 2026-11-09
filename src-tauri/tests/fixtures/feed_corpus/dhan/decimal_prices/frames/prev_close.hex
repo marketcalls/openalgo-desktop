@@ -1,0 +1,7 @@
+# Dhan's previous close for RELIANCE: 1279.35, not exact in an f32.
+06                      # response code 6 (previous close)
+1000                    # message length 16, header included
+01                      # exchange segment 1 (NSE_EQ)
+450b0000                # security id 2885
+33eb9f44                # previous close 1279.35 (f32)
+00000000                # previous OI

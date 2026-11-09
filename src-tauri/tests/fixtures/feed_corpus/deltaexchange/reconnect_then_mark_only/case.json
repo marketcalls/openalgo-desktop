@@ -1,0 +1,32 @@
+{
+  "broker": "deltaexchange",
+  "summary": "A book and a full ticker, then Delta drops the socket: after the subscriptions go again, a ticker with only the mark price carries only that price, with no OHLC, OI or book from before the drop (R107-05).",
+  "scenarios": [
+    "reconnect",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "BTCUSDFUT",
+      "exchange": "CRYPTO",
+      "token": "27",
+      "brsymbol": "BTCUSD",
+      "brexchange": "CRYPTO",
+      "instrumenttype": "FUT",
+      "tick_size": 0.5
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._on_data",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._merge_into_cache",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_ticker"
+    ],
+    "notes": [
+      "The review's input (R107-05): a book and a full ticker, a reconnect, then a mark-only ticker or a book."
+    ]
+  },
+  "deviations": []
+}
