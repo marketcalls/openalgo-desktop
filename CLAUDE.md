@@ -132,11 +132,21 @@ Observed quirks that are part of the contract and must be reproduced, not
   minute for the Telegram broadcast (`server::ratelimit::api_limits`).
 - A `market_data` frame leaves out a quote field the broker's feed does not
   carry, never sends it as 0 (web openalgo#2376, `docs/api/websocket-streaming/quote.md`).
-  An adapter marks such fields in `NormalizedTick::absent`
-  (`brokers::common::streaming::AbsentFields`); one that marks nothing
-  renders every field, as before. A depth frame before its instrument's
-  first tick leaves out the quote fields but keeps `ltp` and `timestamp`,
-  which the SDK's Depth callback reads (the web leaves `ltp` out too).
+  An adapter says per packet what it carried (`NormalizedTick::absent`,
+  `mark_carried`, `mark_cleared`, `extras`, `broker_fields`, number forms,
+  `book_absent`: the module doc of `brokers::common::streaming`), and each
+  broker's frame follows its own web adapter's keys, names, units and
+  types (`feed/dialect/names.rs`, `docs/port/market-data-frames.md`). A
+  depth frame before its instrument's first tick leaves out the quote
+  fields but keeps `ltp` and `timestamp`, which the SDK's Depth callback
+  reads (the web leaves `ltp` out too).
+- WebSocket parity is proven broker by broker, not argued (1.0.7): the feed
+  corpus (`src-tauri/tests/fixtures/feed_corpus/`, README there) replays a
+  broker's raw frames through its real decoder to the public frame and
+  compares every key and number with the web adapter's own output
+  (`scripts/feed_corpus/web_expected.py`); every difference is declared
+  with its kind and reason, and `docs/port/feed-parity-matrix.md`
+  (`parity_matrix.py --check`) shows each broker x mode x order stream.
 
 ## Ports
 
@@ -1223,6 +1233,39 @@ and add each new one here.
   the web uses 15:30 everywhere. The public Greeks keep the web's
   `cutoff` table. Test the arithmetic against values worked by hand,
   never against the kernel under test.
+
+### Feed parity with the web
+
+The rules the 1.0.7 parity work settled (in detail in
+`docs/port/market-data-frames.md`; each corpus case declares its own
+differences with their reasons):
+
+- **Authority:** golden fixtures, then the web docs, then the adapter code.
+  The docs win over an adapter that sends 0 or null for something the
+  broker did not send: the field is left out, and no key is ever null.
+- **Never copy a web defect** (a wrong number or unit, lost or stale data,
+  a starved client): keep the right behaviour and declare it as a
+  web-defect deviation with its reason. A type-only difference (1000.0 vs
+  1000) is not a defect: follow the web, per packet if the web does.
+- **A web alias follows its adapter** (unit, type, text form); the docs
+  keys `ltt` and `timestamp` are always epoch ms.
+- **Book levels are what the broker sent**: never pad, never drop a zero
+  slot the broker sends; a Depth holder gets only books at its own depth.
+- **A packet without a trade price** publishes no LTP or Quote frame; its
+  book reaches Depth holders only.
+- **Market-state values overlay** in the snapshot and go only on an
+  explicit clear; per-packet values (exchange time) never carry over. A
+  reconnect starts the merge afresh.
+- **Acknowledgements tell the truth**: a subscribe is answered from the
+  broker side, per item, before any of its data; an unsubscribe the broker
+  refused keeps the owner. The web's refusal words are matched per broker
+  (`feed::refusals`).
+- **What the desktop sends the broker is part of parity**: match it unless
+  it provably has no effect at the broker (logout frames included,
+  `BrokerFeed::farewell_frames`).
+- Adding or changing a broker's feed means corpus cases for every mode it
+  offers, its order stream, a reconnect and a book clear, with `web.json`
+  computed by its glue, before the change is done.
 
 ### Broker request limits
 
