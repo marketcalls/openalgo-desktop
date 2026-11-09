@@ -498,6 +498,16 @@ fn ltt_ms(ltt: u32) -> i64 {
     }
 }
 
+/// The packet's trade time; none before the first trade (0, or anything
+/// before 2001): no `ltt` then, never the receipt time (the web sends the
+/// raw value; lead decision 2026-11-09, review round).
+fn set_trade_time(t: &mut NormalizedTick, ltt: u32) {
+    t.last_trade_time_ms = ltt_ms(ltt);
+    if t.last_trade_time_ms == 0 {
+        t.mark_absent(QuoteField::LastTradeTime);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Feed
 // ---------------------------------------------------------------------------
@@ -557,7 +567,7 @@ impl PocketfulFeed {
                 t.mode = FeedMode::Ltp.code();
                 t.ltp = c.ltp;
                 t.oi = c.oi;
-                t.last_trade_time_ms = ltt_ms(c.ltt);
+                set_trade_time(&mut t, c.ltt);
                 t.change = mapping_round2(c.change);
                 let prev = c.ltp - c.change;
                 if prev > 0.0 && c.ltp > 0.0 {
@@ -579,7 +589,7 @@ impl PocketfulFeed {
                 t.total_buy_quantity = d.total_buy_qty;
                 t.total_sell_quantity = d.total_sell_qty;
                 t.oi = d.oi;
-                t.last_trade_time_ms = ltt_ms(d.ltt);
+                set_trade_time(&mut t, d.ltt);
                 // The web's Quote frame carries the packet's OI
                 // (`pocketful_adapter.py:592`), an index's zero excepted.
                 if index {
