@@ -285,6 +285,7 @@ fn book_event(
         sell: sell.to_vec(),
         timestamp_ms: now,
         absent,
+        ..Default::default()
     }
 }
 

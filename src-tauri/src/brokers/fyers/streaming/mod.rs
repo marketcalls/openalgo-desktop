@@ -566,7 +566,11 @@ impl HsmFeed {
             Topic::Depth => {
                 if sub.mode == FeedMode::Depth {
                     let quote = self.sibling(&st.name, "dp|", "sf|");
-                    out.push(FeedEvent::Depth(depth_event(sub, st, quote, now)));
+                    let mut book = depth_event(sub, st, quote, now);
+                    // fyers_adapter.py:555: a book message's own update_type.
+                    book.broker_fields
+                        .set(BrokerField::UpdateType, BrokerValue::Text(update));
+                    out.push(FeedEvent::Depth(book));
                 }
             }
         }
@@ -784,6 +788,7 @@ fn depth_event(
         sell,
         timestamp_ms: now,
         absent,
+        ..Default::default()
     }
 }
 
