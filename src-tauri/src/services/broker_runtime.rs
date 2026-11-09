@@ -42,6 +42,7 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinSet;
 
 mod limits;
+pub use limits::deep_book_timeout;
 #[cfg(test)]
 mod relay_tests;
 

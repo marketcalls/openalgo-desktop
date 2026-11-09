@@ -413,6 +413,14 @@ pub(crate) struct Case {
     /// close the feed makes on them is recorded from the start, as a frame
     /// it sent.
     pub(crate) close_sockets: BTreeSet<Socket>,
+    /// `refuse_upgrades` steps before anything else in the script, applied
+    /// before the feeds connect (a socket that never starts), by socket:
+    /// the status and how many times.
+    pub(crate) refused_at_start: BTreeMap<Socket, (u16, usize)>,
+    /// `case.json` `deep_book_timeout_ms`: the broker's deep-book silence
+    /// timeout (Dhan's 30 s, `broker_runtime::deep_book_timeout`) shortened
+    /// so a case can pass it; only for a broker that has one.
+    pub(crate) deep_book_timeout: Option<std::time::Duration>,
     /// What the fake broker API answers from the start (`case.json`
     /// `http`).
     pub(crate) http: Vec<HttpAnswer>,
@@ -460,6 +468,7 @@ impl Case {
                 "provenance",
                 "deviations",
                 "invariants",
+                "deep_book_timeout_ms",
             ],
         );
         if o.get("broker").and_then(Value::as_str) != Some(broker) {
@@ -490,8 +499,9 @@ impl Case {
             .unwrap_or_else(|e| bad(&format!("{} script.jsonl", id), e))
             .replace("\r\n", "\n");
         let mut inputs = script.clone().into_bytes();
-        let steps = read_script(&id, &dir, &script, &mut inputs);
+        let mut steps = read_script(&id, &dir, &script, &mut inputs);
         let sockets: BTreeSet<Socket> = steps.iter().filter_map(|s| s.action.socket()).collect();
+        let refused_at_start = refusals_at_start(&mut steps);
         let close_sockets: BTreeSet<Socket> = steps
             .iter()
             .filter_map(|s| match &s.action {
@@ -545,6 +555,13 @@ impl Case {
             steps,
             sockets,
             close_sockets,
+            refused_at_start,
+            deep_book_timeout: o.get("deep_book_timeout_ms").map(|v| {
+                std::time::Duration::from_millis(
+                    v.as_u64()
+                        .unwrap_or_else(|| bad(&at, "\"deep_book_timeout_ms\" is a number")),
+                )
+            }),
             inputs,
         }
     }
@@ -621,6 +638,33 @@ fn provenance(at: &str, v: Option<&Value>) -> String {
     }
     strings(at, "provenance.notes", o.get("notes"));
     sha.to_string()
+}
+
+/// Take the `refuse_upgrades` steps that open the script (notes aside) out
+/// of it: they apply before the feeds connect.
+fn refusals_at_start(steps: &mut Vec<Step>) -> BTreeMap<Socket, (u16, usize)> {
+    let lead = steps
+        .iter()
+        .take_while(|s| matches!(s.action, Action::RefuseUpgrades { .. } | Action::Note))
+        .count();
+    let rest = steps.split_off(lead);
+    let mut out = BTreeMap::new();
+    let mut kept = Vec::new();
+    for s in std::mem::replace(steps, rest) {
+        match s.action {
+            Action::RefuseUpgrades {
+                socket,
+                status,
+                times,
+            } => {
+                out.insert(socket, (status, times));
+            }
+            _ => kept.push(s),
+        }
+    }
+    kept.append(steps);
+    *steps = kept;
+    out
 }
 
 /// The keys the deviations cover, with their kinds, after checking each
