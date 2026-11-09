@@ -163,6 +163,12 @@ pub(crate) struct Dialect {
     /// After the first book every full tick carries it, either way (lead
     /// decision 2026-11-09).
     pub depth_needs_book: bool,
+    /// Whether `data.mode` is the holder's mode rather than the mode of
+    /// the dict a `Fold::Richer` broker sends lower holders: its web
+    /// adapter publishes per subscription and writes that subscription's
+    /// mode (mStock, Delta Exchange, Jainam XTS), or writes the mode of the
+    /// one subscription it keeps per token (Angel, Pocketful).
+    pub mode_of_holder: bool,
     pub names: &'static [WebName],
 }
 
@@ -235,6 +241,13 @@ impl Dialect {
     const fn depth_needs_book(self) -> Self {
         Self {
             depth_needs_book: true,
+            ..self
+        }
+    }
+
+    const fn mode_of_holder(self) -> Self {
+        Self {
+            mode_of_holder: true,
             ..self
         }
     }
@@ -611,6 +624,7 @@ const fn d(data_mode: DataMode, names: &'static [WebName]) -> Dialect {
         fold: Fold::PerMode,
         book_time: false,
         depth_needs_book: false,
+        mode_of_holder: false,
         names,
     }
 }
@@ -625,8 +639,10 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "sahi" => d(Label, SAHI).open_interest().index_book(),
         "iiflcapital" => d(Label, IIFLCAPITAL).open_interest(),
         "nubra" => d(Label, NUBRA).no_ltt(),
+        // angel_adapter.py:716-736: `mode` is the token's subscription's.
         "angel" => d(Number, ANGEL)
             .richer()
+            .mode_of_holder()
             .floats(&["total_buy_quantity", "total_sell_quantity"]),
         "arrow" => d(Absent, ARROW_HDFC).open_interest().richer(),
         "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest(),
@@ -640,11 +656,15 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "kotak" => d(Absent, KOTAK).no_index_change().index_book(),
         "upstox" => d(Absent, UPSTOX).book_time(),
         "fyers" => d(Absent, FYERS).no_ltt(),
-        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "jainamxts" | "rmoney" | "wisdom" => {
+        // These name `mode` after the packet's MessageCode; Jainam publishes
+        // once per subscribed mode with that mode (jainamxts_adapter.py:709-725).
+        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "rmoney" | "wisdom" => {
             d(Number, XTS).richer()
         }
+        "jainamxts" => d(Number, XTS).richer().mode_of_holder(),
         "definedge" => d(Number, DEFINEDGE).depth_needs_book(),
-        "deltaexchange" => d(Number, DELTA).no_ltt().richer(),
+        // delta_adapter.py:470-484: one dict per subscription, with its mode.
+        "deltaexchange" => d(Number, DELTA).no_ltt().richer().mode_of_holder(),
         "dhan" => d(Number, DHAN).richer(),
         "firstock" => d(Number, FIRSTOCK).no_index_change(),
         "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book(),
@@ -655,12 +675,22 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "groww" => d(Number, GROWW).floats(&["volume"]),
         "indmoney" => d(Number, INDMONEY).richer(),
         "motilal" => d(Number, MOTILAL).no_ltt(),
-        "mstock" => d(Number, MSTOCK).richer(),
+        // mstock_adapter.py:186-202: one dict per subscription, with its
+        // mode; :362-375: the fixed packet carries an index's order flow too.
+        "mstock" => d(Number, MSTOCK)
+            .richer()
+            .mode_of_holder()
+            .index_key(Key::LastQuantity, Modes::QUOTE_UP)
+            .index_key(Key::AveragePrice, Modes::QUOTE_UP)
+            .index_key(Key::TotalBuyQuantity, Modes::QUOTE_UP)
+            .index_key(Key::TotalSellQuantity, Modes::QUOTE_UP),
         "paytm" => d(Number, PAYTM)
             .richer()
             .instrument_key(Key::LastQuantity, Modes::DEPTH),
+        // pocketful_adapter.py:565-600: `mode` is the token's subscription's.
         "pocketful" => d(Number, POCKETFUL)
             .richer()
+            .mode_of_holder()
             .no_index_change()
             .instrument_key(Key::LastQuantity, Modes::NEVER),
         "samco" => d(Number, SAMCO).no_index_change(),

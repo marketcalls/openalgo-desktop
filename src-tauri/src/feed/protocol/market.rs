@@ -147,16 +147,28 @@ struct MarketDataOut<'a> {
 }
 
 /// The values a frame may show, under any name: the update's quote without
-/// an index's order-flow fields (no web adapter's index dict has them).
-/// Which canonical keys carry them is the broker's `Keys`; a web name reads
-/// the value whatever its canonical key does.
-fn shown_quote(update: &MarketUpdate) -> QuoteFields {
+/// the order-flow fields of an index whose canonical keys the broker leaves
+/// out at `content` (most web adapters' index dicts have none; mStock's
+/// fixed 123-byte packet carries them, mstock_adapter.py:362-375). A web
+/// name reads the same values, so it goes and stays with them; a field
+/// the packet only filled with 0 is marked absent by the feed and never
+/// reaches here.
+fn shown_quote(update: &MarketUpdate, dia: &Dialect, content: Mode) -> QuoteFields {
     let mut q = update.quote.clone().unwrap_or_default();
     if update.key.is_index() {
-        q.last_quantity = None;
-        q.average_price = None;
-        q.total_buy_quantity = None;
-        q.total_sell_quantity = None;
+        let off = |k: Key| !dia.keys.has(k, true, content);
+        if off(Key::LastQuantity) {
+            q.last_quantity = None;
+        }
+        if off(Key::AveragePrice) {
+            q.average_price = None;
+        }
+        if off(Key::TotalBuyQuantity) {
+            q.total_buy_quantity = None;
+        }
+        if off(Key::TotalSellQuantity) {
+            q.total_sell_quantity = None;
+        }
     }
     q
 }
@@ -371,11 +383,11 @@ pub(crate) fn reaches(update: &MarketUpdate, mode: Mode, broker: &str) -> bool {
 pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -> String {
     let key: &InstrumentKey = &update.key;
     let dia = dialect(broker);
-    let q = shown_quote(update);
     let content = match dia.fold {
         Fold::PerMode => mode,
         Fold::Richer => update.mode.max(mode),
     };
+    let q = shown_quote(update, &dia, content);
     let mut d = canonical(update, &q, mode, content, &dia);
     if dia.keys.has(Key::Depth, key.is_index(), content) {
         d.depth = book(update, mode, depth).map(|b| BookOut {
@@ -446,6 +458,9 @@ fn canonical<'a>(
     let i = |v: Option<i64>| v.map(Value::from);
     let f = |v: Option<f64>| v.map(Value::from);
     let ltp_copy = mode == Mode::Ltp && update.mode > Mode::Ltp;
+    // `data.mode`: the dict's own mode, or the holder's where the web
+    // adapter writes each subscription's mode into the dict it publishes.
+    let written = if dia.mode_of_holder { mode } else { content };
     let on = |k: Key| dia.keys.has(k, key.is_index(), content);
     let ltt = update
         .ltt
@@ -455,8 +470,8 @@ fn canonical<'a>(
         exchange: on(Key::Exchange).then_some(key.exchange.as_str()),
         mode: on(Key::Mode)
             .then_some(match dia.data_mode {
-                DataMode::Label => Some(ModeOut::Label(content.data_label())),
-                DataMode::Number => Some(ModeOut::Number(content.as_u8())),
+                DataMode::Label => Some(ModeOut::Label(written.data_label())),
+                DataMode::Number => Some(ModeOut::Number(written.as_u8())),
                 DataMode::Absent => None,
             })
             .flatten(),

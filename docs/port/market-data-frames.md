@@ -93,7 +93,17 @@ as the web's `server.py` sends them):
 - `data.mode`: `"ltp"` / `"quote"` / `"full"` (Zerodha, Sahi, IIFL Capital,
   Nubra), 1 / 2 / 3 (most), or no key (AliceBlue, Arrow, both HDFC, Kotak,
   Rupeezy, Upstox, Fyers). The app's own pages read the envelope's `mode`,
-  not this one.
+  not this one. In a lower holder's frame from a one-dict broker it is the
+  dict's own mode where the web adapter writes the packet's (Paytm, Dhan,
+  IndMoney, the XTS adapters but Jainam), and the holder's where it writes
+  the subscription's (`mode_of_holder`: mStock, Delta Exchange and Jainam
+  publish once per subscription; Angel and Pocketful write the mode of the
+  one subscription they keep per token, which on the web is the latest or
+  first subscribed when a token is held in several modes).
+- An index's order-flow fields (`last_quantity`, `average_price`, the book
+  totals) go out only where the broker's keys put them on an index
+  (mStock's fixed packet, `index_key(.., QUOTE_UP)`), under the canonical
+  and the broker's names alike; elsewhere an index has none.
 - `data.symbol`, `data.exchange` and `data.timestamp`: AliceBlue's dicts
   carry no symbol or exchange, and a timestamp in Depth only.
 - `open_interest` beside `oi` only where the adapter sends both (Zerodha,

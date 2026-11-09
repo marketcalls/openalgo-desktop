@@ -695,6 +695,62 @@ fn a_lower_holder_gets_the_packet_as_the_brokers_web_adapter_sends_it() {
     assert!(render(&u, Mode::Quote, "zerodha").get("depth").is_none());
 }
 
+/// `data.mode` of a lower holder's frame from a one-dict broker: the dict's
+/// own mode where the web adapter writes the packet's (Paytm, Dhan, the XTS
+/// adapters but Jainam), the holder's where it writes each subscription's
+/// (mStock, Delta Exchange, Jainam XTS, Angel, Pocketful).
+#[test]
+fn data_mode_is_the_packets_or_the_holders_as_each_web_adapter_writes_it() {
+    let u = update(equity());
+    for broker in ["paytm", "dhan", "compositedge", "rmoney"] {
+        assert_eq!(render(&u, Mode::Ltp, broker)["mode"], 3, "{}", broker);
+    }
+    for broker in ["mstock", "deltaexchange", "jainamxts", "angel", "pocketful"] {
+        let d = render(&u, Mode::Ltp, broker);
+        assert_eq!(d["mode"], 1, "{}", broker);
+        assert_eq!(render(&u, Mode::Quote, broker)["mode"], 2, "{}", broker);
+        assert_eq!(render(&u, Mode::Depth, broker)["mode"], 3, "{}", broker);
+        assert!(
+            d.get("volume").is_some(),
+            "still the whole packet: {}",
+            broker
+        );
+    }
+}
+
+/// An index's order flow goes out where the broker's web adapter sends it
+/// (mStock's fixed packet, under its canonical and web names alike) and
+/// nowhere else; a field the packet did not carry is still left out.
+#[test]
+fn an_index_carries_order_flow_where_its_web_adapter_sends_it() {
+    let u = update(index());
+    let m = render(&u, Mode::Quote, "mstock");
+    assert_eq!(m["last_quantity"], 7);
+    assert_eq!(m["last_trade_quantity"], 7);
+    assert_eq!(m["average_price"], 100.75);
+    assert_eq!(m["total_buy_quantity"], 300);
+    assert_eq!(m["total_sell_quantity"], 400);
+    let z = render(&u, Mode::Quote, "zerodha");
+    for k in [
+        "last_quantity",
+        "average_price",
+        "total_buy_quantity",
+        "total_sell_quantity",
+    ] {
+        assert!(z.get(k).is_none(), "{}: {}", k, z);
+    }
+    assert!(data_at(index(), Mode::Ltp, "mstock")
+        .get("last_trade_quantity")
+        .is_none());
+    let mut sparse = update(index());
+    if let Some(q) = sparse.quote.as_mut() {
+        q.average_price = None;
+    }
+    assert!(render(&sparse, Mode::Quote, "mstock")
+        .get("average_price")
+        .is_none());
+}
+
 /// A key goes out as a double where the broker's web form writes one: by
 /// the broker's list, for canonical keys and its own names alike (Groww's
 /// LTP `volume`), or for one packet (Jainam's 1105 text event, `ltq`).
