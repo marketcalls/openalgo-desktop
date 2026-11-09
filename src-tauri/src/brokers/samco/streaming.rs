@@ -334,6 +334,10 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
     let tbq = first_present(merged, &["tbq", "tBQ"]);
     let tsq = first_present(merged, &["taq", "tSQ"]);
     let ltt = trade_time_ms(merged);
+    // On an index a volume or last quantity of 0 means the field does not
+    // apply (an index has no trades of its own): left out, as one not sent.
+    let index = matches!(sub.exchange.as_str(), "NSE_INDEX" | "BSE_INDEX");
+    let none_on_index = |k: &str| index && int(g(k)) == 0;
     let mut absent = AbsentFields::default();
     for (missing, field) in [
         (g("ltp").is_none(), QuoteField::Ltp),
@@ -341,8 +345,14 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
         (g("h").is_none(), QuoteField::High),
         (g("l").is_none(), QuoteField::Low),
         (g("c").is_none(), QuoteField::Close),
-        (g("vol").is_none(), QuoteField::Volume),
-        (g("ltq").is_none(), QuoteField::LastQuantity),
+        (
+            g("vol").is_none() || none_on_index("vol"),
+            QuoteField::Volume,
+        ),
+        (
+            g("ltq").is_none() || none_on_index("ltq"),
+            QuoteField::LastQuantity,
+        ),
         (g("avgPr").is_none(), QuoteField::AveragePrice),
         (tbq.is_none(), QuoteField::TotalBuyQuantity),
         (tsq.is_none(), QuoteField::TotalSellQuantity),

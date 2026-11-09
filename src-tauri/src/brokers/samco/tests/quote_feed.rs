@@ -405,6 +405,44 @@ fn leaving_depth_clears_the_book_totals_the_bridge_kept() {
     }
 }
 
+/// An index has no trades of its own: a last quantity or volume of 0 on an
+/// index means the field does not apply and is left out (the web sends 0;
+/// lead ruling 2026-11-09); one Samco sends that is not 0 goes out under
+/// last_quantity and last_trade_quantity.
+#[test]
+fn an_index_zero_last_quantity_is_left_out() {
+    let (mut f, ids) = feed();
+    ids.lock().insert("NSE_INDEX", "NIFTY", "-23");
+    f.subscribe_frames(&[sub(
+        "NIFTY",
+        "NSE_INDEX",
+        "NSE",
+        "NIFTY_50",
+        FeedMode::Quote,
+    )]);
+    let index = |ltq: &str| {
+        Message::Text(
+            json!({"sym": "-23", "ltp": "24500.15", "ltq": ltq, "vol": "0", "streaming_type": "quote"})
+                .to_string(),
+        )
+    };
+    let mut frames = Frames::new("samco");
+    let d = frames.at(&f.parse(&index("0")), Mode::Quote).pop().unwrap();
+    for k in ["last_quantity", "last_trade_quantity", "volume"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+    let d = frames
+        .at(&f.parse(&index("25")), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(
+        (&d["last_quantity"], &d["last_trade_quantity"]),
+        (&json!(25), &json!(25)),
+        "{}",
+        d
+    );
+}
+
 /// Web test_tick_from_another_segment_is_not_routed.
 #[test]
 fn a_tick_from_another_segment_is_not_routed() {

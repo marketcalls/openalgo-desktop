@@ -85,21 +85,21 @@
     {
       "key": "last_quantity",
       "kind": "web-defect",
-      "reason": "Samco sent no ltq for the index, and the web sends last_quantity 0, a value it never received; the desktop leaves it out. (Where Samco does send an ltq for an index, the desktop must send it, under both of the adapter's names: a Phase B fix.)",
+      "reason": "An index has no trades of its own: Samco sends no ltq, or an ltq of 0, which means the field does not apply; the desktop leaves last_quantity and last_trade_quantity out; the web sends them as 0 (web sends zero; docs say leave out).",
       "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09",
       "approved": true
     },
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
-      "reason": "As last_quantity: the web sends last_trade_quantity 0 for an index frame without ltq; the desktop leaves it out.",
+      "reason": "An index has no trades of its own: Samco sends no ltq, or an ltq of 0, which means the field does not apply; the desktop leaves last_quantity and last_trade_quantity out; the web sends them as 0 (web sends zero; docs say leave out).",
       "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09",
       "approved": true
     },
     {
       "key": "volume",
       "kind": "web-defect",
-      "reason": "Samco's index quote carries no vol; the web sends volume 0, a value it never received (samcoWebSocket._normalize_market_data defaults vol to 0); the desktop leaves it out.",
+      "reason": "An index has no volume of its own: Samco's index quote carries no vol (a vol of 0 would mean the same); the desktop leaves volume out; the web sends 0 (web sends zero; docs say leave out).",
       "ref": "samcoWebSocket.py _normalize_market_data; decisions 2026-11-09 (web zeros for values the stream did not send)",
       "approved": true
     }
