@@ -72,18 +72,6 @@
       "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09"
     },
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends an index's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change).",
-      "ref": "lead ruling 2026-11-09; feed::dialect per-broker switch (lane wire)"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "As price_change: Samco's web adapter sends change_percentage only. Follows the web adapter in Phase B through the per-broker switch (Samco: no price_change_percent).",
-      "ref": "lead ruling 2026-11-09; feed::dialect per-broker switch (lane wire)"
-    },
-    {
       "key": "volume",
       "kind": "web-defect",
       "reason": "Samco's index quote carries no vol; the web sends volume 0, a value it never received (samcoWebSocket._normalize_market_data defaults vol to 0); the desktop leaves it out.",
