@@ -24,60 +24,30 @@ import json
 from pathlib import Path
 
 import parity_matrix as pm
+from shadow import Imported, exec_module
 
 # Levels the matrix has a column for: a registry's level 1 is a best bid and
 # ask, not one of the web's depth modes.
 DEPTH_COLUMNS = (5, 20, 30, 50)
 EXCHANGES = ("NSE", "NFO", "BSE", "BFO", "MCX", "CDS", "BCD", "NSE_INDEX", "BSE_INDEX", "MCX_INDEX", "CRYPTO")
 ORDER_SERVICE = "services/order_update_service.py"
-MAX_STUBS = 40
 
 
 def offers_path() -> Path:
     return pm.CORPUS / "web_offers.json"
 
 
-class _AnyAttribute(type):
-    """A stub class answers any attribute (`pb.MODE_LTP`)."""
-
-    def __getattr__(cls, _name):
-        return cls
-
-
-class _Stub(metaclass=_AnyAttribute):
-    """Stands in for whatever a registry's module imports."""
-
-    def __init__(self, *_args, **_kwargs):
-        pass
-
-    def __call__(self, *_args, **_kwargs):
-        return _Stub()
-
-    def __getattr__(self, _name):
-        return _Stub
-
-
 def _module_namespace(path: Path) -> dict:
-    """The classes and constants of a web module, its imports left out: a
-    name they need from an import is a stub."""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    kept = (ast.ClassDef, ast.FunctionDef, ast.Assign, ast.AnnAssign)
-    body = [n for n in tree.body if isinstance(n, kept)]
-    module = compile(ast.Module(body=body, type_ignores=[]), str(path), "exec")
+    """The classes and constants of a web module (`shadow.exec_module`)."""
     ns: dict = {"__name__": "web_registry"}
-    for _ in range(MAX_STUBS):
-        try:
-            exec(module, ns)  # noqa: S102 (the web's own code, read-only)
-            return ns
-        except NameError as e:
-            ns[e.name] = _Stub
-    raise SystemExit(f"{path}: too many names to stand in for")
+    exec_module(path, ns)
+    return ns
 
 
 def _declared(registry: type, name: str):
     """A registry's own attribute `name` (a stubbed base class has none)."""
     for cls in registry.__mro__:
-        if cls not in (_Stub, object) and name in cls.__dict__:
+        if cls not in (Imported, object) and name in cls.__dict__:
             return getattr(registry, name)
     return None
 

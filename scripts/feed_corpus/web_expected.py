@@ -12,8 +12,9 @@ lifted from the web tree offline (`webkit.py`: no app import, database,
 network or broker login), and `web.json` is written beside the case: for
 each push, by its script line, what the web adapter publishes (topic, mode
 and the `data` the web forwards to 8765 clients) and, for order updates,
-the `order_update` frame the web relays. The harness compares the case's
-expected frames with it (`tests/it/feed_corpus/harness/web.rs`).
+the `order_update` frame the web relays, and for each `send` the reply the
+web server gives (`shadow.py`). The harness compares the case's expected
+frames and replies with it (`tests/it/feed_corpus/harness/web.rs`).
 
 `--check` recomputes and fails when a checked-in `web.json` differs (the
 web tree moved, or a glue changed); `--diff` prints, without writing, every

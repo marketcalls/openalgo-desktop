@@ -27,7 +27,7 @@ from webkit import STDLIB, NullLogger, _stdlib_imports
 
 MAX_STUBS = 60
 # What a stand-in's failure looks like in a reply an adapter built from it.
-ARTIFACTS = ("Anything", "_Imported", "object has no attribute", "not supported between", "object is not", "NoneType")
+ARTIFACTS = ("Anything", "Imported", "object has no attribute", "not supported between", "object is not", "NoneType")
 
 
 class Anything(dict):
@@ -105,7 +105,7 @@ class _AnyName(type):
         return Anything()
 
 
-class _Imported(metaclass=_AnyName):
+class Imported(metaclass=_AnyName):
     def __init__(self, *_args, **_kwargs):
         pass
 
@@ -116,7 +116,7 @@ class _Imported(metaclass=_AnyName):
         return Anything()
 
 
-def _exec_module(path: Path, ns: dict) -> None:
+def exec_module(path: Path, ns: dict) -> None:
     """A web module's classes, functions and constants, its non-standard
     imports left out; a name they need at load time is a stand-in."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -128,7 +128,7 @@ def _exec_module(path: Path, ns: dict) -> None:
             exec(module, ns)  # noqa: S102 (the web's own code, read-only)
             return
         except NameError as e:
-            ns[e.name] = _Imported
+            ns[e.name] = Imported
         except Exception:  # noqa: BLE001 (a helper module this cannot load; the adapter's own is checked after)
             return
 
@@ -155,12 +155,12 @@ class ShadowAdapter:
         self.ns: dict = {"__name__": "web_shadow", "__builtins__": self._builtins()}
         # The base classes are real: the replies an adapter builds come from them.
         for shared in ("mapping.py", "base_adapter.py"):
-            _exec_module(web_root / "websocket_proxy" / shared, self.ns)
+            exec_module(web_root / "websocket_proxy" / shared, self.ns)
         self.cls = None
         streaming = web_root / "broker" / broker / "streaming"
         files = [p for p in streaming.glob("*.py") if "order" not in p.name]
         for path in sorted(files, key=lambda p: (_load_order(p), p.name)):
-            _exec_module(path, self.ns)
+            exec_module(path, self.ns)
             for node in ast.parse(path.read_text(encoding="utf-8")).body:
                 value = self.ns.get(node.name) if isinstance(node, ast.ClassDef) else None
                 if isinstance(value, type) and "Adapter" in value.__name__ and "subscribe" in value.__dict__:
@@ -244,7 +244,7 @@ class ShadowAdapter:
             try:
                 reply = getattr(self.instance, method)(*args)
             except NameError as e:
-                self.ns[e.name] = _Imported
+                self.ns[e.name] = Imported
                 continue
             except Exception as e:  # noqa: BLE001 (a method this cannot run gives no reply)
                 self.last_error = repr(e)
@@ -257,7 +257,7 @@ class ShadowAdapter:
             text = str(reply.get("message", ""))
             missing = re.search(r"name '(\w+)' is not defined", text)
             if missing:
-                self.ns[missing.group(1)] = _Imported
+                self.ns[missing.group(1)] = Imported
                 continue
             if any(sign in text for sign in ARTIFACTS):
                 self.last_error = text

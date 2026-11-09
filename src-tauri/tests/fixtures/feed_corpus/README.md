@@ -37,9 +37,12 @@ The folder name is the test's name: `feed_corpus::<broker>::<case>`.
 
 ### broker.json
 
-What the broker's web adapter offers, for the parity matrix
+What the broker's web adapter offers, as read by hand; the parity matrix
 (`docs/port/feed-parity-matrix.md`, written by
-`scripts/feed_corpus/parity_matrix.py`): `web.ltp`, `web.quote` (true or
+`scripts/feed_corpus/parity_matrix.py`) and the release gate take depth levels
+and order updates from `web_offers.json`, the web's own registries, and use
+these depth levels only for a broker with no registry. A missing or malformed
+`web` holds the release. The fields: `web.ltp`, `web.quote` (true or
 false), `web.depth` (the levels, or the levels per exchange as the web's
 capability registry lists them), `web.orders` (how the web streams order
 updates, or false), with `sources` (the web files read) and `notes`. A
@@ -472,8 +475,9 @@ matrix over such a deviation, so what it counts can be trusted.
 Whether 1.0.7 can ship is `scripts/feed_corpus/release_gate.py --check`
 (CI's code-health job runs it, apart from the matrix's freshness check):
 it fails while a deviation names no rule or still carries `approved`, a
-case declares an open gap, a capability the web offers (`broker.json`) has
-no case, or a harness module does not build its broker (below).
+case declares an open gap, a capability the web offers (`web_offers.json`)
+has no case with an accepted subscribe and a received frame, or a harness
+module does not build its broker (below).
 
 ## Adding a case to a broker
 
