@@ -300,6 +300,10 @@ struct Script {
     /// Keys whose last unsubscribe was not done (an owner joining again
     /// re-subscribes them).
     unreleased: HashSet<ActiveKey>,
+    /// Instruments whose subscribes are answered only when the test says
+    /// (`hold_subscribe`, `answer_subscribe`), with the answers waiting.
+    slow: HashSet<InstrumentKey>,
+    waiting: Vec<(InstrumentKey, tokio::sync::oneshot::Sender<SourceOutcome>)>,
 }
 
 /// In-memory source for tests and the soak harness. Counts active
@@ -387,6 +391,23 @@ impl FakeSource {
         self.script.lock().capacity = Some(instruments);
     }
 
+    /// Answer the subscribes of `key` only once `answer_subscribe` is
+    /// called (a broker that takes its time); prices may flow meanwhile.
+    pub fn hold_subscribe(&self, key: InstrumentKey) {
+        self.script.lock().slow.insert(key);
+    }
+
+    /// Answer the subscribes of `key` waiting on `hold_subscribe`: taken.
+    pub fn answer_subscribe(&self, key: &InstrumentKey) {
+        let mut script = self.script.lock();
+        script.slow.remove(key);
+        let (now, rest): (Vec<_>, Vec<_>) = script.waiting.drain(..).partition(|(k, _)| k == key);
+        script.waiting = rest;
+        for (_, tx) in now {
+            let _ = tx.send(Ok(()));
+        }
+    }
+
     /// Why a subscribe of `key` is refused now, if it is.
     fn refusal(&self, active: &HashMap<ActiveKey, usize>, key: &InstrumentKey) -> Option<String> {
         let script = self.script.lock();
@@ -448,6 +469,12 @@ impl MarketDataSource for FakeSource {
                 "double subscribe {}:{} {:?} {}",
                 key.exchange, key.symbol, mode, depth
             ));
+        }
+        let mut script = self.script.lock();
+        if script.slow.contains(key) {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            script.waiting.push((key.clone(), tx));
+            return Box::pin(async move { rx.await.unwrap_or(Ok(())) });
         }
         answered(Ok(()))
     }

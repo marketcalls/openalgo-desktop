@@ -379,6 +379,9 @@ impl Session {
         let mut pending = Vec::with_capacity(items.len());
         for item in &items {
             if !item.is_object() {
+                // The items before it stay subscribed, and stream.
+                let held = Self::held_keys(&pending);
+                self.shared.registry.acknowledged(self.id, mode, &held);
                 return Err(not_a_dict(item));
             }
             let sym = item.get("symbol").unwrap_or(&Value::Null);
@@ -407,6 +410,7 @@ impl Session {
                 },
             );
         }
+        let held = Self::held_keys(&pending);
         let results = self.admitted(pending, mode, &broker).await;
         let all_ok = results
             .iter()
@@ -419,7 +423,21 @@ impl Session {
             broker: &broker,
             request_id: rid,
         }));
+        // Their prices only now: a client never hears an item's market data
+        // before its subscribe reply, as on the web.
+        self.shared.registry.acknowledged(self.id, mode, &held);
         Ok(())
+    }
+
+    /// The instruments a subscribe holds while it waits for the source.
+    fn held_keys(pending: &[Subscribing]) -> Vec<InstrumentKey> {
+        pending
+            .iter()
+            .filter_map(|p| match p {
+                Subscribing::Waiting { key, .. } => Some(key.clone()),
+                Subscribing::Answered(_) => None,
+            })
+            .collect()
     }
 
     /// Each held item once the source answered it (audit C02): taken is a

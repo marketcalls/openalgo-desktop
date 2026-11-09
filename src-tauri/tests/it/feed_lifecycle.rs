@@ -258,3 +258,47 @@ async fn a_client_signing_in_resumes_the_feed() {
     assert_eq!(h.source.resumes(), 2);
     h.handle.stop().await;
 }
+
+/// A client never hears an item's prices before its subscribe reply, as on
+/// the web, where a symbol streams only once the adapter's subscribe
+/// returned (lead, lane107/base run 42540030436). The broker takes its
+/// time with the subscribe, a tick comes meanwhile, and the reply still
+/// comes first, followed by that tick.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_tick_before_the_reply_waits_for_it() {
+    let h = start_default().await;
+    h.source.hold_subscribe(reliance());
+    let mut c = Client::connect(&h.url).await;
+    c.auth().await;
+    c.send(
+        &json!({"action": "subscribe", "mode": "LTP", "request_id": "first",
+        "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}),
+    )
+    .await;
+    assert!(
+        eventually(Duration::from_secs(5), || !h.source.active().is_empty()).await,
+        "the broker was asked"
+    );
+    // A tick while the subscribe waits for the broker: delivered to the
+    // client's registry before the reply could be sent.
+    h.source
+        .publish(MarketUpdate::ltp(reliance(), 1424.0, 1_791_000_000_000));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    h.source.answer_subscribe(&reliance());
+
+    let first = c
+        .recv_within(Duration::from_secs(5))
+        .await
+        .expect("a frame");
+    assert_eq!(
+        first["type"], "subscribe",
+        "the reply comes first: {}",
+        first
+    );
+    assert_eq!(first["status"], "success", "{}", first);
+    assert_eq!(first["request_id"], "first");
+    let tick = next_tick(&mut c).await.expect("the held tick follows");
+    assert_eq!(tick["symbol"], "RELIANCE");
+    assert_eq!(tick["data"]["ltp"], 1424.0);
+    h.handle.stop().await;
+}
