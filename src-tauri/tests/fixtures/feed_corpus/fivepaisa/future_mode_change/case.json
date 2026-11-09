@@ -34,42 +34,5 @@
       "Frames worked here in 5paisa's MarketFeedV3 and MarketDepthService shapes. The OI-only frame stands for any frame with neither LastRate nor Details: both sides publish nothing from it (_on_data target_modes ()). Its field names are illustrative; neither side subscribes 5paisa's OI method."
     ]
   },
-  "deviations": [
-    {
-      "key": "bid_price",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends 5paisa's best bid and ask in Depth too, from the latest quote: feed/dialect/names.rs sends a web key from the mode the web adapter first sends it in (Quote) and every mode above it, so a script never meets a KeyError on the richer frame; the 5paisa web adapter's Depth dict has no bid or ask. Pending the lead's approval of that rule.",
-      "ref": "feed/dialect/names.rs (module rules; FIVEPAISA from Q); fivepaisa_adapter.py:_normalize_market_data mode 3"
-    },
-    {
-      "key": "bid_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends 5paisa's best bid and ask in Depth too, from the latest quote: feed/dialect/names.rs sends a web key from the mode the web adapter first sends it in (Quote) and every mode above it, so a script never meets a KeyError on the richer frame; the 5paisa web adapter's Depth dict has no bid or ask. Pending the lead's approval of that rule.",
-      "ref": "feed/dialect/names.rs (module rules; FIVEPAISA from Q); fivepaisa_adapter.py:_normalize_market_data mode 3"
-    },
-    {
-      "key": "ask_price",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends 5paisa's best bid and ask in Depth too, from the latest quote: feed/dialect/names.rs sends a web key from the mode the web adapter first sends it in (Quote) and every mode above it, so a script never meets a KeyError on the richer frame; the 5paisa web adapter's Depth dict has no bid or ask. Pending the lead's approval of that rule.",
-      "ref": "feed/dialect/names.rs (module rules; FIVEPAISA from Q); fivepaisa_adapter.py:_normalize_market_data mode 3"
-    },
-    {
-      "key": "ask_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends 5paisa's best bid and ask in Depth too, from the latest quote: feed/dialect/names.rs sends a web key from the mode the web adapter first sends it in (Quote) and every mode above it, so a script never meets a KeyError on the richer frame; the 5paisa web adapter's Depth dict has no bid or ask. Pending the lead's approval of that rule.",
-      "ref": "feed/dialect/names.rs (module rules; FIVEPAISA from Q); fivepaisa_adapter.py:_normalize_market_data mode 3"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends price_change on an equity or a future (ltp less the previous close: feed/dialect/names.rs gives 5paisa instrument_change); the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B: 5paisa's dialect entry without instrument_change.",
-      "ref": "feed/dialect/names.rs (fivepaisa: instrument_change); fivepaisa_adapter.py:_quote_fields"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends price_change_percent (5paisa's ChgPcnt) on an equity or a future beside percent_change (feed/dialect/names.rs gives 5paisa instrument_change); the 5paisa web adapter sends percent_change only. Follows the web adapter in Phase B: 5paisa's dialect entry without instrument_change.",
-      "ref": "feed/dialect/names.rs (fivepaisa: instrument_change); fivepaisa_adapter.py:_quote_fields"
-    }
-  ]
+  "deviations": []
 }

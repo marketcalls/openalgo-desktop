@@ -29,18 +29,6 @@
   },
   "deviations": [
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop's renderer gives an index price_change and price_change_percent (ltp less the previous close, and 5paisa's ChgPcnt), as the recorded Zerodha index frame carries them; the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B through lane wire's per-broker switch (5paisa: neither key on an index).",
-      "ref": "feed/bridge.rs quote_fields; feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_quote_fields"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop's renderer gives an index price_change and price_change_percent (ltp less the previous close, and 5paisa's ChgPcnt), as the recorded Zerodha index frame carries them; the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B through lane wire's per-broker switch (5paisa: neither key on an index).",
-      "ref": "feed/bridge.rs quote_fields; feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_quote_fields"
-    },
-    {
       "key": "last_quantity",
       "kind": "open",
       "reason": "The 5paisa web adapter sends an index the equity quote keys, with 5paisa's zeros for the traded quantity, average price and book totals; the desktop's renderer gives an index the recorded Zerodha index shape without them. Field presence follows the broker's web adapter: in Phase B through lane wire's per-broker presence (5paisa: an index carries them).",

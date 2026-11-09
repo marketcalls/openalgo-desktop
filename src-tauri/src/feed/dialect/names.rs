@@ -406,14 +406,16 @@ const FIRSTOCK: &[WebName] = &[
     n("lower_circuit", S::Extra(E::LowerCircuit), Q),
 ];
 
+/// fivepaisa_adapter.py `_normalize_market_data`: the best bid and ask in
+/// the Quote dict only (its Depth dict is `_quote_fields` and the book).
 const FIVEPAISA: &[WebName] = &[
     n("last_trade_quantity", S::LastQuantity, Q),
     n("percent_change", S::ChangePercent, Q),
     n("last_trade_time", S::TradeTime(Unit::Millis), L),
-    n("bid_price", S::Extra(E::BidPrice), Q),
-    n("bid_quantity", S::Extra(E::BidQuantity), Q),
-    n("ask_price", S::Extra(E::AskPrice), Q),
-    n("ask_quantity", S::Extra(E::AskQuantity), Q),
+    nt("bid_price", S::Extra(E::BidPrice), Q, Q),
+    nt("bid_quantity", S::Extra(E::BidQuantity), Q, Q),
+    nt("ask_price", S::Extra(E::AskPrice), Q, Q),
+    nt("ask_quantity", S::Extra(E::AskQuantity), Q, Q),
 ];
 
 /// The Noren family's depth keys (Shoonya, Flattrade, TradeSmart, Zebu).
@@ -686,7 +688,9 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "deltaexchange" => d(Number, DELTA).no_ltt().richer().mode_of_holder(),
         "dhan" => d(Number, DHAN).richer(),
         "firstock" => d(Number, FIRSTOCK).no_index_change(),
-        "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book(),
+        // fivepaisa_adapter.py `_quote_fields`: ChgPcnt as `percent_change`
+        // only, on an index too (no `price_change`).
+        "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book().no_index_change(),
         "shoonya" => d(Number, SHOONYA).no_ltt(),
         "flattrade" => d(Number, FLATTRADE).no_ltt(),
         "zebu" => d(Number, ZEBU).no_ltt(),

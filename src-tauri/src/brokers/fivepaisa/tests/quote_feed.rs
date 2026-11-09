@@ -294,8 +294,9 @@ fn a_frame_that_is_neither_feed_nor_depth_makes_nothing() {
     assert!(ev.is_empty(), "{:?}", ev);
 }
 
-/// `ChgPcnt` is 5paisa's own percent change: an index publishes it as
-/// `price_change_percent` and, as on the web, `percent_change`.
+/// `ChgPcnt` is 5paisa's own percent change: an index publishes it as the
+/// web does, as `percent_change` only, without `price_change` or
+/// `price_change_percent`.
 #[test]
 fn the_change_percent_is_chgpcnt_under_its_web_name() {
     let mut f = feed_with(&[on("NIFTY", "NSE_INDEX", "NSE_INDEX", FeedMode::Quote)]);
@@ -304,8 +305,12 @@ fn the_change_percent_is_chgpcnt_under_its_web_name() {
         .at(&events, Mode::Quote)
         .pop()
         .unwrap();
-    assert_eq!(d["price_change_percent"], -0.6321969, "{}", d);
     assert_eq!(d["percent_change"], -0.6321969, "{}", d);
+    assert!(
+        d.get("price_change").is_none() && d.get("price_change_percent").is_none(),
+        "{}",
+        d
+    );
 }
 
 /// 5paisa sends 0 for a price it does not have. With nothing held for the
