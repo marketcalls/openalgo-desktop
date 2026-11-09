@@ -26,6 +26,8 @@ what `web_expected.diff` (the harness's web check, mirrored) finds:
 - steps_not_replayed (O10): refused upgrades, a disconnect and a deep feed
   not made are listed, not taken for compared.
 - random_values_scope (O7), gate_web_output (O1), gate_catalog (O12).
+- reply_is_the_adapters, no_reply_is_not_a_success (O4): the web's reply to a
+  send comes from the adapter's own method; without one it is recorded as none.
 - web_false_beside_a_declared_frame (O8, Codex's counterexample): an expected
   LTP of 9999.0 marked `"web": false`, beside a silence naming the real 1500.0
   delivery, is one occurrence written as two.
@@ -63,6 +65,7 @@ import predicates  # noqa: E402
 import release_gate as gate  # noqa: E402
 import web_expected as we  # noqa: E402
 import web_offers  # noqa: E402
+import shadow  # noqa: E402
 
 QUOTE_MODE = we.CORPUS / "zerodha" / "quote_mode"
 
@@ -171,6 +174,35 @@ def probe_web_false(web: Path) -> list[str]:
         found = we.diff(case, we.compute(case, web, "probe"))
     named = [line for line in found if line.startswith("web-not-silent:")]
     return [] if named else [f"web_false_checked: not named: {found}"]
+
+
+def probe_reply_is_the_adapters(web: Path) -> list[str]:
+    """Depth 30 on an XTS broker: the adapter's own method refuses it, and
+    the reply the web server builds from that is what web.json records."""
+    case = we.CORPUS / "compositedge" / "depth_thirty_and_fifty_refused"
+    out = we.compute(case, web, "probe")
+    frames = [f for r in out.get("replies", []) for f in r["frames"]]
+    items = [i for f in frames for i in f.get("subscriptions", [])]
+    wanted = "Invalid depth level 30. Must be 5 or 20"
+    if any(i.get("status") == "error" and i.get("message") == wanted for i in items):
+        return []
+    return [f"reply_is_the_adapters: no reply says {wanted!r}: {frames}"]
+
+
+def probe_no_reply_is_not_a_success(web: Path) -> list[str]:
+    """A glue that returns nothing and an adapter method that cannot run give
+    no web reply: the send is marked, and the harness does not compare it."""
+    subscribe, unsubscribe = shadow.ShadowAdapter.subscribe, shadow.ShadowAdapter.unsubscribe
+    shadow.ShadowAdapter.subscribe = lambda *_args: None
+    shadow.ShadowAdapter.unsubscribe = lambda *_args: None
+    try:
+        out = we.compute(QUOTE_MODE, web, "probe")
+    finally:
+        shadow.ShadowAdapter.subscribe, shadow.ShadowAdapter.unsubscribe = subscribe, unsubscribe
+    replies = out.get("replies", [])
+    if replies and not replies[0]["from_adapter"]:
+        return []
+    return [f"no_reply_is_not_a_success: {replies[:1]}"]
 
 
 def probe_web_false_beside_declared(web: Path) -> list[str]:
@@ -498,6 +530,8 @@ def main() -> int:
         + probe_gate_catalog()
         + probe_value_outside_seen()
         + probe_named_classes_exact()
+        + probe_reply_is_the_adapters(args.web)
+        + probe_no_reply_is_not_a_success(args.web)
         + probe_web_false_beside_declared(args.web)
         + probe_fold_never_reuses(args.web)
         + probe_broker_json_fails_closed()
