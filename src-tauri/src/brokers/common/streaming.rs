@@ -305,6 +305,10 @@ pub struct NormalizedDepth {
     /// (Fyers TBT `feed_time`, fyers_tbt_websocket.py:511).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_time_ms: Option<i64>,
+    /// The broker-only fields the book packet carried (Fyers' depth packet
+    /// `update_type`): its Depth frame names them, over the tick's.
+    #[serde(skip_serializing_if = "BrokerFields::is_empty")]
+    pub broker_fields: BrokerFields,
 }
 
 /// A normalised order update (web `order_update` event fields).
