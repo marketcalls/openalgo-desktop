@@ -234,6 +234,21 @@ fn quote_tick(sub: &SubInfo, m: &Value) -> NormalizedTick {
             t.mark_absent(field);
         }
     }
+    // An index has no trades and no book: the 0 5paisa sends for its last
+    // quantity and book totals is no value either, left out where the web
+    // passes it on (lead: web sends zero; docs say leave out).
+    if sub.exchange.ends_with("_INDEX") {
+        let flow = [
+            (QuoteField::LastQuantity, t.last_quantity),
+            (QuoteField::TotalBuyQuantity, t.total_buy_quantity),
+            (QuoteField::TotalSellQuantity, t.total_sell_quantity),
+        ];
+        for (field, quantity) in flow {
+            if quantity == 0 {
+                t.mark_absent(field);
+            }
+        }
+    }
     t.derive_change();
     if m.get("ChgPcnt").is_some_and(|v| !v.is_null()) {
         t.change_percent = num(m, "ChgPcnt");

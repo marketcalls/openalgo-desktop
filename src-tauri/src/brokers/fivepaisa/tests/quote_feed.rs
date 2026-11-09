@@ -486,3 +486,30 @@ fn a_whole_price_goes_out_as_5paisa_wrote_it() {
     assert!(d["open"].is_i64() && d["open"] == 445, "held: {}", d);
     assert!(d["high"].is_i64() && d["high"] == 448, "{}", d);
 }
+
+/// 5paisa fills an index's last quantity and book totals with 0: the tick
+/// says it does not carry them, so no frame sends them, whatever a key
+/// table would allow; an equity's 0 is a real quantity.
+#[test]
+fn an_index_carries_no_quantity_5paisa_fills_with_zero() {
+    let zeros = json!({"LastQty": 0, "TBidQ": 0, "TOffQ": 0});
+    let index = on("NIFTY", "NSE_INDEX", "NSE_INDEX", FeedMode::Quote);
+    let mut f = feed_with(&[index]);
+    let events = send(&mut f, with(feed_frame(), zeros.clone()));
+    let [FeedEvent::Tick(t)] = events.as_slice() else {
+        panic!("one tick: {:?}", events)
+    };
+    for q in [
+        QuoteField::LastQuantity,
+        QuoteField::TotalBuyQuantity,
+        QuoteField::TotalSellQuantity,
+    ] {
+        assert!(!t.knows(q), "{:?}: {:?}", q, t);
+    }
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let events = send(&mut f, with(feed_frame(), zeros));
+    let [FeedEvent::Tick(t)] = events.as_slice() else {
+        panic!("one tick: {:?}", events)
+    };
+    assert!(t.knows(QuoteField::LastQuantity) && t.knows(QuoteField::TotalBuyQuantity));
+}
