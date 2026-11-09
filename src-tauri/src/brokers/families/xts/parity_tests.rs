@@ -210,6 +210,52 @@ fn rmoney_reads_its_payload_variants() {
     }
 }
 
+/// R107-09: RMoney clears a side it sends empty wherever its web adapter
+/// looks for one (the list in `Touchline`, `BidInfo` / `AskInfo` at the
+/// root or in `Touchline`, an empty object included), so the old book does
+/// not stand, and the best level XTS keeps in `Touchline.BidInfo` does not
+/// stand in for a side the message cleared; a 1502 naming no side makes no
+/// book, so the instrument's last book stands.
+#[test]
+fn rmoney_clears_a_side_sent_empty_anywhere() {
+    let no_book = || {
+        let mut v = depth_1502();
+        let o = v.as_object_mut().unwrap();
+        o.remove("Bids");
+        o.remove("Asks");
+        v
+    };
+    let mut touchline_lists = no_book();
+    touchline_lists["Touchline"]["Bids"] = json!([]);
+    touchline_lists["Touchline"]["Asks"] = json!([]);
+    let mut root_info = no_book();
+    root_info["BidInfo"] = json!([]);
+    root_info["AskInfo"] = json!({});
+    let mut touchline_info = no_book();
+    touchline_info["Touchline"]["BidInfo"] = json!([]);
+    touchline_info["Touchline"]["AskInfo"] = json!([]);
+    for (what, payload) in [
+        ("Touchline lists", touchline_lists),
+        ("root info", root_info),
+        ("Touchline info", touchline_info),
+    ] {
+        let (_, b) = decode(&mut feed(&rmoney::CONFIG), "1502-json-full", payload);
+        assert_eq!(b.len(), 1, "{}: a cleared book is a book", what);
+        assert!(b[0].buy.is_empty() && b[0].sell.is_empty(), "{}", what);
+    }
+
+    let mut beside_best = no_book();
+    beside_best["Touchline"]["Bids"] = json!([]);
+    beside_best["Touchline"]["Asks"] = json!([level(2500.4, 95, 4)]);
+    beside_best["Touchline"]["BidInfo"] = level(2500.1, 120, 3);
+    let (_, b) = decode(&mut feed(&rmoney::CONFIG), "1502-json-full", beside_best);
+    assert_eq!((b[0].buy.len(), b[0].sell.len()), (0, 1));
+
+    let (t, b) = decode(&mut feed(&rmoney::CONFIG), "1502-json-full", no_book());
+    assert_eq!(t.len(), 1);
+    assert!(b.is_empty(), "no side named: the last book stands");
+}
+
 /// FB-05: Jainam's and RMoney's web clients take the code of a payload
 /// without one from its event (RMoney's always); the template's adapter
 /// reads a code-less payload as a touchline.

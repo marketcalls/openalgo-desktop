@@ -13,7 +13,8 @@
 //! * a book side in the root `Bids` / `Asks`, else `Touchline.Bids` /
 //!   `Asks`, else `BidInfo` / `AskInfo` at the root or in `Touchline` (a
 //!   single level as an object, or a list), and a book from either side
-//!   alone, the other then empty.
+//!   alone, the other then empty; a side sent empty at any of these is a
+//!   cleared side, so the book clears (audit R107-09).
 
 use serde_json::{Map, Value};
 
@@ -96,25 +97,36 @@ fn as_code(v: &Value) -> Option<i64> {
     }
 }
 
-/// One book side: the root's list when the message has one (an empty list
-/// is a cleared side), else the first non-empty alternative, as a list.
+/// One book side as a list, from the first place that names it: the root
+/// list (`Bids`), the list in `Touchline`, `BidInfo` at the root, then in
+/// `Touchline` (a single level as an object). A side named empty there
+/// (`[]`, `{}`) is a cleared side, an empty list, whatever a later place
+/// holds: XTS puts its best bid in `Touchline.BidInfo` beside every book, so
+/// that object must not stand in for a side the message cleared. A side
+/// named nowhere is `None`; a message naming neither side makes no book,
+/// and the instrument's last book stands (audit R107-09: an empty nested
+/// side used to be passed over, so the old book stood after RMoney cleared
+/// it; the web's `if bids or asks` drops such a clear too).
 fn side(
     m: &Map<String, Value>,
     touchline: Option<&Map<String, Value>>,
     list: &str,
     info: &str,
 ) -> Option<Value> {
-    if let Some(root) = m.get(list).filter(|v| v.is_array()) {
-        return Some(root.clone());
-    }
-    let alternatives = [
-        touchline.and_then(|t| t.get(list)),
-        m.get(info),
-        touchline.and_then(|t| t.get(info)),
-    ];
-    alternatives.into_iter().flatten().find_map(|v| match v {
-        Value::Array(a) if !a.is_empty() => Some(v.clone()),
+    let nested = |key: &str| touchline.and_then(|t| t.get(key));
+    [m.get(list), nested(list), m.get(info), nested(info)]
+        .into_iter()
+        .flatten()
+        .find_map(levels)
+}
+
+/// A side's levels as a list: a list as it is, an object as the one level
+/// it is (none when it is empty); anything else names no side.
+fn levels(v: &Value) -> Option<Value> {
+    match v {
+        Value::Array(_) => Some(v.clone()),
+        Value::Object(o) if o.is_empty() => Some(Value::Array(Vec::new())),
         Value::Object(_) => Some(Value::Array(vec![v.clone()])),
         _ => None,
-    })
+    }
 }
