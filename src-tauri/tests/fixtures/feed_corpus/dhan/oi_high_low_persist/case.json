@@ -31,15 +31,8 @@
     {
       "key": "missing-frame",
       "kind": "web-defect",
-      "reason": "The web sends every Depth holder of an instrument both books, the 5-level one and the 20-level one in turn; the desktop sends each holder only the book at its own depth.",
+      "reason": "The web sends every Depth holder of an instrument both books, the 5-level one and the 20-level one in turn; the desktop sends a 5-level holder only the 5-level book.",
       "ref": "server.py publication routing; dhan_adapter.py _on_data_5depth, _on_data_20depth",
-      "approval": "depth-own-level-only"
-    },
-    {
-      "key": "frame",
-      "kind": "web-defect",
-      "reason": "A 20-level holder never gets the main feed's 5-level book, so from a full packet that comes before its first 20-level book it gets the packet's quote and no book; the web sends it the packet with the 5-level book in it (named missing on the next step).",
-      "ref": "server.py publication routing; dhan_adapter.py _normalize_5depth_data",
       "approval": "depth-own-level-only"
     },
     {

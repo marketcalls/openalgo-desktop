@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "dhan",
-  "inputs_sha256": "0245a87b258d50acb80fa043d7d201765c1687ec1ec51176ab182bf43f34b16b",
+  "inputs_sha256": "799a64e344708bac44d4e689afa0200074ed3087ef672de192f100414c237d00",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -130,7 +130,7 @@
       ]
     },
     {
-      "line": 11,
+      "line": 10,
       "published": [
         {
           "kind": "market",
@@ -161,7 +161,7 @@
       "deliveries": []
     },
     {
-      "line": 13,
+      "line": 12,
       "published": [
         {
           "kind": "market",
@@ -183,12 +183,12 @@
       "deliveries": []
     },
     {
-      "line": 15,
+      "line": 14,
       "published": [],
       "deliveries": []
     },
     {
-      "line": 16,
+      "line": 15,
       "published": [
         {
           "kind": "market",
@@ -433,12 +433,12 @@
       ]
     },
     {
-      "line": 22,
+      "line": 21,
       "published": [],
       "deliveries": []
     },
     {
-      "line": 23,
+      "line": 22,
       "published": [
         {
           "kind": "market",

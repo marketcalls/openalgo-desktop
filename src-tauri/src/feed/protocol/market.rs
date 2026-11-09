@@ -303,8 +303,9 @@ fn as_integer(v: Value) -> Value {
 }
 
 /// The levels this frame's book was streamed at: the holder's depth, or the
-/// main feed's where its deep subscription fell back (web Dhan names 5
-/// then, dhan_adapter.py:930, 1042; web Fyers sends no 50-level frame).
+/// main feed's where its deep subscription fell back or has not brought its
+/// first book yet (web Dhan names 5 then, dhan_adapter.py:930, 1042; web
+/// Fyers sends no 50-level frame).
 ///
 /// A lower holder of a one-dict broker's packet (`Fold::Richer`) is shown
 /// the packet's whole main-feed book (a deep book never reaches it), so it
@@ -433,9 +434,9 @@ pub(crate) fn reaches(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str
     if mode != Mode::Depth {
         return true;
     }
-    // A main-feed book is not for a holder whose own book streams from the
+    // A main-feed book is not for a holder that has its own book from the
     // deeper socket (its frames carry that book).
-    if update.exact_mode && update.depth.is_some() && update.deep_live == Some(depth) {
+    if update.exact_mode && update.depth.is_some() && own_deep_book(update, depth).is_some() {
         return false;
     }
     if book_for(update, depth).is_some() {
@@ -447,17 +448,26 @@ pub(crate) fn reaches(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str
     !update.exact_mode && !dialect(broker).depth_needs_book
 }
 
-/// The book a Depth holder at `depth` gets from `update`: the deeper
-/// socket's while its subscription streams from there (a Dhan 20 or Fyers
-/// 50 holder never gets the main feed's 5 levels in between, which would
-/// show its book shrinking and growing; web defect: the web's listener
-/// sends every Depth publish of a symbol to every Depth client), else the
-/// main feed's, cut to `depth`.
+/// The deeper socket's book for a holder at `depth`: the instrument's latest
+/// on this connection of that socket, while its subscription streams from
+/// there. A reconnect of the socket forgets it (`snapshot::forget_session`).
+fn own_deep_book(update: &MarketUpdate, depth: u8) -> Option<&DepthBook> {
+    update
+        .deep_book
+        .as_ref()
+        .filter(|_| update.deep_live == Some(depth))
+}
+
+/// The book a Depth holder at `depth` gets from `update`: its own from the
+/// deeper socket once that has come (a Dhan 20 or Fyers 50 holder then never
+/// gets the main feed's 5 levels in between, which would show its book
+/// shrinking and growing; web defect: the web's listener sends every Depth
+/// publish of a symbol to every Depth client), else the main feed's, cut to
+/// `depth`. Before its own first book that is the shallower book, named by
+/// the levels it really has (`served`), as after a fallback: the web sends a
+/// book in that frame, and a client reads `data['depth']` on every one.
 fn book_for(update: &MarketUpdate, depth: u8) -> Option<&DepthBook> {
-    match update.deep_live {
-        Some(levels) if levels == depth => update.deep_book.as_ref(),
-        _ => update.depth.as_ref(),
-    }
+    own_deep_book(update, depth).or(update.depth.as_ref())
 }
 
 /// Render `update` for a subscriber at `mode` (which must not exceed

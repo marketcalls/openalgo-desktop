@@ -39,6 +39,7 @@ corpus_cases!(
         exchange_not_supported,
         decimal_prices,
         oi_high_low_persist,
+        depth_20_first_book_beside_5,
         depth_20_feed_not_made,
         depth_20_socket_refused,
         depth_20_silent_falls_back,
