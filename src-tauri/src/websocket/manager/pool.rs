@@ -63,6 +63,8 @@ impl WebSocketManager {
                 cmd: rx,
                 registry: self.registry.clone(),
                 events: self.events.clone(),
+                packets: self.packets.clone(),
+                session: Default::default(),
                 status,
                 config: self.config.clone(),
                 stats: self.stats.clone(),

@@ -292,6 +292,7 @@ impl BrokerBridge {
             ops,
             generation,
             deep_books,
+            ..
         } = &mut *st;
         let mut add: Vec<DesiredKey> = desired
             .iter()

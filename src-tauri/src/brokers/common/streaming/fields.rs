@@ -365,6 +365,18 @@ pub enum BrokerField {
 }
 
 impl BrokerField {
+    /// Whether the field is market state that holds until the broker sends
+    /// a new value or clears it (Dhan's day OI range, Groww's day traded
+    /// value): kept from earlier packets as the quote is. The others
+    /// describe their own packet (Upstox's auction figures, Fyers' update
+    /// type) and last that packet (audit R107-12).
+    pub const fn persists(self) -> bool {
+        matches!(
+            self,
+            BrokerField::OiHigh | BrokerField::OiLow | BrokerField::TradedValue
+        )
+    }
+
     /// The web adapter's key.
     pub const fn name(self) -> &'static str {
         match self {
@@ -429,39 +441,74 @@ impl Serialize for BrokerValue {
     }
 }
 
-/// The [`BrokerField`]s one packet carried, each at most once. Not kept
-/// from one packet to the next: a value that should last (an auction's
-/// price lasts one tick) stays only as long as the adapter sends it.
+/// The [`BrokerField`]s one packet carried, each at most once: a value, or
+/// `None` for a field the packet clears (one list, so a tick keeps its
+/// size). The bridge keeps a market-state field from packet to packet
+/// until a new value or a clear (`BrokerField::persists`); a per-event one
+/// (an auction's price) lasts its packet.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct BrokerFields(Vec<(BrokerField, BrokerValue)>);
+pub struct BrokerFields(Vec<(BrokerField, Option<BrokerValue>)>);
 
 impl BrokerFields {
-    /// Record `field`, replacing an earlier value of it.
-    pub fn set(&mut self, field: BrokerField, value: BrokerValue) {
+    fn put(&mut self, field: BrokerField, value: Option<BrokerValue>) {
         match self.0.iter_mut().find(|(f, _)| *f == field) {
             Some(slot) => slot.1 = value,
             None => self.0.push((field, value)),
         }
     }
 
+    /// Record `field`, replacing an earlier value of it.
+    pub fn set(&mut self, field: BrokerField, value: BrokerValue) {
+        self.put(field, Some(value));
+    }
+
+    /// `field` is gone: left out of this packet's frames and not kept from
+    /// earlier ones (an absent field keeps a persistent one's last value).
+    pub fn clear(&mut self, field: BrokerField) {
+        self.put(field, None);
+    }
+
+    /// These fields with `newer`'s over them: a persistent field `newer`
+    /// does not carry stays unless `newer` clears it; a per-packet one
+    /// lasts its packet.
+    pub fn overlay(&self, newer: &Self) -> Self {
+        let mut out = BrokerFields(
+            self.0
+                .iter()
+                .copied()
+                .filter(|(f, v)| v.is_some() && f.persists())
+                .collect(),
+        );
+        for (f, v) in &newer.0 {
+            match v {
+                Some(v) => out.set(*f, *v),
+                None => out.0.retain(|(g, _)| g != f),
+            }
+        }
+        out
+    }
+
     pub fn get(&self, field: BrokerField) -> Option<BrokerValue> {
-        self.0.iter().find(|(f, _)| *f == field).map(|(_, v)| *v)
+        self.0
+            .iter()
+            .find(|(f, _)| *f == field)
+            .and_then(|(_, v)| *v)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.0.iter().all(|(_, v)| v.is_none())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (BrokerField, BrokerValue)> + '_ {
-        self.0.iter().copied()
+        self.0.iter().filter_map(|(f, v)| v.map(|v| (*f, v)))
     }
 }
 
 impl Serialize for BrokerFields {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut m = s.serialize_map(Some(self.0.len()))?;
-        for (f, v) in &self.0 {
-            m.serialize_entry(f.name(), v)?;
+        let mut m = s.serialize_map(None)?;
+        for (f, v) in self.iter() {
+            m.serialize_entry(f.name(), &v)?;
         }
         m.end()
     }

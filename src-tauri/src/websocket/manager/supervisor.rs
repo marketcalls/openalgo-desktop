@@ -5,6 +5,7 @@
 //! error, a close or a stall (see the manager's module docs).
 
 use super::heartbeat::{Beat, Heartbeat};
+use super::packet::{PacketOut, SessionId};
 use super::registry::{Delta, Registry};
 use super::release::Written;
 use super::stats::{DropCause, FeedStats};
@@ -78,6 +79,11 @@ pub(super) struct Supervisor {
     pub(super) cmd: mpsc::Receiver<Command>,
     pub(super) registry: Arc<Mutex<Registry>>,
     pub(super) events: broadcast::Sender<MarketEvent>,
+    /// The same events, one broker message per packet, with the session
+    /// that sent them (`packet`).
+    pub(super) packets: PacketOut,
+    /// This connection's current session (numbered when it opens).
+    pub(super) session: SessionId,
     pub(super) status: watch::Sender<FeedStatus>,
     pub(super) config: FeedConfig,
     pub(super) stats: Arc<FeedStats>,
@@ -276,6 +282,7 @@ impl Supervisor {
             }
         };
         self.stats.opened();
+        self.session = self.packets.open(self.conn);
         let (mut write, mut read) = ws.split();
         let end = self.session(broker, &mut write, &mut read).await;
         if matches!(end, SessionEnd::Stopped) {
@@ -368,7 +375,31 @@ impl Supervisor {
                 .map_or((None, ""), |f| (Some(u16::from(f.code)), &*f.reason));
             return Err(self.judged(DropCause::Closed, Ended::Closed { code, reason }));
         }
-        for ev in self.feed.parse(&msg) {
+        // The message's market events also go out as one packet, sent
+        // whatever ends the message's handling.
+        let mut packet = Vec::new();
+        let handled = self
+            .handle_events(broker, write, &msg, subscribed, &mut packet)
+            .await;
+        self.packets.send(self.session, packet);
+        handled
+    }
+
+    /// `msg`'s events: market events published one by one and kept for the
+    /// message's packet, replies sent, the subscriptions sent once the login
+    /// is acknowledged.
+    async fn handle_events<S>(
+        &mut self,
+        broker: &str,
+        write: &mut S,
+        msg: &Message,
+        subscribed: &mut bool,
+        packet: &mut Vec<MarketEvent>,
+    ) -> Sent
+    where
+        S: futures_util::Sink<Message, Error = WsError> + Unpin,
+    {
+        for ev in self.feed.parse(msg) {
             match ev {
                 FeedEvent::AuthFailed(m) => return Err(SessionEnd::AuthFailed(m)),
                 FeedEvent::AuthOk => {
@@ -383,7 +414,9 @@ impl Supervisor {
                 e @ (FeedEvent::Tick(_) | FeedEvent::Depth(_) | FeedEvent::OrderUpdate(_)) => {
                     self.stats.mark_event();
                     // No receiver yet is normal; nothing is retained.
-                    let _ = self.events.send(Arc::new(e));
+                    let e = Arc::new(e);
+                    let _ = self.events.send(e.clone());
+                    packet.push(e);
                 }
             }
         }

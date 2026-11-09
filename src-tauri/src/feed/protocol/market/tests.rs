@@ -1004,6 +1004,28 @@ fn each_depth_holder_gets_only_books_at_its_own_depth() {
     );
 }
 
+/// A Quote holder of a Dhan full packet (one dict per packet) gets its
+/// `depth_level` as the web sends it, the main feed's 5, never the 0 of its
+/// own depth; a frame without a book names no levels (bk-a's
+/// dhan/decimal_prices).
+#[test]
+fn a_lower_holder_names_the_levels_of_the_book_it_is_shown() {
+    let u = update(equity());
+    let quote: Value = serde_json::from_str(&market_data(&u, Mode::Quote, 0, "dhan")).unwrap();
+    assert_eq!(quote["data"]["depth_level"], 5);
+    assert_eq!(
+        quote["data"]["depth"]["buy"].as_array().map(Vec::len),
+        Some(5)
+    );
+    let mut bookless = update(equity());
+    bookless.depth = None;
+    let quote: Value =
+        serde_json::from_str(&market_data(&bookless, Mode::Quote, 0, "dhan")).unwrap();
+    assert!(quote["data"].get("depth_level").is_none(), "{}", quote);
+    let depth: Value = serde_json::from_str(&market_data(&u, Mode::Depth, 5, "dhan")).unwrap();
+    assert_eq!(depth["data"]["depth_level"], 5);
+}
+
 /// Fyers' `token` is the exchange's token (the fytoken less its first ten
 /// digits) on HSM frames and the ticker on TBT 50-level frames, and none on
 /// an index (the web's `""` placeholder, declared by the Fyers lane).
