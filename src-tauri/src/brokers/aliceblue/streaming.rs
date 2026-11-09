@@ -725,6 +725,7 @@ fn snapshot_book(tick: &NormalizedTick, snap: &FeedSnap) -> NormalizedDepth {
         total_sell_quantity: snap.total_sell_qty,
         timestamp_ms: tick.timestamp_ms,
         absent,
+        ..Default::default()
     }
 }
 

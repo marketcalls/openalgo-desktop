@@ -275,6 +275,7 @@ impl FirstockFeed {
             total_sell_quantity: t.total_sell_quantity,
             timestamp_ms: t.timestamp_ms,
             absent,
+            ..Default::default()
         }
     }
 

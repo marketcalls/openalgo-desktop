@@ -197,5 +197,6 @@ pub(super) fn depth(sub: Instrument<'_>, d: &Map<String, Value>, now_ms: i64) ->
         total_sell_quantity: i(&v, "tsq"),
         timestamp_ms: now_ms,
         absent,
+        ..Default::default()
     }
 }

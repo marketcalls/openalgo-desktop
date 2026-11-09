@@ -177,6 +177,7 @@ pub fn normalise_message(v: &Value, sub: &FeedSubscription) -> Vec<FeedEvent> {
         total_sell_quantity: tick.total_sell_quantity,
         timestamp_ms: now,
         absent: book_lacks(&tick),
+        ..Default::default()
     });
     let mut out = vec![FeedEvent::Tick(tick)];
     out.extend(depth.map(FeedEvent::Depth));
