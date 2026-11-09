@@ -1757,6 +1757,79 @@ fn a_depth_frame_carries_the_best_bid_and_ask_under_the_web_names() {
     }
 }
 
+/// The web builds a Depth subscriber's flat best bid and ask afresh from
+/// each book it publishes (groww_adapter.py:1020-1048): a side the book
+/// emptied has none, on the book's own frame and on the price ticks after
+/// it, never the last book's.
+#[test]
+fn an_emptied_book_side_drops_its_best_bid_or_ask() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    const BID: [&str; 5] = ["bid", "bid_price", "bid_qty", "bid_size", "bid_quantity"];
+    const ASK: [&str; 7] = [
+        "ask",
+        "ask_price",
+        "offer_price",
+        "ask_qty",
+        "ask_size",
+        "ask_quantity",
+        "offer_quantity",
+    ];
+    let shown = |d: &Value, keys: &[&str]| -> Vec<String> {
+        keys.iter()
+            .filter(|k| d.get(**k).is_some())
+            .map(|k| k.to_string())
+            .collect()
+    };
+    let book = |buy: Vec<proto::DepthLevel>| {
+        proto::LiveData {
+            depth_data: Some(proto::MarketDepth {
+                ts_in_millis: 1759722013000.0,
+                buy,
+                sell: Vec::new(),
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec()
+    };
+    let bid = |price, quantity| proto::DepthLevel {
+        orders: 1,
+        price_qty: Some(proto::PriceQty { price, quantity }),
+    };
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
+    let mut frames = Frames::new("groww");
+    frames.at(&f.parse(&msg_frame(2, &ltp_payload(812.35))), Mode::Depth);
+    let full = frames.at(&f.parse(&msg_frame(1, &depth_payload())), Mode::Depth);
+    assert_eq!(shown(&full[0], &ASK).len(), ASK.len(), "{}", full[0]);
+    // Only bids left: the new bid is sent, the ask is gone.
+    let bids = frames.at(
+        &f.parse(&msg_frame(1, &book(vec![bid(812.2, 40.0)]))),
+        Mode::Depth,
+    );
+    let [d] = bids.as_slice() else {
+        panic!("one frame expected: {:?}", bids)
+    };
+    assert_eq!(
+        (d["bid"].as_f64(), d["bid_qty"].as_i64()),
+        (Some(812.2), Some(40))
+    );
+    assert!(shown(d, &ASK).is_empty(), "{}", d);
+    // Both sides emptied: no best bid or ask, and the next price brings none
+    // back.
+    let empty = frames.at(&f.parse(&msg_frame(1, &book(Vec::new()))), Mode::Depth);
+    let priced = frames.at(&f.parse(&msg_frame(2, &ltp_payload(812.4))), Mode::Depth);
+    for d in [&empty[0], priced.last().expect("a frame for the price")] {
+        assert_eq!(d["depth"], json!({"buy": [], "sell": []}), "{}", d);
+        assert!(shown(d, &BID).is_empty(), "{}", d);
+        assert!(shown(d, &ASK).is_empty(), "{}", d);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Order poller
 // ---------------------------------------------------------------------------

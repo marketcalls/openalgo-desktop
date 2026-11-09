@@ -32,9 +32,9 @@
 use super::nkeys::KeyPair;
 use super::proto;
 use crate::brokers::common::streaming::{
-    now_ms, AbsentFields, BrokerFeed, BrokerField, BrokerValue, FeedEvent, FeedMode,
-    FeedSubscription, Message, NormalizedDepth, NormalizedTick, PrepareError, QuoteField,
-    WsRequest,
+    now_ms, AbsentFields, BrokerFeed, BrokerField, BrokerValue, ExtraField, FeedEvent, FeedMode,
+    FeedSubscription, Message, NormalizedDepth, NormalizedTick, PrepareError, QuoteExtras,
+    QuoteField, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -500,12 +500,30 @@ fn merged_tick(sub: &FeedSubscription, m: &Merged, now: i64, priced: bool) -> No
             .set(BrokerField::TradedValue, BrokerValue::Float(v));
     }
     if sub.mode == FeedMode::Depth && !is_index(&sub.exchange) {
-        // The web lifts the top of a Depth subscriber's book into flat
-        // fields, each only when it is not 0 (groww_adapter.py:1020-1048).
-        (t.extras.bid_price, t.extras.bid_quantity) = best(&m.buy);
-        (t.extras.ask_price, t.extras.ask_quantity) = best(&m.sell);
+        best_bid_ask(&mut t.extras, m);
     }
     t
+}
+
+/// The web lifts the top of the book a Depth subscriber gets into flat
+/// fields, each only when it is not 0 (groww_adapter.py:1020-1048). It
+/// builds them afresh from that book on every publish, so a value the book
+/// does not have (a side it emptied, a level without a price) is gone, not
+/// the last book's: cleared, where a `None` would keep it.
+fn best_bid_ask(x: &mut QuoteExtras, m: &Merged) {
+    use ExtraField as X;
+    (x.bid_price, x.bid_quantity) = best(&m.buy);
+    (x.ask_price, x.ask_quantity) = best(&m.sell);
+    for (field, known) in [
+        (X::BidPrice, x.bid_price.is_some()),
+        (X::BidQuantity, x.bid_quantity.is_some()),
+        (X::AskPrice, x.ask_price.is_some()),
+        (X::AskQuantity, x.ask_quantity.is_some()),
+    ] {
+        if !known {
+            x.clear(field);
+        }
+    }
 }
 
 /// A book side's best price and quantity, each where it is not 0.
