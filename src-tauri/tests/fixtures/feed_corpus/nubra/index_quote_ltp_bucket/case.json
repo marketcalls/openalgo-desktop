@@ -1,6 +1,6 @@
 {
   "broker": "nubra",
-  "summary": "Quote and LTP on the NIFTY index: the index channel gives the value, high, low and previous close, the day bucket the open; a Depth subscribe on the index is accepted on the desktop and refused on the web.",
+  "summary": "Quote and LTP on the NIFTY index: the index channel gives the value, high, low and previous close, the day bucket the open; a Depth subscribe on the index is refused with the web's words.",
   "scenarios": [
     "index",
     "first-full-packet",

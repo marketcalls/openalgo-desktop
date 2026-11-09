@@ -28,7 +28,7 @@
     "broker/nubra/streaming/nubra_order_adapter.py"
   ],
   "notes": [
-    "The web refuses Depth on an index (Depth mode not supported for index symbols); the desktop accepts it and serves the index tick (open, with lane life).",
+    "Depth on an index is refused, as the web refuses it (Depth mode not supported for index symbols, feed::refusals).",
     "LTP and Quote ride the index channel on the web; the desktop also subscribes the order book for instruments in every mode."
   ]
 }

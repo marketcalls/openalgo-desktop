@@ -69,12 +69,6 @@
       "ref": "fyers_mapping.py:300-312; phase-b.md"
     },
     {
-      "key": "feed_time",
-      "kind": "open",
-      "reason": "The web's 50-level frame carries depth_levels, feed_time, is_50_depth and the TBT totals as total_buy_qty / total_sell_qty; the carrier has none of these yet (lane wire step 2: Fyers 50-level meta keys).",
-      "ref": "fyers_mapping.py:300-312; phase-b.md"
-    },
-    {
       "key": "timestamp",
       "kind": "web-defect",
       "reason": "The web stamps the 50-level frame with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
@@ -85,6 +79,12 @@
       "kind": "open",
       "reason": "The web's 50-level frame names the Fyers ticker (NSE:SBIN-EQ) as token, its HSM frames the exchange token; the desktop sends the master's fytoken in both (lane wire step 2: Fyers 50-level meta keys).",
       "ref": "fyers_mapping.py:303"
+    },
+    {
+      "key": "update_type",
+      "kind": "desktop-decision",
+      "reason": "The 50-level book frame carries the instrument's latest quote, the quote's update_type with it (1.0.6 decision, kept: the depth frame keeps ltp, timestamp and the latest quote); the web's TBT frame has the book's keys alone.",
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
     }
   ]
 }

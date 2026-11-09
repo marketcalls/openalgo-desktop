@@ -45,7 +45,7 @@
     "depth_levels": 50,
     "exchange": "NSE",
     "exchange_time": 1793170001,
-    "feed_time": 1794185980,
+    "feed_time": 1793170003,
     "high": 805.0,
     "is_50_depth": true,
     "last_quantity": 7,
@@ -65,6 +65,7 @@
     "total_buy_quantity": 91000,
     "total_sell_qty": 88000,
     "total_sell_quantity": 88000,
+    "update_type": "snapshot",
     "upper_circuit": 869.0,
     "volume": 523000
   },

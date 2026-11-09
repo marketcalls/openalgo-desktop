@@ -85,6 +85,7 @@
     "token": "10100000003045",
     "total_buy_quantity": 91000,
     "total_sell_quantity": 88000,
+    "update_type": "snapshot",
     "upper_circuit": 869.0,
     "volume": 523000
   },

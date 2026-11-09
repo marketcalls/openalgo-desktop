@@ -9,5 +9,5 @@
 {"step": "push", "frame": "frames/index_next.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_with_open.json"}
 {"step": "receive", "client": "b", "frame": "expected/ltp_next.json"}
-{"step": "send", "client": "c", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3, "depth": 5}}
-{"step": "note", "text": "The web refuses Depth on an index (nubra_adapter.py:381, \"Depth mode not supported for index symbols\"); the desktop accepts it and serves the index tick. Still open: the refusal shape is with lane life's subscribe truth (C02)."}
+{"step": "send", "client": "c", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "partial", "message": "Subscription processing complete", "broker": "nubra", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "error", "message": "Depth mode not supported for index symbols", "broker": "nubra"}]}}
+{"step": "note", "text": "Refused as the web refuses it (nubra_adapter.py:379-381), before the symbol is looked up; nothing goes to Nubra."}

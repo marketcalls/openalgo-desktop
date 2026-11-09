@@ -42,8 +42,8 @@
     {
       "key": "update_type",
       "kind": "open",
-      "reason": "The web's Fyers frames say whether the message was a snapshot or a live update; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
-      "ref": "fyers_adapter.py:552"
+      "reason": "The web writes update_type on every message, a depth (dp) one too (fyers_adapter.py:555); a desktop book (NormalizedDepth) carries no broker fields, so a book before the first quote goes without it. With lane wire (broker fields on a book).",
+      "ref": "fyers_adapter.py:464,555"
     },
     {
       "key": "ltp",

@@ -42,12 +42,6 @@
       "ref": "fyers_mapping.py:150"
     },
     {
-      "key": "update_type",
-      "kind": "open",
-      "reason": "The web's Fyers frames say whether the message was a snapshot or a live update; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
-      "ref": "fyers_adapter.py:552"
-    },
-    {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The web sends oi 0 for an equity whose HSM record carried no OI (fyers_data.get('OI', 0)); a field the stream does not carry is left out, never sent as 0 (web openalgo#2376), as the desktop does.",

@@ -42,12 +42,6 @@
       "ref": "fyers_mapping.py:150"
     },
     {
-      "key": "update_type",
-      "kind": "open",
-      "reason": "The web's Fyers frames say whether the message was a snapshot or a live update; the desktop's do not (a web-internal key a client can read). Lane wire to decide.",
-      "ref": "fyers_adapter.py:552"
-    },
-    {
       "key": "bid_price",
       "kind": "web-defect",
       "reason": "An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry.",
