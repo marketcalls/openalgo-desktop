@@ -333,6 +333,11 @@ impl TbtFeed {
             total_buy_quantity: book.tbq,
             total_sell_quantity: book.tsq,
             timestamp_ms: now_ms(),
+            // The packet's feed time, in seconds on the wire (web `feed_time`).
+            feed_time_ms: i64::try_from(u.feed_time)
+                .ok()
+                .filter(|s| *s > 0)
+                .map(|s| s.saturating_mul(1000)),
             ..Default::default()
         })
     }
