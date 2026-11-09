@@ -30,12 +30,6 @@
   },
   "deviations": [
     {
-      "key": "exchange_timestamp",
-      "kind": "open",
-      "reason": "A Quote packet with no exchange time (0): the web sends no exchange_timestamp for it (mstock_adapter.py:357), the desktop sends the previous packet's, because the bridge keeps an instrument's last value of each optional field across packets (feed/bridge/snapshot.rs merge, QuoteExtras::overlay). An exchange time belongs to its packet, as the trade time belongs to its price; the shared merge is lane wire's (asked of the lead).",
-      "ref": "audit C03; brokers/common/streaming/fields.rs QuoteExtras::overlay"
-    },
-    {
       "key": "oi",
       "kind": "web-defect",
       "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) over the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one, and then sends the last OI the instrument's full packet carried on this connection (feed/bridge/snapshot.rs merges by presence), never a 0 it was not sent.",
