@@ -1,0 +1,116 @@
+{
+  "broker": "iifl",
+  "summary": "Depth 5 and Depth 20 clients on one NSE equity: the instrument's book subscription moves to 20 levels (a PUT and a POST of 1502, the one code both depths use), and a 1502 event's twenty levels reach the Depth 20 client whole and the Depth 5 client cut to five.",
+  "scenarios": [
+    "depth-update",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iifl/streaming/iifl_websocket.py::IiflWebSocketClient._setup_socketio",
+      "broker/iifl/streaming/iifl_adapter.py::IiflWebSocketAdapter._process_json_data",
+      "broker/iifl/streaming/iifl_adapter.py::IiflWebSocketAdapter._normalize_market_data",
+      "broker/iifl/streaming/iifl_adapter.py::IiflWebSocketAdapter._extract_depth_data",
+      "broker/iifl/streaming/iifl_mapping.py::IiflCapabilityRegistry"
+    ],
+    "notes": [
+      "Each Depth holder gets the levels it asked for (feed/protocol/market.rs book_for, cut to the holder's depth; audit P-10). XTS has no deeper socket: both depths come from the one 1502 subscription, held at the deepest depth asked for (websocket::manager registry).",
+      "The web publishes each 1502 once, and its listener sends it to every Depth client of the symbol whatever depth it asked for, so its Depth 5 client gets twenty levels."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "XTS sent average_price in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
+      "ref": "iifl_adapter.py _normalize_market_data (mode 3)"
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "The web publishes each 1502 book once, and its listener sends it to every Depth client of the symbol whatever depth that client asked for, so this Depth 5 client gets the twenty levels a Depth 20 client asked for. The desktop gives each Depth holder the levels it asked for: the Depth 20 client the twenty, this one the first five (feed/protocol/market.rs book_for; audit P-10, lead ruling).",
+      "ref": "websocket_proxy/server.py (a Depth publish to every Depth client of the symbol); iifl_adapter.py _extract_depth_data"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "XTS sent last_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
+      "ref": "iifl_adapter.py _normalize_market_data (mode 3)"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "web-defect",
+      "reason": "The 1502 event carries no LowerCircuitLimit; the web sends lower_circuit 0 for it (message.get('LowerCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
+      "ref": "iifl_adapter.py _normalize_market_data (mode 3)"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "iifl_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The 1502 event carries no OpenInterest; the web sends oi 0 for it (message.get('OpenInterest', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
+      "ref": "iifl_adapter.py _normalize_market_data (mode 3)"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "XTS sent total_buy_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
+      "ref": "iifl_adapter.py _normalize_market_data (mode 3)"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "XTS sent total_sell_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
+      "ref": "iifl_adapter.py _normalize_market_data (mode 3)"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "web-defect",
+      "reason": "The 1502 event carries no UpperCircuitLimit; the web sends upper_circuit 0 for it (message.get('UpperCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
+      "ref": "iifl_adapter.py _normalize_market_data (mode 3)"
+    }
+  ]
+}
