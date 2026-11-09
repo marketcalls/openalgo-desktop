@@ -169,6 +169,10 @@ pub(crate) enum Expect {
     /// with that code, `{"close": {"code": 4001, "reason": "..."}}` with
     /// that code and reason.
     Close(CloseExpect),
+    /// The connection ended without a close frame: `{"ended": null}` (a
+    /// handshake the feed gave up on, as Groww's first one without its
+    /// subprotocol).
+    Ended,
 }
 
 /// What a close frame the feed sends must carry (`None`: anything).
@@ -201,6 +205,7 @@ impl Expect {
             (Expect::Text(s), Wire::Text(t)) => s == t,
             (Expect::Binary(b), Wire::Binary(x)) => b == x,
             (Expect::Close(want), Wire::Closed(got)) => want.matches(got.as_ref()),
+            (Expect::Ended, Wire::Ended) => true,
             _ => false,
         }
     }
@@ -213,6 +218,7 @@ impl std::fmt::Display for Expect {
             Expect::BinaryJson(v) => write!(f, "binary json {}", v),
             Expect::Text(t) => write!(f, "text {}", t),
             Expect::Binary(b) => write!(f, "binary {}", hex::encode(b)),
+            Expect::Ended => write!(f, "the connection ended without a close frame"),
             Expect::Close(c) => {
                 write!(f, "close")?;
                 if let Some(code) = c.code {
@@ -413,6 +419,19 @@ pub(crate) struct Case {
     /// close the feed makes on them is recorded from the start, as a frame
     /// it sent.
     pub(crate) close_sockets: BTreeSet<Socket>,
+    /// `refuse_upgrades` steps before anything else in the script, applied
+    /// before the feeds connect (a socket that never starts), by socket:
+    /// the status and how many times.
+    pub(crate) refused_at_start: BTreeMap<Socket, (u16, usize)>,
+    /// `case.json` `deep_book_timeout_ms`: the broker's deep-book silence
+    /// timeout (Dhan's 30 s, `broker_runtime::deep_book_timeout`) shortened
+    /// so a case can pass it; only for a broker that has one.
+    pub(crate) deep_book_timeout: Option<std::time::Duration>,
+    /// `case.json` `deep_feed_not_made`: the broker's deeper-book feed
+    /// could not be made this session (`Broker::create_depth_feed` failed),
+    /// so Depth subscribes at its levels are served at the market feed's
+    /// levels (`BrokerBridge::set_deep_unavailable`).
+    pub(crate) deep_feed_not_made: bool,
     /// What the fake broker API answers from the start (`case.json`
     /// `http`).
     pub(crate) http: Vec<HttpAnswer>,
@@ -460,6 +479,8 @@ impl Case {
                 "provenance",
                 "deviations",
                 "invariants",
+                "deep_book_timeout_ms",
+                "deep_feed_not_made",
             ],
         );
         if o.get("broker").and_then(Value::as_str) != Some(broker) {
@@ -490,14 +511,17 @@ impl Case {
             .unwrap_or_else(|e| bad(&format!("{} script.jsonl", id), e))
             .replace("\r\n", "\n");
         let mut inputs = script.clone().into_bytes();
-        let steps = read_script(&id, &dir, &script, &mut inputs);
+        let mut steps = read_script(&id, &dir, &script, &mut inputs);
         let sockets: BTreeSet<Socket> = steps.iter().filter_map(|s| s.action.socket()).collect();
+        let refused_at_start = refusals_at_start(&mut steps);
         let close_sockets: BTreeSet<Socket> = steps
             .iter()
             .filter_map(|s| match &s.action {
                 Action::Disconnect { socket } => Some(*socket),
                 Action::UpstreamReceives { socket, frames, .. }
-                    if frames.iter().any(|f| matches!(f, Expect::Close(_))) =>
+                    if frames
+                        .iter()
+                        .any(|f| matches!(f, Expect::Close(_) | Expect::Ended)) =>
                 {
                     Some(*socket)
                 }
@@ -545,6 +569,19 @@ impl Case {
             steps,
             sockets,
             close_sockets,
+            refused_at_start,
+            deep_feed_not_made: match o.get("deep_feed_not_made") {
+                None => false,
+                Some(v) => v
+                    .as_bool()
+                    .unwrap_or_else(|| bad(&at, "\"deep_feed_not_made\" is true or false")),
+            },
+            deep_book_timeout: o.get("deep_book_timeout_ms").map(|v| {
+                std::time::Duration::from_millis(
+                    v.as_u64()
+                        .unwrap_or_else(|| bad(&at, "\"deep_book_timeout_ms\" is a number")),
+                )
+            }),
             inputs,
         }
     }
@@ -621,6 +658,33 @@ fn provenance(at: &str, v: Option<&Value>) -> String {
     }
     strings(at, "provenance.notes", o.get("notes"));
     sha.to_string()
+}
+
+/// Take the `refuse_upgrades` steps that open the script (notes aside) out
+/// of it: they apply before the feeds connect.
+fn refusals_at_start(steps: &mut Vec<Step>) -> BTreeMap<Socket, (u16, usize)> {
+    let lead = steps
+        .iter()
+        .take_while(|s| matches!(s.action, Action::RefuseUpgrades { .. } | Action::Note))
+        .count();
+    let rest = steps.split_off(lead);
+    let mut out = BTreeMap::new();
+    let mut kept = Vec::new();
+    for s in std::mem::replace(steps, rest) {
+        match s.action {
+            Action::RefuseUpgrades {
+                socket,
+                status,
+                times,
+            } => {
+                out.insert(socket, (status, times));
+            }
+            _ => kept.push(s),
+        }
+    }
+    kept.append(steps);
+    *steps = kept;
+    out
 }
 
 /// The keys the deviations cover, with their kinds, after checking each
@@ -1189,6 +1253,19 @@ fn upstream_frame(at: &str, dir: &Path, v: &Value) -> Expect {
     {
         return Expect::Close(close_expect(at, code));
     }
+    if let Some(ended) = v
+        .as_object()
+        .filter(|o| o.len() == 1)
+        .and_then(|o| o.get("ended"))
+    {
+        if !matches!(ended, Value::Null | Value::Bool(true)) {
+            bad(
+                at,
+                "\"ended\" is null: a connection that ended without a close frame",
+            );
+        }
+        return Expect::Ended;
+    }
     match inline(at, v) {
         ("hex", s) => Expect::Binary(decode_hex(at, s.as_str().unwrap_or_default())),
         ("text", s) => Expect::Text(s.as_str().unwrap_or_default().to_string()),
@@ -1282,5 +1359,19 @@ mod tests {
         assert!(!close(json!({"code": 4001})).matches(&Wire::Closed(None)));
         assert!(close(Value::Null).matches(&Wire::Closed(None)));
         assert!(!close(Value::Null).matches(&Wire::Ended));
+    }
+
+    /// A connection that ended without a close frame has its own
+    /// expectation, and a close frame does not meet it.
+    #[test]
+    fn an_ended_connection_is_expected_by_name() {
+        let ended = upstream_frame("t", Path::new("."), &json!({"ended": null}));
+        assert!(ended.matches(&Wire::Ended));
+        assert!(!ended.matches(&Wire::Closed(None)));
+        assert!(!ended.matches(&Wire::Closed(Some((1000, String::new())))));
+        assert_eq!(
+            ended.to_string(),
+            "the connection ended without a close frame"
+        );
     }
 }
