@@ -254,6 +254,7 @@ mod sandbox_web_scenarios;
 mod scalping;
 mod security_memory;
 mod soak;
+mod sqlite_version;
 mod strategy;
 mod tools;
 mod tools_discovery;

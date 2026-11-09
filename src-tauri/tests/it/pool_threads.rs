@@ -63,3 +63,51 @@ fn a_dropped_app_context_leaves_no_threads_behind() {
         baseline
     );
 }
+
+/// fd-audit of the stores' connection manager (`db::sqlite::manager`,
+/// 1.0.7): a store's pool opened, used and dropped a hundred times leaves
+/// no descriptor open. Each pooled connection holds the database and its
+/// `-wal`, so a connection a dropped pool kept would add at least two
+/// descriptors a round.
+#[test]
+fn a_dropped_store_pool_leaves_no_descriptors_behind() {
+    crate::isolated!(a_dropped_store_pool_leaves_no_descriptors_behind);
+    use crate::feed_support::fd_count;
+    use openalgo_desktop_lib::db::sqlite::{open_pool, Durability};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("store.db");
+    let round = || {
+        let pool = open_pool(&path, 4, Durability::MAIN).unwrap();
+        let held: Vec<_> = (0..4).map(|_| pool.get().unwrap()).collect();
+        held[0]
+            .execute_batch("CREATE TABLE IF NOT EXISTS t (v INTEGER); INSERT INTO t VALUES (1);")
+            .unwrap();
+    };
+    // A pool's last open can still be finishing on its worker thread just
+    // after the pool is dropped: the baseline is a count two reads 20 ms
+    // apart agree on, and the count after is waited for, bounded.
+    round();
+    let mut baseline = fd_count();
+    for _ in 0..500 {
+        std::thread::sleep(Duration::from_millis(20));
+        let now = fd_count();
+        if now == baseline {
+            break;
+        }
+        baseline = now;
+    }
+    for _ in 0..100 {
+        round();
+    }
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while fd_count() > baseline && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let after = fd_count();
+    assert!(
+        after <= baseline,
+        "{} descriptors open after 100 pools were dropped, {} after the first",
+        after,
+        baseline
+    );
+}
