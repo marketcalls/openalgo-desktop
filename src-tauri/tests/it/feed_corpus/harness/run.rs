@@ -559,11 +559,10 @@ mod tests {
     use super::*;
     use crate::feed_corpus::zerodha;
 
-    /// A loaded runner grants turns slowly: with another task holding the
-    /// thread for 150 ms a turn, a frame takes longer to cross the pipeline
-    /// than the time-boxed wait (the 300 ms a silence used to be) allows,
-    /// so that wait reports silence with the frame on its way. The drain
-    /// counts turns, not time, and finds it.
+    /// A loaded runner can hold the thread for longer than a time-boxed
+    /// wait (the 300 ms a silence used to be): the wait's deadline has passed
+    /// by the time the frame's tasks run, so it reports silence with the
+    /// frame on its way. The drain counts turns, not time, and finds it.
     #[tokio::test]
     async fn a_frame_a_slow_runner_holds_up_is_still_seen() {
         let case = Case::load("zerodha", "quote_mode");
@@ -592,20 +591,18 @@ mod tests {
             })
             .expect("a client receives the pushed frame");
 
-        let hog = tokio::spawn(async {
-            for _ in 0..8 {
-                std::thread::sleep(Duration::from_millis(150));
-                tokio::task::yield_now().await;
-            }
-        });
-        tokio::task::yield_now().await;
         r.step(&case.steps[push]).await;
+        // Queued behind the fake broker's write and ahead of everything the
+        // frame wakes after it.
+        let hog = tokio::spawn(async {
+            std::thread::sleep(Duration::from_millis(400));
+        });
 
         let c = r.known("probe", &client);
         assert_eq!(
             next_frame(c, Duration::from_millis(300)).await,
             None,
-            "the turns granted were not slow enough to model a loaded runner"
+            "the thread was not held long enough to model a loaded runner"
         );
         let late = frames_on_their_way(&world, r.known("probe", &client)).await;
         assert_eq!(late.len(), 1, "{:?}", late);
