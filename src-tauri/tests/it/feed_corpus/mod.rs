@@ -102,3 +102,39 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("zebu", zebu::CASES),
     ("zerodha", zerodha::CASES),
 ];
+
+/// Broker modules that do not build their session's broker yet: their
+/// cases run without `Feeds::with_broker`, so the broker's refusals,
+/// pre-subscribe step and order completion are not wired as a session
+/// wires them. A ratchet the broker lanes empty: nothing joins it, a module
+/// that passes its broker must leave it (the harness fails either way), and
+/// the release gate (`scripts/feed_corpus/release_gate.py`) fails while it
+/// is not empty.
+const WITHOUT_BROKER: &[&str] = &[
+    "angel",
+    "arrow",
+    "compositedge",
+    "deltaexchange",
+    "dhan_sandbox",
+    "fivepaisaxts",
+    "flattrade",
+    "fyers",
+    "hdfcsecurities",
+    "hdfcsky",
+    "ibulls",
+    "iifl",
+    "iiflcapital",
+    "jainamxts",
+    "kotak",
+    "nubra",
+    "paytm",
+    "pocketful",
+    "rmoney",
+    "rupeezy",
+    "shoonya",
+    "tradesmart",
+    "upstox",
+    "wisdom",
+    "zebu",
+    "zerodha",
+];
