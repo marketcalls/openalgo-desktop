@@ -93,7 +93,17 @@ as the web's `server.py` sends them):
 - `data.mode`: `"ltp"` / `"quote"` / `"full"` (Zerodha, Sahi, IIFL Capital,
   Nubra), 1 / 2 / 3 (most), or no key (AliceBlue, Arrow, both HDFC, Kotak,
   Rupeezy, Upstox, Fyers). The app's own pages read the envelope's `mode`,
-  not this one.
+  not this one. In a lower holder's frame from a one-dict broker it is the
+  dict's own mode where the web adapter writes the packet's (Paytm, Dhan,
+  IndMoney, the XTS adapters but Jainam), and the holder's where it writes
+  the subscription's (`mode_of_holder`: mStock, Delta Exchange and Jainam
+  publish once per subscription; Angel and Pocketful write the mode of the
+  one subscription they keep per token, which on the web is the latest or
+  first subscribed when a token is held in several modes).
+- An index's order-flow fields (`last_quantity`, `average_price`, the book
+  totals) go out only where the broker's keys put them on an index
+  (mStock's fixed packet, `index_key(.., QUOTE_UP)`), under the canonical
+  and the broker's names alike; elsewhere an index has none.
 - `data.symbol`, `data.exchange` and `data.timestamp`: AliceBlue's dicts
   carry no symbol or exchange, and a timestamp in Depth only.
 - `open_interest` beside `oi` only where the adapter sends both (Zerodha,
@@ -131,17 +141,25 @@ Deliberate differences, each a web defect or a desktop rule:
 - A key whose value is not known is left out, where the web sends a default
   (`.get(x, 0)`) or a placeholder (Delta Exchange's `average_price` and
   `oi_change`, always 0).
-- The docs' keys `ltt` and `timestamp` are epoch milliseconds for every
-  broker; the web's mixed or raw units under those names (Zerodha's `ltt`
-  in seconds on full packets, XTS's raw `LastTradedTime`, Paytm's and IIFL
-  Capital's seconds, Tradejini's text `ltt`) are not copied. A broker's own
-  name of a time follows its adapter's unit, type and format (since 1.0.6:
-  Fyers' and Dhan's `last_trade_time` in seconds; Tradejini's text
-  `last_trade_time`, `YYYY-MM-DD HH:MM:SS` as Python's
-  `str(datetime.fromtimestamp(seconds))` writes it, in IST,
-  `Source::TradeTimeText`, only when the broker sent a trade time). The web
-  writes the host's local time; the desktop keeps IST everywhere, so the
-  text differs only on a web host not set to IST.
+- Times: a web alias follows its adapter's unit, type and format, while
+  the docs' keys `ltt` and `timestamp` are always epoch milliseconds, and
+  no key is ever sent as `null` (a value not known leaves its key out).
+  - Aliases: seconds for Fyers' and Dhan's `last_trade_time` (since 1.0.6);
+    text for Tradejini's `last_trade_time` (`YYYY-MM-DD HH:MM:SS` as
+    Python's `str(datetime.fromtimestamp(seconds))` writes it, in IST,
+    `Source::TradeTimeText`, only when the broker sent a trade time) and
+    for the raw strings the Noren family and Definedge pass through: the
+    Noren family's `last_trade_time` is the time of day, `HH:MM:SS` in IST
+    (`Source::TradeTimeOfDay`; from LTP on Shoonya, from Quote on Flattrade,
+    Zebu and TradeSmart), and a packet marks the form its broker sent when
+    it varies (`NormalizedTick::time_text`: Definedge's `ltt` is sometimes
+    the time of day, sometimes epoch seconds as a string). The web writes
+    the host's local time; the desktop keeps IST everywhere, so the text
+    differs only on a web host not set to IST.
+  - `ltt` and `timestamp`: the web's mixed or raw units under those names
+    (Zerodha's `ltt` in seconds on full packets, XTS's raw
+    `LastTradedTime`, Paytm's and IIFL Capital's seconds, Tradejini's text
+    `ltt`) are not copied.
 - A web key that holds a wrong value is not copied with that value: Pocketful
   publishes the average price as Depth's `ltp`, Zerodha web reads OI from the
   wrong offset; the desktop decoders keep the right values.
