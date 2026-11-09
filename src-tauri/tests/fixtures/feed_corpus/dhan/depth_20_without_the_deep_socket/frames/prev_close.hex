@@ -1,8 +1,0 @@
-# Dhan binary frame: the previous-close packet Dhan sends after a subscribe.
-# Values from web test/test_dhan_quote_feed.py::prev_close_frame.
-06                      # response code 6 (previous close)
-1000                    # message length 16, header included
-01                      # exchange segment 1 (NSE_EQ)
-450b0000                # security id 2885
-0010a044                # previous close 1280.5 (f32)
-78000000                # previous OI
