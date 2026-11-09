@@ -59,7 +59,11 @@ choose Update when no live strategy or active workflow is running.
   symbol stays subscribed, the answer says so, and unsubscribing again
   retries. A symbol listed twice in one unsubscribe keeps its subscription
   if the broker refused, and an answer that comes after the wait is still
-  honoured.
+  honoured. Asking again while the broker has not answered waits for that
+  answer instead of reporting success.
+- One slow or refused subscribe no longer holds up other apps' subscribes
+  or the sandbox's prices, and an app waiting on its own subscribe is not
+  disconnected for being silent.
 - Live prices are spread over several connections to your broker, as
   OpenAlgo web does: up to 1,000 symbols per connection and 3 connections.
   Brokers with tighter limits keep to them: HDFC Sky 300 per connection,
@@ -70,7 +74,15 @@ choose Update when no live strategy or active workflow is running.
 - A symbol watched at 5 levels in one app and 20 in another streams 20
   levels, and goes back to 5 when the 20-level app lets go. A 20- or 50-level
   book that does not start, is refused or stays silent (Dhan: 30 seconds) is
-  served from your broker's 5 levels, and says so.
+  served from your broker's 5 levels, and says so. A deep book from before an
+  unsubscribe, or from a connection that has gone down, is never shown as
+  current.
+- A strategy or scalping stop whose subscribe was partly refused streams what
+  the broker accepted, and letting go no longer stops a symbol another app
+  still holds.
+- A Flow Depth node reads the traded price, not 0, on brokers that send the
+  book and the price separately, and a book with no price no longer answers
+  an LTP or Quote node.
 - A symbol subscribed while the broker is still confirming the login is no
   longer sent to the broker twice (Kotak, Fyers, Firstock and others).
 - Before a logout, broker switch or quit, OpenAlgo signs off from the
@@ -138,7 +150,9 @@ choose Update when no live strategy or active workflow is running.
   limits; LTP carries the day's volume. Where a cash share and an F&O
   contract share Motilal's code, the second is refused with the reason,
   because Motilal's packets cannot tell the two apart; OpenAlgo web shows one
-  instrument's prices as the other's.
+  instrument's prices as the other's. A symbol you let go frees its code at
+  once, even during an outage, and one you still hold keeps it for as long as
+  you hold it.
 - Definedge: best bid and ask and previous and total OI in Quote; circuit
   limits and the 52-week range in depth; order updates start only after
   Definedge accepts the session.
@@ -148,10 +162,12 @@ choose Update when no live strategy or active workflow is running.
 - Pocketful: Depth shows the real last price and carries the average price
   as `average_price`, instead of showing the average as the LTP. A Depth
   subscription now streams Pocketful's quote data beside the book, and
-  `/api/v1/depth` returns the last price too.
+  `/api/v1/depth` returns the last price too. Changing between Quote and
+  Depth changes only the stream that differs.
 - Paytm Money, IIFL Capital and Pocketful: before an instrument's first
   trade, frames leave out `ltt` instead of showing the time the update
-  arrived.
+  arrived. Firstock and AliceBlue do the same until a connection has sent a
+  trade time.
 - Shoonya, Flattrade, Zebu and TradeSmart: a feed that keeps answering but
   stops sending prices is reconnected after three minutes, once prices have
   been flowing; frames carry Noren's own percent change, the feed time, the
@@ -162,8 +178,13 @@ choose Update when no live strategy or active workflow is running.
   and NFO streams twenty levels; a session the server ends while the
   connection stays open is reconnected; RMoney's other message layouts
   stream; Jainam and RMoney depth arrives without a message code; RMoney's
-  emptied book clears wherever its message carries it; a subscribe the
-  broker refuses is answered as refused, with the broker's reason.
+  emptied book clears wherever its message carries it. A subscribe the
+  broker refuses is answered as refused, with the broker's reason, including
+  one made before the feed has connected; one refused symbol in a batch no
+  longer stops the others, and after a reconnect only what the broker refuses
+  is dropped, listed on Health. Changing a symbol's mode takes the new stream
+  before letting go of the old one, so a refused change leaves the stream you
+  had and says so, and another app's prices never stop.
 - Firstock: prices start reliably after login, and invalid book levels no
   longer replace a good book.
 - AliceBlue: market depth shows each level's order count; order updates show
@@ -191,9 +212,10 @@ choose Update when no live strategy or active workflow is running.
 
 ### Maintenance
 
-- Live market data is now tested broker by broker against OpenAlgo web's own
-  handling of the same broker messages, and every difference is recorded
-  with its reason and the decision that allows it
+- Live market data, and the answer to each subscribe and unsubscribe, are now
+  tested broker by broker against OpenAlgo web's own handling of the same
+  broker messages, and every difference is recorded with its reason and the
+  decision that allows it
   (docs/port/feed-parity-matrix.md). A release is refused while any
   difference has no decision behind it.
 
