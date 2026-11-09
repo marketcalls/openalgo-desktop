@@ -1,1 +1,46 @@
-{}
+{
+  "broker": "deltaexchange",
+  "data": {
+    "depth": {
+      "buy": [
+        {
+          "price": 63833.0,
+          "quantity": 4388
+        },
+        {
+          "price": 63832.5,
+          "quantity": 200
+        },
+        {
+          "price": 63831.0,
+          "quantity": 75
+        }
+      ],
+      "sell": [
+        {
+          "price": 63834.5,
+          "quantity": 718
+        },
+        {
+          "price": 63835.0,
+          "quantity": 120
+        },
+        {
+          "price": 63836.5,
+          "quantity": 40
+        }
+      ]
+    },
+    "exchange": "CRYPTO",
+    "ltp": 0.0,
+    "mode": 3,
+    "symbol": "BTCUSDFUT",
+    "timestamp": "<receipt_ms>",
+    "totalbuyqty": 4663,
+    "totalsellqty": 878
+  },
+  "exchange": "CRYPTO",
+  "mode": 3,
+  "symbol": "BTCUSDFUT",
+  "type": "market_data"
+}

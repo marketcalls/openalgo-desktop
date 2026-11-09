@@ -1,1 +1,86 @@
-{}
+{
+  "broker": "dhan",
+  "data": {
+    "average_price": 953.9,
+    "close": 1279.35,
+    "depth": {
+      "buy": [
+        {
+          "orders": 1,
+          "price": 954.1,
+          "quantity": 10
+        },
+        {
+          "orders": 1,
+          "price": 954.05,
+          "quantity": 11
+        },
+        {
+          "orders": 1,
+          "price": 954.0,
+          "quantity": 12
+        },
+        {
+          "orders": 1,
+          "price": 953.95,
+          "quantity": 13
+        },
+        {
+          "orders": 1,
+          "price": 953.9,
+          "quantity": 14
+        }
+      ],
+      "sell": [
+        {
+          "orders": 2,
+          "price": 954.2,
+          "quantity": 20
+        },
+        {
+          "orders": 2,
+          "price": 954.25,
+          "quantity": 21
+        },
+        {
+          "orders": 2,
+          "price": 954.3,
+          "quantity": 22
+        },
+        {
+          "orders": 2,
+          "price": 954.35,
+          "quantity": 23
+        },
+        {
+          "orders": 2,
+          "price": 954.4,
+          "quantity": 24
+        }
+      ]
+    },
+    "depth_level": 0,
+    "exchange": "NSE",
+    "high": 957.45,
+    "last_quantity": 3,
+    "last_trade_time": 1761700001,
+    "low": 948.15,
+    "ltp": 954.15,
+    "ltt": 1761700001000,
+    "mode": 3,
+    "oi": 0,
+    "oi_high": 0,
+    "oi_low": 0,
+    "open": 951.3,
+    "prev_oi": 0,
+    "symbol": "RELIANCE",
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 3950,
+    "total_sell_quantity": 4200,
+    "volume": 120100
+  },
+  "exchange": "NSE",
+  "mode": 2,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}

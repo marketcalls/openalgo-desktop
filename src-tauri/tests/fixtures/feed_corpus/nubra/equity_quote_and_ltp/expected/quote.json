@@ -1,1 +1,19 @@
-{}
+{
+  "broker": "nubra",
+  "data": {
+    "close": 1298.0,
+    "exchange": "NSE",
+    "high": 1310.0,
+    "low": 1295.0,
+    "ltp": 1301.25,
+    "mode": "quote",
+    "prev_close": 1298.0,
+    "symbol": "RELIANCE",
+    "timestamp": 1740729566039,
+    "volume": 50000
+  },
+  "exchange": "NSE",
+  "mode": 2,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}
