@@ -262,7 +262,10 @@ fix the Zerodha shape):
     with the tick's quote and the last book (`bridge::snapshot::LastBook`,
     `render::snapshot_update`; the Samco ruling). A web adapter that
     freezes Depth holders then is a web defect. A new broker connection
-    forgets the book.
+    forgets the book. A full packet that says it has no book
+    (`NormalizedTick::book_absent`: HDFC's empty depth list, which proto3
+    cannot tell from a cleared book) goes out without `depth`, never with
+    the old book, which stays for the next packet that carries one.
 - **One frame per mode the client holds, for each update**
   (`feed::registry::dispatch`): a Depth update reaches a client's Depth,
   Quote and LTP holdings, a Quote update its Quote and LTP holdings, an LTP

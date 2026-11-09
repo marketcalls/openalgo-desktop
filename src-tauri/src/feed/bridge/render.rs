@@ -89,7 +89,8 @@ pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> Option<Mark
 /// without one (`tick_update`).
 pub(in crate::feed) fn snapshot_update(key: InstrumentKey, s: &Snapshot) -> Option<MarketUpdate> {
     let mut u = tick_update(key, s.tick())?;
-    if u.mode != Mode::Depth {
+    // A packet that says it has no book shows none, the last one not either.
+    if u.mode != Mode::Depth || s.tick().book_absent {
         return Some(u);
     }
     if let Some(last) = s.book() {

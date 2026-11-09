@@ -177,6 +177,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
     s.extras = s.extras.overlay(t.extras);
     s.broker_fields = t.broker_fields.clone();
     s.numbers = t.numbers;
+    s.book_absent = t.book_absent;
     let known = known.without(F::LastTradeTime).without(F::Orders);
     s.carried = known;
     s.absent = AbsentFields::ALL

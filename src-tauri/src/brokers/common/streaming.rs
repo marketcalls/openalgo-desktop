@@ -46,7 +46,9 @@
 //!   book). The exchange time belongs to its packet alone and is never
 //!   kept.
 //! * **Gone:** `t.mark_cleared(QuoteField::TotalBuyQuantity)` drops a quote
-//!   field from what the bridge keeps (`mark_absent` keeps it).
+//!   field from what the bridge keeps (`mark_absent` keeps it);
+//!   `t.book_absent = true` sends a full packet's Depth frame without a book
+//!   (the last book is not shown for it, and is kept).
 //! * **Number form:** `t.numbers.set(Number::Ltp, NumberForm::Integer)` (a
 //!   whole value as an integer, as 5paisa's JSON sends it) or
 //!   `NumberForm::Double` (Jainam's 1105 text event), for this packet;
@@ -209,6 +211,12 @@ pub struct NormalizedTick {
     /// with the trade time.
     #[serde(skip)]
     pub time_text: Option<TimeText>,
+    /// A full packet that says it has no book (HDFC's empty depth list,
+    /// which proto3 cannot tell from a cleared book): its Depth frame goes
+    /// out without `depth` rather than with the last book, which stays for
+    /// the next packet that carries one.
+    #[serde(skip)]
+    pub book_absent: bool,
     /// What this packet says is gone (`mark_cleared`).
     #[serde(skip_serializing_if = "AbsentFields::is_empty")]
     pub cleared: AbsentFields,
