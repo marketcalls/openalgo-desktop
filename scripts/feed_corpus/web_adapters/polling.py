@@ -17,7 +17,10 @@ is that empty book.
 
 A broker's glue: `class Broker(Polling, Glue)`, its sources plus
 POLLING_SOURCES and its mapping functions, `order_book_path` and
-`empty_book` set, and `polling_stubs()` merged into its `stubs()`.
+`empty_book` set, and `polling_stubs()` merged into its `stubs()`. Where
+the broker's own `get_order_book` does work the web runs before mapping
+(Groww reads two segments over REST and resolves each order's symbol), the
+glue lifts it too and answers each poll from it (`order_book_reply`).
 """
 
 import json
@@ -53,10 +56,10 @@ class Polling:
         self.poller = None
 
         def get_order_book(auth):
-            """The broker's reply: the order book the case serves next.
+            """The broker's reply to the poll the case starts next.
             Entering it means the previous poll is done."""
             self.polls.put(None)
-            return json.loads(self.books.get())
+            return self.order_book_reply(auth, self.books.get())
 
         def import_broker_module(broker_name):
             return {
@@ -101,13 +104,24 @@ class Polling:
         self.books.put(self.empty_book)
         self.polls.get(timeout=10)  # the baseline is read, the next read waits
 
+    def order_book_reply(self, auth, served):
+        """What the broker module's `get_order_book` returns for a poll the
+        case started with `served`: the order book as served (5paisa and
+        Samco return their REST body)."""
+        return json.loads(served)
+
     def serve(self, method, path, body):
         if path != self.order_book_path:
             raise SystemExit(f"the {self.broker} glue serves no {path}")
         if self.poller is None:
             raise SystemExit("an order book served before the order subscription")
+        self.next_poll(body)
+
+    def next_poll(self, served):
+        """Let the poller's waiting read go on with `served`, and relay what
+        that poll publishes."""
         before = len(self.events)
-        self.books.put(body)
+        self.books.put(served)
         self.polls.get(timeout=10)  # this poll is done, the next read waits
         for fields in self.events[before:]:
             self.order(fields)
