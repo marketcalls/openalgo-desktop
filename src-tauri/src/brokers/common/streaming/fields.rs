@@ -445,61 +445,70 @@ impl Serialize for BrokerValue {
 /// from one packet to the next: a value that should last (an auction's
 /// price lasts one tick) stays only as long as the adapter sends it.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct BrokerFields(Vec<(BrokerField, BrokerValue)>, Vec<BrokerField>);
+/// A packet's broker-only fields: a value per field, or `None` for a field
+/// the packet clears (one list, so a tick stays the size it was).
+pub struct BrokerFields(Vec<(BrokerField, Option<BrokerValue>)>);
 
 impl BrokerFields {
-    /// Record `field`, replacing an earlier value of it.
-    pub fn set(&mut self, field: BrokerField, value: BrokerValue) {
+    fn put(&mut self, field: BrokerField, value: Option<BrokerValue>) {
         match self.0.iter_mut().find(|(f, _)| *f == field) {
             Some(slot) => slot.1 = value,
             None => self.0.push((field, value)),
         }
     }
 
+    /// Record `field`, replacing an earlier value of it.
+    pub fn set(&mut self, field: BrokerField, value: BrokerValue) {
+        self.put(field, Some(value));
+    }
+
     /// `field` is gone: left out of this packet's frames and not kept from
     /// earlier ones (an absent field keeps a persistent one's last value).
     pub fn clear(&mut self, field: BrokerField) {
-        self.0.retain(|(f, _)| *f != field);
-        if !self.1.contains(&field) {
-            self.1.push(field);
-        }
+        self.put(field, None);
     }
 
     /// These fields with `newer`'s over them: a persistent field `newer`
     /// does not carry stays unless `newer` clears it; a per-packet one
     /// lasts its packet.
     pub fn overlay(&self, newer: &Self) -> Self {
-        let kept = self
-            .0
-            .iter()
-            .copied()
-            .filter(|(f, _)| f.persists() && !newer.1.contains(f))
-            .collect();
-        let mut out = BrokerFields(kept, Vec::new());
-        for (f, v) in newer.iter() {
-            out.set(f, v);
+        let mut out = BrokerFields(
+            self.0
+                .iter()
+                .copied()
+                .filter(|(f, v)| v.is_some() && f.persists())
+                .collect(),
+        );
+        for (f, v) in &newer.0 {
+            match v {
+                Some(v) => out.set(*f, *v),
+                None => out.0.retain(|(g, _)| g != f),
+            }
         }
         out
     }
 
     pub fn get(&self, field: BrokerField) -> Option<BrokerValue> {
-        self.0.iter().find(|(f, _)| *f == field).map(|(_, v)| *v)
+        self.0
+            .iter()
+            .find(|(f, _)| *f == field)
+            .and_then(|(_, v)| *v)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.0.iter().all(|(_, v)| v.is_none())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (BrokerField, BrokerValue)> + '_ {
-        self.0.iter().copied()
+        self.0.iter().filter_map(|(f, v)| v.map(|v| (*f, v)))
     }
 }
 
 impl Serialize for BrokerFields {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut m = s.serialize_map(Some(self.0.len()))?;
-        for (f, v) in &self.0 {
-            m.serialize_entry(f.name(), v)?;
+        let mut m = s.serialize_map(None)?;
+        for (f, v) in self.iter() {
+            m.serialize_entry(f.name(), &v)?;
         }
         m.end()
     }
