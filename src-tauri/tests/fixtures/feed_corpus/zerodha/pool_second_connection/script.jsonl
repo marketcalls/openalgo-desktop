@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [408065]}}, {"json": {"a": "mode", "v": ["quote", [408065]]}}]}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "TCS", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "socket": "main#2", "frames": [{"json": {"a": "subscribe", "v": [2953217]}}, {"json": {"a": "mode", "v": ["quote", [2953217]]}}], "note": "The first connection is full: the pool opens a second one for TCS."}
+{"step": "push", "socket": "main#2", "frame": "frames/tcs.hex"}
+{"step": "receive", "client": "a", "frame": "expected/tcs.json"}
+{"step": "push", "frame": "frames/infy.hex"}
+{"step": "receive", "client": "a", "frame": "expected/infy.json"}

@@ -3,11 +3,14 @@
 //! which runs the web adapter's own decoding and normalising methods on
 //! the case's pushes (README, "The web's output").
 //!
-//! For every frame a client receives after a push, the web's publish for
-//! the same instrument and mode for that push is found (or, when the web
-//! publishes none of that mode, its lowest richer one, which is what the
-//! web proxy delivers to a client at that mode), and the two `data`
-//! objects (whole frames for order updates) are compared key by key.
+//! For every frame a client receives after a delivery point (a push, or
+//! any step that made the web adapter publish), the frame the web's own
+//! server sends that client is found (`deliveries.rs`: each web frame
+//! consumed once per held mode, in order, by instrument and mode; an order
+//! update by its id), and the two `data` objects (whole frames for order
+//! updates) are compared key by key. Every web frame that answers a held
+//! mode and that no receive consumes must be declared by a `silence` step
+//! naming it (`missing-frame`), before the next delivery point.
 //! Every key on which they differ must be one of the case's deviations,
 //! and every deviation must be such a difference, so a deviation cannot
 //! outlive its cause. A `random-values` key is compared by presence and
@@ -16,6 +19,7 @@
 //! desktop's.
 
 use super::case::{bad, read_json, Action, Case, WebFrame, WebPair};
+use super::deliveries::{self, Consumer};
 use super::invariants;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -53,17 +57,20 @@ pub(crate) fn check(case: &Case) {
             ),
         );
     }
-    let pushes = published_by_line(&at, &web);
+    let points = deliveries::points(&at, &web);
     let push_lines: BTreeSet<usize> = case
         .steps
         .iter()
         .filter(|s| matches!(s.action, Action::Push { .. } | Action::HttpServe(_)))
         .map(|s| s.line)
         .collect();
-    if push_lines != pushes.keys().copied().collect::<BTreeSet<usize>>() {
+    let step_lines: BTreeSet<usize> = case.steps.iter().map(|s| s.line).collect();
+    if !push_lines.iter().all(|l| points.contains_key(l))
+        || !points.keys().all(|l| step_lines.contains(l))
+    {
         bad(
             &at,
-            "its pushes are not the script's: run scripts/feed_corpus/web_expected.py again",
+            "its delivery points are not the script's: run scripts/feed_corpus/web_expected.py again",
         );
     }
 
@@ -71,19 +78,36 @@ pub(crate) fn check(case: &Case) {
         case,
         diffs: BTreeMap::new(),
     };
-    let mut last: Option<(usize, usize)> = None;
+    let mut current: Option<Consumer> = None;
+    let mut unconsumed = Vec::new();
     for step in &case.steps {
         let at = format!("{} script.jsonl:{}", case.id, step.line);
+        if let Some(point) = points.get(&step.line) {
+            if let Some(c) = current.take() {
+                unconsumed.extend(c.unconsumed());
+            }
+            current = Some(Consumer::new(step.line, point));
+            continue;
+        }
+        let Some(c) = current.as_mut() else {
+            continue;
+        };
         match &step.action {
-            Action::Push { .. } | Action::HttpServe(_) => last = Some((step.line, 0)),
-            Action::Receive { frame, web, .. } => {
-                let Some((line, orders_seen)) = last.as_mut() else {
-                    continue;
+            Action::Receive { client, frame, web } => {
+                let theirs = match (web, frame["type"].as_str()) {
+                    (WebPair::Nothing, _) => None,
+                    (WebPair::Mode(_), Some("order_update")) => c.order(client, &frame["orderid"]),
+                    (WebPair::Mode(mode), _) => c.market(
+                        client,
+                        frame["symbol"].as_str().unwrap_or_default(),
+                        frame["exchange"].as_str().unwrap_or_default(),
+                        mode.map(u64::from)
+                            .or_else(|| frame["mode"].as_u64())
+                            .unwrap_or(0),
+                    ),
                 };
-                let line = *line;
-                let found = counterpart(&pushes[&line], frame, *web, orders_seen);
-                match (found, web) {
-                    (Some((mine, theirs)), _) => cmp.frames(&at, mine, theirs),
+                match (theirs, web) {
+                    (Some(theirs), _) => cmp.frames(&at, frame, theirs),
                     (None, WebPair::Nothing) => cmp.note(
                         NO_WEB_FRAME,
                         format!("{}: the web sends nothing for this frame", at),
@@ -91,24 +115,25 @@ pub(crate) fn check(case: &Case) {
                     (None, WebPair::Mode(_)) => bad(
                         &at,
                         format!(
-                            "the web publishes nothing this frame could come from (push at line {}): \
+                            "the web sends client {} nothing this frame could answer (delivery point at line {}): \
                              mark the step \"web\": false and add a deviation \"{}\"",
-                            line, NO_WEB_FRAME
+                            client, c.line, NO_WEB_FRAME
                         ),
                     ),
                 }
             }
-            Action::Silence { web: Some(w), .. } => {
-                let Some((line, _)) = last else {
-                    bad(&at, "\"web\" names a frame of a push, and none came yet");
-                };
-                let Some(theirs) = market_publish(&pushes[&line], &w.symbol, &w.exchange, w.mode)
+            Action::Silence {
+                client,
+                web: Some(w),
+                ..
+            } => {
+                let Some(theirs) = c.market(client, &w.symbol, &w.exchange, u64::from(w.mode))
                 else {
                     bad(
                         &at,
                         format!(
-                            "the web publishes no {} {} frame at mode {} for the push at line {} either: drop \"web\"",
-                            w.exchange, w.symbol, w.mode, line
+                            "the web sends client {} no {} {} frame at mode {} after line {} either: drop \"web\"",
+                            client, w.exchange, w.symbol, w.mode, c.line
                         ),
                     );
                 };
@@ -117,92 +142,20 @@ pub(crate) fn check(case: &Case) {
             _ => {}
         }
     }
-    report(&at, case, &cmp.diffs);
-}
-
-/// Each push's publishes, by its script line.
-fn published_by_line(at: &str, web: &Value) -> BTreeMap<usize, Vec<Value>> {
-    web["pushes"]
-        .as_array()
-        .unwrap_or_else(|| bad(at, "no \"pushes\""))
-        .iter()
-        .map(|p| {
-            let line = p["line"]
-                .as_u64()
-                .and_then(|n| usize::try_from(n).ok())
-                .unwrap_or_else(|| bad(at, "a push without its script line"));
-            let published = p["published"]
-                .as_array()
-                .cloned()
-                .unwrap_or_else(|| bad(at, "a push without \"published\""));
-            (line, published)
-        })
-        .collect()
-}
-
-/// The web's publish for an instrument (its topic's exchange and symbol,
-/// so one push may publish several) that a client at `mode` gets: that
-/// mode's, else the lowest richer one's.
-fn market_publish<'a>(
-    published: &'a [Value],
-    symbol: &str,
-    exchange: &str,
-    mode: u8,
-) -> Option<&'a Value> {
-    let market: Vec<&Value> = published
-        .iter()
-        .filter(|p| p["kind"] == "market")
-        .filter(|p| p.get("symbol").is_none_or(|v| v == symbol))
-        .filter(|p| p.get("exchange").is_none_or(|v| v == exchange))
-        .collect();
-    let mode = u64::from(mode);
-    market
-        .iter()
-        .find(|p| mode_of(p) == Some(mode))
-        .or_else(|| {
-            market
-                .iter()
-                .filter(|p| mode_of(p).is_some_and(|m| m > mode))
-                .min_by_key(|p| mode_of(p))
-        })
-        .copied()
-}
-
-/// The desktop's frame and the web output it is compared with (both
-/// whole, for a market frame the publish whose `data` the web forwards).
-fn counterpart<'a>(
-    published: &'a [Value],
-    frame: &'a Value,
-    pair: WebPair,
-    orders_seen: &mut usize,
-) -> Option<(&'a Value, &'a Value)> {
-    let WebPair::Mode(mode) = pair else {
-        return None;
-    };
-    match frame["type"].as_str() {
-        Some("market_data") => {
-            let mode = mode
-                .or_else(|| frame["mode"].as_u64().and_then(|m| u8::try_from(m).ok()))
-                .unwrap_or(0);
-            let symbol = frame["symbol"].as_str().unwrap_or_default();
-            let exchange = frame["exchange"].as_str().unwrap_or_default();
-            Some((frame, market_publish(published, symbol, exchange, mode)?))
-        }
-        Some("order_update") => {
-            let theirs = published
-                .iter()
-                .filter(|p| p["kind"] == "order")
-                .nth(*orders_seen)?;
-            *orders_seen += 1;
-            Some((frame, theirs))
-        }
-        _ => None,
+    if let Some(c) = current.take() {
+        unconsumed.extend(c.unconsumed());
     }
-}
-
-/// The mode of a web publish (1 LTP, 2 Quote, 3 Depth).
-fn mode_of(p: &Value) -> Option<u64> {
-    p["mode"].as_u64()
+    if !unconsumed.is_empty() {
+        bad(
+            &at,
+            format!(
+                "web frames the case neither receives nor declares (a silence step naming each, deviation \"{}\"):\n  {}",
+                NO_DESKTOP_FRAME,
+                unconsumed.join("\n  ")
+            ),
+        );
+    }
+    report(&at, case, &cmp.diffs);
 }
 
 fn shown(v: Option<&Value>) -> String {

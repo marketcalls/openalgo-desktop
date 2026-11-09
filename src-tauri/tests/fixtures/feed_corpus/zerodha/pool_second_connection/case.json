@@ -1,0 +1,39 @@
+{
+  "broker": "zerodha",
+  "summary": "The market data pool opens a second Kite connection when the first is full (one instrument each here): TCS is subscribed on connection 2, its quote comes from there, and INFY's still comes from connection 1.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "token": "2953217",
+      "brsymbol": "TCS",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-test",
+    "sources": [
+      "broker/zerodha/streaming/zerodha_websocket.py::ZerodhaWebSocket._parse_packet",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._handle_ticks",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._transform_regular_tick",
+      "test/test_zerodha_index_packets.py::test_regular_quote_packet_still_uses_quote_layout"
+    ],
+    "notes": [
+      "A quote packet carries no trade time; the web and the desktop both send the time the packet was received as ltt.",
+      "The pool is the session's (broker_runtime::pool_limits: Kite's three connections) with one instrument per connection for the case; the web's pool opens its next connection the same way (websocket_proxy/connection_manager.py), and its adapter decodes each connection's packets alike."
+    ]
+  },
+  "pool_per_connection": 1
+}
