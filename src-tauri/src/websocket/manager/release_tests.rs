@@ -100,6 +100,8 @@ async fn session(
         cmd,
         registry: registry.clone(),
         events: broadcast::channel(4).0,
+        packets: Default::default(),
+        session: Default::default(),
         status: watch::channel(FeedStatus::Disconnected).0,
         config: FeedConfig::default(),
         stats: Arc::default(),

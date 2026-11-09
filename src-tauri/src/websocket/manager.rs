@@ -38,6 +38,7 @@ use tokio::task::JoinHandle;
 
 mod heartbeat;
 mod losses;
+mod packet;
 mod pool;
 mod presubscribe;
 mod registry;
@@ -45,6 +46,8 @@ mod release;
 mod stats;
 mod supervisor;
 pub use losses::{Reader, SinceConnect};
+use packet::PacketOut;
+pub use packet::{MarketPacket, Packet, PacketKind, SessionId};
 pub use pool::{FeedFactory, PoolLimits};
 use registry::{Delta, Registry, Routed};
 use release::Written;
@@ -179,6 +182,9 @@ struct Running {
 
 pub struct WebSocketManager {
     events: broadcast::Sender<MarketEvent>,
+    /// The same events, one broker message per packet, and each
+    /// connection's sessions (`packet`).
+    packets: PacketOut,
     /// The first connection's state: the feed's, for the UI and the feed
     /// server.
     status: watch::Sender<FeedStatus>,
@@ -216,9 +222,11 @@ impl WebSocketManager {
 
     pub fn with_config(config: FeedConfig) -> Self {
         let (events, _) = broadcast::channel(config.event_capacity.max(1));
+        let packets = PacketOut::with_capacity(config.event_capacity);
         let (status, _) = watch::channel(FeedStatus::Disconnected);
         Self {
             events,
+            packets,
             status,
             registry: Arc::new(Mutex::new(Registry::with_limits(PoolLimits::single(
                 config.max_instruments,
@@ -240,11 +248,50 @@ impl WebSocketManager {
         self.events.subscribe()
     }
 
-    /// Test hook: hand `event` to every tick listener, as the feed task
-    /// does.
+    /// Each broker message's market events as one packet, with the
+    /// session that sent them, and each session's opening. Receivers must
+    /// handle `RecvError::Lagged` as the tick receivers do.
+    pub fn subscribe_packets(&self) -> broadcast::Receiver<MarketPacket> {
+        self.packets.subscribe()
+    }
+
+    /// Test hook: hand `event` to every tick listener, and as a packet of
+    /// its own from the latest session of the first connection, as the
+    /// feed task does.
     #[cfg(test)]
     pub(crate) fn emit(&self, event: MarketEvent) {
-        let _ = self.events.send(event);
+        self.emit_packet(vec![event]);
+    }
+
+    /// Test hook: one broker message's `events`, as the feed task sends
+    /// them (one by one, and together as one packet).
+    #[cfg(test)]
+    pub(crate) fn emit_packet(&self, events: Vec<MarketEvent>) {
+        self.emit_packet_from(self.test_session(0), events);
+    }
+
+    /// Test hook: as `emit_packet`, from session `from`.
+    #[cfg(test)]
+    pub(crate) fn emit_packet_from(&self, from: SessionId, events: Vec<MarketEvent>) {
+        for e in &events {
+            let _ = self.events.send(e.clone());
+        }
+        self.packets.send(from, events);
+    }
+
+    /// Test hook: a new session of connection `conn` opens.
+    #[cfg(test)]
+    pub(crate) fn open_session(&self, conn: usize) -> SessionId {
+        self.packets.open(conn)
+    }
+
+    /// Test hook: the latest session number, on connection `conn`.
+    #[cfg(test)]
+    pub(crate) fn test_session(&self, conn: usize) -> SessionId {
+        SessionId {
+            conn,
+            session: self.packets.latest(),
+        }
     }
 
     /// Test hook: how many listen for ticks now.
@@ -564,6 +611,8 @@ impl Drop for WebSocketManager {
 
 #[cfg(test)]
 mod deadline_tests;
+#[cfg(test)]
+mod packet_tests;
 #[cfg(test)]
 mod pool_tests;
 #[cfg(test)]
