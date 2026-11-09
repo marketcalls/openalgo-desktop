@@ -172,59 +172,34 @@ impl FeedTicks {
     }
 }
 
+/// The forwarder: ticks read as they come, and the watch list applied
+/// beside them (one task, both polled in turn).
 async fn forward(
     feed: Arc<WebSocketManager>,
     tx: broadcast::Sender<Tick>,
-    mut rx: mpsc::Receiver<WatchCmd>,
+    rx: mpsc::Receiver<WatchCmd>,
     shutdown: tokio_util::sync::CancellationToken,
 ) {
+    let stop = shutdown.child_token();
+    tokio::join!(
+        read_ticks(&feed, tx, stop.clone()),
+        apply_watches(&feed, rx, stop)
+    );
+}
+
+/// Turn feed events into sandbox ticks as they arrive. Nothing here waits
+/// on a subscribe: the broker can take seconds to answer one (review X5),
+/// and ticks kept waiting would then be stamped as if just received, so an
+/// old price would pass the stale check (SB-06).
+async fn read_ticks(
+    feed: &WebSocketManager,
+    tx: broadcast::Sender<Tick>,
+    stop: tokio_util::sync::CancellationToken,
+) {
     let mut events = feed.subscribe_ticks();
-    let mut mine: HashMap<SymbolKey, FeedSubscription> = HashMap::new();
     loop {
         tokio::select! {
-            _ = shutdown.cancelled() => break,
-            cmd = rx.recv() => match cmd {
-                Some(WatchCmd::Watch(s)) => {
-                    let key = SymbolKey::new(s.symbol.clone(), s.exchange.clone());
-                    if let std::collections::hash_map::Entry::Vacant(slot) = mine.entry(key) {
-                        match feed.subscribe(vec![s.clone()]).await {
-                            Ok(()) => {
-                                slot.insert(s);
-                            }
-                            Err(e) => tracing::warn!(
-                                "Sandbox could not stream {}:{}: {}",
-                                s.exchange,
-                                s.symbol,
-                                e.code()
-                            ),
-                        }
-                    }
-                }
-                Some(WatchCmd::Unwatch(s)) => {
-                    let key = SymbolKey::new(s.symbol.clone(), s.exchange.clone());
-                    if let Some(sub) = mine.remove(&key) {
-                        let _ = feed.unsubscribe(vec![sub]).await;
-                    }
-                }
-                Some(WatchCmd::Resubscribe(s)) => {
-                    let key = SymbolKey::new(s.symbol.clone(), s.exchange.clone());
-                    if let Some(sub) = mine.remove(&key) {
-                        let _ = feed.unsubscribe(vec![sub]).await;
-                    }
-                    match feed.subscribe(vec![s.clone()]).await {
-                        Ok(()) => {
-                            mine.insert(key, s);
-                        }
-                        Err(e) => tracing::warn!(
-                            "Sandbox could not stream {}:{} again: {}",
-                            s.exchange,
-                            s.symbol,
-                            e.code()
-                        ),
-                    }
-                }
-                None => break,
-            },
+            _ = stop.cancelled() => break,
             ev = events.recv() => match ev {
                 Ok(ev) => {
                     if let FeedEvent::Tick(t) = ev.as_ref() {
@@ -246,7 +221,68 @@ async fn forward(
             },
         }
     }
-    // Release everything this forwarder subscribed, on every exit path.
+}
+
+/// Apply the engine's watch list to the feed until the adapter is dropped
+/// or the app shuts down; the ticks stop with it, and every subscription
+/// made here is released, on every exit path.
+async fn apply_watches(
+    feed: &WebSocketManager,
+    mut rx: mpsc::Receiver<WatchCmd>,
+    stop: tokio_util::sync::CancellationToken,
+) {
+    let mut mine: HashMap<SymbolKey, FeedSubscription> = HashMap::new();
+    loop {
+        let cmd = tokio::select! {
+            _ = stop.cancelled() => break,
+            cmd = rx.recv() => match cmd {
+                Some(cmd) => cmd,
+                None => break,
+            },
+        };
+        match cmd {
+            WatchCmd::Watch(s) => {
+                let key = SymbolKey::new(s.symbol.clone(), s.exchange.clone());
+                if let std::collections::hash_map::Entry::Vacant(slot) = mine.entry(key) {
+                    match feed.subscribe(vec![s.clone()]).await {
+                        Ok(()) => {
+                            slot.insert(s);
+                        }
+                        Err(e) => tracing::warn!(
+                            "Sandbox could not stream {}:{}: {}",
+                            s.exchange,
+                            s.symbol,
+                            e.code()
+                        ),
+                    }
+                }
+            }
+            WatchCmd::Unwatch(s) => {
+                let key = SymbolKey::new(s.symbol.clone(), s.exchange.clone());
+                if let Some(sub) = mine.remove(&key) {
+                    let _ = feed.unsubscribe(vec![sub]).await;
+                }
+            }
+            WatchCmd::Resubscribe(s) => {
+                let key = SymbolKey::new(s.symbol.clone(), s.exchange.clone());
+                if let Some(sub) = mine.remove(&key) {
+                    let _ = feed.unsubscribe(vec![sub]).await;
+                }
+                match feed.subscribe(vec![s.clone()]).await {
+                    Ok(()) => {
+                        mine.insert(key, s);
+                    }
+                    Err(e) => tracing::warn!(
+                        "Sandbox could not stream {}:{} again: {}",
+                        s.exchange,
+                        s.symbol,
+                        e.code()
+                    ),
+                }
+            }
+        }
+    }
+    stop.cancel();
     if !mine.is_empty() {
         let subs: Vec<FeedSubscription> = mine.into_values().collect();
         let _ = feed.unsubscribe(subs).await;
@@ -312,6 +348,64 @@ mod tests {
             instrument_type: "FUT".into(),
             tick_size: 0.05,
         }
+    }
+
+    /// Review X5: ticks go on being forwarded, stamped when they arrive,
+    /// while a new symbol's subscribe waits for the broker. The forwarder
+    /// stopped reading for that long, and stamped the old ticks with the
+    /// time it got to them, so an old price passed the stale check.
+    #[tokio::test]
+    async fn ticks_are_forwarded_while_a_subscribe_waits_for_the_broker() {
+        use crate::brokers::common::streaming::{NormalizedTick, Presubscribe};
+        use std::time::Duration;
+        let feed = Arc::new(WebSocketManager::new());
+        let gate = Arc::new(tokio::sync::Notify::new());
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let step: Presubscribe = {
+            let (gate, entered) = (gate.clone(), entered.clone());
+            Arc::new(move |subs: Vec<FeedSubscription>| {
+                let (gate, entered) = (gate.clone(), entered.clone());
+                futures_util::FutureExt::boxed(async move {
+                    entered.notify_one();
+                    gate.notified().await;
+                    subs.into_iter().map(Ok).collect()
+                })
+            })
+        };
+        feed.set_presubscribe(Some(step));
+        let (tx, mut ticks) = broadcast::channel(16);
+        let (cmd, rx) = mpsc::channel(8);
+        let shutdown = tokio_util::sync::CancellationToken::new();
+        let task = tokio::spawn(forward(feed.clone(), tx, rx, shutdown.clone()));
+        cmd.send(WatchCmd::Watch(FeedSubscription {
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            token: "1".into(),
+            brsymbol: "SBIN".into(),
+            brexchange: "NSE".into(),
+            mode: FeedMode::Ltp,
+            depth: 5,
+        }))
+        .await
+        .unwrap();
+        entered.notified().await;
+
+        feed.emit(Arc::new(FeedEvent::Tick(NormalizedTick {
+            symbol: "RELIANCE".into(),
+            exchange: "NSE".into(),
+            mode: 1,
+            ltp: 1424.0,
+            ..Default::default()
+        })));
+        let tick = tokio::time::timeout(Duration::from_secs(2), ticks.recv())
+            .await
+            .expect("forwarded while the subscribe waits")
+            .unwrap();
+        assert_eq!(tick.symbol, "RELIANCE");
+
+        gate.notify_one();
+        shutdown.cancel();
+        task.await.unwrap();
     }
 
     #[test]

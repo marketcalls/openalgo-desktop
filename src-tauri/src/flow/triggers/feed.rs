@@ -30,7 +30,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Weak;
 use std::time::Duration;
-use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 
 /// What the feed answers while no broker is logged in.
 pub const NO_BROKER_SESSION: &str = "No broker is logged in, so there is no live market data feed.";
@@ -165,10 +165,43 @@ impl MarketFeed for AppFeed {
         // Listen before subscribing, so the first frame is not missed.
         let mut rx = app.websocket.subscribe_ticks();
         let key: Key = (symbol.to_string(), exchange.to_string(), mode.to_string());
-        self.hold(&app, &key).await?;
-        drop(app);
         let instrument = InstrumentKey::new(symbol, exchange);
         let wanted = mode_of(mode).1;
+        // The broker can take a while to answer a subscribe: what comes
+        // meanwhile is read as it comes and only the newest is kept, so a
+        // price kept waiting is not read afterwards as the current one.
+        let mut newest = None;
+        let keep = |event: &crate::brokers::common::streaming::MarketEvent,
+                    newest: &mut Option<Value>| {
+            if let Some(f) = frame(event, &instrument, wanted, &broker).filter(|f| accept(f)) {
+                *newest = Some(f);
+            }
+        };
+        let read_on = async {
+            loop {
+                match rx.recv().await {
+                    Ok(event) => keep(&event, &mut newest),
+                    Err(RecvError::Lagged(_)) => continue,
+                    Err(RecvError::Closed) => std::future::pending::<()>().await,
+                }
+            }
+        };
+        tokio::select! {
+            held = self.hold(&app, &key) => held?,
+            () = read_on => {}
+        }
+        // What came just before the answer and has not been read yet.
+        loop {
+            match rx.try_recv() {
+                Ok(event) => keep(&event, &mut newest),
+                Err(TryRecvError::Lagged(_)) => continue,
+                Err(_) => break,
+            }
+        }
+        drop(app);
+        if newest.is_some() {
+            return Ok(newest);
+        }
         let wait = async {
             loop {
                 match rx.recv().await {

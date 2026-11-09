@@ -182,3 +182,76 @@ async fn the_wait_reads_the_managers_ticks_and_ends_at_its_timeout() {
         "one reference for Flow"
     );
 }
+
+/// Review X5: frames that come while the broker answers a subscribe are
+/// read as they come and only the newest is kept, so a price kept waiting
+/// is not read afterwards as the current one.
+#[tokio::test]
+async fn the_wait_keeps_only_the_newest_frame_while_the_broker_answers() {
+    use crate::brokers::common::streaming::{FeedSubscription, Presubscribe};
+    use crate::brokers::common::symbols::SymToken;
+    use std::sync::Arc;
+    let t = crate::state::testing::build(
+        crate::brokers::BrokerRegistry::new(),
+        "2026-11-03T04:00:00Z".parse().unwrap(),
+    );
+    let app = t.ctx.clone();
+    app.security
+        .install(&crate::security::Unlocked::random().unwrap());
+    app.set_broker_session(Some(crate::state::BrokerSession {
+        broker_id: "zerodha".into(),
+        auth_token: "mock-access-token".into(),
+        feed_token: None,
+        user_id: "AB1234".into(),
+        user_name: None,
+        authenticated_at: app.now(),
+    }));
+    app.symbols.load(vec![SymToken {
+        symbol: "SBIN".into(),
+        brsymbol: "SBIN-EQ".into(),
+        name: "STATE BANK OF INDIA".into(),
+        exchange: "NSE".into(),
+        brexchange: "NSE".into(),
+        token: "3045".into(),
+        expiry: String::new(),
+        strike: 0.0,
+        lot_size: 1,
+        instrument_type: "EQ".into(),
+        tick_size: 0.05,
+    }]);
+    let gate = Arc::new(tokio::sync::Notify::new());
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let step: Presubscribe = {
+        let (gate, entered) = (gate.clone(), entered.clone());
+        Arc::new(move |subs: Vec<FeedSubscription>| {
+            let (gate, entered) = (gate.clone(), entered.clone());
+            futures_util::FutureExt::boxed(async move {
+                entered.notify_one();
+                gate.notified().await;
+                subs.into_iter().map(Ok).collect()
+            })
+        })
+    };
+    app.websocket.set_presubscribe(Some(step));
+    let feed = Arc::new(AppFeed::new(Arc::downgrade(&app)));
+    let waiting = {
+        let feed = feed.clone();
+        tokio::spawn(async move {
+            feed.first_frame("SBIN", "NSE", "LTP", Duration::from_secs(5), &|_| true)
+                .await
+        })
+    };
+    entered.notified().await;
+    let older = {
+        let FeedEvent::Tick(mut t) = tick(1) else {
+            unreachable!()
+        };
+        t.ltp = 811.0;
+        FeedEvent::Tick(t)
+    };
+    app.websocket.emit(Arc::new(older));
+    app.websocket.emit(Arc::new(tick(1)));
+    gate.notify_one();
+    let got = waiting.await.unwrap().unwrap().expect("a frame");
+    assert_eq!(got["data"]["ltp"].as_f64(), Some(812.5), "{}", got);
+}
