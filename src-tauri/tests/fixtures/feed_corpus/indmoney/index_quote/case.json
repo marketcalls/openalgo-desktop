@@ -86,18 +86,6 @@
       "approved": true,
       "reason": "The index packet carries no OI change; the web sends 0 for it (get_value's default, indmoney_adapter.py:651-665), the desktop leaves it out. A field the broker did not send is left out, never sent as 0 (docs; lead decision on web zeros, 2026-11-09).",
       "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "INDmoney's web adapter sends no change for any instrument; the desktop sends an index's change worked out from the previous close. Lead decision: an index's price_change follows the adapter, so it is left out; waits on lane wire's per-broker index_change dialect switch.",
-      "ref": "lead decisions 2026-11-09 (index price_change per adapter); feed/protocol/market.rs shown_quote"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "As price_change.",
-      "ref": "feed/protocol/market.rs shown_quote"
     }
   ]
 }
