@@ -42,7 +42,7 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinSet;
 
 mod limits;
-pub use limits::deep_book_timeout;
+pub use limits::{deep_book_timeout, pool_limits};
 #[cfg(test)]
 mod relay_tests;
 
@@ -267,9 +267,7 @@ async fn start_session(
                 Arc::new(move || b.create_feed(&auth).ok())
             };
             let limits = limits::pool_limits(id);
-            ctx.websocket.set_refusal(Some(feed_refusal(&broker)));
-            ctx.websocket
-                .set_presubscribe(broker.feed_presubscribe(&auth));
+            install_market_hooks(&ctx.websocket, &broker, &auth);
             if let Err(e) = ctx.websocket.connect_pool(feed, more, limits).await {
                 tracing::error!("Market data feed for {} did not start: {}", id, e);
                 ctx.bridge.set_unavailable(bridge::FEED_NOT_STARTED);
@@ -395,6 +393,19 @@ pub fn order_event(u: &OrderUpdate, broker: &str, generation: u64) -> Event {
         average_price: u.average_price,
         rejection_reason: u.rejection_reason.clone(),
     })
+}
+
+/// The session broker's hooks on its market data manager, before the pool
+/// connects: what its feed refuses (`feed_refusal`) and its step before a
+/// new instrument (`Broker::feed_presubscribe`). Public so the feed corpus
+/// wires a session's market feed as a session does.
+pub fn install_market_hooks(
+    websocket: &WebSocketManager,
+    broker: &Arc<dyn Broker>,
+    auth: &AuthToken,
+) {
+    websocket.set_refusal(Some(feed_refusal(broker)));
+    websocket.set_presubscribe(broker.feed_presubscribe(auth));
 }
 
 /// What the session's broker refuses on its feed, for every consumer of it

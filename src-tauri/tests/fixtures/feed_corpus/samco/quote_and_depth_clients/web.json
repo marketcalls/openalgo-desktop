@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "samco",
-  "inputs_sha256": "c74334ae05a180bb7fb12eb6ddf5471dd4d12b704105a9987741018b94c1a950",
+  "inputs_sha256": "e8b3d64ee68cfc789bc93556e50d5a058e379e6fb43e61d503453b2a0f8fe79a",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -96,6 +96,26 @@
             "timestamp": "<receipt_ms>"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": [
+            2
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
@@ -132,6 +152,17 @@
             "mode": 2,
             "timestamp": "<receipt_ms>"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

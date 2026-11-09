@@ -15,27 +15,33 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 4,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 6,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 8,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 10,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 12,
-      "published": []
+      "published": [],
+      "deliveries": []
     }
   ]
 }

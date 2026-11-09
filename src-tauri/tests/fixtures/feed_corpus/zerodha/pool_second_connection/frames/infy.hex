@@ -1,0 +1,16 @@
+# Kite binary frame: one 44-byte quote packet for INFY (token 408065, NSE).
+# Prices in paise. Values from web test/test_zerodha_index_packets.py::
+# test_regular_quote_packet_still_uses_quote_layout.
+0001                    # packets in this frame
+002c                    # packet length 44
+00063a01                # instrument token 408065
+000249f0                # last price 150000 paise
+0000000a                # last traded quantity
+000249be                # average traded price 149950 paise
+00001388                # volume
+00000001                # total buy quantity
+00000002                # total sell quantity
+00024608                # open
+00024dd8                # high
+00024220                # low
+000247fc                # close (previous day)

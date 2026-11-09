@@ -51,6 +51,17 @@
             "open_interest": 12345600
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
@@ -144,11 +155,32 @@
             "lower_circuit": 22068.0
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": [
+            2
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
       "line": 12,
-      "published": []
+      "published": [],
+      "deliveries": []
     }
   ]
 }
