@@ -49,7 +49,9 @@
 //!   field from what the bridge keeps (`mark_absent` keeps it).
 //! * **Number form:** `t.numbers.set(Number::Ltp, NumberForm::Integer)` (a
 //!   whole value as an integer, as 5paisa's JSON sends it) or
-//!   `NumberForm::Double` (Jainam's 1105 text event), for this packet.
+//!   `NumberForm::Double` (Jainam's 1105 text event), for this packet;
+//!   `t.time_text = Some(TimeText::TimeOfDay)` for the text form of its trade
+//!   time (Definedge passes `HH:MM:SS` or epoch seconds through).
 //! * **Broker-only fields** ([`BrokerField`]): `t.broker_fields.set(
 //!   BrokerField::IndicativeEquilibriumPrice, BrokerValue::Float(v))`. The
 //!   set of keys is fixed in `fields.rs`, so a broker field can never
@@ -81,7 +83,7 @@ pub use fields::{
     AbsentFields, BrokerField, BrokerFields, BrokerValue, ClearedExtras, ExtraField, QuoteExtras,
     QuoteField,
 };
-pub use numbers::{Number, NumberForm, NumberForms};
+pub use numbers::{Number, NumberForm, NumberForms, TimeText};
 
 /// Longest a feed waits for a required login acknowledgement
 /// (`BrokerFeed::auth_ack_deadline`).
@@ -202,6 +204,11 @@ pub struct NormalizedTick {
     /// and the broker's names alike.
     #[serde(skip)]
     pub numbers: NumberForms,
+    /// The text form of this packet's trade time where the broker's web
+    /// adapter passes the broker's text through (`numbers.rs`); it stays
+    /// with the trade time.
+    #[serde(skip)]
+    pub time_text: Option<TimeText>,
     /// What this packet says is gone (`mark_cleared`).
     #[serde(skip_serializing_if = "AbsentFields::is_empty")]
     pub cleared: AbsentFields,

@@ -148,9 +148,14 @@ Deliberate differences, each a web defect or a desktop rule:
     text for Tradejini's `last_trade_time` (`YYYY-MM-DD HH:MM:SS` as
     Python's `str(datetime.fromtimestamp(seconds))` writes it, in IST,
     `Source::TradeTimeText`, only when the broker sent a trade time) and
-    for the raw strings the Noren family and Definedge pass through. The
-    web writes the host's local time; the desktop keeps IST everywhere, so
-    the text differs only on a web host not set to IST.
+    for the raw strings the Noren family and Definedge pass through: the
+    Noren family's `last_trade_time` is the time of day, `HH:MM:SS` in IST
+    (`Source::TradeTimeOfDay`; from LTP on Shoonya, from Quote on Flattrade,
+    Zebu and TradeSmart), and a packet marks the form its broker sent when
+    it varies (`NormalizedTick::time_text`: Definedge's `ltt` is sometimes
+    the time of day, sometimes epoch seconds as a string). The web writes
+    the host's local time; the desktop keeps IST everywhere, so the text
+    differs only on a web host not set to IST.
   - `ltt` and `timestamp`: the web's mixed or raw units under those names
     (Zerodha's `ltt` in seconds on full packets, XTS's raw
     `LastTradedTime`, Paytm's and IIFL Capital's seconds, Tradejini's text

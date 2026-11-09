@@ -4,7 +4,7 @@
 //! left out, never sent as 0 (web openalgo#2376, audit C03).
 
 use super::to_json;
-use crate::brokers::common::streaming::{Number, NumberForm};
+use crate::brokers::common::streaming::{Number, NumberForm, TimeText};
 use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Fold, Key, Source, Unit};
 use crate::feed::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
 use serde::ser::{SerializeMap, Serializer};
@@ -216,15 +216,21 @@ fn time(ms: i64, unit: Unit) -> Value {
     }
 }
 
-/// A trade time as text, `YYYY-MM-DD HH:MM:SS` in IST: what web Python's
-/// `str(datetime.fromtimestamp(seconds))` writes on a host on IST (the
-/// desktop keeps IST everywhere, so CI and every computer agree).
-fn time_text(ms: i64) -> Option<Value> {
+/// A trade time as text in `form`: `YYYY-MM-DD HH:MM:SS` in IST is what web
+/// Python's `str(datetime.fromtimestamp(seconds))` writes on a host on IST
+/// (the desktop keeps IST everywhere, so CI and every computer agree),
+/// `HH:MM:SS` the time of day the Noren family and Definedge pass through,
+/// and epoch seconds as a string Definedge's other form.
+fn time_text(ms: i64, form: TimeText) -> Option<Value> {
     use chrono::TimeZone;
-    let t = crate::clock::ist_offset()
-        .timestamp_opt(ms.div_euclid(1000), 0)
-        .single()?;
-    Some(t.format("%Y-%m-%d %H:%M:%S").to_string().into())
+    let secs = ms.div_euclid(1000);
+    let t = crate::clock::ist_offset().timestamp_opt(secs, 0).single()?;
+    let text = match form {
+        TimeText::DateTime => t.format("%Y-%m-%d %H:%M:%S").to_string(),
+        TimeText::TimeOfDay => t.format("%H:%M:%S").to_string(),
+        TimeText::EpochSeconds => secs.to_string(),
+    };
+    Some(text.into())
 }
 
 /// The packet value `source` reads, for the number form the packet marked.
@@ -314,7 +320,12 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::Change => f(q.price_change),
         Source::ChangePercent => f(q.price_change_percent),
         Source::TradeTime(unit) => fr.update.ltt.map(|ms| time(ms, unit)),
-        Source::TradeTimeText => q.trade_time.and_then(time_text),
+        Source::TradeTimeText => q
+            .trade_time
+            .and_then(|ms| time_text(ms, q.time_text.unwrap_or(TimeText::DateTime))),
+        Source::TradeTimeOfDay => q
+            .trade_time
+            .and_then(|ms| time_text(ms, q.time_text.unwrap_or(TimeText::TimeOfDay))),
         Source::Extra(e) => extra(e, q),
         Source::DepthLevels => {
             let book = fr.content == Mode::Depth && !fr.update.key.is_index();

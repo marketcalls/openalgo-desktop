@@ -72,8 +72,13 @@ pub(crate) enum Source {
     TradeTime(Unit),
     /// The exchange's trade time as text, `YYYY-MM-DD HH:MM:SS` in IST, only
     /// when the broker sent one (Tradejini's `last_trade_time`: the web
-    /// writes `str(datetime.fromtimestamp(seconds))`).
+    /// writes `str(datetime.fromtimestamp(seconds))`), or in the form the
+    /// packet marks (`NormalizedTick::time_text`: Definedge).
     TradeTimeText,
+    /// The exchange's trade time as the time of day, `HH:MM:SS` in IST, only
+    /// when the broker sent one (the Noren family's `last_trade_time`, the
+    /// broker's `ltt` passed through), or in the form the packet marks.
+    TradeTimeOfDay,
     Extra(Extra),
     /// The book depth the frame streams (Dhan, the Noren family:
     /// `depth_level`).
@@ -418,9 +423,16 @@ const NOREN_DEPTH: [WebName; 5] = [
     n("52_week_low", S::Extra(E::Low52Week), D),
 ];
 
-const fn noren(timestamp: &'static str, oi_in_depth: &'static str) -> [WebName; 8] {
+/// The Noren family's names. `last_trade_time` is the broker's `ltt` passed
+/// through, the time of day (from LTP on Shoonya, from Quote on the rest).
+const fn noren(
+    timestamp: &'static str,
+    oi_in_depth: &'static str,
+    trade_time_from: Mode,
+) -> [WebName; 9] {
     [
         n(timestamp, S::Extra(E::ExchangeTime(Unit::Seconds)), L),
+        n("last_trade_time", S::TradeTimeOfDay, trade_time_from),
         n("percent_change", S::ChangePercent, Q),
         NOREN_DEPTH[0],
         NOREN_DEPTH[1],
@@ -432,12 +444,12 @@ const fn noren(timestamp: &'static str, oi_in_depth: &'static str) -> [WebName; 
 }
 
 /// Shoonya publishes OI as `open_interest` in Depth (canonical already).
-const SHOONYA: &[WebName] = &noren("shoonya_timestamp", "open_interest");
+const SHOONYA: &[WebName] = &noren("shoonya_timestamp", "open_interest", L);
 /// Flattrade and Zebu name the total OI `total_traded_value`.
-const FLATTRADE: &[WebName] = &noren("flattrade_timestamp", "total_traded_value");
-const ZEBU: &[WebName] = &noren("zebu_timestamp", "total_traded_value");
+const FLATTRADE: &[WebName] = &noren("flattrade_timestamp", "total_traded_value", Q);
+const ZEBU: &[WebName] = &noren("zebu_timestamp", "total_traded_value", Q);
 /// TradeSmart sends `oi` in Quote too (canonical).
-const TRADESMART: &[WebName] = &noren("tradesmart_timestamp", "oi");
+const TRADESMART: &[WebName] = &noren("tradesmart_timestamp", "oi", Q);
 
 /// Fyers sends its symbol feed's whole dict to LTP and Quote holders.
 const FYERS: &[WebName] = &[

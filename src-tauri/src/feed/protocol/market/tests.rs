@@ -3,6 +3,7 @@
 //! on every exchange where the broker's web adapter sends one (C04).
 
 use super::market_data;
+use crate::brokers::common::streaming::TimeText;
 use crate::brokers::common::streaming::{
     BrokerField, BrokerValue, Number, NumberForm, QuoteExtras,
 };
@@ -880,7 +881,7 @@ fn tradejini_names_the_trade_time_as_text() {
 fn a_trade_time_goes_out_as_ist_text() {
     // 1791000000 s is 2026-10-03 04:00:00 UTC, 09:30:00 IST.
     assert_eq!(
-        super::time_text(1_791_000_000_250),
+        super::time_text(1_791_000_000_250, TimeText::DateTime),
         Some(Value::from("2026-10-03 09:30:00"))
     );
     let mut u = update(equity());
@@ -909,6 +910,59 @@ fn a_trade_time_goes_out_as_ist_text() {
         super::value(crate::feed::dialect::Source::TradeTimeText, &frame),
         None
     );
+}
+
+/// A trade time as the time of day (the Noren family's `last_trade_time`),
+/// and in the text form a packet marks (Definedge passes `HH:MM:SS` or
+/// epoch seconds through), only when the broker sent a trade time.
+#[test]
+fn a_trade_time_goes_out_in_the_text_form_of_its_packet() {
+    use crate::feed::dialect::Source;
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.trade_time = Some(1_791_000_000_000);
+    }
+    let q = u.quote.clone().unwrap_or_default();
+    let frame = super::Frame {
+        update: &u,
+        q: &q,
+        mode: Mode::Quote,
+        content: Mode::Quote,
+        depth: 5,
+        broker: "shoonya",
+    };
+    let at = |source, frame: &super::Frame<'_>| super::value(source, frame);
+    assert_eq!(
+        at(Source::TradeTimeOfDay, &frame),
+        Some(Value::from("09:30:00"))
+    );
+    let mut marked = q.clone();
+    marked.time_text = Some(TimeText::EpochSeconds);
+    let f = super::Frame {
+        q: &marked,
+        ..frame
+    };
+    assert_eq!(
+        at(Source::TradeTimeText, &f),
+        Some(Value::from("1791000000"))
+    );
+    assert_eq!(
+        at(Source::TradeTimeOfDay, &f),
+        Some(Value::from("1791000000"))
+    );
+    marked.time_text = Some(TimeText::TimeOfDay);
+    let f = super::Frame {
+        q: &marked,
+        ..frame
+    };
+    assert_eq!(at(Source::TradeTimeText, &f), Some(Value::from("09:30:00")));
+    let mut unsent = q.clone();
+    unsent.trade_time = None;
+    let f = super::Frame {
+        q: &unsent,
+        ..frame
+    };
+    assert_eq!(at(Source::TradeTimeOfDay, &f), None);
 }
 
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,
