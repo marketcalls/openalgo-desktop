@@ -33,23 +33,11 @@
   },
   "deviations": [
     {
-      "key": "last_trade_time",
-      "kind": "open",
-      "reason": "The web copies the depth feed's trade time of day, as Definedge sent it (HH:MM:SS), to last_trade_time in Quote and Depth (_add_reference_keys). BrokerValue::Text holds a &'static str only (Fyers' fixed snapshot / live), and Source::TradeTimeText writes YYYY-MM-DD HH:MM:SS (Tradejini's), so Definedge's own text, sent as it came, has no carrier yet: wire, an owned text value for a BrokerField (or a source for the trade time as the broker's text).",
-      "ref": "definedge_adapter.py:937-938; feed/dialect/names.rs Source::TradeTimeText"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
       "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
       "approved": true
-    },
-    {
-      "key": "ltt_time",
-      "kind": "open",
-      "reason": "The web's Depth payload carries the depth feed's trade time of day, as Definedge sent it, as ltt_time (_normalize_raw_depth_data). BrokerValue::Text holds a &'static str only (Fyers' fixed snapshot / live), and Source::TradeTimeText writes YYYY-MM-DD HH:MM:SS (Tradejini's), so Definedge's own text, sent as it came, has no carrier yet: wire, an owned text value for a BrokerField (or a source for the trade time as the broker's text).",
-      "ref": "definedge_adapter.py:1164-1165; brokers/common/streaming/fields.rs BrokerValue"
     }
   ]
 }

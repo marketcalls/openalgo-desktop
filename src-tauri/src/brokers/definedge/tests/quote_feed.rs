@@ -83,6 +83,8 @@ fn a_depth_message_carries_the_full_quote_and_the_trade_time() {
     // The web's Quote names it last_quantity only; ltq is Depth's.
     assert!(quote.get("ltq").is_none(), "{}", quote);
     assert_eq!(ist_seconds_of_day(&quote["ltt"]), AT_14_25_31);
+    assert_eq!(quote["last_trade_time"], "14:25:31");
+    assert!(quote.get("ltt_time").is_none(), "{}", quote);
 
     let depth = last(frames.at(&ev, Mode::Depth));
     assert_eq!(depth["average_price"], 1391.24);
@@ -91,6 +93,10 @@ fn a_depth_message_carries_the_full_quote_and_the_trade_time() {
     assert_eq!(depth["last_quantity"], 7);
     assert_eq!(depth["ltq"], 7);
     assert_eq!(ist_seconds_of_day(&depth["ltt"]), AT_14_25_31);
+    // The web passes the clock through as text: last_trade_time and, in
+    // Depth, ltt_time.
+    assert_eq!(depth["last_trade_time"], "14:25:31");
+    assert_eq!(depth["ltt_time"], "14:25:31");
     assert_eq!(depth["depth"]["buy"][0]["price"], 1395.4);
 
     assert_eq!(last(frames.at(&ev, Mode::Ltp))["ltp"], 1395.5);

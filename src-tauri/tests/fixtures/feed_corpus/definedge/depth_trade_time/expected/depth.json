@@ -88,6 +88,8 @@
     "lower_circuit": 1251.9,
     "upper_circuit": 1530.1,
     "52w_high": 1608.8,
-    "52w_low": 1114.85
+    "52w_low": 1114.85,
+    "last_trade_time": "00:45:12",
+    "ltt_time": "00:45:12"
   }
 }

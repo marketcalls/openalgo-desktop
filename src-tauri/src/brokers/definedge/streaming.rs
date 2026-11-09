@@ -30,7 +30,7 @@ use super::mapping;
 use super::DefinedgeSession;
 use crate::brokers::common::streaming::{
     now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, QuoteExtras, QuoteField, WsRequest,
+    NormalizedDepth, NormalizedTick, QuoteExtras, QuoteField, TimeText, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::streaming::merge;
@@ -184,12 +184,18 @@ fn absent(d: &Map<String, Value>, trade_time: Option<i64>) -> AbsentFields {
 /// `HH:MM:SS` of the day the tick came), else the feed time `ft` (epoch
 /// seconds), as web `_last_trade_time`; `None` when neither was sent.
 fn trade_time_ms(snapshot: &Value, received_ms: i64) -> Option<i64> {
-    let clock = snapshot.get("ltt").and_then(Value::as_str).map(str::trim);
-    if let Some(ms) = clock.and_then(|c| clock_on_day_of(c, received_ms)) {
-        return Some(ms);
-    }
-    let feed_time = i(snapshot, "ft");
-    (feed_time > 0).then_some(feed_time * 1000)
+    clock_ms(snapshot, received_ms).or_else(|| {
+        let feed_time = i(snapshot, "ft");
+        (feed_time > 0).then_some(feed_time * 1000)
+    })
+}
+
+/// The depth feed's own trade time of day (`ltt`), epoch ms on the day it
+/// came: the text the web passes through as `last_trade_time` and
+/// `ltt_time`, which it never sends for the feed time `ft`.
+fn clock_ms(snapshot: &Value, received_ms: i64) -> Option<i64> {
+    let clock = snapshot.get("ltt").and_then(Value::as_str).map(str::trim)?;
+    clock_on_day_of(clock, received_ms)
 }
 
 /// `HH:MM:SS` IST on the IST day of `received_ms`, or the day before when
@@ -359,6 +365,9 @@ impl DefinedgeFeed {
         };
         if sent(d, "oi") {
             t.mark_carried(QuoteField::OpenInterest);
+        }
+        if clock_ms(&v, received).is_some() {
+            t.time_text = Some(TimeText::TimeOfDay);
         }
         let pc = t.change_percent;
         t.derive_change();
