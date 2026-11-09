@@ -1,0 +1,257 @@
+{
+  "about": "The rules a corpus deviation's \"approval\" names: each quotes the lead's or the maintainer's decision it follows, from the lane record. Add a rule with scripts/feed_corpus/approve.py --add-rule; never edit a quote.",
+  "rules": {
+    "leave-out-unsent": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Parity order: golden fixtures > web docs > web adapter code. A field the stream does not carry is left out (docs), even where an adapter sends 0 or null; declared as \"web sends zero/null; docs say leave out\"."
+    },
+    "never-copy-web-defect": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Never copy a web defect (wrong number, lost data, crash): keep desktop, declare, write-up for the web."
+    },
+    "random-values": {
+      "by": "maintainer",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "2026-11-09 01:50 MAINTAINER: Dhan Sandbox: port the web's synthetic feed exactly (random walk, 1 s, formulas); Broker page/docs say \"simulated prices\"; seeded RNG + app clock for tests; only random values declared. (bk-a)"
+    },
+    "deep-book-fallback": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Deep book (life): 20/50-level request whose deep socket did not start / is refused / is silent for the broker's timeout (Dhan 30 s) is served on the main 5 levels with the web's success ack (depth = actual_depth); Dhan's 50-instrument 20-depth room stays an error (web SUBSCRIPTION_LIMIT). Overruled life's error-item choice."
+    },
+    "carrier-every-key": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Carrier: every key each web adapter emits, its names, every mode it emits them in (LTP too); lower-mode holder gets the richer publish as on the web (C08) unless a fixture says otherwise."
+    },
+    "index-price-change": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Index price_change where the web sends none: keep only if the docs define it for the mode and it comes from the broker's own previous close; else leave out."
+    },
+    "one-frame-per-held-mode": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "C08 fan-out (02:40): one frame per held mode for every broker (golden Zerodha fixtures 01/05); the web's fold that starves lower-mode callbacks for a multi-mode holder is a web defect (declared on one-dict brokers); lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them. Policy in the feed contract doc."
+    },
+    "per-broker-wire-shape": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Per broker as the web adapter sends it ( golden Zerodha fixtures + adapters): data.mode label vs integer, open_interest beside oi, ltt in LTP frames, JSON number types (Angel totals as 1000.0). A float-vs-int difference is not a web defect. Kept: depth frame keeps ltp (0 before the first quote) + timestamp + latest quote (1.0.6)."
+    },
+    "zerodha-dhan-web-defects": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Approved web defects (corpus): Zerodha full-packet ltt/OI offsets and index price_change_percent 0; Dhan ltt in seconds (docs: ms); zerodha_order_adapter.py:111 rejection_reason precedence."
+    },
+    "lost-data-kept": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "(night of 9 Nov) data.symbol/exchange/mode/timestamp presence per broker as its adapter (AliceBlue has none of them; top-level envelope type/symbol/exchange/mode/broker stays for all). Market data a broker sent that a web adapter drops from a mode (Firstock Depth ltq/avg/totals, AliceBlue Quote/Depth ltq/tbq/tsq) is kept: web defect (lost data). ltt in seconds (Firstock, AliceBlue string) -> ms, web defect (wrong unit)."
+    },
+    "index-depth": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "(night of 9 Nov) Index Depth per broker: web sends a depth key -> desktop sends an empty book {buy:[],sell:[]}; web zero rows (Sahi) -> empty book, declared (never invent zero prices; keep the key). No key on the web -> left out. Non-docs change keys (price_change*) follow the adapter (Kotak index: percent_change only). Web zeros for values the stream did not send (Sahi oi/circuits, Kotak index volume/totals) -> left out, web defect."
+    },
+    "merge-restart-on-reconnect": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "(night of 9 Nov) Upstox (and any broker) restarting its merge after a reconnect: desktop improvement, web defect (stale pre-outage snapshot promoted as current). Index price_change*: per adapter (not docs keys). Zerodha 44-byte quote ltt = receipt time on both sides, matches golden fixture: leave. Delta BF-02 replaced by carrier bid/ask (parity). Corpus adds deviation kind \"random-values\" (Dhan Sandbox): presence, type, invariants."
+    },
+    "empty-book-invents-nothing": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "(night of 9 Nov) Empty book: match the web where it invents nothing (Samco: no depth key until a book); zero-padded levels/sides (Tradejini) -> empty array, web defect. Samco web freezing Depth holders on quote packets: web defect. Pre-subscribe async step per broker (Samco index listing id) -> lane life."
+    },
+    "adapter-keys-carried": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "(night of 9 Nov) Adapter bookkeeping keys inside data (Groww broker/topic/subscription_mode, Fyers data_type/update_type/ subscription_mode) are carried, with the web's values (rule: every key the adapter emits). Real extra data in LTP frames (Groww OHLC/volume/value) follows the adapter. One declared deviation per cause (split mixed ones). Groww polled-order and market-data web defects approved."
+    },
+    "index-change-and-zero-level": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Dialect `index_change` switch (wire): canonical index change keys off per broker where the adapter sends none. AliceBlue real depth order counts (web 0 = web defect). A changed-keys packet's explicit 0/0 level clears it (web stale side = web defect; maintainer live check)."
+    },
+    "depth-holder-without-book": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Depth holder with no book known still gets a Depth frame per tick, depth key left out (wire; all brokers; a web adapter that stays silent instead = web defect). HDFC Securities snapshot cleared on reconnect."
+    },
+    "indmoney-depth-refused": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "IndMoney RB-13: Depth refused as the web on 8765 AND at the bridge (Flow/internal consumers get the refusal); desktop frontend does not regress: MarketDataManager falls back to Quote for Depth consumers when Depth is refused (ltp, quote, best bid/ask, empty book, panel says the broker does not stream depth) (wire). Web frontend shares the defect: write-up. Refusal check order and wording as the web (mode, symbol, exchange) (life)."
+    },
+    "per-broker-key-rule": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Per-broker key rule (wire): each canonical key renders in a mode range or never, index and non-index separately, decoupled from alias sources; WebName.to bounds a web name. Replaces ad-hoc switches (index_change etc.)."
+    },
+    "noren-keys": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Noren: canonical price_change* off (percent_change only); Shoonya Depth open_interest only; a value the web puts under a wrong name (Flattrade/Zebu total_traded_value if it holds OI) is rendered as the web does AND the canonical key kept (web defect). No Noren feed_refusal; unknown-symbol wording per broker as the web (life)."
+    },
+    "alias-unit": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "A web alias follows its adapter's unit, type and format (Fyers/Dhan last_trade_time seconds; Tradejini last_trade_time as Python local datetime text); docs keys (ltt, timestamp) are always epoch ms (web text/seconds in a docs key = web defect)."
+    },
+    "per-packet-number-type": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Number types follow the web per packet where the adapter's type depends on the event (XTS 1105 float()): per-packet float mark (wire). Desktop reading both shapes where the web reads one (XTS 1501 Touchline): web defect for the shape the web misreads, live check for which shape occurs."
+    },
+    "book-clear-kept": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Book cleared after one existed: empty book {buy:[],sell:[]} kept (web drops the key: web defect, the clear is lost). Before the first book: no depth key where the web sends none. Pool full: the web pool's MAX_CAPACITY_REACHED text on the wire (API clients), trader wording on Health. Unknown-symbol text per adapter (life 1d4d4b4a)."
+    },
+    "book-levels-as-sent": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Book levels = exactly what the broker sent: zero levels a broker sends in fixed slots are kept (golden Zerodha fixtures: 5 zero levels a side); only padding a web adapter adds beyond the broker's levels is dropped (web defect). mStock TLS CERT_NONE on the web: desktop verifies certificates (web write-up)."
+    },
+    "alias-unit-switch": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "An alias whose unit the web switches by packet within one adapter (mStock last_trade_time: seconds on full, ms on LTP/Quote) is a wrong value: one unit (ms) everywhere, the odd packet declared. A type-only difference with the same value (XTS 4.0 vs 4) follows the web per packet."
+    },
+    "market-state-overlay": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "CORRECTION (supersedes \"only persistent extras overlay\"): market-state values (bid/ask + sizes, OI, circuits, 52-week, previous OI, day close, quote fields) overlay and go only on an explicit clear; per-packet event values (exchange_time_ms, trade time tied to its price) never carry over."
+    },
+    "farewell-and-auth-stop": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Broker-facing protocol is part of parity: logout/farewell frames the web sends before a deliberate close are sent (BrokerFeed::farewell_frames, life). A desktop stopping a feed on a verified auth-failure answer (Motilal MO1001) where the web only logs: approved desktop decision (no frames either way; the trader is told)."
+    },
+    "no-price-packet": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "A packet with no trade price: LTP/Quote frames not published for it, but its book still reaches Depth holders (1.0.6 rule). Broker-facing frames (re-subscribe sequences) match the web unless provably a no-op."
+    },
+    "broker-facing-flush": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Broker-facing: match unless provably no effect at the broker. Flush order unsubscribes -> mode changes -> subscribes (life, all brokers). Accepted desktop decisions: batch-internal sort order, no 0.5 s undo window, one effective stream per instrument (IndMoney), idle price socket kept open (IndMoney; live check)."
+    },
+    "depth-without-book-refined": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "REFINED Depth-without-book rule: before an instrument's first book, a Depth holder hears what its broker's web adapter publishes (bookless frame, or nothing: Dialect .depth_needs_book(), Definedge, 5paisa); after a book exists, Depth holders get a frame per tick from the cached book (web freezing them = web defect)."
+    },
+    "unchanged-effective-mode": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Accepted desktop decision: holder changes that leave the effective mode unchanged send nothing to the broker (web re-sends subscribes; safer for broker rate limits; a new client may wait for the next tick; live check)."
+    },
+    "no-derived-change": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "last_quantity is not a docs key (docs: last_trade_quantity); per broker as its adapter. A broker whose adapter only forwards the broker's change (Tradejini ch) marks Change absent when none came: no derived change."
+    },
+    "web-name-bounded-xts-disconnect": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "A web name sent only in some modes is bounded with WebName.to (no \"from LTP up\" desktop decisions). XTS namespace disconnect = the connection ended (reconnect with backoff); the web ignoring it = web defect."
+    },
+    "index-quote-zero-left-out": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "Fixed-slot zero rule is for book levels only; an index's quote fields a broker fills with 0 are left out (web sends zero / docs leave out). Web names the web sends only up to a mode are bounded with WebName.to."
+    },
+    "life-d1-d8": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "life D1-D8 (lead, after life's report): D1 web acks an unknown symbol that never streams (Fyers, Dhan Sandbox, Nubra non-index) -> desktop refuses: web defect. D2 one session for 5paisa/Flattrade (second connection evicts the first): web defect. D3 XTS one session of 3000: web defect. D4 fewer connections than the web pool (Upstox 2, HDFC Sky 2x300, HDFC Securities 2x1000): approved, cited limits. D5 Shoonya SUBSCRIPTION_BUSY: keep the desktop's (takes the subscribe and applies it when the release settles; the web's refusal of a valid subscribe is a race artefact): web defect. D6 depth checked even when the mode is held: web defect. D7 refusal before capacity when both apply: desktop decision (both are refusals). D8 net flush: desktop decision."
+    },
+    "proto3-empty-book": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "A packet whose book is an empty repeated field (proto3: cannot tell \"not sent\" from \"cleared\"; HDFC) renders no depth key for that packet, as the web; never the previous book (ghost liquidity). Live check of the meaning."
+    },
+    "no-json-null": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "No key is ever sent as JSON null: where the web sends null for a value the broker did not send, the key is left out (declared). Raw broker text aliases (Noren/Definedge ltt strings) go through BrokerValue::Text."
+    },
+    "data-mode-per-holder": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "data.mode per holder (wire-2 .mode_of_holder: mStock, Delta, Jainam, Angel, Pocketful); where the web labels a token held in several modes with one subscription's mode (Angel last, Pocketful first), that label is a web defect. Every lane with those brokers merges wire-2 before its final run (bk-a, bk-c, bk-d, bk-fam)."
+    },
+    "depth-own-level-only": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "A Depth holder receives only books at its own depth (never a shallower book in between deeper ones); the web interleaving them, if it does, is a web defect (wire-3)."
+    },
+    "bk-a-final-approvals": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "bk-a final approvals: Upstox LTP timestamp kept (docs require it); Dhan P-10 fallback served at once when the deep socket is not made or refused (the web waits for its 30 s monitor): desktop decision; Dhan Sandbox book level <= 0 dropped: web defect. bk-a lane107/bk-a c93e23ed (609/609) merged wire-2, corpus-webjson d728f315, wire-3 f87e3cc7."
+    },
+    "pocketful-average-not-ltp": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/review-fixes.md",
+      "rule": "Pocketful snapquote average price is NOT a last trade price: mark LTP absent, carry it as average_price; the web's average-as-LTP is a web defect (declared)."
+    },
+    "inherited-omissions": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/review-fixes.md",
+      "rule": "5paisa missing quantities and Noren/Firstock missing packet times are inherited web defects: the desktop marks what the packet did not carry absent (or keeps the market-state value per the overlay rule; a per-packet time never carries over)."
+    },
+    "dhan-f32-shortest-decimal": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/review-fixes.md",
+      "rule": "Dhan f32 prices: the desktop renders the shortest round-trip decimal of the f32 (the intended tick, 954.1); the web's widened value (954.0999755859375) is declared as a web defect with the same reason as IIFL Capital's noise; pin it with non-binary-exact values."
+    }
+  }
+}

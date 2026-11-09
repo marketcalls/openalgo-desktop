@@ -16,6 +16,7 @@
 //! * [`invariants`]: what must hold of a value drawn at random.
 //! * [`web`]: the expected frames against the web's output (`web.json`).
 
+mod approvals;
 mod case;
 mod compare;
 mod http;
@@ -26,6 +27,7 @@ mod upstream;
 mod web;
 mod world;
 
+pub(crate) use approvals::registry_problems;
 pub(crate) use case::{corpus_root, deviation_problems, read_json, Case};
 pub(crate) use run::run;
 pub(crate) use world::{Env, Feeds};

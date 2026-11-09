@@ -4,6 +4,7 @@
 //! and checked here, so a mistake in a case is reported with its file and
 //! line before any socket opens.
 
+use super::approvals;
 use super::http::HttpRequestExpect;
 use super::invariants::{self, Invariant};
 use super::json_text;
@@ -705,12 +706,16 @@ fn deviations(at: &str, v: Option<&Value>) -> Vec<(String, String)> {
 }
 
 /// The fields a deviation may have.
-const DEVIATION_FIELDS: &[&str] = &["key", "kind", "reason", "ref", "approved", "web", "desktop"];
+const DEVIATION_FIELDS: &[&str] = &[
+    "key", "kind", "reason", "ref", "approved", "approval", "web", "desktop",
+];
 
 /// Every way a `case.json`'s `deviations` fall short (none when each names
-/// its key once, a kind of `DEVIATION_KINDS`, a reason, and `approved` as
-/// true or false): what the parity matrix counts can be trusted only when
-/// every case has none.
+/// its key once, a kind of `DEVIATION_KINDS`, a reason, `approved` as true
+/// or false, and an `approval` that names a rule of `approvals.json`, never
+/// on an open gap): what the parity matrix counts can be trusted only when
+/// every case has none. A deviation with no `approval` is pending, which the
+/// release gate fails on, not this check.
 pub(crate) fn deviation_problems(v: Option<&Value>) -> Vec<String> {
     let Some(v) = v else {
         return Vec::new();
@@ -757,6 +762,14 @@ pub(crate) fn deviation_problems(v: Option<&Value>) -> Vec<String> {
         }
         if o.get("approved").is_some_and(|a| !a.is_boolean()) {
             out.push(format!("{}: approved is true or false", name));
+        }
+        if let Some(a) = o.get("approval") {
+            if let Some(p) = approvals::problem(a) {
+                out.push(format!("{}: {}", name, p));
+            }
+            if kind == "open" {
+                out.push(format!("{}: an open gap is never approved", name));
+            }
         }
         if key.is_some_and(|k| !seen.insert(k)) {
             out.push(format!("{} is listed twice", name));

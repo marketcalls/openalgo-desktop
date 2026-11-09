@@ -472,6 +472,13 @@ jobs:
             args=(--base-ref FETCH_HEAD)
           fi
           python3 scripts/ci/code_health.py "${args[@]}"
+      - name: Feed parity matrix is current
+        run: python3 scripts/feed_corpus/parity_matrix.py --check
+      - name: Feed parity release gate (review R107-15)
+        # Fails while a corpus deviation names no approval rule, a case
+        # declares an open gap, a capability the web offers has no case, or a
+        # harness module does not build its broker.
+        run: python3 scripts/feed_corpus/release_gate.py --check
 
   # ------------------------------------------------------- Tauri bundles
   tauri-build:
