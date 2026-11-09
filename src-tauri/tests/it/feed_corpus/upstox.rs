@@ -8,6 +8,7 @@ use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::upstox::{UpstoxBroker, Urls};
 use openalgo_desktop_lib::brokers::Broker;
 use serde_json::json;
+use std::sync::Arc;
 
 fn authorized(url: String) -> serde_json::Value {
     json!({"status": "success", "data": {"authorized_redirect_uri": url}})
@@ -22,13 +23,13 @@ fn feeds(env: &Env) -> Feeds {
         "/v2/feed/portfolio-stream-feed/authorize",
         authorized(env.url("orders")),
     );
-    let broker = UpstoxBroker::with_urls(
+    let broker = Arc::new(UpstoxBroker::with_urls(
         env.symbols(),
         Urls {
             api: env.http_url(),
             ..Urls::production()
         },
-    );
+    ));
     let auth = AuthToken::new("upstox-corpus-session");
     Feeds::boxed(broker.create_feed(&auth).expect("the Upstox market feed"))
         .with_order_feed(
@@ -36,7 +37,7 @@ fn feeds(env: &Env) -> Feeds {
                 .create_order_feed(&auth)
                 .expect("the Upstox order feed"),
         )
-        .keeping(broker)
+        .with_broker(broker.clone(), &auth)
 }
 
 corpus_cases!(

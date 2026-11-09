@@ -2,7 +2,10 @@
 //! which carries order postbacks on the market data socket too.
 
 use super::harness::{corpus_cases, Env, Feeds};
+use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::zerodha::streaming::KiteFeed;
+use openalgo_desktop_lib::brokers::zerodha::ZerodhaBroker;
+use std::sync::Arc;
 
 fn feeds(env: &Env) -> Feeds {
     Feeds::market(KiteFeed::with_url(
@@ -11,6 +14,10 @@ fn feeds(env: &Env) -> Feeds {
         "t",
         env.symbols(),
     ))
+    .with_broker(
+        Arc::new(ZerodhaBroker::new(env.symbols())),
+        &AuthToken::new("k:t"),
+    )
 }
 
 corpus_cases!(

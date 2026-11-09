@@ -4,7 +4,9 @@
 
 use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::fyers::streaming::{HsmFeed, OrderFeed, TbtFeed};
+use openalgo_desktop_lib::brokers::fyers::FyersBroker;
 use openalgo_desktop_lib::brokers::types::AuthToken;
+use std::sync::Arc;
 
 /// `app_id:access_token`, the access token a JWT whose payload is
 /// `{"hsm_key":"hsmkey123","exp":4102444800}` (fake values).
@@ -21,6 +23,7 @@ fn feeds(env: &Env) -> Feeds {
         .with_orders(
             OrderFeed::new(&env.url("orders"), &auth, env.symbols()).expect("the order feed"),
         )
+        .with_broker(Arc::new(FyersBroker::new(env.symbols())), &auth)
 }
 
 corpus_cases!(

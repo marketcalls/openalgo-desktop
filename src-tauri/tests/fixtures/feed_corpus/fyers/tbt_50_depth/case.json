@@ -17,12 +17,6 @@
       "name": "STATE BANK OF INDIA"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      50
-    ]
-  },
   "upstream_ignore": [
     "ping"
   ],
