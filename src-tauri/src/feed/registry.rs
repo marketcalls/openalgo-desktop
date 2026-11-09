@@ -10,11 +10,16 @@
 //!   on 0 -> 1 and to unsubscribe on 1 -> 0; the last owner of an explicit
 //!   unsubscribe stays until the source says the broker let go (audit C01).
 //!
+//! A subscription's prices reach its client only once the client was sent
+//! the subscribe reply (`acknowledged`): until then the latest frame for it
+//! is held, one per subscription, as the web streams a symbol only after
+//! its subscribe returned.
+//!
 //! Every entry a client creates is removed by `remove_client`, which the
 //! connection's drop guard calls on every exit path (clean close, error,
 //! abrupt disconnect, task abort), so nothing outlives the socket.
 
-use super::outbox::Outbox;
+use super::outbox::{MarketKey, Outbox};
 use super::protocol;
 use super::source::{InstrumentKey, MarketDataSource, MarketUpdate, Mode, DEFAULT_DEPTH};
 use lifecycle::SourceRef;
@@ -58,6 +63,9 @@ struct ClientRec {
     broker: Arc<str>,
     orders: bool,
     subs: HashMap<(InstrumentKey, Mode), Held>,
+    /// New subscriptions whose reply the client has not been sent yet,
+    /// each with the latest frame held back for it.
+    unacked: HashMap<(InstrumentKey, Mode), Option<(MarketKey, String)>>,
 }
 
 struct InstrumentRec {
@@ -122,6 +130,7 @@ impl Registry {
                 broker: Arc::from(""),
                 orders: false,
                 subs: HashMap::new(),
+                unacked: HashMap::new(),
             },
         );
     }
@@ -203,6 +212,9 @@ impl Registry {
             }
         }
         let replacing = previous.map(|h| h.depth);
+        if previous.is_none() {
+            client.unacked.insert(map_key.clone(), None);
+        }
         client.subs.insert(
             map_key,
             Held {
@@ -241,14 +253,19 @@ impl Registry {
     /// Fan an update out to every holder, one frame per held mode not above
     /// `update.mode`, highest mode first.
     pub fn dispatch(&self, update: &MarketUpdate) {
-        let inner = self.inner.lock();
-        let Some(rec) = inner.instruments.get(&update.key) else {
+        let mut guard = self.inner.lock();
+        let Inner {
+            clients,
+            instruments,
+            ..
+        } = &mut *guard;
+        let Some(rec) = instruments.get(&update.key) else {
             return;
         };
         // Frames differ only by (mode, depth, broker); render each once.
         let mut rendered: Vec<(Mode, u8, Arc<str>, String)> = Vec::new();
         for (cid, slots) in &rec.holders {
-            let Some(client) = inner.clients.get(cid) else {
+            let Some(client) = clients.get_mut(cid) else {
                 continue;
             };
             for mode in Mode::ALL.iter().rev().copied() {
@@ -270,7 +287,33 @@ impl Registry {
                         f
                     }
                 };
-                client.outbox.push_market((rec.id, mode.as_u8()), frame);
+                let slot = (rec.id, mode.as_u8());
+                if !client.unacked.is_empty() {
+                    if let Some(held) = client.unacked.get_mut(&(update.key.clone(), mode)) {
+                        *held = Some((slot, frame));
+                        continue;
+                    }
+                }
+                client.outbox.push_market(slot, frame);
+            }
+        }
+    }
+
+    /// Client `id` was sent the reply to its subscribe of `keys` at `mode`:
+    /// their prices flow from now on, the frame held back meanwhile first
+    /// for each one it still holds. The reply goes on the control lane,
+    /// which the outbox drains first, so it precedes them.
+    pub fn acknowledged(&self, id: ClientId, mode: Mode, keys: &[InstrumentKey]) {
+        let mut inner = self.inner.lock();
+        let Some(client) = inner.clients.get_mut(&id) else {
+            return;
+        };
+        for key in keys {
+            let k = (key.clone(), mode);
+            if let Some(Some((slot, frame))) = client.unacked.remove(&k) {
+                if client.subs.contains_key(&k) {
+                    client.outbox.push_market(slot, frame);
+                }
             }
         }
     }
