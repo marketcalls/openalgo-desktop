@@ -1,0 +1,68 @@
+{
+  "broker": "jainamxts",
+  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) arrives. Jainam's adapter publishes it to every held mode in that mode's dict, its counts as doubles (float()): the desktop reads it as the touchline its codes 110-119 are, so under Jainam's per-mode fold the LTP client gets the LTP dict and the Quote client the Quote dict.",
+  "scenarios": [
+    "partial-packet",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apibinarymarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/jainamxts/streaming/jainamxts_websocket.py::JainamXTSWebSocketClient._setup_socketio",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._process_json_data",
+      "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._normalize_market_data",
+      "broker/jainamxts/streaming/jainamxts_websocket.py::JainamXTSWebSocketClient._process_1105_data"
+    ],
+    "notes": [
+      "1105 carries the touchline codes 110-119 (families/xts/binary.rs parse_1105); it has no MessageCode and no trade time, so the frames carry no ltt.",
+      "The Jainam web client marks it 1512, but its adapter publishes every message to every mode the symbol's subscriptions hold, in that mode's dict (jainamxts_adapter.py _process_json_data), so the code picks no topic: the desktop reads it as a touchline (XtsHooks::text_1105_as_ltp off) and sends each holder its mode's frame, the counts as doubles (XtsHooks::text_1105_doubles, NumberForm::Double).",
+      "The desktop holds one subscription per instrument at the highest mode its clients ask for (websocket::manager), so the Quote client changes the LTP subscription into a Quote one; the web adapter subscribes each mode on its own."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The event carries no trade time; the web sends ltt 0 (.get('LastTradedTime', 0)), the desktop leaves ltt out (docs: a field the stream does not carry is left out; never a receipt time passed off as a trade time).",
+      "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs trade"
+    }
+  ]
+}

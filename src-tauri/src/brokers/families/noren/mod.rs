@@ -173,6 +173,18 @@ pub enum PositionPnl {
     RealisedPlusUnrealised,
 }
 
+/// Which Noren key a member's web adapter streams as open interest (audit
+/// FB-07): the members read the same frames differently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeedOi {
+    /// `toi`, the total open interest, in Depth frames only (Shoonya's
+    /// `open_interest`, Flattrade's and Zebu's `total_traded_value`).
+    TotalInDepth,
+    /// The native `oi`, in Quote and Depth frames (TradeSmart,
+    /// `tradesmart_adapter.py` `_normalize_market_data`).
+    NativeFromQuote,
+}
+
 /// A rolling-window budget: at most `per_second` in any second and
 /// `per_minute` in any minute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -296,6 +308,8 @@ pub struct NorenConfig {
     pub orderbook_price_fallback: bool,
     /// Depth carries `oi` (shoonya reports 0).
     pub depth_oi: bool,
+    /// Which key the market data feed streams as open interest.
+    pub feed_oi: FeedOi,
     pub rate: RateLimits,
     /// The broker allows one socket per session (flattrade): order updates
     /// must ride the market-data socket, never a second one.

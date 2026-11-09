@@ -1,0 +1,92 @@
+{
+  "broker": "compositedge",
+  "summary": "Quote on NIFTY (NSE_INDEX, instrument 26000 on segment 1): a 1501 event with its quote at the message root becomes an index Quote frame with open, high, low and the previous close.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50_26000",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/compositedge/streaming/compositedge_websocket.py::CompositedgeWebSocketClient._setup_socketio",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._process_json_data",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._normalize_market_data",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._is_index_token"
+    ],
+    "notes": [
+      "An index frame carries no trade-size or book fields (feed/protocol/market.rs shown_quote).",
+      "No recorded 1501-json-full settles where its quote sits: the desktop's XTS fixtures are built, not captured (tests/fixtures/brokers/fivepaisaxts/stream.json quote_1501), the template web adapter reads 1501 at the root ('data is at root level', ibulls_adapter.py:775), and RMoney's reads Touchline when present ('Some payloads embed quote fields under Touchline, others send flat keys', rmoney_adapter.py:901, and its 1501 fallback looks in Touchline, :841-845). The case pins both shapes; a live capture of a 1501-json-full decides which the template's zeros come from."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "An index has no average_price; the web sends XTS's 0 for it, the desktop's index frames leave the trade-size and book fields out (feed/protocol/market.rs shown_quote; lead decision, night of 9 Nov: web zeros for values an index stream does not have are left out).",
+      "ref": "compositedge_adapter.py _normalize_market_data; feed/protocol/market.rs shown_quote"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no last_quantity; the web sends XTS's 0 for it, the desktop's index frames leave the trade-size and book fields out (feed/protocol/market.rs shown_quote; lead decision, night of 9 Nov: web zeros for values an index stream does not have are left out).",
+      "ref": "compositedge_adapter.py _normalize_market_data; feed/protocol/market.rs shown_quote"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "compositedge_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no total_buy_quantity; the web sends XTS's 0 for it, the desktop's index frames leave the trade-size and book fields out (feed/protocol/market.rs shown_quote; lead decision, night of 9 Nov: web zeros for values an index stream does not have are left out).",
+      "ref": "compositedge_adapter.py _normalize_market_data; feed/protocol/market.rs shown_quote"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no total_sell_quantity; the web sends XTS's 0 for it, the desktop's index frames leave the trade-size and book fields out (feed/protocol/market.rs shown_quote; lead decision, night of 9 Nov: web zeros for values an index stream does not have are left out).",
+      "ref": "compositedge_adapter.py _normalize_market_data; feed/protocol/market.rs shown_quote"
+    }
+  ]
+}

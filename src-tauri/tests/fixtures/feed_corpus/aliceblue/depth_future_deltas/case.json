@@ -1,0 +1,125 @@
+{
+  "broker": "aliceblue",
+  "summary": "A Depth subscription on an NFO future with OI: the dk snapshot with five levels a side, then a df delta that changes the best bid and the best ask's quantity only.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "54957",
+      "brsymbol": "NIFTY24NOV26F",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"k\":\"\",\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._handle_message",
+      "broker/aliceblue/streaming/aliceblue_mapping.py::AliceBlueMessageMapper.parse_depth_data",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._update_market_snapshot",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received"
+    ],
+    "notes": [
+      "The web publishes orders 0 for every level although AliceBlue sends the counts; the desktop sends them (lead ruling 2026-11-09).",
+      "Depth OI is toi on the desktop (FeedSnap::apply); the web's Depth sends no OI.",
+      "The delta carries only the changed keys, as Noren's df does. The desktop merges it level by level; the web rebuilds a side from the levels the delta carries a price for and replaces the side with them (aliceblue_mapping.py:219-262, aliceblue_adapter.py:700-718), so four unchanged bids are lost, and a quantity change without its price (sq1) is ignored. Audit appendix item 10."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "The web's Depth timestamp is AliceBlue's feed time ft as it came, a string of epoch seconds; the frame timestamp is epoch milliseconds as a number (docs/prompt/websockets-format.md). The desktop sends the receipt time.",
+      "ref": "aliceblue_mapping.py:255; aliceblue_adapter.py:1295-1300"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web's Depth has no ltt: it puts AliceBlue's feed time, as a string of epoch seconds, in timestamp instead (aliceblue_mapping.py:255, aliceblue_adapter.py:1295-1300). The desktop sends the trade time as ltt in ms and its receipt time as timestamp, as every frame does.",
+      "ref": "aliceblue_adapter.py:1295-1300"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries volume and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries last_quantity and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries average_price and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries total_buy_quantity and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries total_sell_quantity and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries open and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries high and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries low and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries close and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "change_percent",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries change_percent and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "total_oi",
+      "kind": "web-defect",
+      "reason": "AliceBlue's depth packet carries total_oi and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
+      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update"
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "AliceBlue's dk and df carry each level's order count (bo1..bo5, so1..so5); the web publishes 0 for every level (aliceblue_adapter.py:1280-1290), a wrong value (lead ruling 2026-11-09). The desktop sends the counts. And a df delta carries only the levels that changed; the web replaces the whole bid side with the one level the delta names (losing the four unchanged bids) and drops the best ask's new quantity because the delta carries no price beside it. The desktop merges the delta level by level.",
+      "ref": "audit appendix item 10; aliceblue_mapping.py:219-262; aliceblue_adapter.py:700-718, 1280-1290"
+    }
+  ]
+}

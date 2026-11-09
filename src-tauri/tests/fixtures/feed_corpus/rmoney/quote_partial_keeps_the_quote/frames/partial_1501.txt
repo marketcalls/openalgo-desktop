@@ -1,0 +1,1 @@
+42["1501-json-partial",{"MessageCode":1501,"ExchangeSegment":1,"ExchangeInstrumentID":2885,"LastTradedPrice":2502.0}]

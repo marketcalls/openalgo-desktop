@@ -1,0 +1,40 @@
+{
+  "broker": "shoonya",
+  "summary": "A Depth subscription on an NFO future: Shoonya's depth snapshot (dk) gives a Depth frame with the quote, OI and the five-level book; a partial (df) moves the best levels and the OI; a book of zeros clears every level; the unsubscribe releases the depth subscription.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "derivative-oi",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "59182",
+      "brsymbol": "NIFTY25NOV26F",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/shoonya/streaming/shoonya_adapter.py::ShoonyaWebSocketAdapter._process_market_message",
+      "broker/shoonya/streaming/shoonya_adapter.py::ShoonyaWebSocketAdapter._normalize_market_data",
+      "broker/shoonya/streaming/shoonya_adapter.py::MarketDataCache",
+      "broker/shoonya/streaming/shoonya_adapter.py::DepthNormalizer"
+    ],
+    "notes": [
+      "Noren sends OI as oi and toi, and each member reads it as its web adapter does (audit FB-07): Shoonya streams toi as open_interest. The partial carries an oi change without toi to show which one is read.",
+      "Circuits, the 52-week range and depth_level go out in Depth frames as the web sends them."
+    ]
+  }
+}

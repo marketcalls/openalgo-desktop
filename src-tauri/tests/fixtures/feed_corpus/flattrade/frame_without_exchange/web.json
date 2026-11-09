@@ -1,0 +1,92 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "flattrade",
+  "inputs_sha256": "c7cdc1b4a29dc4c83ada02b8ac3b4a3f122c2ec2c46dc8012f6e1ad61bb039f1",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "USDINR25NOV26FUT",
+      "exchange": "CDS",
+      "token": "2885",
+      "brsymbol": "USDINR25NOV26F",
+      "brexchange": "CDS",
+      "expiry": "25-NOV-26",
+      "instrumenttype": "FUTCUR"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "mode": 2,
+            "ltp": 1412.3,
+            "volume": 4567890,
+            "open": 1405.0,
+            "high": 1415.8,
+            "low": 1401.2,
+            "close": 1403.0,
+            "average_price": 1409.65,
+            "percent_change": 0.66,
+            "last_quantity": 12,
+            "last_trade_time": "10:15:42",
+            "flattrade_timestamp": 1794199542,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": []
+    },
+    {
+      "line": 12,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "mode": 2,
+            "ltp": 1412.6,
+            "volume": 4567890,
+            "open": 1405.0,
+            "high": 1415.8,
+            "low": 1401.2,
+            "close": 1403.0,
+            "average_price": 1409.65,
+            "percent_change": 0.66,
+            "last_quantity": 12,
+            "last_trade_time": "10:15:42",
+            "flattrade_timestamp": 1794199544,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -23,6 +23,8 @@ mod funds;
 pub mod mapping;
 pub mod master_contract;
 mod orders;
+#[cfg(test)]
+mod parity_tests;
 pub mod socketio;
 pub mod streaming;
 #[cfg(test)]
@@ -89,6 +91,45 @@ pub struct XtsHooks {
     /// #2155). XTS answers pings on an otherwise silent socket, so the
     /// manager's frame watchdog alone never sees such a stall.
     pub data_stall_watchdog: bool,
+    /// Where a payload's `MessageCode` comes from (audit FB-05).
+    pub event_code: EventCode,
+    /// A 1105 text event is an LTP (1512) message: rmoney
+    /// `_process_binary_format` marks it so and its adapter publishes it on
+    /// the LTP topic alone. Otherwise the desktop reads it as the touchline
+    /// its codes 110-119 are: Jainam's client marks it 1512 too, but its
+    /// adapter publishes every message to every held mode in that mode's
+    /// dict, which is the frames a touchline makes under its per-mode fold;
+    /// the template members' web adapters drop it for want of a code.
+    pub text_1105_as_ltp: bool,
+    /// A 1105 text event's counts are JSON doubles, as jainamxts
+    /// `_process_1105_data` and rmoney `_process_binary_format` parse its
+    /// values with `float()` (`NumberForm::Double` for that packet).
+    pub text_1105_doubles: bool,
+    /// A 1501 touchline of an instrument held at LTP only is an LTP
+    /// message: RMoney subscribes LTP with 1501, and its adapter publishes
+    /// a 1501 at mode 1 unless a Quote or Depth subscription of the symbol
+    /// is active (rmoney_adapter.py _process_json_data).
+    pub touchline_by_holding: bool,
+    /// RMoney's payload variants (audit FB-04, `streaming/variants.rs`).
+    pub payload_variants: bool,
+    /// A 1510 open-interest event updates the instrument's OI (jainamxts
+    /// `_process_json_data` publishes 1505 and 1510 to every subscribed
+    /// mode; a 1505 candle carries no trade and is not read).
+    pub oi_events: bool,
+}
+
+/// Where a member's web client takes a payload's `MessageCode` from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EventCode {
+    /// The payload's own; one without is a touchline (the template
+    /// adapters).
+    #[default]
+    Payload,
+    /// The event's (`1502` in `1502-json-full`) when the payload has none
+    /// (jainamxts `_process_xts_data`).
+    WhenMissing,
+    /// Always the event's (rmoney `_process_market_data`).
+    Event,
 }
 
 /// Static configuration of one XTS white-label.
@@ -449,7 +490,19 @@ impl Broker for XtsBroker {
             gtt: false,
             streaming: true,
             order_feed: false,
-            depth_levels: &[5],
+            depth_levels: &[5, 20],
+        }
+    }
+
+    /// Twenty levels on NSE and NFO, five elsewhere, as every member's web
+    /// capability registry lists them (`*_mapping.py` `depth_support`,
+    /// audit FB-06). XTS has one book subscription (1502) for both depths;
+    /// the frames carry the levels its events bring, never padded.
+    fn feed_depth_levels(&self, exchange: &str) -> Vec<u8> {
+        if matches!(exchange, "NSE" | "NFO") {
+            vec![5, 20]
+        } else {
+            vec![5]
         }
     }
 

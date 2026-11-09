@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "aliceblue",
+  "orderid": "26110900000103",
+  "symbol": "NIFTY24NOV26FUT",
+  "exchange": "NFO",
+  "action": "BUY",
+  "quantity": 75,
+  "price": 24400.0,
+  "trigger_price": 24390.0,
+  "pricetype": "SL",
+  "product": "NRML",
+  "order_status": "cancelled",
+  "filled_quantity": 0,
+  "pending_quantity": 75,
+  "average_price": 0.0,
+  "rejection_reason": ""
+}

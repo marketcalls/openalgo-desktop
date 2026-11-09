@@ -1,0 +1,53 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY24NOV26FUT",
+  "exchange": "NFO",
+  "mode": 3,
+  "broker": "aliceblue",
+  "data": {
+    "ltp": 24450.3,
+    "ltt": 1794302704000,
+    "timestamp": "<receipt_ms>",
+    "volume": 1234500,
+    "last_quantity": 75,
+    "average_price": 24435.15,
+    "total_buy_quantity": 456000,
+    "total_sell_quantity": 398250,
+    "open": 24400.0,
+    "high": 24520.0,
+    "low": 24360.5,
+    "close": 24380.0,
+    "change_percent": 0.29,
+    "total_oi": 13456725,
+    "depth": {
+      "buy": [],
+      "sell": [
+        {
+          "price": 24450.5,
+          "quantity": 75,
+          "orders": 1
+        },
+        {
+          "price": 24451.0,
+          "quantity": 225,
+          "orders": 2
+        },
+        {
+          "price": 24451.5,
+          "quantity": 375,
+          "orders": 4
+        },
+        {
+          "price": 24452.0,
+          "quantity": 525,
+          "orders": 5
+        },
+        {
+          "price": 24452.5,
+          "quantity": 675,
+          "orders": 7
+        }
+      ]
+    }
+  }
+}

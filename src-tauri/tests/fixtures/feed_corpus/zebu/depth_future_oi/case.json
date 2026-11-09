@@ -1,0 +1,48 @@
+{
+  "broker": "zebu",
+  "summary": "A Depth subscription on an NFO future: Zebu's depth snapshot (dk) gives a Depth frame with the quote, OI and the five-level book; a partial (df) moves the best levels and the OI; a book of zeros clears every level; the unsubscribe releases the depth subscription.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "derivative-oi",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "59182",
+      "brsymbol": "NIFTY25NOV26F",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/zebu/streaming/zebu_adapter.py::ZebuWebSocketAdapter._process_market_message",
+      "broker/zebu/streaming/zebu_adapter.py::ZebuWebSocketAdapter._normalize_market_data",
+      "broker/zebu/streaming/zebu_adapter.py::MarketDataCache",
+      "broker/zebu/streaming/zebu_adapter.py::DepthNormalizer"
+    ],
+    "notes": [
+      "Noren sends OI as oi and toi, and each member reads it as its web adapter does (audit FB-07): Zebu streams toi, Noren's total open interest, as total_traded_value. The partial carries an oi change without toi to show which one is read.",
+      "Circuits, the 52-week range and depth_level go out in Depth frames as the web sends them."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Noren's toi is the total open interest (Shoonya's adapter names it open_interest); the web's Zebu adapter sends it only as total_traded_value, a turnover name, so a client reading oi loses it. The desktop sends total_traded_value as the web does and keeps oi (lead ruling 2026-11-09).",
+      "ref": "broker/zebu/streaming/zebu_adapter.py DepthNormalizer (total_traded_value = toi); audit FB-07"
+    }
+  ]
+}

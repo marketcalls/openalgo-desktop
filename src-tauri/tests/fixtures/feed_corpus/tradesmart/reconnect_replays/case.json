@@ -1,0 +1,40 @@
+{
+  "broker": "tradesmart",
+  "summary": "A Quote subscription survives the broker dropping the socket: the feed logs in again, subscribes the touchline again, and the snapshot Noren answers with is served.",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._process_market_message",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._normalize_market_data",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::MarketDataCache"
+    ],
+    "notes": [
+      "The desktop drops its cached snapshots on a new connection (appendix item 11); the web's TradeSmart adapter keeps them. A full snapshot follows every subscribe, so both serve the same frame here."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))"
+    }
+  ]
+}

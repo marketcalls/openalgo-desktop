@@ -1,0 +1,20 @@
+{
+  "broker": "tradesmart",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": "om frames pushed after the login on a dedicated Noren socket, no t=o (the desktop reads them from the market data socket)"
+  },
+  "sources": [
+    "broker/tradesmart/streaming/tradesmart_adapter.py",
+    "broker/tradesmart/streaming/tradesmart_mapping.py::TradeSmartCapabilityRegistry",
+    "broker/tradesmart/streaming/tradesmart_order_adapter.py",
+    "services/order_update_service.py:74"
+  ],
+  "notes": [
+    "Noren streams five levels. A Depth 20, 30 or 50 subscribe is acknowledged with the depth asked for and streams five, as on the web (the adapter's success response names no actual_depth; feed::dialect, DepthAck::Echo)."
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "broker": "firstock",
+  "summary": "A Quote subscription on NIFTY (NSE_INDEX, Firstock NSE:26000): the V2 index tick has prices and the trade time only, and becomes an index Quote frame with the change from the previous close.",
+  "scenarios": [
+    "first-full-packet",
+    "index"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/firstock/streaming/firstock_websocket.py::FirstockWebSocket._on_message",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._process_market_data",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._normalize_market_data",
+      "broker/firstock/streaming/firstock_mapping.py::FirstockExchangeMapper"
+    ],
+    "notes": [
+      "NSE_INDEX subscribes on Firstock's NSE segment on both (firstock_mapping.py:16; brokers/families/noren/mapping.rs noren_exchange).",
+      "No change key goes on Firstock's index frames: its web adapter sends none (lead decision 2026-11-09, feed::dialect no_index_change)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
+      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends volume 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "firstock_adapter.py:838-852"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends last_quantity 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "firstock_adapter.py:838-852"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends average_price 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "firstock_adapter.py:838-852"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends total_buy_quantity 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "firstock_adapter.py:838-852"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends total_sell_quantity 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "firstock_adapter.py:838-852"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends oi 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "firstock_adapter.py:849"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "web-defect",
+      "reason": "The web sends circuit limits of 0.0 for an index tick that carries none (data.get(..., 0) / 100); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "firstock_adapter.py:850-851"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "web-defect",
+      "reason": "The web sends circuit limits of 0.0 for an index tick that carries none (data.get(..., 0) / 100); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "firstock_adapter.py:850-851"
+    }
+  ]
+}

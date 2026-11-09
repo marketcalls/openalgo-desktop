@@ -1,0 +1,21 @@
+{
+  "broker": "flattrade",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": "REST order-book polling by default (issue #1806); om frames after {\"t\":\"o\"} with FLATTRADE_ORDER_WS (the desktop reads them from the market data socket)"
+  },
+  "sources": [
+    "broker/flattrade/streaming/flattrade_adapter.py",
+    "broker/flattrade/streaming/flattrade_mapping.py::FlattradeCapabilityRegistry",
+    "broker/flattrade/streaming/flattrade_order_adapter.py::create_flattrade_order_adapter",
+    "services/order_update_service.py:69"
+  ],
+  "notes": [
+    "Noren streams five levels. A Depth 20, 30 or 50 subscribe is acknowledged with the depth asked for and streams five, as on the web (the adapter's success response names no actual_depth; feed::dialect, DepthAck::Echo).",
+    "PiConnect allows one session per uid, so the web polls the order book (a dedicated order socket evicts the market data one, issue #1806) and names multiplexing t=o on the market socket as the real fix; the desktop does that. The corpus compares the om frames with the normaliser the web's dedicated socket uses."
+  ]
+}

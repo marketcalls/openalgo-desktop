@@ -1,0 +1,81 @@
+{
+  "broker": "iifl",
+  "summary": "LTP on an NSE equity and on NIFTY (NSE_INDEX 26000 on segment 1): each subscribe is one REST call with code 1512, each 1512 event becomes an LTP frame with the trade time in Unix milliseconds and the equity's last quantity as ltq, and after the unsubscribe (a PUT) a late event reaches nobody.",
+  "scenarios": [
+    "first-full-packet",
+    "index",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50_26000",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iifl/streaming/iifl_websocket.py::IiflWebSocketClient._setup_socketio",
+      "broker/iifl/streaming/iifl_adapter.py::IiflWebSocketAdapter._process_json_data",
+      "broker/iifl/streaming/iifl_adapter.py::IiflWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "XTS LastTradedTime counts seconds from 1980-01-01 IST; the desktop sends it as Unix milliseconds (families/xts/streaming/normalise.rs xts_time_ms).",
+      "One instrument per subscribe, so each REST body names one instrument (the feed batches what arrives together)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "iifl_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+    },
+    {
+      "key": "ltq",
+      "kind": "web-defect",
+      "reason": "An index has no ltq; the web sends XTS's 0 for it, the desktop's index frames leave the trade-size and book fields out (feed/protocol/market.rs shown_quote; lead decision, night of 9 Nov: web zeros for values an index stream does not have are left out).",
+      "ref": "iifl_adapter.py _normalize_market_data; feed/protocol/market.rs shown_quote"
+    }
+  ]
+}

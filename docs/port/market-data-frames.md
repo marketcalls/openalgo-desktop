@@ -111,8 +111,9 @@ as the web's `server.py` sends them):
   not this one. In a lower holder's frame from a one-dict broker it is the
   dict's own mode where the web adapter writes the packet's (Paytm, Dhan,
   IndMoney, the XTS adapters but Jainam), and the holder's where it writes
-  the subscription's (`mode_of_holder`: mStock, Delta Exchange and Jainam
-  publish once per subscription; Angel and Pocketful write the mode of the
+  the subscription's (`mode_of_holder`: mStock and Delta Exchange publish
+  once per subscription; Jainam publishes each subscription its own mode's
+  dict, so its frames are per mode; Angel and Pocketful write the mode of the
   one subscription they keep per token, which on the web is the latest or
   first subscribed when a token is held in several modes).
 - An index's order-flow fields (`last_quantity`, `average_price`, the book
@@ -203,17 +204,17 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 
 | Broker | Web keys beyond the canonical ones | `data.mode` | Adapter fills |
 | --- | --- | --- | --- |
-| aliceblue | Q `change_percent`, `total_oi` (its OI); depth levels carry `orders` 0 | none | marks for the `tf` fields it lacks |
+| aliceblue | Q `change_percent` (its only change key), `total_oi` (its only OI key); the web sends depth `orders` 0, the desktop AliceBlue's own counts (web defect) | none | `carried(OpenInterest)` on a touchline's `toi`, marks for what a message lacks, real order counts |
 | angel | Q `last_trade_quantity`; D `upper_circuit`, `lower_circuit`; no change keys on an index | number | `extras.upper_circuit` / `lower_circuit` from SNAP |
 | arrow | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; D circuits; no canonical change on an index (`no_index_change`) | none | close and change in the 17-byte LTPC packet (`carried`), circuits from 241-byte packets |
-| compositedge, fivepaisaxts, ibulls, iifl, jainamxts, rmoney, wisdom (XTS) | L `ltq`; D `oi`, circuits | number | `carried(LastQuantity)` on 1512, circuits from 1502 root fields |
+| compositedge, fivepaisaxts, ibulls, iifl, jainamxts, rmoney, wisdom (XTS) | `ltq` in LTP only (`nt`: Quote and Depth name it `last_quantity`); D circuits, and the canonical `oi` in Depth only; no canonical change on an index (`no_index_change`) | number | `absent` for every field an event lacks, `carried(LastQuantity)` on 1512, circuits from 1502 root fields; Jainam and RMoney mark a 1105 text event's counts `NumberForm::Double` (`float()` on the web); RMoney's 1501 is an LTP message while the symbol is held at LTP only (`XtsHooks::touchline_by_holding`) |
 | definedge | Q `change_percent`, `percent_change`, `prev_oi`, `total_oi`, `bid`, `bid_qty`, `ask`, `ask_qty`, `last_trade_time` (the depth feed's `ltt` text); D `ltq`, `ltt_time` (the same text), `total_buy_qty`, `total_sell_qty`, circuits, `52w_high`, `52w_low` | number | `extras` previous OI, total OI, best bid and ask, circuits, 52-week range (done); OI in Quote (`carried`, done); `time_text = TimeOfDay` for a clock `ltt`, never for `ft` (done) |
 | deltaexchange | L `open`, `high`, `low`, `close`, `oi` (a double), `bid_price`, `bid_qty`, `ask_price`, `ask_qty`; D `totalbuyqty`, `totalsellqty` (no canonical book totals); depth levels without `orders` | number | best bid and ask from the ticker `q` array, the last book's totals on a ticker; `absent(Orders)` on the book |
 | dhan | L `last_trade_time` (s); Q `day_close`; D `prev_oi`, `oi_high`, `oi_low`, `depth_level`; no change keys on an index | number | previous close as `close` and the packet's close as `extras.day_close` (audit P-03), previous OI, `BrokerField::OiHigh` / `OiLow`; a 20-level book has no totals of its own |
 | dhan_sandbox | Q `last_trade_quantity` (no `last_quantity`); every instrument alike, an index's average price, book totals and five-level book included; no change keys | number | the simulated feed (`dhan_sandbox::feed`): no broker packet, every field drawn by the web's model |
 | firstock | Q `oi`, circuits (Depth's `oi` is the total OI) | number | `carried(OpenInterest)` on Quote, circuits |
 | fivepaisa | L `last_trade_time`; Q `last_trade_quantity`, `percent_change`; Quote only `bid_price`, `bid_quantity`, `ask_price`, `ask_quantity`; no `price_change*` on an index | number | best bid and ask; a price 5paisa sends as 0 with none held `absent`; a whole price `NumberForm::Integer` |
-| flattrade, shoonya, tradesmart, zebu (Noren) | L `<broker>_timestamp` (s); Q `percent_change`; D `depth_level`, circuits, `52_week_high`, `52_week_low`, OI as `open_interest` (Shoonya), `oi` (TradeSmart, also in Quote) or `total_traded_value` (Flattrade, Zebu) | number | `extras.exchange_time_ms` from `ft`, circuits, 52-week range; TradeSmart `carried(OpenInterest)` on Quote |
+| flattrade, shoonya, tradesmart, zebu (Noren) | L `<broker>_timestamp` (s); Q `percent_change` (Noren's `pc`, on every instrument; no `price_change*`); D `depth_level`, circuits, `52_week_high`, `52_week_low`, OI as `open_interest` only (Shoonya), `oi` (TradeSmart, also in Quote) or `total_traded_value` beside the desktop's `oi` (Flattrade, Zebu: a web defect); no `ltt`; Depth only from depth packets (`depth_needs_book`) | number | `extras.exchange_time_ms` from `ft`, circuits, 52-week range; mode by packet (touchline 2, depth 3); keys the snapshot never held marked absent; book slots only as sent; TradeSmart `carried(OpenInterest)` on Quote |
 | fyers | L the whole symbol-feed dict: OHLC, `volume`, `oi`, `bid_price`, `ask_price`, `bid_size`, `ask_size` (up to Quote), circuits, `last_traded_time`, `last_trade_time`, `exchange_time` (s), `avg_trade_price`, `average_price`, `last_trade_quantity`, `last_quantity`, book totals, `change`, `change_percent`, `percent_change`, `data_type`, `subscription_mode` | none | best bid and ask, circuits, exchange time, `update_type`; LTP-mode packets carry the quote (`carried`) |
 | groww | L OHLC, `volume`, `value`, `broker`, `topic`, `subscription_mode`; D `bid`, `bid_price`, `bid_qty`, `bid_size`, `bid_quantity`, `ask`, `ask_price`, `offer_price`, `ask_qty`, `ask_size`, `ask_quantity`, `offer_quantity` | number | `BrokerField::TradedValue`, best bid and ask from the book |
 | hdfcsecurities, hdfcsky | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; Q `oi` (quote packets); D circuits | none | the packet's mode (`investright::finish`): circuits from full and CIRC packets (`extras`), `carried(OpenInterest)` on derivative quote packets, `absent` volume, order flow and OI on an index, `absent(LastTradeTime)` for a packet without a trade time |
@@ -277,11 +278,12 @@ fix the Zerodha shape):
 - **Each frame shaped as the broker's web adapter shapes it** (`Fold` in
   `feed/dialect/names.rs`): trimmed to the holder's mode where the adapter
   publishes a dict per mode (Zerodha, as recorded; Sahi, Rupeezy, Upstox,
-  ...); carrying the whole packet, its book and circuits included, with the
+  ..., AliceBlue, whose LTP dict is `ltp` and `ltt`, and Jainam, whose XTS
+  adapter publishes each message to every held mode in that mode's dict);
+  carrying the whole packet, its book and circuits included, with the
   dict's own `data.mode`, where the adapter publishes one dict per packet
-  (Arrow, Paytm, mStock, the XTS family, Delta Exchange, Angel, Dhan,
-  AliceBlue, IndMoney, Pocketful), as the web sends that dict to a lower
-  holder.
+  (Arrow, Paytm, mStock, the other XTS members, Delta Exchange, Angel,
+  Dhan, IndMoney, Pocketful), as the web sends that dict to a lower holder.
 - **What the Python SDK sees.** SDK 2.0.5 (`openalgo/feed.py`) calls the LTP
   callback for a frame with `mode` 1, the Quote callback for 2 and the
   Depth callback for 3 (with a book). So each callback runs once per broker

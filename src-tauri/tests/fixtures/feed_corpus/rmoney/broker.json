@@ -1,0 +1,41 @@
+{
+  "broker": "rmoney",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5,
+        20
+      ],
+      "NFO": [
+        5,
+        20
+      ],
+      "CDS": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ]
+    },
+    "orders": false
+  },
+  "sources": [
+    "broker/rmoney/streaming/rmoney_mapping.py::RMoneyCapabilityRegistry",
+    "broker/rmoney/streaming/rmoney_adapter.py",
+    "broker/rmoney/streaming/rmoney_websocket.py",
+    "services/order_update_service.py:36 (no XTS order adapter) and :98 (_POLLING_BROKERS: groww, fivepaisa, samco)"
+  ],
+  "notes": [
+    "LTP and Quote both subscribe 1501 (MODE_TO_XTS_CODE), the market data login carries no source, broadcastMode is Full; the adapter reads camelCase keys, segment names, Touchline for every code and books from Bids/Asks or BidInfo/AskInfo; an unsubscribe disconnects the whole adapter.",
+    "Depth 20 on NSE and NFO, as the web's registry lists it (XtsBroker::feed_depth_levels, audit FB-06): both depths subscribe the same 1502 code, and the frames carry the levels its events bring.",
+    "The web streams no order updates for this broker (no order adapter, no polling); the desktop has none either (order_feed: false)."
+  ]
+}

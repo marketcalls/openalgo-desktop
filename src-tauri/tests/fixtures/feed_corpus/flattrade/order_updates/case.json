@@ -1,0 +1,46 @@
+{
+  "broker": "flattrade",
+  "summary": "Flattrade's om order updates: an intraday order open, partly filled and complete, one rejected with the RMS text, and an NFO stop-loss order cancelled.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "token": "59317",
+      "brsymbol": "NIFTY25NOV26C24000",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "strike": 24000.0,
+      "lotsize": 75,
+      "instrumenttype": "OPTIDX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/flattrade/streaming/flattrade_order_adapter.py::FlattradeOrderUpdateAdapter.normalize",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Flattrade's order updates ride the market data socket as om frames after {\"t\":\"o\"}.",
+      "The web's default Flattrade order stream is REST order-book polling (issue #1806: one PiConnect session per uid); the om frames are compared with the normaliser its dedicated socket uses."
+    ]
+  }
+}

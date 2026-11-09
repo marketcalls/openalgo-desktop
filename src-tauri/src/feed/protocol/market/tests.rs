@@ -185,7 +185,7 @@ fn an_instruments_change_goes_under_the_brokers_names() {
     assert!(data_at(equity(), Mode::Quote, "pocketful")
         .get("change")
         .is_none());
-    for broker in ["zerodha", "compositedge", "unknown"] {
+    for broker in ["zerodha", "unknown"] {
         for mode in [Mode::Quote, Mode::Depth] {
             let d = data_at(equity(), mode, broker);
             for k in ["price_change", "price_change_percent", "change"] {
@@ -766,14 +766,16 @@ fn no_key_is_ever_null() {
 /// `data.mode` of a lower holder's frame from a one-dict broker: the dict's
 /// own mode where the web adapter writes the packet's (Paytm, Dhan, the XTS
 /// adapters but Jainam), the holder's where it writes each subscription's
-/// (mStock, Delta Exchange, Jainam XTS, Angel, Pocketful).
+/// (mStock, Delta Exchange, Angel, Pocketful). Jainam XTS publishes each
+/// subscription its own mode's dict, so its frames are cut to the holder's
+/// mode (the per-mode fold) and carry the holder's mode.
 #[test]
 fn data_mode_is_the_packets_or_the_holders_as_each_web_adapter_writes_it() {
     let u = update(equity());
     for broker in ["paytm", "dhan", "compositedge", "rmoney"] {
         assert_eq!(render(&u, Mode::Ltp, broker)["mode"], 3, "{}", broker);
     }
-    for broker in ["mstock", "deltaexchange", "jainamxts", "angel", "pocketful"] {
+    for broker in ["mstock", "deltaexchange", "angel", "pocketful"] {
         let d = render(&u, Mode::Ltp, broker);
         assert_eq!(d["mode"], 1, "{}", broker);
         assert_eq!(render(&u, Mode::Quote, broker)["mode"], 2, "{}", broker);
@@ -784,6 +786,9 @@ fn data_mode_is_the_packets_or_the_holders_as_each_web_adapter_writes_it() {
             broker
         );
     }
+    let jainam = render(&u, Mode::Ltp, "jainamxts");
+    assert_eq!(jainam["mode"], 1);
+    assert!(jainam.get("volume").is_none(), "LTP's own dict: {}", jainam);
 }
 
 /// An index's order flow goes out where the broker's web adapter sends it
@@ -1159,8 +1164,8 @@ fn definedge_names_a_trade_time_only_from_its_clock() {
 }
 
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,
-/// Tradejini, Kotak, Pocketful, Arrow, Rupeezy, Paytm, IIFL Capital and both
-/// HDFC send no canonical change on an index;
+/// Tradejini, Kotak, Pocketful, Arrow, Rupeezy, Paytm, IIFL Capital, both
+/// HDFC and the XTS family send no canonical change on an index;
 /// the broker's own names still go where it sends them (AliceBlue's
 /// `change_percent`); Zerodha's index frames carry the canonical ones.
 #[test]
@@ -1178,6 +1183,8 @@ fn the_canonical_index_change_follows_the_broker() {
         "rupeezy",
         "paytm",
         "iiflcapital",
+        "compositedge",
+        "jainamxts",
     ] {
         let d = data_at(index(), Mode::Quote, broker);
         assert!(d.get("price_change").is_none(), "{}: {}", broker, d);

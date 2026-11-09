@@ -80,13 +80,20 @@ pub fn map_product(p: Product) -> &'static str {
     }
 }
 
+/// AliceBlue product -> OpenAlgo product, for the codes AliceBlue uses
+/// (web `transform_data.py::reverse_map_product_type`).
+fn known_product(p: &str) -> Option<&'static str> {
+    match p {
+        "LONGTERM" | "MTF" | "CNC" | "DELIVERY" => Some("CNC"),
+        "NRML" => Some("NRML"),
+        "INTRADAY" | "MIS" => Some("MIS"),
+        _ => None,
+    }
+}
+
 /// AliceBlue product -> OpenAlgo product (unknown -> MIS, like the web).
 pub fn reverse_product(p: &str) -> &'static str {
-    match p {
-        "LONGTERM" | "MTF" | "CNC" | "DELIVERY" => "CNC",
-        "NRML" => "NRML",
-        _ => "MIS",
-    }
+    known_product(p).unwrap_or("MIS")
 }
 
 /// OpenAlgo price type -> AliceBlue V2 order type.
@@ -452,7 +459,13 @@ pub fn order_update_from(v: &Value, symbols: &SymbolResolver) -> Option<OrderUpd
             "SL-M" => "SL-M".into(),
             _ => prctyp,
         },
-        product: s(v, "pcode"),
+        // OpenAlgo's product, as the REST order book maps it; a code
+        // AliceBlue has not documented goes through as it came, never as a
+        // guessed MIS (the web passes every code raw: audit appendix item 9).
+        product: {
+            let pcode = s(v, "pcode");
+            known_product(&pcode).map_or(pcode, str::to_string)
+        },
         order_status: order_feed_status(&raw_status),
         filled_quantity: filled,
         pending_quantity: (qty - filled).max(0),

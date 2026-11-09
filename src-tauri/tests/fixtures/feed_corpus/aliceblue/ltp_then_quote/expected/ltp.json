@@ -1,0 +1,11 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "aliceblue",
+  "data": {
+    "ltp": 1295.5,
+    "ltt": 1794302700000
+  }
+}

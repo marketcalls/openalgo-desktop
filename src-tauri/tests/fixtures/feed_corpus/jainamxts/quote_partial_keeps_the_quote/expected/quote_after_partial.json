@@ -1,0 +1,23 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "jainamxts",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 2,
+    "ltp": 2502.0,
+    "timestamp": "<receipt_ms>",
+    "volume": 4500123,
+    "last_quantity": 7,
+    "average_price": 2495.8,
+    "total_buy_quantity": 150000,
+    "total_sell_quantity": 160000,
+    "open": 2490.0,
+    "high": 2510.5,
+    "low": 2485.0,
+    "close": 2487.6
+  }
+}

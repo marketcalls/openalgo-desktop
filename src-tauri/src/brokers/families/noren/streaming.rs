@@ -6,26 +6,35 @@
 //!   them, not the doc's `c`/`susertoken`).
 //! * touchline `{"t":"t","k":"NSE|22#NSE|2885"}` / `{"t":"u"}`, depth
 //!   `{"t":"d"}` / `{"t":"ud"}`, batches of at most 100 scrips.
-//! * heartbeat `{"t":"h"}` every 30 s.
+//! * heartbeat `{"t":"h"}` every 30 s; a session that keeps answering it
+//!   while no market data comes is reconnected (`liveness`, FB-03).
 //! * frames `tk`/`tf` (touchline snapshot/update), `dk`/`df` (depth),
-//!   `om` (order update after `{"t":"o","actid"}`).
+//!   `om` (order update after `{"t":"o","actid"}`), routed by `e|tk`, or
+//!   by the token alone when a frame has no `e` and one subscribed scrip
+//!   has that token (FB-08).
 //! * updates carry only changed fields: each scrip keeps a snapshot, new
 //!   values overlay it, and a zero/blank o/h/l/c/ap never overwrites a
-//!   non-zero cached value.
+//!   non-zero cached value. What the snapshot holds becomes a tick and a
+//!   book as each member's web adapter reads it (`quote`, FB-07).
 
-use super::mapping::{self, f, i, noren_exchange, text};
+use super::mapping::{self, noren_exchange};
 use super::NorenConfig;
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, WsRequest,
+    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
+use liveness::Liveness;
+use quote::Instrument;
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+
+mod liveness;
+mod quote;
+#[cfg(test)]
+mod tests;
 
 /// Scrips per subscribe frame.
 pub const BATCH: usize = 100;
@@ -46,6 +55,9 @@ pub struct NorenFeed {
     symbols: SymbolResolver,
     subs: HashMap<String, SubInfo>,
     cache: HashMap<String, Map<String, Value>>,
+    liveness: Liveness,
+    /// Epoch milliseconds now (a fake clock in tests).
+    clock: fn() -> i64,
 }
 
 /// `EXCH|token` scrip key.
@@ -75,6 +87,15 @@ pub fn merge(cached: &mut Map<String, Value>, new: &Map<String, Value>) {
     }
 }
 
+/// A frame field as text (Noren sends numbers as strings).
+fn field(m: &Map<String, Value>, key: &str) -> String {
+    match m.get(key) {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Number(n)) => n.to_string(),
+        _ => String::new(),
+    }
+}
+
 impl NorenFeed {
     pub fn new(
         cfg: &'static NorenConfig,
@@ -91,6 +112,8 @@ impl NorenFeed {
             symbols,
             subs: HashMap::new(),
             cache: HashMap::new(),
+            liveness: Liveness::default(),
+            clock: now_ms,
         }
     }
 
@@ -99,65 +122,69 @@ impl NorenFeed {
         self.cache.len()
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_clock(&mut self, clock: fn() -> i64) {
+        self.clock = clock;
+    }
+
     fn frames(t: &str, keys: &[String]) -> Vec<Message> {
         keys.chunks(BATCH)
             .map(|c| Message::Text(json!({"t": t, "k": c.join("#")}).to_string()))
             .collect()
     }
 
-    fn tick(&self, sub: &SubInfo, d: &Map<String, Value>) -> NormalizedTick {
-        let v = Value::Object(d.clone());
-        let mut t = NormalizedTick {
-            symbol: sub.symbol.clone(),
-            exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
-            ltp: f(&v, "lp"),
-            open: f(&v, "o"),
-            high: f(&v, "h"),
-            low: f(&v, "l"),
-            close: f(&v, "c"),
-            volume: i(&v, "v"),
-            average_price: f(&v, "ap"),
-            last_quantity: i(&v, "ltq"),
-            total_buy_quantity: i(&v, "tbq"),
-            total_sell_quantity: i(&v, "tsq"),
-            oi: if d.contains_key("toi") {
-                i(&v, "toi")
-            } else {
-                i(&v, "oi")
-            },
-            change: 0.0,
-            change_percent: f(&v, "pc"),
-            last_trade_time_ms: i(&v, "ft") * 1000,
-            timestamp_ms: now_ms(),
-            ..Default::default()
-        };
-        let pc = t.change_percent;
-        t.derive_change();
-        if t.change == 0.0 && pc != 0.0 {
-            t.change_percent = pc;
+    /// The subscribed scrip a market data frame is for: its `e|tk`, or,
+    /// when it carries no exchange, the one subscribed scrip with its token
+    /// (web `_resolve_scrip`). A token two subscribed exchanges share is
+    /// dropped rather than routed to the wrong instrument (web #1732).
+    fn route(&self, m: &Map<String, Value>) -> Option<String> {
+        let token = field(m, "tk");
+        if token.is_empty() {
+            return None;
         }
-        t
+        let exchange = field(m, "e");
+        if !exchange.is_empty() {
+            let key = format!("{}|{}", exchange, token);
+            return self.subs.contains_key(&key).then_some(key);
+        }
+        let suffix = format!("|{}", token);
+        let mut found = self.subs.keys().filter(|k| k.ends_with(&suffix));
+        match (found.next(), found.next()) {
+            (Some(key), None) => Some(key.clone()),
+            _ => None,
+        }
     }
 
-    fn depth(&self, sub: &SubInfo, d: &Map<String, Value>) -> NormalizedDepth {
-        let v = Value::Object(d.clone());
-        let lvl = |p: &str, q: &str, o: &str, n: usize| DepthLevel {
-            price: f(&v, &format!("{}{}", p, n)),
-            quantity: i(&v, &format!("{}{}", q, n)),
-            orders: i(&v, &format!("{}{}", o, n)),
+    /// A touchline or depth frame: merged into its scrip's snapshot and
+    /// published as a tick, and as a book to a depth subscription.
+    fn market(&mut self, t: &str, m: &Map<String, Value>) -> Vec<FeedEvent> {
+        let now = (self.clock)();
+        self.liveness.note_data(now);
+        let Some(key) = self.route(m) else {
+            return Vec::new();
         };
-        NormalizedDepth {
-            symbol: sub.symbol.clone(),
-            exchange: sub.exchange.clone(),
-            ltp: f(&v, "lp"),
-            buy: (1..=5).map(|n| lvl("bp", "bq", "bo", n)).collect(),
-            sell: (1..=5).map(|n| lvl("sp", "sq", "so", n)).collect(),
-            total_buy_quantity: i(&v, "tbq"),
-            total_sell_quantity: i(&v, "tsq"),
-            timestamp_ms: now_ms(),
-            ..Default::default()
+        let Some(sub) = self.subs.get(&key).cloned() else {
+            return Vec::new();
+        };
+        let entry = self.cache.entry(key).or_default();
+        merge(entry, m);
+        let snapshot = entry.clone();
+        let depth_packet = t == "dk" || t == "df";
+        let at = || Instrument {
+            symbol: &sub.symbol,
+            exchange: &sub.exchange,
+        };
+        let mut out = vec![FeedEvent::Tick(quote::tick(
+            self.cfg,
+            at(),
+            &snapshot,
+            depth_packet,
+            now,
+        ))];
+        if sub.mode == FeedMode::Depth && depth_packet {
+            out.push(FeedEvent::Depth(quote::depth(at(), &snapshot, now)));
         }
+        out
     }
 
     /// Decode one text frame.
@@ -165,8 +192,8 @@ impl NorenFeed {
         let Ok(Value::Object(m)) = serde_json::from_str::<Value>(text_frame) else {
             return Vec::new();
         };
-        let t = m.get("t").and_then(Value::as_str).unwrap_or("");
-        match t {
+        let t = m.get("t").and_then(Value::as_str).unwrap_or("").to_string();
+        match t.as_str() {
             "ak" => {
                 let s = m.get("s").and_then(Value::as_str).unwrap_or("");
                 if s.eq_ignore_ascii_case("OK") {
@@ -188,24 +215,7 @@ impl NorenFeed {
                 &Value::Object(m),
                 &self.symbols,
             ))],
-            "tk" | "tf" | "dk" | "df" => {
-                let key = format!(
-                    "{}|{}",
-                    m.get("e").and_then(Value::as_str).unwrap_or(""),
-                    text(&Value::Object(m.clone()), "tk")
-                );
-                let Some(sub) = self.subs.get(&key).cloned() else {
-                    return Vec::new();
-                };
-                let entry = self.cache.entry(key).or_default();
-                merge(entry, &m);
-                let snapshot = entry.clone();
-                let mut out = vec![FeedEvent::Tick(self.tick(&sub, &snapshot))];
-                if sub.mode == FeedMode::Depth && (t == "dk" || t == "df") {
-                    out.push(FeedEvent::Depth(self.depth(&sub, &snapshot)));
-                }
-                out
-            }
+            "tk" | "tf" | "dk" | "df" => self.market(&t, &m),
             _ => Vec::new(),
         }
     }
@@ -225,6 +235,7 @@ impl BrokerFeed for NorenFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         self.cache.clear();
+        self.liveness.reset();
         vec![Message::Text(
             json!({
                 "t": "a",
@@ -299,6 +310,12 @@ impl BrokerFeed for NorenFeed {
             Message::Text(t) => self.parse_text(t),
             _ => Vec::new(),
         }
+    }
+
+    /// Web `_check_connection_health`'s data silence (FB-03): armed by
+    /// market data over time, then 180 s without any.
+    fn data_stalled(&mut self) -> bool {
+        self.liveness.stalled_at((self.clock)())
     }
 
     fn heartbeat(&self) -> Option<(Duration, Message)> {

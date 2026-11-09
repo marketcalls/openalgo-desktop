@@ -1,0 +1,75 @@
+{
+  "broker": "firstock",
+  "summary": "A Depth subscription on an NFO future with OI: V2 ticks with the five-level book, an update of both sides, then sides Firstock marks invalid (a sentinel level among valid ones, a side of sentinels, a side of zero levels), then a valid book again.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "65872",
+      "brsymbol": "NIFTY24NOV26F",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/firstock/streaming/firstock_websocket.py::FirstockWebSocket._on_message",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._update_market_snapshot",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._filter_depth_data",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._normalize_market_data",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._extract_depth_data"
+    ],
+    "notes": [
+      "Depth mode's OI is i_total_open_interest on both (firstock_adapter.py:862; brokers/firstock/streaming.rs tick).",
+      "Firstock has no book-clear signal the web acts on: a level whose price, quantity or orders is 9223372036854775808, or with neither price nor quantity, is dropped, and a side left without a valid level keeps the previous side (firstock_adapter.py:683-744). Audit FB-02, fixed: the desktop filters a side the same way before it stores it (brokers/firstock/streaming.rs valid_level, merge)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
+      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "Firstock's tick carries last_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
+      "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Firstock's tick carries average_price and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
+      "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Firstock's tick carries total_buy_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
+      "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Firstock's tick carries total_sell_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
+      "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "The web pads a side with fewer than five valid levels to five with zero levels Firstock did not send (_extract_depth_data); a book carries the levels the broker sent (lead rule 2026-11-09). The desktop sends the two valid bids alone.",
+      "ref": "firstock_adapter.py:875-915"
+    }
+  ]
+}

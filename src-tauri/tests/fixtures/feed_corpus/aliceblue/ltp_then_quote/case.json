@@ -1,0 +1,62 @@
+{
+  "broker": "aliceblue",
+  "summary": "One client asks for LTP, then Quote too, on the same equity: the LTP frame from the tk snapshot, the touchline subscribed again for Quote and its new tk serving a Quote and an LTP frame, then Quote alone from a delta once LTP is let go.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "mode-change",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"k\":\"\",\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._handle_message",
+      "broker/aliceblue/streaming/aliceblue_mapping.py::AliceBlueMessageMapper.parse_tick_data",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._update_market_snapshot",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received"
+    ],
+    "notes": [
+      "The desktop moves the instrument from LTP to Quote by unsubscribing and subscribing the touchline again (the default BrokerFeed::mode_change_frames); the web sends a second t subscribe and keeps both modes on one entry (all_modes). AliceBlue answers a t subscribe with a fresh tk snapshot, which this case pushes.",
+      "The desktop starts the instrument's snapshot afresh on that mode change (audit appendix item 13); a delta arriving before the new tk would carry zeros for the fields it lacks."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, and a string (\"1794302700\"); the protocol's WebSocket timestamps are epoch milliseconds (docs/prompt/websockets-format.md), so the unit is wrong, as for Dhan. The desktop sends the trade time in ms, as a number.",
+      "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries last_quantity (ltq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries total_buy_quantity (tbq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries total_sell_quantity (tsq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217"
+    }
+  ]
+}

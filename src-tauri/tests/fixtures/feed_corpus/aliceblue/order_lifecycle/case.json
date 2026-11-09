@@ -1,0 +1,55 @@
+{
+  "broker": "aliceblue",
+  "summary": "AliceBlue's Order Status Feed: an order open, partly filled and complete, one rejected with the RMS text, an NFO stop-loss order cancelled; symbols from the master by the broker symbol.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "deviations": [
+    {
+      "key": "product",
+      "kind": "web-defect",
+      "reason": "The web's order stream sends AliceBlue's product code raw (INTRADAY, LONGTERM), not OpenAlgo's MIS, CNC, NRML (docs/prompt/order-constants.md), although its own REST order book maps the same codes (transform_data.py reverse_map_product_type). The desktop maps them as that book does; a code AliceBlue has not documented passes as it came.",
+      "ref": "aliceblue_order_adapter.py:200; audit appendix item 9"
+    }
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "54957",
+      "brsymbol": "NIFTY24NOV26F",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"k\":\"\",\"t\":\"h\"}",
+    "{\"heartbeat\":\"h\",\"userId\":\"AB1\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/aliceblue/streaming/aliceblue_order_adapter.py::AliceBlueOrderUpdateAdapter.normalize",
+      "broker/aliceblue/streaming/aliceblue_order_adapter.py::AliceBlueOrderUpdateAdapter.on_open_extra",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "The desktop names OpenAlgo's product (MIS, CNC, NRML) as the web's REST order book maps AliceBlue's codes (broker/aliceblue/mapping/transform_data.py reverse_map_product_type); the web's order stream passes the code raw (audit appendix item 9).",
+      "The market socket's relay logs in too, and its frame is taken from the main socket first."
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "jainamxts",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 1,
+    "ltp": 2501.5,
+    "timestamp": "<receipt_ms>",
+    "ltt": 1794199530000,
+    "ltq": 7
+  }
+}

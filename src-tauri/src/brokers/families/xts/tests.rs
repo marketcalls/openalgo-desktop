@@ -997,7 +997,8 @@ fn feed_decodes_json_events() {
     match &ev[1] {
         FeedEvent::Depth(d) => {
             assert_eq!(d.symbol, "RELIANCE");
-            assert_eq!(d.buy.len(), 5);
+            // The levels XTS sent, never padded (the web pads to five).
+            assert_eq!((d.buy.len(), d.sell.len()), (2, 1));
             assert_eq!(d.buy[0].price, 2500.1);
             assert_eq!(d.buy[0].quantity, 120);
             assert_eq!(d.sell[0].orders, 4);

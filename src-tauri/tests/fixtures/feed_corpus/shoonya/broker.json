@@ -1,0 +1,21 @@
+{
+  "broker": "shoonya",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": "om frames on a dedicated Noren socket after {\"t\":\"o\"} (the desktop reads them from the market data socket)"
+  },
+  "sources": [
+    "broker/shoonya/streaming/shoonya_adapter.py",
+    "broker/shoonya/streaming/shoonya_mapping.py",
+    "broker/shoonya/streaming/shoonya_order_adapter.py",
+    "services/order_update_service.py:65"
+  ],
+  "notes": [
+    "Noren streams five levels. A Depth 20, 30 or 50 subscribe is acknowledged with the depth asked for and streams five, as on the web (the adapter's success response names no actual_depth; feed::dialect, DepthAck::Echo).",
+    "The web opens a second Noren connection for order updates; the desktop multiplexes t=o on its one market data connection (appendix item 7). The om frames are the same."
+  ]
+}

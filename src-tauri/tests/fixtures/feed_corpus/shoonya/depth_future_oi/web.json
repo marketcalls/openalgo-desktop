@@ -1,0 +1,303 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "shoonya",
+  "inputs_sha256": "0039e7127f8887528d5a940c942a1ae93b4e3324b8c8f2caecfc64e35f5ba06f",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "59182",
+      "brsymbol": "NIFTY25NOV26F",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
+          "mode": 3,
+          "data": {
+            "mode": 3,
+            "ltp": 25480.0,
+            "volume": 2345600,
+            "open": 25390.0,
+            "high": 25520.0,
+            "low": 25350.5,
+            "close": 25366.0,
+            "average_price": 25441.35,
+            "percent_change": 0.45,
+            "last_quantity": 75,
+            "last_trade_time": "10:15:41",
+            "total_buy_quantity": 456000,
+            "total_sell_quantity": 398250,
+            "shoonya_timestamp": 1794199542,
+            "depth": {
+              "buy": [
+                {
+                  "price": 25479.9,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 25479.5,
+                  "quantity": 300,
+                  "orders": 4
+                },
+                {
+                  "price": 25479.0,
+                  "quantity": 75,
+                  "orders": 1
+                },
+                {
+                  "price": 25478.6,
+                  "quantity": 225,
+                  "orders": 3
+                },
+                {
+                  "price": 25478.2,
+                  "quantity": 450,
+                  "orders": 5
+                }
+              ],
+              "sell": [
+                {
+                  "price": 25480.1,
+                  "quantity": 75,
+                  "orders": 1
+                },
+                {
+                  "price": 25480.5,
+                  "quantity": 225,
+                  "orders": 2
+                },
+                {
+                  "price": 25481.0,
+                  "quantity": 300,
+                  "orders": 4
+                },
+                {
+                  "price": 25481.4,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 25481.85,
+                  "quantity": 525,
+                  "orders": 6
+                }
+              ]
+            },
+            "depth_level": 5,
+            "upper_circuit": 27902.6,
+            "lower_circuit": 22829.4,
+            "52_week_high": 26277.35,
+            "52_week_low": 21743.65,
+            "open_interest": 12850050,
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
+          "mode": 3,
+          "data": {
+            "mode": 3,
+            "ltp": 25480.5,
+            "volume": 2345675,
+            "open": 25390.0,
+            "high": 25520.0,
+            "low": 25350.5,
+            "close": 25366.0,
+            "average_price": 25441.35,
+            "percent_change": 0.45,
+            "last_quantity": 75,
+            "last_trade_time": "10:15:41",
+            "total_buy_quantity": 455850,
+            "total_sell_quantity": 398250,
+            "shoonya_timestamp": 1794199543,
+            "depth": {
+              "buy": [
+                {
+                  "price": 25480.1,
+                  "quantity": 75,
+                  "orders": 1
+                },
+                {
+                  "price": 25479.5,
+                  "quantity": 300,
+                  "orders": 4
+                },
+                {
+                  "price": 25479.0,
+                  "quantity": 75,
+                  "orders": 1
+                },
+                {
+                  "price": 25478.6,
+                  "quantity": 225,
+                  "orders": 3
+                },
+                {
+                  "price": 25478.2,
+                  "quantity": 450,
+                  "orders": 5
+                }
+              ],
+              "sell": [
+                {
+                  "price": 25480.55,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 25480.5,
+                  "quantity": 225,
+                  "orders": 2
+                },
+                {
+                  "price": 25481.0,
+                  "quantity": 300,
+                  "orders": 4
+                },
+                {
+                  "price": 25481.4,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 25481.85,
+                  "quantity": 525,
+                  "orders": 6
+                }
+              ]
+            },
+            "depth_level": 5,
+            "upper_circuit": 27902.6,
+            "lower_circuit": 22829.4,
+            "52_week_high": 26277.35,
+            "52_week_low": 21743.65,
+            "open_interest": 12850050,
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
+          "mode": 3,
+          "data": {
+            "mode": 3,
+            "ltp": 25480.5,
+            "volume": 2345675,
+            "open": 25390.0,
+            "high": 25520.0,
+            "low": 25350.5,
+            "close": 25366.0,
+            "average_price": 25441.35,
+            "percent_change": 0.45,
+            "last_quantity": 75,
+            "last_trade_time": "10:15:41",
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "shoonya_timestamp": 1794199544,
+            "depth": {
+              "buy": [
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            },
+            "depth_level": 5,
+            "upper_circuit": 27902.6,
+            "lower_circuit": 22829.4,
+            "52_week_high": 26277.35,
+            "52_week_low": 21743.65,
+            "open_interest": 12850050,
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

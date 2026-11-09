@@ -1120,8 +1120,12 @@ fn feed_parses_acks_ticks_depth_and_orders() {
         (t.ltp, t.open, t.close, t.volume),
         (812.4, 809.0, 808.0, 1234567)
     );
-    assert_eq!(t.last_trade_time_ms, 1790837699000);
+    // FB-07: the trade time is Noren's ltt (10:04:59 IST on ft's day), not
+    // the feed time ft, which goes out as the member's timestamp.
+    assert_eq!(t.last_trade_time_ms, 1790829299000);
+    assert_eq!(t.extras.exchange_time_ms, Some(1790837699000));
     assert_eq!(t.change, 4.4);
+    assert_eq!(t.change_percent, 0.54);
     // Update overlays the snapshot; a zero open does not wipe it.
     let ev = f.parse_text(&frame("touchline_update"));
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
@@ -1129,12 +1133,13 @@ fn feed_parses_acks_ticks_depth_and_orders() {
         (t.ltp, t.open, t.high, t.volume),
         (812.9, 809.0, 815.0, 1234600)
     );
-    // Index under its OpenAlgo exchange.
+    // Index under its OpenAlgo exchange; a touchline packet is a quote
+    // packet whatever the subscription's mode.
     let ev = f.parse_text(&frame("index_tick"));
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
     assert_eq!(
         (t.symbol.as_str(), t.exchange.as_str(), t.mode),
-        ("NIFTY", "NSE_INDEX", 1)
+        ("NIFTY", "NSE_INDEX", 2)
     );
     // Depth.
     let ev = f.parse_text(&frame("depth_snapshot"));

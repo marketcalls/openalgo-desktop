@@ -1,0 +1,80 @@
+{
+  "broker": "tradesmart",
+  "summary": "The NIFTY index on two clients: an LTP holder, then a Quote holder (the desktop moves the touchline subscription from LTP to Quote with an unsubscribe and a subscribe); the snapshot and a partial serve both, each at its mode, with the change fields an index carries; the Quote holder leaving moves it back.",
+  "scenarios": [
+    "index",
+    "mode-change",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._process_market_message",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._normalize_market_data",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::MarketDataCache"
+    ],
+    "notes": [
+      "Noren's index touchline carries no volume, average price, last quantity or totals.",
+      "Noren's own pc goes out as percent_change, as on the web; the desktop derives it only when a frame has none (audit FB-07).",
+      "Upstream the desktop answers an LTP-to-Quote change with u then t for the same touchline; the web sends nothing (both modes ride one touchline subscription)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Noren's index touchline carries no average price; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's index touchline carries no last quantity; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
+    },
+    {
+      "key": "last_trade_time",
+      "kind": "web-defect",
+      "reason": "The frame carries no ltt: the web's TradeSmart adapter sends last_trade_time as null (data.get(ltt)); the desktop sends no null keys and leaves it out (lead ruling 2026-11-09).",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers (last_trade_time = data.get(ltt))"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's index touchline carries no book totals; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's index touchline carries no book totals; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "Noren's index touchline carries no volume; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "broker": "compositedge",
+  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) arrives. The desktop reads it as the touchline its codes 110-119 are: both clients get a frame, the LTP client the whole Quote dict (this member's adapter publishes one dict per packet).",
+  "scenarios": [
+    "partial-packet",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/compositedge/streaming/compositedge_websocket.py::CompositedgeWebSocketClient._setup_socketio",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._process_json_data",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._normalize_market_data",
+      "broker/compositedge/streaming/compositedge_websocket.py::CompositedgeWebSocketClient._process_1105_data"
+    ],
+    "notes": [
+      "1105 carries the touchline codes 110-119 (families/xts/binary.rs parse_1105); it has no MessageCode and no trade time, so the frames carry no ltt.",
+      "The template web client drops it: its subscription filter compares the stored string instrument id with an int, and its adapter drops a message without MessageCode (audit appendix inherited item 4).",
+      "The desktop holds one subscription per instrument at the highest mode its clients ask for (websocket::manager), so the Quote client changes the LTP subscription into a Quote one; the web adapter subscribes each mode on its own."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "The web drops a 1105 text event: its client compares the stored string instrument id with an int, so no 1105 event passes its subscription filter, and its adapter drops a message without MessageCode as an unknown code. The desktop decodes the touchline its codes 110-119 carry (audit appendix, inherited item 4).",
+      "ref": "compositedge_websocket.py _process_1105_data; compositedge_adapter.py _process_json_data"
+    }
+  ]
+}

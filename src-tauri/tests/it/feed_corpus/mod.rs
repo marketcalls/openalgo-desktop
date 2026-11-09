@@ -12,6 +12,8 @@
 //!   sockets, and its case list. Adding a case to a broker is a folder in
 //!   `tests/fixtures/feed_corpus/<broker>/` and its name in that list;
 //!   adding a broker is a module like these and a line in [`BROKERS`].
+//! * [`xts`]: the XTS family's feed, which the seven members' modules
+//!   build with their own configuration.
 //! * [`inventory`]: the folders and the lists agree, and every case reads.
 //!
 //! The case format and how to add one: `tests/fixtures/feed_corpus/README.md`.
@@ -19,57 +21,84 @@
 mod harness;
 mod inventory;
 
+mod aliceblue;
 mod angel;
 mod arrow;
+mod compositedge;
 mod definedge;
 mod deltaexchange;
 mod dhan;
 mod dhan_sandbox;
+mod firstock;
 mod fivepaisa;
+mod fivepaisaxts;
+mod flattrade;
 mod fyers;
 mod groww;
 mod hdfcsecurities;
 mod hdfcsky;
+mod ibulls;
+mod iifl;
 mod iiflcapital;
 mod indmoney;
+mod jainamxts;
 mod kotak;
 mod motilal;
 mod mstock;
 mod nubra;
 mod paytm;
 mod pocketful;
+mod rmoney;
 mod rupeezy;
 mod sahi;
 mod samco;
+mod shoonya;
 mod tradejini;
+mod tradesmart;
 mod upstox;
+mod wisdom;
+mod xts;
+mod zebu;
 mod zerodha;
 
 /// Every broker with cases, and its cases (the folder names).
 const BROKERS: &[(&str, &[&str])] = &[
+    ("aliceblue", aliceblue::CASES),
     ("angel", angel::CASES),
     ("arrow", arrow::CASES),
+    ("compositedge", compositedge::CASES),
     ("definedge", definedge::CASES),
     ("deltaexchange", deltaexchange::CASES),
     ("dhan", dhan::CASES),
     ("dhan_sandbox", dhan_sandbox::CASES),
+    ("firstock", firstock::CASES),
     ("fivepaisa", fivepaisa::CASES),
+    ("fivepaisaxts", fivepaisaxts::CASES),
+    ("flattrade", flattrade::CASES),
     ("fyers", fyers::CASES),
     ("groww", groww::CASES),
     ("hdfcsecurities", hdfcsecurities::CASES),
     ("hdfcsky", hdfcsky::CASES),
+    ("ibulls", ibulls::CASES),
+    ("iifl", iifl::CASES),
     ("iiflcapital", iiflcapital::CASES),
     ("indmoney", indmoney::CASES),
+    ("jainamxts", jainamxts::CASES),
     ("kotak", kotak::CASES),
     ("motilal", motilal::CASES),
     ("mstock", mstock::CASES),
     ("nubra", nubra::CASES),
     ("paytm", paytm::CASES),
     ("pocketful", pocketful::CASES),
+    ("rmoney", rmoney::CASES),
     ("rupeezy", rupeezy::CASES),
     ("sahi", sahi::CASES),
     ("samco", samco::CASES),
+    ("shoonya", shoonya::CASES),
     ("tradejini", tradejini::CASES),
+    ("tradesmart", tradesmart::CASES),
     ("upstox", upstox::CASES),
+    ("wisdom", wisdom::CASES),
+    ("zebu", zebu::CASES),
     ("zerodha", zerodha::CASES),
 ];

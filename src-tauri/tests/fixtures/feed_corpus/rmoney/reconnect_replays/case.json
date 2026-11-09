@@ -1,0 +1,66 @@
+{
+  "broker": "rmoney",
+  "summary": "Quote on an NSE equity across a dropped socket: the feed logs in to the socket again (Engine.IO open, Socket.IO connect) and, once accepted, subscribes its book again over REST, so the next 1501 event reaches the client.",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rmoney/streaming/rmoney_websocket.py::RMoneyWebSocketClient._setup_socketio",
+      "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter._process_json_data",
+      "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter._normalize_market_data",
+      "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter._resubscribe_all"
+    ],
+    "notes": [
+      "The desktop keeps its subscription book across the reconnect and subscribes it again after the connect ack (families/xts/streaming.rs subscribe_frames, websocket::manager resubscribe)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "rmoney_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+    }
+  ]
+}

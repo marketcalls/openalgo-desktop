@@ -1,0 +1,13 @@
+{"step": "push", "frame": "frames/login_ok.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "tokens": "NFO:65872"}}]}
+{"step": "push", "frame": "frames/full.json"}
+{"step": "receive", "client": "a", "frame": "expected/full.json"}
+{"step": "push", "frame": "frames/update.json"}
+{"step": "receive", "client": "a", "frame": "expected/update.json"}
+{"step": "push", "frame": "frames/mixed_bids.json", "note": "A sentinel level between two valid bids."}
+{"step": "receive", "client": "a", "frame": "expected/mixed_bids.json"}
+{"step": "push", "frame": "frames/invalid_sides.json", "note": "Bids all sentinels, asks all zero levels."}
+{"step": "receive", "client": "a", "frame": "expected/invalid_sides.json"}
+{"step": "push", "frame": "frames/valid_again.json"}
+{"step": "receive", "client": "a", "frame": "expected/valid_again.json"}

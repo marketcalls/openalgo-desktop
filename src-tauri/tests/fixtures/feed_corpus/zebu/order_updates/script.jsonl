@@ -1,0 +1,14 @@
+{"step": "upstream_receives", "frames": [{"json": {"t": "a", "uid": "U1", "actid": "U1", "source": "API", "accesstoken": "tok"}}]}
+{"step": "push", "frame": {"json": {"t": "ak", "uid": "U1", "s": "OK"}}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "o", "actid": "U1"}}]}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "push", "frame": "frames/order_open.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "push", "frame": "frames/order_partial.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json"}
+{"step": "push", "frame": "frames/order_complete.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "push", "frame": "frames/order_rejected.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
+{"step": "push", "frame": "frames/order_cancelled.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}

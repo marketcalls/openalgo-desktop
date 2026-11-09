@@ -1,0 +1,47 @@
+{
+  "broker": "shoonya",
+  "summary": "A Quote subscription survives the broker dropping the socket: the feed logs in again, asks for order updates again, subscribes the touchline again, and the snapshot Noren answers with is served.",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/shoonya/streaming/shoonya_adapter.py::ShoonyaWebSocketAdapter._process_market_message",
+      "broker/shoonya/streaming/shoonya_adapter.py::ShoonyaWebSocketAdapter._normalize_market_data",
+      "broker/shoonya/streaming/shoonya_adapter.py::MarketDataCache",
+      "broker/shoonya/streaming/shoonya_adapter.py::QuoteNormalizer"
+    ],
+    "notes": [
+      "The desktop drops its cached snapshots on a new connection (appendix item 11); the web's Shoonya adapter does too (`_resubscribe_all`). A full snapshot follows every subscribe, so both serve the same frame here."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Shoonya Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Shoonya Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer"
+    }
+  ]
+}

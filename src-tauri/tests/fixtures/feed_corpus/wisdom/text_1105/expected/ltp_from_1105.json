@@ -1,0 +1,23 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "wisdom",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 2,
+    "ltp": 2503.25,
+    "timestamp": "<receipt_ms>",
+    "volume": 4512345,
+    "last_quantity": 4,
+    "average_price": 2496.1,
+    "total_buy_quantity": 150500,
+    "total_sell_quantity": 160100,
+    "open": 2490.0,
+    "high": 2510.5,
+    "low": 2485.0,
+    "close": 2487.6
+  }
+}

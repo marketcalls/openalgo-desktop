@@ -1,0 +1,26 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "shoonya",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 2,
+    "ltp": 1412.6,
+    "timestamp": "<receipt_ms>",
+    "volume": 4567890,
+    "last_quantity": 12,
+    "average_price": 1409.65,
+    "total_buy_quantity": 345678,
+    "total_sell_quantity": 298765,
+    "open": 1405.0,
+    "high": 1415.8,
+    "low": 1401.2,
+    "close": 1403.0,
+    "shoonya_timestamp": 1794199544,
+    "percent_change": 0.66,
+    "last_trade_time": "10:15:42"
+  }
+}

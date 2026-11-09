@@ -1,0 +1,20 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "broker": "ibulls",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "mode": 2,
+    "ltp": 24350.65,
+    "timestamp": "<receipt_ms>",
+    "ltt": 1794199530000,
+    "volume": 0,
+    "open": 24301.2,
+    "high": 24390.0,
+    "low": 24275.35,
+    "close": 24280.1
+  }
+}

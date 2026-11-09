@@ -1,0 +1,50 @@
+{
+  "broker": "tradesmart",
+  "summary": "A touchline frame without its exchange (e) reaches the one subscribed scrip with its token, and is dropped once two subscribed exchanges share the token, as the web routes it (audit FB-08).",
+  "scenarios": [
+    "subscription-lifecycle",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "USDINR25NOV26FUT",
+      "exchange": "CDS",
+      "token": "2885",
+      "brsymbol": "USDINR25NOV26F",
+      "brexchange": "CDS",
+      "expiry": "25-NOV-26",
+      "instrumenttype": "FUTCUR"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._process_market_message",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._normalize_market_data",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::MarketDataCache"
+    ],
+    "notes": [
+      "Audit FB-08: web <member>_adapter.py _resolve_scrip; the desktop routes by e|tk and falls back to a unique token (families/noren/streaming.rs NorenFeed::route).",
+      "The second token-2885 subscription (CDS) makes the token ambiguous: both drop that frame."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))"
+    }
+  ]
+}

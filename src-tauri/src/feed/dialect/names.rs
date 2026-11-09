@@ -149,12 +149,12 @@ pub(crate) enum DataMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Fold {
     /// The adapter publishes a dict per mode (Zerodha, as recorded in
-    /// tests/fixtures/web/websocket/01 and 05; Sahi, Rupeezy, Upstox, ...):
-    /// each frame is trimmed to its holder's mode.
+    /// tests/fixtures/web/websocket/01 and 05; Sahi, Rupeezy, Upstox,
+    /// AliceBlue, Jainam, ...): each frame is trimmed to its holder's mode.
     PerMode,
     /// The adapter publishes one dict per packet (Arrow, Paytm, mStock, the
-    /// XTS family, Delta Exchange, Angel, Dhan, AliceBlue, IndMoney,
-    /// Pocketful): a lower mode's frame carries the whole packet, its book
+    /// other XTS members, Delta Exchange, Angel, Dhan, IndMoney, Pocketful): a
+    /// lower mode's frame carries the whole packet, its book
     /// and circuits included. The desktop still sends one frame per mode a
     /// client holds (lead decision 2026-11-09): the web's single frame
     /// leaves a client's lower-mode callbacks unrun, a web defect.
@@ -363,9 +363,11 @@ const RUPEEZY: &[WebName] = &[
 ];
 
 /// The XTS family (CompositEdge, 5paisa XTS, IBulls, IIFL, Jainam, RMoney,
-/// Wisdom): `ltq` in LTP, circuits in Depth.
+/// Wisdom): `ltq` in the LTP dict only (`{ltp, ltt, ltq}`; Quote names it
+/// `last_quantity`), circuits in Depth (`_normalize_market_data` of each
+/// member's adapter).
 const XTS: &[WebName] = &[
-    n("ltq", S::LastQuantity, L),
+    nt("ltq", S::LastQuantity, L, L),
     CIRCUITS_IN_DEPTH[0],
     CIRCUITS_IN_DEPTH[1],
 ];
@@ -467,7 +469,7 @@ const fn noren(
     ]
 }
 
-/// Shoonya publishes OI as `open_interest` in Depth (canonical already).
+/// Shoonya publishes OI as `open_interest` in Depth, and no `oi`.
 const SHOONYA: &[WebName] = &noren("shoonya_timestamp", "open_interest", L);
 /// Flattrade and Zebu name the total OI `total_traded_value`.
 const FLATTRADE: &[WebName] = &noren("flattrade_timestamp", "total_traded_value", Q);
@@ -687,6 +689,13 @@ const fn d(data_mode: DataMode, names: &'static [WebName]) -> Dialect {
     }
 }
 
+/// The XTS family's frame, as each member's `_normalize_market_data` writes it.
+const fn xts() -> Dialect {
+    d(DataMode::Number, XTS)
+        .no_index_change()
+        .key(Key::Oi, Modes::DEPTH)
+}
+
 /// The renderer's view of `broker`'s web frames. A broker not listed gets
 /// the canonical frame with a numeric `data.mode`, `oi` and
 /// `open_interest`, and `ltt` everywhere.
@@ -712,11 +721,13 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest().no_index_change(),
         "rupeezy" => d(Absent, RUPEEZY).open_interest().no_index_change(),
         // aliceblue_adapter.py:1243-1305: no symbol, exchange or mode in
-        // `data`, and `timestamp` in the Depth dict only.
+        // `data`, and `timestamp` in the Depth dict only; a dict per
+        // subscribed mode (LTP `{ltp, ltt}`), OI only as `total_oi` and
+        // the change only as `change_percent`.
         "aliceblue" => d(Absent, ALICEBLUE)
             .bare(Mode::Depth)
-            .richer()
-            .no_index_change(),
+            .no_index_change()
+            .key(Key::Oi, Modes::NEVER),
         "kotak" => d(Absent, KOTAK).no_index_change().index_book(),
         // upstox_adapter.py `_build_payload`: no change keys, OI a float.
         "upstox" => d(Absent, UPSTOX)
@@ -725,12 +736,12 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .floats(&["oi"]),
         // fyers_mapping.py: the change only under Fyers' own names.
         "fyers" => d(Absent, FYERS).no_ltt().no_index_change(),
-        // These name `mode` after the packet's MessageCode; Jainam publishes
-        // once per subscribed mode with that mode (jainamxts_adapter.py:709-725).
-        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "rmoney" | "wisdom" => {
-            d(Number, XTS).richer()
-        }
-        "jainamxts" => d(Number, XTS).richer().mode_of_holder(),
+        // The XTS adapters send `oi` in their Depth dict only, and no change
+        // on an index. Six publish one dict per packet at its code's mode;
+        // Jainam's publishes each message to every mode the symbol is held
+        // in, in that mode's dict (jainamxts_adapter.py _process_json_data).
+        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "rmoney" | "wisdom" => xts().richer(),
+        "jainamxts" => xts(),
         // definedge_adapter.py _QUOTE_FIELDS: the change only as `pc`
         // (change_percent, percent_change), on an index too.
         "definedge" => d(Number, DEFINEDGE).depth_needs_book().no_index_change(),
@@ -760,10 +771,29 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         // fivepaisa_adapter.py `_quote_fields`: ChgPcnt as `percent_change`
         // only, on an index too (no `price_change`).
         "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book().no_index_change(),
-        "shoonya" => d(Number, SHOONYA).no_ltt(),
-        "flattrade" => d(Number, FLATTRADE).no_ltt(),
-        "zebu" => d(Number, ZEBU).no_ltt(),
-        "tradesmart" => d(Number, TRADESMART).no_ltt(),
+        // The Noren adapters' dicts (`<member>_adapter.py` normalisers): no
+        // ltt; the change only as Noren's pc (`percent_change`), never
+        // price_change*; a Depth topic only from depth packets. Shoonya
+        // names OI `open_interest` alone; Flattrade and Zebu send it only
+        // as `total_traded_value` and the desktop keeps `oi` beside it (a
+        // web defect, lead ruling 2026-11-09); TradeSmart's is `oi`.
+        "shoonya" => d(Number, SHOONYA)
+            .no_ltt()
+            .no_index_change()
+            .key(Key::Oi, Modes::NEVER)
+            .depth_needs_book(),
+        "flattrade" => d(Number, FLATTRADE)
+            .no_ltt()
+            .no_index_change()
+            .depth_needs_book(),
+        "zebu" => d(Number, ZEBU)
+            .no_ltt()
+            .no_index_change()
+            .depth_needs_book(),
+        "tradesmart" => d(Number, TRADESMART)
+            .no_ltt()
+            .no_index_change()
+            .depth_needs_book(),
         // groww_protobuf.py reads tsInMillis and volume as doubles.
         "groww" => d(Number, GROWW).floats(&["ltt", "volume"]),
         "indmoney" => d(Number, INDMONEY).richer().no_index_change(),

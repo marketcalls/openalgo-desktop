@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "shoonya",
+  "orderid": "26110900000101",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 100,
+  "price": 1410.5,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "MIS",
+  "order_status": "open",
+  "filled_quantity": 0,
+  "pending_quantity": 100,
+  "average_price": 0.0,
+  "rejection_reason": ""
+}

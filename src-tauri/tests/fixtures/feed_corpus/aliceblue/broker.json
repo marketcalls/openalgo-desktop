@@ -1,0 +1,21 @@
+{
+  "broker": "aliceblue",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": "the dedicated Order Status Feed socket (createWsToken, then orderToken and userId)"
+  },
+  "sources": [
+    "broker/aliceblue/streaming/aliceblue_adapter.py",
+    "broker/aliceblue/streaming/aliceblue_mapping.py",
+    "broker/aliceblue/streaming/aliceblue_order_adapter.py",
+    "services/order_update_service.py:40-43"
+  ],
+  "notes": [
+    "AliceBlue streams five levels; LTP and Quote ride the touchline (t), Depth the depth feed (d), on the Noren socket the web opens after createWsSess.",
+    "The web's data dicts carry no symbol, exchange or mode, its ltt and Depth timestamp are AliceBlue's feed time as a string of epoch seconds, and its Quote leaves out the trade quantity and book totals: see each case's deviations."
+  ]
+}

@@ -1,0 +1,1 @@
+42["1510-json-full","{\"MessageCode\":1510,\"MessageVersion\":4,\"ApplicationType\":0,\"TokenID\":0,\"ExchangeSegment\":2,\"ExchangeInstrumentID\":35012,\"ExchangeTimeStamp\":1478686531,\"OpenInterest\":12345700,\"XMarketType\":1}"]

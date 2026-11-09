@@ -1,0 +1,46 @@
+{
+  "broker": "zebu",
+  "summary": "Zebu's om order updates: an intraday order open, partly filled and complete, one rejected with the RMS text, and an NFO stop-loss order cancelled.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "token": "59317",
+      "brsymbol": "NIFTY25NOV26C24000",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "strike": 24000.0,
+      "lotsize": 75,
+      "instrumenttype": "OPTIDX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/zebu/streaming/zebu_order_adapter.py::ZebuOrderUpdateAdapter.normalize",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Zebu's order updates ride the market data socket as om frames after {\"t\":\"o\"}.",
+      "The cancelled order carries the order number as norenoordno (Shoonya's order-feed spelling); both sides read either."
+    ]
+  }
+}

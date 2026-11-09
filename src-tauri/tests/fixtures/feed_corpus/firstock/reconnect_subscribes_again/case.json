@@ -1,0 +1,43 @@
+{
+  "broker": "firstock",
+  "summary": "Firstock drops the socket: the feed connects again on the same address, waits for the login answer (audit FB-01), subscribes again, and the full tick after it streams to the client as before.",
+  "scenarios": [
+    "first-full-packet",
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/firstock/streaming/firstock_websocket.py::FirstockWebSocket._on_message",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._process_market_data",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._resubscribe_all"
+    ],
+    "notes": [
+      "The desktop starts each connection without the previous snapshots (brokers/firstock/streaming.rs on_connected); the web keeps them (audit appendix item 11). Firstock's tick after the new subscribe is a full one, so the frames agree; a partial first tick would show the desktop's zeros for fields not yet sent."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
+      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The web's Quote sends oi 0 for an equity whose tick carries no open interest (data.get(\"i_open_interest\", 0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md, web openalgo#2376). The desktop's Quote leaves it out.",
+      "ref": "firstock_adapter.py:849"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "broker": "flattrade",
+  "summary": "A Quote subscription on an NSE equity: Flattrade's touchline snapshot (tk) gives a Quote frame with every quote field, a partial update (tf) overlays it and its zero open keeps the cached one, and after the unsubscribe a frame still in flight reaches nobody.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._process_market_message",
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._normalize_market_data",
+      "broker/flattrade/streaming/flattrade_adapter.py::MarketDataCache",
+      "broker/flattrade/streaming/flattrade_adapter.py::QuoteNormalizer"
+    ],
+    "notes": [
+      "Noren's feed time ft goes out as the member's timestamp key in seconds, as on the web; its trade time ltt (HH:MM:SS) is not copied as text, and the Noren family sends no ltt key (docs/port/market-data-frames.md; audit FB-07)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Flattrade Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Flattrade Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer"
+    }
+  ]
+}

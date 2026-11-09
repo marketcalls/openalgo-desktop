@@ -1,0 +1,12 @@
+{"step": "upstream_receives", "frames": [{"json": {"t": "a", "uid": "U1", "actid": "U1", "source": "API", "accesstoken": "tok"}}]}
+{"step": "push", "frame": {"json": {"t": "ak", "uid": "U1", "s": "OK"}}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NSE|2885"}}]}
+{"step": "push", "frame": "frames/tk.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "push", "frame": "frames/tf.json", "note": "A partial: only what changed, and a zero open that must not wipe the cached one."}
+{"step": "receive", "client": "a", "frame": "expected/quote_update.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "u", "k": "NSE|2885"}}]}
+{"step": "push", "frame": "frames/tf_after.json", "note": "A frame the broker sent before it took the unsubscribe."}
+{"step": "silence", "client": "a"}

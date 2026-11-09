@@ -98,6 +98,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     tradebook_time_only: false,
     orderbook_price_fallback: false,
     depth_oi: true,
+    feed_oi: FeedOi::TotalInDepth,
     rate: RateLimits {
         order: None,
         data: None,
