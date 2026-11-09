@@ -141,18 +141,21 @@ impl KotakFeed {
         }
     }
 
-    /// Look the data centre's feed host up in `prepare` (once) and remember
-    /// it in the broker's `cache`.
+    /// Look the data centre's feed host up in `prepare` (once), `fallback`
+    /// where the config names none or cannot be read, and remember it in
+    /// the broker's `cache`.
     pub fn with_lookup(
         mut self,
         http: reqwest::Client,
         config_url: String,
+        fallback: String,
         data_center: String,
         cache: std::sync::Arc<parking_lot::Mutex<Option<(String, String)>>>,
     ) -> Self {
         self.lookup = Some(FeedLookup {
             http,
             config_url,
+            fallback,
             data_center,
             cache,
         });
@@ -455,7 +458,7 @@ impl BrokerFeed for KotakFeed {
 
     async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
         if let Some(l) = self.lookup.take() {
-            let url = lookup_feed_url(&l.http, &l.config_url, &l.data_center).await;
+            let url = lookup_feed_url(&l.http, &l.config_url, &l.fallback, &l.data_center).await;
             *l.cache.lock() = Some((l.data_center.clone(), url.clone()));
             self.url = url;
         }
