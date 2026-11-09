@@ -12,9 +12,9 @@
 //!   there is none;
 //! * a book side in the root `Bids` / `Asks`, else `Touchline.Bids` /
 //!   `Asks`, else `BidInfo` / `AskInfo` at the root or in `Touchline` (a
-//!   single level as an object, or a list), and a book from either side
-//!   alone, the other then empty; a side sent empty at any of these is a
-//!   cleared side, so the book clears (audit R107-09).
+//!   single level as an object, or a list); a side sent empty at any of
+//!   these is a cleared side, and a side named nowhere is left out, for the
+//!   feed to complete from the instrument's last (`sides`, audit R107-09).
 
 use serde_json::{Map, Value};
 
@@ -54,15 +54,10 @@ pub(crate) fn canonical(v: &Value) -> Value {
     let touchline = m.get("Touchline").and_then(Value::as_object);
     let bids = side(m, touchline, "Bids", "BidInfo");
     let asks = side(m, touchline, "Asks", "AskInfo");
-    if bids.is_some() || asks.is_some() {
-        out.insert(
-            "Bids".into(),
-            bids.unwrap_or_else(|| Value::Array(Vec::new())),
-        );
-        out.insert(
-            "Asks".into(),
-            asks.unwrap_or_else(|| Value::Array(Vec::new())),
-        );
+    for (key, named) in [("Bids", bids), ("Asks", asks)] {
+        if let Some(levels) = named {
+            out.insert(key.into(), levels);
+        }
     }
     Value::Object(out)
 }
