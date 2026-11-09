@@ -383,8 +383,11 @@ pub async fn run_command(
     for batch in cmd.instruments.chunks(SUBSCRIBE_BATCH) {
         let (batch, r) = call(batch.to_vec()).await;
         match r {
-            // One refused instrument must not refuse its batch (R107-03).
-            Err(CallError::Refused(_)) if cmd.subscribe && batch.len() > 1 => {
+            // One refused instrument must not refuse its batch when each
+            // has an owner waiting for its own answer (R107-03).
+            Err(CallError::Refused(_))
+                if cmd.subscribe && cmd.waited.is_some() && batch.len() > 1 =>
+            {
                 for inst in batch {
                     outcomes.push(call(vec![inst]).await);
                 }

@@ -112,7 +112,7 @@ async fn an_unanswered_release_keeps_the_subscription() {
     assert!(
         ack["failed"][0]["message"]
             .as_str()
-            .is_some_and(|m| m.contains("stays subscribed")),
+            .is_some_and(|m| m.contains("has not confirmed")),
         "{}",
         ack
     );
@@ -394,17 +394,17 @@ async fn subscribing_again_during_a_late_release_keeps_it_streaming() {
         c.op_timeout = Duration::from_millis(300)
     })
     .await;
-    let mut c = subscribed(&h.url, "Quote").await;
-    h.source.delay_release(reliance(), Mode::Quote);
-    let ack = c.request(unsubscribe("Quote", "slow")).await;
+    let mut c = subscribed(&h.url, "LTP").await;
+    h.source.delay_release(reliance(), Mode::Ltp);
+    let ack = c.request(unsubscribe("LTP", "slow")).await;
     assert_eq!(ack["status"], "error", "{}", ack);
     let ack = c
-        .request(json!({"action": "subscribe", "mode": "Quote",
+        .request(json!({"action": "subscribe", "mode": "LTP",
             "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}))
         .await;
     assert_eq!(ack["status"], "success", "{}", ack);
 
-    h.source.answer_release(&reliance(), Mode::Quote, Ok(()));
+    h.source.answer_release(&reliance(), Mode::Ltp, Ok(()));
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert_eq!(held(&h), (1, 1, 1), "held at the broker again");
     h.source

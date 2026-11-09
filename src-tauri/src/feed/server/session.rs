@@ -22,7 +22,7 @@ time. Subscribe again in a moment.";
 /// What an unsubscribe item answers when the broker has not confirmed the
 /// release in time; the client keeps the subscription (audit C01).
 const NOT_RELEASED_IN_TIME: &str = "The broker has not confirmed yet that it stopped streaming \
-this instrument. Its answer still settles it: unsubscribe again to see where it stands.";
+this instrument. Unsubscribe again to retry.";
 
 /// The source's answer, or `late` once `limit` has passed.
 async fn within(
