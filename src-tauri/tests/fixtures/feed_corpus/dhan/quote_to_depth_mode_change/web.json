@@ -40,6 +40,17 @@
             "total_sell_quantity": 8000
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
@@ -128,6 +139,17 @@
             },
             "depth_level": 5
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     }

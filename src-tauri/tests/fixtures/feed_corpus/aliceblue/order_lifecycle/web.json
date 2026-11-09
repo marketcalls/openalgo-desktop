@@ -49,6 +49,16 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -76,6 +86,16 @@
             "average_price": 1295.5,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     },
@@ -105,6 +125,16 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -133,6 +163,16 @@
             "rejection_reason": "RMS:Margin Exceeds,Required:6477.25, Available:1000.00 for entity account-AB1 across exchange across segment across product"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -160,6 +200,16 @@
             "average_price": 0.0,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     }

@@ -16,7 +16,8 @@
   "pushes": [
     {
       "line": 3,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
@@ -45,6 +46,17 @@
             "total_sell_quantity": 0,
             "close": 24300.0
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

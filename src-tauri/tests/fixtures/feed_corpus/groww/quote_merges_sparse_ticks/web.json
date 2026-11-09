@@ -14,11 +14,13 @@
   "pushes": [
     {
       "line": 3,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 8,
@@ -46,6 +48,17 @@
             "topic": "NSE_SBIN_QUOTE",
             "subscription_mode": 2
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     },
@@ -76,6 +89,17 @@
             "subscription_mode": 2
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
@@ -104,6 +128,17 @@
             "topic": "NSE_SBIN_QUOTE",
             "subscription_mode": 2
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

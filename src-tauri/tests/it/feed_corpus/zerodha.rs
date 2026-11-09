@@ -8,6 +8,7 @@ use openalgo_desktop_lib::brokers::zerodha::ZerodhaBroker;
 use std::sync::Arc;
 
 fn feeds(env: &Env) -> Feeds {
+    let symbols = env.symbols();
     Feeds::market(KiteFeed::with_url(
         &env.url("main"),
         "k",
@@ -18,6 +19,7 @@ fn feeds(env: &Env) -> Feeds {
         Arc::new(ZerodhaBroker::new(env.symbols())),
         &AuthToken::new("k:t"),
     )
+    .with_pool(move |url| Box::new(KiteFeed::with_url(url, "k", "t", symbols.clone())))
 }
 
 corpus_cases!(
@@ -35,5 +37,6 @@ corpus_cases!(
         deliberate_disconnect,
         order_postbacks,
         cds_quote_currency_unit,
+        pool_second_connection,
     ]
 );

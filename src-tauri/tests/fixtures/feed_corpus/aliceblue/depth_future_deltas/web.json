@@ -18,7 +18,8 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
@@ -90,6 +91,17 @@
             }
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
@@ -141,6 +153,17 @@
               ]
             }
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     }

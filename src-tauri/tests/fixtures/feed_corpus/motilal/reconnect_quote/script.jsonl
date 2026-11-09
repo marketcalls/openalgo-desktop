@@ -11,5 +11,6 @@
 {"step": "upstream_receives", "frames": ["frames/login.hex"], "connection": 2}
 {"step": "push", "frame": "frames/hello.hex", "note": "The new session's first binary frame authenticates it."}
 {"step": "upstream_receives", "frames": ["frames/register.hex"], "connection": 2, "note": "The registration is sent again on the new socket."}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 2, "deviation": "missing-frame:stale-quote-after-reconnect"}, "note": "The web's poll publishes its pre-outage quote again on the new session's first frame."}
 {"step": "push", "frame": "frames/ltp_after.hex", "note": "A trade after the reconnect, before Motilal sends the day OHLC again."}
 {"step": "receive", "client": "a", "frame": "expected/quote_after.json"}

@@ -19,11 +19,13 @@
   "pushes": [
     {
       "line": 1,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 4,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
@@ -114,11 +116,23 @@
             }
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
       "line": 8,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 10,
@@ -209,11 +223,23 @@
             }
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
       "line": 12,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 13,
@@ -303,6 +329,17 @@
               ]
             }
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     }

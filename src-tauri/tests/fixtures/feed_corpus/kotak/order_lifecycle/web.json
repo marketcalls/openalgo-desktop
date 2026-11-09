@@ -32,7 +32,8 @@
   "pushes": [
     {
       "line": 4,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
@@ -59,6 +60,16 @@
             "average_price": 0.0,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     },
@@ -88,6 +99,16 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -116,11 +137,22 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
       "line": 11,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 13,
@@ -147,6 +179,16 @@
             "average_price": 0.0,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     },
@@ -176,6 +218,16 @@
             "rejection_reason": "RMS:Margin Exceeds"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -203,6 +255,16 @@
             "average_price": 0.0,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     }
