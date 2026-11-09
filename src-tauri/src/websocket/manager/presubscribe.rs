@@ -9,13 +9,19 @@
 //!   an index under a listing id its master does not carry, and the web
 //!   looks it up over REST as it subscribes (bk-c RB-05). The manager
 //!   awaits it for the instruments no reference holds yet, within a
-//!   deadline and with no lock held, before it places them.
+//!   deadline and with no lock held, before it places them;
+//! * what it hears when an instrument is placed (`set_held`) and when no
+//!   consumer holds one any more (`set_let_go`), whether or not a socket
+//!   is up to carry it.
 //!
-//! Each refusal or failure is that item's answer. Without either nothing
-//! changes.
+//! Each refusal or failure is that item's answer. Without any of them
+//! nothing changes.
 
+use super::release::ReleaseOutcome;
 use super::WebSocketManager;
-use crate::brokers::common::streaming::{FeedRefusal, FeedSubscription, Presubscribe};
+use crate::brokers::common::streaming::{
+    FeedHeld, FeedLetGo, FeedRefusal, FeedSubscription, Presubscribe,
+};
 use std::time::Duration;
 
 /// Longest the manager waits for a broker's step.
@@ -44,6 +50,78 @@ impl WebSocketManager {
     /// none (the default).
     pub fn set_presubscribe(&self, step: Option<Presubscribe>) {
         *self.presubscribe.lock() = step;
+    }
+
+    /// What the broker session hears when an instrument is let go of, or
+    /// nothing (the default).
+    pub fn set_let_go(&self, let_go: Option<FeedLetGo>) {
+        *self.let_go.lock() = let_go;
+    }
+
+    /// What the broker session hears when an instrument is placed, or
+    /// nothing (the default).
+    pub fn set_held(&self, held: Option<FeedHeld>) {
+        *self.held.lock() = held;
+    }
+
+    /// The broker session hears which of `subs` a consumer holds now. Read
+    /// under the registry lock, as `tell_let_go`, so that whichever order
+    /// a placement and a release run in, it hears what is true last.
+    pub(super) fn tell_held<'a>(&self, subs: impl IntoIterator<Item = &'a FeedSubscription>) {
+        let Some(held) = self.held.lock().clone() else {
+            return;
+        };
+        let reg = self.registry.lock();
+        let holding: Vec<FeedSubscription> = subs
+            .into_iter()
+            .filter(|s| reg.entries.contains_key(&s.instrument_key()))
+            .cloned()
+            .collect();
+        if !holding.is_empty() {
+            held(&holding);
+        }
+    }
+
+    /// The broker session hears which of `subs` no consumer holds now.
+    /// Read under the registry lock, so an instrument placed again keeps
+    /// what it holds.
+    pub(super) fn tell_let_go(&self, subs: &[FeedSubscription]) {
+        let Some(let_go) = self.let_go.lock().clone() else {
+            return;
+        };
+        let reg = self.registry.lock();
+        let gone: Vec<FeedSubscription> = subs
+            .iter()
+            .filter(|s| !reg.entries.contains_key(&s.instrument_key()))
+            .cloned()
+            .collect();
+        if !gone.is_empty() {
+            let_go(&gone);
+        }
+    }
+
+    /// What a waited release leaves the session knowing: what was let go
+    /// of is told so. What the socket did not take or the broker refused
+    /// stays held, and is told so again: the feed may have freed its key
+    /// as it wrote the frames that then failed.
+    pub(super) fn tell_let_go_answered(
+        &self,
+        subs: &[FeedSubscription],
+        answers: &[ReleaseOutcome],
+    ) {
+        let done: Vec<FeedSubscription> = subs
+            .iter()
+            .zip(answers)
+            .filter(|(_, answer)| answer.is_ok())
+            .map(|(s, _)| s.clone())
+            .collect();
+        self.tell_let_go(&done);
+        self.tell_held(
+            subs.iter()
+                .zip(answers)
+                .filter(|(_, answer)| answer.is_err())
+                .map(|(s, _)| s),
+        );
     }
 
     /// `subs` as the feed will stream them, or why not: what the broker

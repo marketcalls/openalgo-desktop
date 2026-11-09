@@ -82,6 +82,7 @@ impl WebSocketManager {
                 }
             }
         }
+        self.tell_let_go_answered(&subs, &answers);
         self.put_back(back, epoch).await;
         self.close_idle().await;
         answers

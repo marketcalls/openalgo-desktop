@@ -13,28 +13,30 @@
 //! The subscribe step ([`WireKeys::claim`], `Broker::feed_presubscribe`)
 //! checks and reserves in one hold of the lock (CLAUDE.md: claim under the
 //! same lock that checks), so two colliding subscribes arriving together,
-//! in one request or from two clients, cannot both pass. The feed marks a
-//! reservation registered when it registers the instrument and frees it
-//! when it lets go (or hands it to the instrument still sharing it). A new
-//! session frees what the feed registered on the old one and registers
-//! what clients still hold, so a release made during an outage, which
-//! never reaches the feed, frees its key too. The map is bounded by the
-//! registered instruments plus reservations younger than
-//! [`RESERVATION_TTL`]: a reservation that never became a registration
-//! (its subscribe was refused for room afterwards) is dropped by the next
-//! claim once it is older than that, and claiming an instrument again
-//! replaces its own reservation.
+//! in one request or from two clients, cannot both pass. A key then
+//! follows who holds its instrument, whether or not a socket is up: the
+//! manager says when the instrument is placed ([`WireKeys::held`],
+//! `Broker::feed_held`) and when no consumer holds it any more
+//! ([`WireKeys::let_go`], `Broker::feed_let_go`), so an outage of any
+//! length neither frees a key still held nor keeps one nobody holds. The
+//! feed also marks a key when it registers the instrument and frees it
+//! when it lets go (or hands it to the instrument still sharing it). The
+//! map is bounded by the instruments held plus reservations younger than
+//! [`RESERVATION_TTL`]: a claim that was never placed (its subscribe was
+//! refused for room afterwards) is dropped by the next claim once it is
+//! older than that, and claiming an instrument again replaces its own
+//! reservation.
 
-use crate::brokers::common::streaming::{FeedSubscription, Presubscribe};
+use crate::brokers::common::streaming::{FeedHeld, FeedLetGo, FeedSubscription, Presubscribe};
 use futures_util::FutureExt;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// How long a reservation waits for its registration. The manager places
-/// a claimed instrument at once; a feed that is reconnecting registers it
-/// when its socket is back.
+/// How long a claim waits to be placed. The manager places a claimed
+/// instrument at once ([`WireKeys::held`]), so only a claim it never placed
+/// gets this old.
 pub(crate) const RESERVATION_TTL: Duration = Duration::from_secs(60);
 
 /// A wire key: the exchange character and the scrip code.
@@ -46,7 +48,7 @@ type Instrument = (String, String);
 #[derive(Debug, Clone)]
 struct Holder {
     instrument: Instrument,
-    /// `None` once the feed registered it; else when it was reserved.
+    /// `None` once it is placed or registered; else when it was reserved.
     reserved_at: Option<Instant>,
 }
 
@@ -74,6 +76,42 @@ impl WireKeys {
         Arc::new(move |subs: Vec<FeedSubscription>| {
             futures_util::future::ready(keys.claim(subs)).boxed()
         })
+    }
+
+    /// What the manager calls once no consumer holds an instrument
+    /// (`Broker::feed_let_go`).
+    pub(crate) fn let_go_step(&self) -> FeedLetGo {
+        let keys = self.clone();
+        Arc::new(move |subs: &[FeedSubscription]| keys.let_go(subs))
+    }
+
+    /// What the manager calls once it has placed an instrument
+    /// (`Broker::feed_held`).
+    pub(crate) fn held_step(&self) -> FeedHeld {
+        let keys = self.clone();
+        Arc::new(move |subs: &[FeedSubscription]| keys.held(subs))
+    }
+
+    /// A consumer holds these: each one's key is its own until the last
+    /// consumer lets go, and no reservation's expiry applies. A key another
+    /// instrument registered or was placed on first stays with it.
+    pub(crate) fn held(&self, subs: &[FeedSubscription]) {
+        for s in subs {
+            if let Some(key) = wire_key(s) {
+                self.registered(key, &s.symbol, &s.exchange);
+            }
+        }
+    }
+
+    /// No consumer holds these any more: each one's key is free at once,
+    /// its reservation too. A key another instrument holds or reserved
+    /// stays with it.
+    pub(crate) fn let_go(&self, subs: &[FeedSubscription]) {
+        for s in subs {
+            if let Some(key) = wire_key(s) {
+                self.released(key, &s.symbol, &s.exchange);
+            }
+        }
     }
 
     /// The subscribe step: each new instrument's wire key checked and
@@ -119,9 +157,10 @@ impl WireKeys {
             .collect()
     }
 
-    /// The feed registered `symbol` on `exchange` on `key`: the key is its
-    /// own until it lets go, unless another instrument registered on it
-    /// first (its packets go to that one, `FeedState::register`).
+    /// `symbol` on `exchange` holds `key`, because the manager placed it or
+    /// the feed registered it: the key is its own until it lets go, unless
+    /// another instrument got there first (its packets go to that one,
+    /// `FeedState::register`).
     pub(crate) fn registered(&self, key: WireKey, symbol: &str, exchange: &str) {
         let mine = (symbol.to_string(), exchange.to_string());
         let mut map = self.0.lock();

@@ -26,6 +26,8 @@ mod funds;
 pub mod mapping;
 pub mod master_contract;
 mod orders;
+#[cfg(test)]
+mod outage_tests;
 pub mod streaming;
 #[cfg(test)]
 mod tests;
@@ -34,7 +36,7 @@ mod wire_keys;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::redact;
-use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, Presubscribe};
+use crate::brokers::common::streaming::{BrokerFeed, FeedHeld, FeedLetGo, OrderFeed, Presubscribe};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -576,6 +578,18 @@ impl Broker for MotilalBroker {
     /// tell the two apart (`wire_keys`). Checked and reserved in one hold.
     fn feed_presubscribe(&self, _auth: &AuthToken) -> Option<Presubscribe> {
         Some(self.wire_keys.step())
+    }
+
+    /// A wire key follows who holds its instrument: free once no consumer
+    /// does, whether or not a socket carried the release.
+    fn feed_let_go(&self) -> Option<FeedLetGo> {
+        Some(self.wire_keys.let_go_step())
+    }
+
+    /// And it stays with an instrument for as long as a consumer holds it,
+    /// however long no socket registers it.
+    fn feed_held(&self) -> Option<FeedHeld> {
+        Some(self.wire_keys.held_step())
     }
 
     fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
