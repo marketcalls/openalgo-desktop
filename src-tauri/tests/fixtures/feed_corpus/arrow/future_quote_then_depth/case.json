@@ -40,36 +40,6 @@
   ],
   "deviations": [
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
-      "key": "depth",
-      "kind": "open",
-      "reason": "The Arrow web adapter publishes only the tick's own mode topic, and the proxy hands a Quote holder the Depth topic's dict unchanged (book and circuits included); the desktop's Quote frame is cut at Quote. Open until wire's C08 one-dict fold (decision 2026-11-09: lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them).",
-      "ref": "websocket_proxy/server.py (fan-out to lower modes); arrow_adapter.py:227-232; audit C08"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The Arrow web adapter publishes only the tick's own mode topic, and the proxy hands a Quote holder the Depth topic's dict unchanged (book and circuits included); the desktop's Quote frame is cut at Quote. Open until wire's C08 one-dict fold (decision 2026-11-09: lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them).",
-      "ref": "websocket_proxy/server.py (fan-out to lower modes); arrow_adapter.py:227-232; audit C08"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "The Arrow web adapter publishes only the tick's own mode topic, and the proxy hands a Quote holder the Depth topic's dict unchanged (book and circuits included); the desktop's Quote frame is cut at Quote. Open until wire's C08 one-dict fold (decision 2026-11-09: lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them).",
-      "ref": "websocket_proxy/server.py (fan-out to lower modes); arrow_adapter.py:227-232; audit C08"
-    },
-    {
       "key": "frame",
       "kind": "web-defect",
       "reason": "When the Depth holder leaves, the web proxy asks the Arrow adapter to unsubscribe mode 3 only, and the adapter unsubscribes the whole token from Arrow (arrow_websocket.py:344-365) and forgets it (arrow_adapter.py:167): the Quote holder still subscribed on the web receives nothing more. The desktop moves Arrow back to quote and keeps streaming to it.",
