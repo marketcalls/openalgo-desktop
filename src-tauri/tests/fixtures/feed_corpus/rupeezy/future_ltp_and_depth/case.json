@@ -38,18 +38,6 @@
   },
   "deviations": [
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
       "key": "close",
       "kind": "desktop-decision",
       "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
