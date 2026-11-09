@@ -659,8 +659,14 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             d(Number, XTS).richer()
         }
         "definedge" => d(Number, DEFINEDGE).depth_needs_book(),
-        // delta_adapter.py `_normalise_ticker`: `float(oi)`.
-        "deltaexchange" => d(Number, DELTA).no_ltt().richer().floats(&["oi"]),
+        // delta_adapter.py `_normalise_ticker`: `float(oi)`; the book's
+        // totals only as `totalbuyqty` / `totalsellqty`.
+        "deltaexchange" => d(Number, DELTA)
+            .no_ltt()
+            .richer()
+            .key(Key::TotalBuyQuantity, Modes::NEVER)
+            .key(Key::TotalSellQuantity, Modes::NEVER)
+            .floats(&["oi"]),
         // dhan_adapter.py `_normalize_*`: no change keys on an index.
         "dhan" => d(Number, DHAN).richer().no_index_change(),
         // dhan_sandbox_adapter.py `_mock_streaming_loop`: one dict for any
