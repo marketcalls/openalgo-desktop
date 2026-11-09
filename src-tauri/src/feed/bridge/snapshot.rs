@@ -258,6 +258,7 @@ fn take_trade_time(s: &mut NormalizedTick, t: &NormalizedTick) -> bool {
     } else {
         0
     };
+    s.time_text = t.time_text;
     t.absent.contains(F::LastTradeTime)
 }
 
