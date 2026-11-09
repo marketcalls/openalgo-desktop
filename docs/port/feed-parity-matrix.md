@@ -9,11 +9,7 @@ approved when it names the rule it follows (`approvals.json`). 1.0.7 ships when
 `scripts/feed_corpus/release_gate.py --check` passes: every cell "matches web",
 "approved deviation" or "not offered by the web", and every module builds its broker.
 
-<<<<<<< HEAD
-Cases: 381. Open gaps: 0. Deviations pending approval: 1157.
-=======
-Cases: 376. Open gaps: 0. Deviations pending approval: 1242.
->>>>>>> origin/lane107/fix-corpus
+Cases: 382. Open gaps: 0. Deviations pending approval: 1157.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -763,8 +759,8 @@ Cases: 376. Open gaps: 0. Deviations pending approval: 1242.
 | iiflcapital | `index_quote` | `ask` | web-defect | `leave-out-unsent` | The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, "Field availability": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out. |
 | iiflcapital | `index_quote` | `bid_quantity` | web-defect | `leave-out-unsent` | The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, "Field availability": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out. |
 | iiflcapital | `index_quote` | `ask_quantity` | web-defect | `leave-out-unsent` | The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, "Field availability": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out. |
-| iiflcapital | `index_quote` | `change` | desktop-decision | `index-price-change` | The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet. |
-| iiflcapital | `index_quote` | `change_percent` | desktop-decision | `index-price-change` | The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet. |
+| iiflcapital | `index_quote` | `change` | desktop-decision | `iifl-capital-index-change` | The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet. |
+| iiflcapital | `index_quote` | `change_percent` | desktop-decision | `iifl-capital-index-change` | The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet. |
 | iiflcapital | `ltp_mode` | `ltt` | web-defect | `alias-unit` | The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds. |
 | iiflcapital | `quote_mode` | `ltt` | web-defect | `alias-unit` | The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds. |
 | iiflcapital | `quote_mode` | `low` | web-defect | `never-copy-web-defect` | The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted. |

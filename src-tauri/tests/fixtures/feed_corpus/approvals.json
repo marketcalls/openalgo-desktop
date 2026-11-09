@@ -268,6 +268,12 @@
       "date": "2026-11-09",
       "source": ".lane/107/decisions.md",
       "rule": "AliceBlue real depth order counts (web 0 = web defect). A changed-keys packet's explicit 0/0 level clears it (web stale side = web defect; maintainer live check)."
+    },
+    "iifl-capital-index-change": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": "lead message to bk-d",
+      "rule": "Send the docs' keys `change` / `change_percent` on the IIFL index Quote, computed from the packet's own close, and no canonical price_change* (wire's key rule switches those off per broker)."
     }
   }
 }

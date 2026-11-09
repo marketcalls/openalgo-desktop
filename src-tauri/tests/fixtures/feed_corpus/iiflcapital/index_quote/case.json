@@ -110,14 +110,14 @@
       "kind": "desktop-decision",
       "reason": "The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet.",
       "ref": "feed/dialect/names.rs IIFLCAPITAL; iiflcapital/streaming.rs ticks (derive_change)",
-      "approval": "index-price-change"
+      "approval": "iifl-capital-index-change"
     },
     {
       "key": "change_percent",
       "kind": "desktop-decision",
       "reason": "The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet.",
       "ref": "feed/dialect/names.rs IIFLCAPITAL; iiflcapital/streaming.rs ticks (derive_change)",
-      "approval": "index-price-change"
+      "approval": "iifl-capital-index-change"
     }
   ]
 }
