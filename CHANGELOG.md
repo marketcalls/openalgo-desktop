@@ -3,6 +3,170 @@
 All notable changes to OpenAlgo Desktop are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.7
+
+WebSocket parity with OpenAlgo web across all 38 brokers. Every price,
+quantity, time, order book level and order update a broker sends now reaches
+your apps on port 8765 as OpenAlgo web delivers it for that broker: the same
+keys and names, the same numbers and units, and nothing the broker did not
+send. Each broker is tested against OpenAlgo web's own adapter code on the
+same broker messages; where OpenAlgo web is wrong (a wrong unit, a made-up 0,
+lost or stale data), the desktop keeps the right value and the difference is
+recorded. Subscribe and unsubscribe now tell the truth, live prices are spread
+over several broker connections as on OpenAlgo web, and Dhan Sandbox streams
+simulated prices. If you run 1.0.6, OpenAlgo offers this update in the app;
+choose Update when no live strategy or active workflow is running.
+
+### Live market data, every broker
+
+- A price, quantity or time your broker did not send is left out of the frame
+  instead of arriving as 0, in every mode; a real 0 still arrives as 0. No
+  field ever arrives as null.
+- A broker message without a traded price no longer reaches LTP or Quote
+  subscribers with a price of 0; its order book still reaches Depth
+  subscribers.
+- When a broker sends only part of a quote, the rest from earlier in the same
+  connection is kept. After a reconnect, nothing from before the outage is
+  sent as current.
+- The change since the previous close now comes with equities and futures as
+  well as indices, under the names your broker's OpenAlgo web feed uses.
+  Brokers whose OpenAlgo web feed sends no change on an index send none.
+- Open interest reaches Quote subscribers whenever your broker sends it, and
+  Depth no longer shows an open interest of 0 the broker never sent.
+- Circuit limits, the 52-week range, best bid and ask, previous OI and OI
+  change, the day's close and each broker's own extra fields arrive under the
+  names your broker's OpenAlgo web feed uses, in the modes it sends them.
+- `data.mode`, number types (445 or 445.0) and text times (Tradejini, the
+  Noren brokers, Definedge) follow your broker's OpenAlgo web feed. `ltt` and
+  `timestamp` are always epoch milliseconds.
+- Market depth shows exactly the levels your broker sent: no added rows of
+  zeros, and an emptied side is empty. With Depth 5 and Depth 20 (or 50) held
+  on one symbol, each subscription gets only books of its own depth.
+- With LTP, Quote and Depth held on one symbol, each update reaches each mode.
+  Once a symbol's book has arrived, Depth subscribers hear every update with
+  it.
+
+### Subscriptions and connections
+
+- A subscribe is answered symbol by symbol, in your broker's OpenAlgo web
+  words: an unknown symbol, a depth or mode your broker does not offer, an
+  exchange it does not stream, or a full feed. You no longer get a success
+  for a symbol that never streams, and the answer always comes before the
+  symbol's first prices. Flow, the sandbox and strategies get the same
+  answer.
+- Unsubscribing answers success only once your broker has stopped streaming
+  the symbol. If the broker refused, or the connection dropped first, the
+  symbol stays subscribed, the answer says so, and unsubscribing again
+  retries.
+- Live prices are spread over several connections to your broker, as
+  OpenAlgo web does: up to 1,000 symbols per connection and 3 connections.
+  Brokers with tighter limits keep to them: HDFC Sky 300 per connection,
+  Upstox and HDFC Securities two connections, and one session for 5paisa,
+  Flattrade and the XTS brokers.
+- A symbol watched at 5 levels in one app and 20 in another streams 20
+  levels, and goes back to 5 when the 20-level app lets go. A 20- or 50-level
+  book that does not start, is refused or stays silent (Dhan: 30 seconds) is
+  served from your broker's 5 levels, and says so.
+- A symbol subscribed while the broker is still confirming the login is no
+  longer sent to the broker twice (Kotak, Fyers, Firstock and others).
+- Before a logout, broker switch or quit, OpenAlgo signs off from the
+  broker's feed the way OpenAlgo web does (Dhan, Motilal, Groww, IIFL
+  Capital).
+- Health shows where your order updates come from, which subscriptions are
+  still being set up or released, and each feed connection with its symbols.
+  When a broker ends the feed because too many apps stream on your login,
+  Health says so in the broker's words, and prices return as soon as an app
+  reconnects, without logging out.
+
+### Brokers
+
+- Zerodha: currency (CDS) prices are in rupees; index frames carry the
+  exchange time and the change.
+- Angel: market depth carries the circuit limits.
+- Upstox: frames carry Upstox's own time stamp, the closing-auction fields,
+  open interest in Quote, and book levels without an order count of 0.
+- Dhan: the previous close and the day's close are told apart; previous OI
+  and the day's OI range are carried; a 20-level book no longer shows the
+  sum of its visible levels as the day's totals; an exchange Dhan does not
+  stream is refused with Dhan's words; the 51st 20-level book is refused.
+- Dhan (Sandbox): streams simulated prices every second, as OpenAlgo web
+  does. They are not market prices; the Broker Configuration page and the
+  user guide say so.
+- Fyers: best bid and ask, circuit limits, the exchange time and
+  `update_type`; the token is the exchange's; 50-level depth carries the
+  levels it holds and its own feed time.
+- Delta Exchange: ticker updates refresh market depth and carry the best bid
+  and ask.
+- Nubra: frames carry Nubra's own time; Depth on an index is refused as on
+  OpenAlgo web.
+- Kotak: market depth shows only the levels Kotak sent; quotes carry OI and
+  the exchange's percent change; order updates retry the other login format
+  after 10 seconds, and market data retries an unanswered login after 15.
+- Sahi: Quote and Depth carry the circuit limits; F&O carry OI in Quote and
+  stocks and indices no longer show an OI of 0; a connection limit waits as
+  OpenAlgo web does, then asks you to close other Sahi streaming apps; an
+  expired session asks you to log in.
+- Groww: LTP carries open, high, low, previous close, volume and traded
+  value; depth carries the best bid and ask under OpenAlgo web's names.
+- IndMoney: quotes carry the best bid and ask, OI and its change and
+  IndMoney's own time; Depth is refused as on OpenAlgo web, and the /trading
+  chart, depth panels and Place Order dialog fall back to the quote and say
+  IndMoney does not stream market depth; order updates for orders placed
+  outside OpenAlgo carry the order book's id.
+- HDFC Sky and HDFC Securities: the exchange's time and trade time in
+  milliseconds, circuit limits in depth, no index zeros; HDFC Securities
+  stops prices and asks you to log in when HDFC ends the session, and a
+  mode change no longer drops and re-adds the symbol at HDFC.
+- 5paisa: best bid and ask in Quote, whole prices as 5paisa sends them, and
+  market depth with only the levels 5paisa sent.
+- Samco: indices stream from the first subscribe; best bid and ask in Quote;
+  market depth waits for Samco's first book.
+- Tradejini: circuit limits in market depth, a future's OI in Quote, and the
+  change as Tradejini sends it.
+- mStock: the exchange time and circuit limits; an index's order flow where
+  mStock sends it.
+- Motilal: market depth waits for a trade and a book, with circuit limits;
+  LTP carries the day's volume.
+- Definedge: best bid and ask and previous and total OI in Quote; circuit
+  limits and the 52-week range in depth; order updates start only after
+  Definedge accepts the session.
+- Arrow, Rupeezy, Paytm Money, Pocketful and IIFL Capital: circuit limits,
+  the 52-week range, best bid and ask, change and OI where each sends them;
+  Arrow's order updates find the symbol from the instrument token.
+- Shoonya, Flattrade, Zebu and TradeSmart: a feed that keeps answering but
+  stops sending prices is reconnected after three minutes, once prices have
+  been flowing; frames carry Noren's own percent change, the feed time, the
+  trade time, circuit limits and the 52-week range; prices arrive even when
+  a frame leaves out the exchange.
+- CompositEdge, 5paisa XTS, IBulls, IIFL, Jainam, RMoney and Wisdom: a
+  price-only update no longer blanks the rest of the quote; Depth 20 on NSE
+  and NFO streams twenty levels; a session the server ends while the
+  connection stays open is reconnected; RMoney's other message layouts
+  stream; Jainam and RMoney depth arrives without a message code.
+- Firstock: prices start reliably after login, and invalid book levels no
+  longer replace a good book.
+- AliceBlue: market depth shows each level's order count; order updates show
+  MIS, CNC or NRML; the order feed retries five times before saying it is not
+  enabled.
+- Order updates polled from the order book (5paisa, Samco, Groww) show a
+  market order's price as 0.0 and a rejection reason only for a rejected
+  order.
+
+### Known limitations
+
+- Sound alerts and native notifications (issue #222) and the Sahi sign-in
+  with TOTP API keys (issue #220) are not in this release.
+- Some broker behaviour can only be confirmed during market hours with a
+  real login (for example what an empty HDFC book list means, or how XTS
+  shapes a nested quote); OpenAlgo follows OpenAlgo web there, and the
+  remaining checks are listed in docs/port/feed-live-checks.md.
+
+### Maintenance
+
+- Live market data is now tested broker by broker against OpenAlgo web's own
+  handling of the same broker messages, and every difference is recorded
+  with its reason (docs/port/feed-parity-matrix.md).
+
 ## 1.0.6
 
 OpenAlgo web's November broker fixes. Live prices from thirteen brokers now
