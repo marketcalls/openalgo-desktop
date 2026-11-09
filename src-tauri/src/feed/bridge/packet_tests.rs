@@ -153,3 +153,20 @@ fn a_packet_pairs_its_own_tick_and_book_only() {
         ]
     );
 }
+
+/// R107-04 A as the fail-before branch reproduced it on 1.0.7: the
+/// manager's pool-wide connect count moving (a pool opening a connection)
+/// forgets no instrument's quote.
+#[test]
+fn the_pools_connect_count_forgets_no_quote() {
+    let manager = Arc::new(WebSocketManager::new());
+    let bridge = BrokerBridge::new(manager.clone(), SymbolResolver::new());
+    drop(bridge.subscribe(&InstrumentKey::new("SBIN", "NSE"), Mode::Depth, 5));
+    bridge.convert(&tick("SBIN"));
+    manager
+        .stats()
+        .connects
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let u = bridge.convert(&book("SBIN", 5)).expect("the book");
+    assert_eq!(open_price(&u), Some(1180.1), "LTP {}", u.ltp);
+}
