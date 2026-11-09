@@ -448,12 +448,13 @@ impl Broker for DhanBroker {
                 order_feed: true,
                 depth_levels: &[5, 20],
             },
+            // The sandbox streams simulated prices (`dhan_sandbox::feed`).
             Variant::Sandbox => Capabilities {
                 history: true,
                 multiquotes_batch: false,
                 margin: true,
                 gtt: false,
-                streaming: false,
+                streaming: true,
                 order_feed: false,
                 depth_levels: &[5],
             },
@@ -593,8 +594,10 @@ impl Broker for DhanBroker {
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         if self.is_sandbox() {
-            // web: the sandbox feed is a synthetic tick generator, not Dhan.
-            return Err(AppError::Unsupported("streaming"));
+            // web: the sandbox feed is a simulated one, not Dhan's.
+            return Ok(Box::new(
+                crate::brokers::dhan_sandbox::feed::DhanSandboxFeed::new(self.symbols.clone()),
+            ));
         }
         let s = DhanSession::parse(auth)?;
         let cid = s.require_client_id()?.to_string();

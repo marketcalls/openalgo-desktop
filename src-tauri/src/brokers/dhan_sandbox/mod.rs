@@ -12,12 +12,15 @@
 //! * Intraday history is fetched in 5-day chunks.
 //! * Tick size from the scrip master is kept unscaled.
 //! * SL-M is sent as a bare STOP_LOSS_MARKET (no protective conversion).
-//! * No Forever Orders (GTT) and no live market feed (the web's sandbox feed
-//!   is a synthetic tick generator).
+//! * No Forever Orders (GTT). No market feed from Dhan: the feed is the
+//!   web's simulated one, ported exactly (maintainer, 2026-11-09), so its
+//!   prices are simulated prices, not market prices (`feed`).
 //!
 //! Not carried over: the web's `_apply_sandbox_mock_realism`, which adds
 //! deterministic noise and a fake OI to sandbox quotes so its option Greeks
 //! do not divide by zero. Quotes here are what the sandbox candles say.
+
+pub mod feed;
 
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::dhan::{DhanBroker, DhanSession};
@@ -142,7 +145,13 @@ mod tests {
         let b = broker(SymbolResolver::new());
         assert_eq!(b.id(), "dhan_sandbox");
         assert!(!b.capabilities().gtt);
-        assert!(!b.capabilities().streaming);
+        assert!(b.capabilities().streaming);
+        assert!(!b.capabilities().order_feed);
+        let feed = b
+            .create_feed(&AuthToken::new("sandbox-secret"))
+            .expect("the simulated feed");
+        assert_eq!(feed.broker(), "dhan_sandbox");
+        assert_eq!(feed.supported_depth_levels(), &[5]);
         assert_eq!(
             b.login_kind(),
             crate::brokers::types::LoginKind::AccessToken

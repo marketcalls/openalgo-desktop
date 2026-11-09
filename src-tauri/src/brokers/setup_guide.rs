@@ -269,7 +269,7 @@ fn guide_d_to_g(broker: &str) -> Option<SetupGuide> {
                     "The access token of your Dhan sandbox account.",
                 ),
             ] },
-            banner: "Login with Dhan (Sandbox) signs you in with one click using the client ID and sandbox access token you saved.",
+            banner: "Login with Dhan (Sandbox) signs you in with one click using the client ID and sandbox access token you saved. Its live prices are simulated prices, not market prices: Dhan's sandbox streams none, so OpenAlgo makes them up as OpenAlgo web does.",
             redirect_hint: "",
         },
         "firstock" => SetupGuide {
