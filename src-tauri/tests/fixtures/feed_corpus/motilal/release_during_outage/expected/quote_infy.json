@@ -1,0 +1,17 @@
+{
+  "type": "market_data",
+  "symbol": "INFY",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "motilal",
+  "data": {
+    "symbol": "INFY",
+    "exchange": "NSE",
+    "ltp": 1500.25,
+    "timestamp": "<receipt_ms>",
+    "volume": 12000,
+    "average_price": 1499.5,
+    "ltq": 10,
+    "mode": 2
+  }
+}

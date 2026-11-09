@@ -1,0 +1,7 @@
+# register, struct =cHcciB (web MotilalWebSocket.register_scrip)
+44                      # 'D'
+0700                    # 7
+4e                      # exchange character N
+43                      # segment C (CASH)
+3a060000                # scrip 1594
+01                      # 1: add

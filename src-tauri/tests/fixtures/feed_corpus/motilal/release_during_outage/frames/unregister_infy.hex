@@ -1,0 +1,7 @@
+# unregister, struct =cHcciB (web MotilalWebSocket.unregister_scrip)
+44                      # 'D'
+0700                    # 7
+4e                      # exchange character N
+43                      # segment C (CASH)
+3a060000                # scrip 1594
+00                      # 0: remove
