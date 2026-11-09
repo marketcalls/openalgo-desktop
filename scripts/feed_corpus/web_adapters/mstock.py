@@ -35,6 +35,9 @@ class Mstock(Glue):
         self.ad = self.new("MstockWebSocketAdapter", subscriptions={}, publish_market_data=self.publish)
 
     def subscribe(self, row, mode, depth):
+        # mstock_adapter.py:239-242: INVALID_DEPTH, nothing stored.
+        if mode == 3 and depth != 5:
+            return
         self.ad.subscriptions[f"{row['symbol']}_{row['exchange']}_{mode}"] = {
             "symbol": row["symbol"],
             "exchange": row["exchange"],

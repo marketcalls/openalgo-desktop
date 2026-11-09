@@ -32,6 +32,7 @@ corpus_cases!(
         index_quote,
         future_quote_to_depth,
         currency_segment,
+        depth_levels_refused,
         reconnect_replays,
     ]
 );
