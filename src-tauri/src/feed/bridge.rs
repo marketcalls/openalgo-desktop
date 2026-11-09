@@ -4,12 +4,13 @@
 //! * Symbols resolve against the shared symbol master (`SymbolResolver`), so
 //!   an unknown symbol gets the web's "Token not found" refusal and a known
 //!   one becomes a `FeedSubscription` with the broker token and exchange.
-//! * `subscribe` / `unsubscribe` only edit the desired set and wake the
-//!   reconcile task, which diffs desired against applied and calls
-//!   `WebSocketManager::subscribe` / `unsubscribe`. The feed server already
-//!   reference counts across its clients, so the bridge holds exactly one
-//!   manager reference per `(instrument, mode, depth)`; the manager merges
-//!   modes per instrument for the broker.
+//! * `subscribe` / `unsubscribe` edit the desired set and wake the
+//!   reconcile task (`apply`), which diffs desired against applied, asks
+//!   the managers, and answers the feed client waiting on the key: taken or
+//!   refused, released or still streamed (audit C01, C02). The feed server
+//!   already reference counts across its clients, so the bridge holds
+//!   exactly one manager reference per `(instrument, mode, depth)`; the
+//!   manager merges modes per instrument for the broker.
 //! * The relay task turns the manager's `MarketEvent`s into
 //!   [`MarketUpdate`]s. A broker that sends a full tick as `Tick` plus a
 //!   separate `Depth` (Kite) is served as: the tick to Quote and LTP holders,
@@ -29,24 +30,33 @@
 //! Every map is bounded by what feed clients currently hold.
 
 use super::source::{
-    ClientLosses, InstrumentKey, MarketDataSource, MarketUpdate, Mode, DEFAULT_DEPTH,
+    answered, ClientLosses, InstrumentKey, MarketDataSource, MarketUpdate, Mode, SourceOp,
+    DEFAULT_DEPTH,
 };
 use crate::brokers::common::streaming::{
     FeedEvent, FeedMode, FeedSubscription, MarketEvent, QuoteField,
 };
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::websocket::{FeedStatus, Reader, WebSocketManager};
+use crate::websocket::{Reader, WebSocketManager};
 use parking_lot::Mutex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, Notify};
 use tokio::task::JoinSet;
 
+mod apply;
+mod deep;
+pub(super) mod pairing;
 mod render;
 pub(super) mod snapshot;
+use apply::{Applied, Ops};
+pub use apply::{Operations, Refused};
+use deep::DeepBooks;
+use pairing::Next;
+pub(in crate::feed) use render::snapshot_update;
 pub(crate) use render::{depth_update, tick_update};
-use snapshot::Snapshot;
+use snapshot::{LastBook, Snapshot};
 
 /// Capacity of the update channel between the bridge and feed servers.
 pub const BRIDGE_UPDATE_CAP: usize = 8192;
@@ -58,6 +68,9 @@ pub const NO_LIVE_FEED: &str =
 /// A subscribe item's error when the session's live feed did not start.
 pub const FEED_NOT_STARTED: &str = "The live market data feed did not start for this broker \
 session. Log in to your broker again to resume streaming.";
+/// A subscribe item's error when the feed stopped before taking it.
+pub const FEED_STOPPED: &str = "The live market data feed stopped before it could take this \
+subscription. Subscribe again once it is running.";
 
 /// One desired manager reference.
 pub type DesiredKey = (InstrumentKey, Mode, u8);
@@ -69,48 +82,39 @@ pub type DepthCapability = Arc<dyn Fn(&str) -> Vec<u8> + Send + Sync>;
 /// does not (`Broker::feed_refusal`).
 pub type ExchangeRefusal = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
 
-/// What one desired key holds on the managers.
-#[derive(Debug, Clone)]
-enum Applied {
-    Main(FeedSubscription),
-    /// Depth socket book plus the main feed's quote for the same instrument.
-    Deep {
-        depth: FeedSubscription,
-        quote: FeedSubscription,
-    },
-}
-
-impl Applied {
-    fn main_subs(&self) -> Vec<FeedSubscription> {
-        match self {
-            Applied::Main(s) => vec![s.clone()],
-            Applied::Deep { quote, .. } => vec![quote.clone()],
-        }
-    }
-}
-
-/// The references feed clients want, and how many of them name each
-/// instrument: every tick asks whether its instrument is held, under the
-/// state lock, and a scan of every reference made that cost grow with the
-/// number held (3,000 instruments in several modes at a busy open).
+/// The references feed clients want, in the order they were first wanted,
+/// and how many of them name each instrument: every tick asks whether its
+/// instrument is held, under the state lock, and a scan of every reference
+/// made that cost grow with the number held (3,000 instruments in several
+/// modes at a busy open).
 #[derive(Default)]
 struct Desired {
-    keys: HashSet<DesiredKey>,
+    /// Each key with when it was wanted: a request past the feed's room is
+    /// taken in its own order, first come first served, as the web's
+    /// proxy subscribes its items one by one (audit C02).
+    keys: HashMap<DesiredKey, u64>,
+    next: u64,
     per_instrument: HashMap<InstrumentKey, usize>,
 }
 
 impl Desired {
     fn insert(&mut self, key: DesiredKey) -> bool {
-        let instrument = key.0.clone();
-        let added = self.keys.insert(key);
-        if added {
-            *self.per_instrument.entry(instrument).or_insert(0) += 1;
+        if self.keys.contains_key(&key) {
+            return false;
         }
-        added
+        *self.per_instrument.entry(key.0.clone()).or_insert(0) += 1;
+        self.keys.insert(key, self.next);
+        self.next += 1;
+        true
+    }
+
+    /// `keys` in the order they were wanted.
+    fn in_order(&self, keys: &mut [DesiredKey]) {
+        keys.sort_by_key(|k| self.keys.get(k).copied().unwrap_or(u64::MAX));
     }
 
     fn remove(&mut self, key: &DesiredKey) -> bool {
-        let removed = self.keys.remove(key);
+        let removed = self.keys.remove(key).is_some();
         if removed {
             if let Some(n) = self.per_instrument.get_mut(&key.0) {
                 *n -= 1;
@@ -128,11 +132,11 @@ impl Desired {
     }
 
     fn contains(&self, key: &DesiredKey) -> bool {
-        self.keys.contains(key)
+        self.keys.contains_key(key)
     }
 
     fn iter(&self) -> impl Iterator<Item = &DesiredKey> {
-        self.keys.iter()
+        self.keys.keys()
     }
 
     /// Whether any reference names this instrument.
@@ -148,6 +152,13 @@ struct State {
     /// The merged quote per held instrument (`snapshot`): what a tick's
     /// frame and a separate depth snapshot's quote fields are built on.
     last_tick: HashMap<InstrumentKey, Snapshot>,
+    /// Who waits on what the managers do, and what is retried.
+    ops: Ops,
+    /// Moves on `reset`: what a manager answers after it forgot every
+    /// reference (broker logout) changes nothing.
+    generation: u64,
+    /// Deep books watched for silence, and those that fell back (`deep`).
+    deep_books: DeepBooks,
 }
 
 impl State {
@@ -162,6 +173,9 @@ pub struct BrokerBridge {
     depth_manager: Arc<WebSocketManager>,
     /// Depth levels served by `depth_manager`, when it runs.
     deep: Mutex<Option<u8>>,
+    /// Depth levels whose socket did not start for this session: a Depth
+    /// subscribe at them is served the main feed's levels (`deep`).
+    deep_down: Mutex<Option<u8>>,
     symbols: SymbolResolver,
     tx: broadcast::Sender<Arc<MarketUpdate>>,
     state: Arc<Mutex<State>>,
@@ -201,6 +215,7 @@ impl BrokerBridge {
             manager,
             depth_manager,
             deep: Mutex::new(None),
+            deep_down: Mutex::new(None),
             symbols,
             tx,
             state: Arc::new(Mutex::new(State::default())),
@@ -237,6 +252,20 @@ impl BrokerBridge {
         *self.deep.lock() = levels;
     }
 
+    /// How long a deep book may stay silent before its instrument falls
+    /// back to the main feed's levels (`None`: never; Dhan 30 s, audit
+    /// P-10). Set with `set_deep_levels`.
+    pub fn set_deep_book_timeout(&self, timeout: Option<std::time::Duration>) {
+        self.state.lock().deep_books.reset(timeout);
+    }
+
+    /// The broker's socket for `levels`-level books did not start this
+    /// session: Depth subscribes at those levels are served the main feed's
+    /// levels (until `reset`), as the web's adapters fall back.
+    pub fn set_deep_unavailable(&self, levels: u8) {
+        *self.deep_down.lock() = Some(levels);
+    }
+
     /// References the bridge currently holds on the main manager.
     pub fn applied(&self) -> Vec<FeedSubscription> {
         self.state
@@ -245,6 +274,11 @@ impl BrokerBridge {
             .values()
             .flat_map(Applied::main_subs)
             .collect()
+    }
+
+    /// What the bridge's subscriptions stand at now, for health.
+    pub fn operations(&self) -> Operations {
+        self.state.lock().operations()
     }
 
     /// References the bridge currently holds on the depth manager.
@@ -269,8 +303,12 @@ impl BrokerBridge {
             let mut st = self.state.lock();
             st.applied.clear();
             st.last_tick.clear();
+            st.generation += 1;
+            st.ops.forget_retries();
+            st.deep_books.reset(None);
         }
         *self.deep.lock() = None;
+        *self.deep_down.lock() = None;
         *self.unavailable.lock() = None;
         *self.refusal.lock() = None;
         self.set_depth_capability(Arc::new(|_| vec![DEFAULT_DEPTH]));
@@ -293,7 +331,20 @@ impl BrokerBridge {
         set.spawn(async move {
             loop {
                 me.reconcile().await;
-                me.changed.notified().await;
+                let retry = {
+                    let st = me.state.lock();
+                    [st.ops.next_retry(), st.deep_books.next_deadline()]
+                        .into_iter()
+                        .flatten()
+                        .min()
+                };
+                match retry {
+                    Some(at) => tokio::select! {
+                        _ = me.changed.notified() => {}
+                        _ = tokio::time::sleep_until(at) => {}
+                    },
+                    None => me.changed.notified().await,
+                }
             }
         });
         for feed in [self.manager.clone(), self.depth_manager.clone()] {
@@ -315,162 +366,86 @@ impl BrokerBridge {
             let mut st = self.state.lock();
             st.desired.clear();
             st.last_tick.clear();
+            st.ops.clear();
+            st.deep_books.reset(None);
             st.applied.drain().map(|(_, s)| s).collect()
         };
         self.release(held).await;
     }
 
-    /// Drop manager references held for `applied` entries.
-    async fn release(&self, applied: Vec<Applied>) {
-        let mut main = Vec::new();
-        let mut deep = Vec::new();
-        for a in applied {
-            match a {
-                Applied::Main(s) => main.push(s),
-                Applied::Deep { depth, quote } => {
-                    deep.push(depth);
-                    main.push(quote);
-                }
-            }
-        }
-        if !main.is_empty() {
-            if let Err(e) = self.manager.unsubscribe(main).await {
-                tracing::warn!("Could not release market data subscriptions: {}", e);
-            }
-        }
-        if !deep.is_empty() {
-            if let Err(e) = self.depth_manager.unsubscribe(deep).await {
-                tracing::warn!("Could not release market depth subscriptions: {}", e);
-            }
-        }
-    }
-
-    /// How a desired key is applied (deep route when its levels match).
-    fn applied_for(&self, key: &DesiredKey) -> Option<Applied> {
-        let sub = self.subscription(key)?;
-        let deep = *self.deep.lock();
-        Some(match deep {
-            Some(levels) if key.1 == Mode::Depth && key.2 == levels => Applied::Deep {
-                quote: FeedSubscription {
-                    mode: FeedMode::Quote,
-                    depth: DEFAULT_DEPTH,
-                    ..sub.clone()
-                },
-                depth: sub,
-            },
-            _ => Applied::Main(sub),
-        })
-    }
-
-    fn subscription(&self, key: &DesiredKey) -> Option<FeedSubscription> {
-        let (k, mode, depth) = key;
-        let row = self.symbols.by_symbol(&k.exchange, &k.symbol)?;
-        Some(FeedSubscription {
-            symbol: k.symbol.clone(),
-            exchange: k.exchange.clone(),
-            token: row.token.clone(),
-            brsymbol: row.br_symbol().to_string(),
-            brexchange: row.br_exchange().to_string(),
-            mode: mode_of(*mode),
-            depth: *depth,
-        })
-    }
-
-    /// Bring the manager in line with the desired set.
-    async fn reconcile(&self) {
-        let (add, remove) = {
-            let mut st = self.state.lock();
-            let add: Vec<DesiredKey> = st
-                .desired
-                .iter()
-                .filter(|k| !st.applied.contains_key(*k))
-                .cloned()
-                .collect();
-            let gone: Vec<DesiredKey> = st
-                .applied
-                .keys()
-                .filter(|k| !st.desired.contains(k))
-                .cloned()
-                .collect();
-            let remove: Vec<Applied> = gone.iter().filter_map(|k| st.applied.remove(k)).collect();
-            let State {
-                desired, last_tick, ..
-            } = &mut *st;
-            last_tick.retain(|k, _| desired.holds(k));
-            (add, remove)
-        };
-        self.release(remove).await;
-        let mut subs = Vec::with_capacity(add.len());
-        let mut keys = Vec::with_capacity(add.len());
-        for k in add {
-            match self.applied_for(&k) {
-                Some(s) => {
-                    subs.push(s);
-                    keys.push(k);
-                }
-                None => tracing::warn!(
-                    "{} on {} is not in the symbol master; not streaming it",
-                    k.0.symbol,
-                    k.0.exchange
-                ),
-            }
-        }
-        if subs.is_empty() {
-            return;
-        }
-        let mut main = Vec::new();
-        let mut deep = Vec::new();
-        for a in &subs {
-            match a {
-                Applied::Main(s) => main.push(s.clone()),
-                Applied::Deep { depth, quote } => {
-                    deep.push(depth.clone());
-                    main.push(quote.clone());
-                }
-            }
-        }
-        let mut result = self.manager.subscribe(main.clone()).await;
-        if result.is_ok() && !deep.is_empty() {
-            result = self.depth_manager.subscribe(deep).await;
-            if result.is_err() {
-                // Do not keep the quote references of a refused deep book.
-                let _ = self.manager.unsubscribe(main).await;
-            }
-        }
-        match result {
-            Ok(()) => {
-                let mut st = self.state.lock();
-                for (k, s) in keys.into_iter().zip(subs) {
-                    st.applied.insert(k, s);
-                }
-                // A key dropped meanwhile is released on the next pass.
-                drop(st);
-                self.changed.notify_one();
-            }
-            Err(e) => tracing::warn!("Market data subscribe failed: {}", e),
-        }
-    }
-
     async fn relay(&self, mut rx: broadcast::Receiver<MarketEvent>, from: &WebSocketManager) {
+        // The deep-book socket's books keep its instruments watched (P-10).
+        let deep = std::ptr::eq(from, self.depth_manager.as_ref());
         let mut skipped: u64 = 0;
+        let mut lagged = |n: u64| {
+            skipped += n;
+            from.stats().note_skipped(Reader::FeedClients, n);
+            tracing::warn!(
+                "Market data relay fell behind the broker feed; skipped {} events ({} total)",
+                n,
+                skipped
+            );
+        };
         loop {
             match rx.recv().await {
                 Ok(ev) => {
-                    if let Some(u) = self.convert(&ev) {
-                        let _ = self.tx.send(Arc::new(u));
+                    if !self.relay_event(ev, &mut rx, &mut lagged, deep) {
+                        return;
                     }
                 }
-                Err(RecvError::Lagged(n)) => {
-                    skipped += n;
-                    from.stats().note_skipped(Reader::FeedClients, n);
-                    tracing::warn!(
-                        "Market data relay fell behind the broker feed; skipped {} events ({} total)",
-                        n,
-                        skipped
-                    );
-                }
+                Err(RecvError::Lagged(n)) => lagged(n),
                 Err(RecvError::Closed) => return,
             }
+        }
+    }
+
+    /// Send `ev` on; a full tick whose book already waits behind it goes
+    /// out with the book as one update (`pairing`). False once the feed has
+    /// closed.
+    fn relay_event(
+        &self,
+        mut ev: MarketEvent,
+        rx: &mut broadcast::Receiver<MarketEvent>,
+        lagged: &mut dyn FnMut(u64),
+        deep: bool,
+    ) -> bool {
+        loop {
+            if deep {
+                self.note_deep_book(&ev);
+            }
+            let Some(tick) = pairing::awaits_book(&ev) else {
+                self.publish(self.convert(&ev));
+                return true;
+            };
+            let next = pairing::next_event(tick, rx);
+            if let Next::Book(book) = &next {
+                if deep {
+                    self.note_deep_book(book);
+                }
+                self.convert(&ev);
+                let both = self.convert(book).map(|u| MarketUpdate {
+                    exact_mode: false,
+                    ..u
+                });
+                self.publish(both);
+                return true;
+            }
+            self.publish(self.convert(&ev));
+            match next {
+                Next::Other(other) => ev = other,
+                Next::Lagged(n) => {
+                    lagged(n);
+                    return true;
+                }
+                Next::Closed => return false,
+                Next::Book(_) | Next::Nothing => return true,
+            }
+        }
+    }
+
+    fn publish(&self, update: Option<MarketUpdate>) {
+        if let Some(u) = update {
+            let _ = self.tx.send(Arc::new(u));
         }
     }
 
@@ -507,7 +482,7 @@ impl BrokerBridge {
                 // snapshot; the next priced packet carries what it brought.
                 let update = t
                     .knows(QuoteField::Ltp)
-                    .then(|| tick_update(key.clone(), merged.tick()))
+                    .then(|| snapshot_update(key.clone(), &merged))
                     .flatten()
                     .map(|u| MarketUpdate {
                         token: merged.token(),
@@ -519,14 +494,17 @@ impl BrokerBridge {
             FeedEvent::Depth(d) => {
                 let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
                 let epoch = self.connection();
-                let st = self.state.lock();
+                let mut st = self.state.lock();
                 if !st.holds(&key) {
                     return None;
                 }
                 let last = st.last_tick.get(&key).filter(|s| s.of_epoch(epoch));
                 let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
                 let token = last.and_then(Snapshot::token).or_else(|| self.token(&key));
-                let update = depth_update(key, d, last.map(Snapshot::tick), lacks);
+                let update = depth_update(key.clone(), d, last.map(Snapshot::tick), lacks);
+                if let Some(book) = LastBook::of(&update) {
+                    snapshot::keep_book(&mut st.last_tick, &key, book, epoch);
+                }
                 Some(MarketUpdate { token, ..update })
             }
             _ => None,
@@ -535,24 +513,53 @@ impl BrokerBridge {
 }
 
 impl MarketDataSource for BrokerBridge {
-    fn subscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) {
-        if self.state.lock().desired.insert((key.clone(), mode, depth)) {
-            self.changed.notify_one();
-        }
+    /// Taken at once when the key is held already; else when the managers
+    /// answer the next pass (`apply`).
+    fn subscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp {
+        let k = (key.clone(), mode, depth);
+        let taken = {
+            let mut st = self.state.lock();
+            st.desired.insert(k.clone());
+            st.ops.wanted_again(&k);
+            if st.applied.contains_key(&k) && !st.ops.releasing(&k) {
+                None
+            } else {
+                Some(st.ops.wait_admission(k))
+            }
+        };
+        let Some(taken) = taken else {
+            return answered(Ok(()));
+        };
+        self.changed.notify_one();
+        Box::pin(async move { taken.await.unwrap_or_else(|_| Err(FEED_STOPPED.into())) })
     }
 
-    fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) {
-        let mut st = self.state.lock();
-        if st.desired.remove(&(key.clone(), mode, depth)) {
+    /// Released at once when the managers hold nothing for the key; else
+    /// when the broker answers the next pass. An answer that never comes
+    /// because the bridge stopped is a release: it let go of everything.
+    fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp {
+        let k = (key.clone(), mode, depth);
+        let released = {
+            let mut st = self.state.lock();
+            st.desired.remove(&k);
             // Once nothing names the instrument, its quote goes at once, so
             // a book subscribed again merges only a quote of its own (web
             // openalgo#2376, `forget_quote`).
             if !st.desired.holds(key) {
                 st.last_tick.remove(key);
             }
-            drop(st);
-            self.changed.notify_one();
-        }
+            st.ops.unwanted(&k, FEED_STOPPED);
+            if !st.applied.contains_key(&k) && !st.ops.releasing(&k) {
+                None
+            } else {
+                Some(st.ops.wait_release(k))
+            }
+        };
+        let Some(released) = released else {
+            return answered(Ok(()));
+        };
+        self.changed.notify_one();
+        Box::pin(async move { released.await.unwrap_or(Ok(())) })
     }
 
     fn updates(&self) -> broadcast::Receiver<Arc<MarketUpdate>> {
@@ -577,14 +584,19 @@ impl MarketDataSource for BrokerBridge {
     /// which closes every authenticated feed client anyway), or this
     /// session's feed has none or did not start.
     fn unavailable(&self) -> Option<String> {
-        if let FeedStatus::AuthFailed { message, .. } = self.manager.status() {
-            return Some(message);
+        if let Some(message) = self.manager.status().refusal() {
+            return Some(message.to_string());
         }
         self.unavailable.lock().map(String::from)
     }
 
     fn client_losses(&self) -> Option<Arc<ClientLosses>> {
         Some(self.client_losses.clone())
+    }
+
+    fn resume(&self) {
+        self.manager.resume();
+        self.depth_manager.resume();
     }
 }
 
@@ -623,19 +635,19 @@ mod tests {
                 .is_some()
         };
         assert!(!relayed(&bridge, "SBIN"));
-        bridge.subscribe(&sbin, Mode::Ltp, 5);
-        bridge.subscribe(&sbin, Mode::Depth, 20);
-        bridge.subscribe(&tcs, Mode::Quote, 5);
-        bridge.subscribe(&tcs, Mode::Quote, 5);
+        drop(bridge.subscribe(&sbin, Mode::Ltp, 5));
+        drop(bridge.subscribe(&sbin, Mode::Depth, 20));
+        drop(bridge.subscribe(&tcs, Mode::Quote, 5));
+        drop(bridge.subscribe(&tcs, Mode::Quote, 5));
         assert!(relayed(&bridge, "SBIN") && relayed(&bridge, "TCS"));
-        bridge.unsubscribe(&sbin, Mode::Depth, 20);
+        drop(bridge.unsubscribe(&sbin, Mode::Depth, 20));
         assert!(relayed(&bridge, "SBIN"), "the LTP reference still holds it");
-        bridge.unsubscribe(&sbin, Mode::Ltp, 5);
+        drop(bridge.unsubscribe(&sbin, Mode::Ltp, 5));
         assert!(!relayed(&bridge, "SBIN"));
         // A reference added twice is one reference.
-        bridge.unsubscribe(&tcs, Mode::Quote, 5);
+        drop(bridge.unsubscribe(&tcs, Mode::Quote, 5));
         assert!(!relayed(&bridge, "TCS"));
-        bridge.subscribe(&tcs, Mode::Ltp, 5);
+        drop(bridge.subscribe(&tcs, Mode::Ltp, 5));
         bridge.stop().await;
         assert!(!relayed(&bridge, "TCS"));
     }
@@ -662,7 +674,7 @@ mod tests {
     fn a_depth_before_the_first_tick_carries_no_quote_fields() {
         let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
         let key = InstrumentKey::new("RELIANCE", "NSE");
-        bridge.subscribe(&key, Mode::Depth, 20);
+        drop(bridge.subscribe(&key, Mode::Depth, 20));
         let level = crate::brokers::types::DepthLevel {
             price: 1167.5,
             quantity: 10,
@@ -745,16 +757,16 @@ mod tests {
                 .is_some_and(|q| q.open.is_some())
         };
 
-        bridge.subscribe(&key, Mode::Depth, 50);
+        drop(bridge.subscribe(&key, Mode::Depth, 50));
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
         assert!(quoted(&bridge));
-        bridge.unsubscribe(&key, Mode::Depth, 50);
-        bridge.subscribe(&key, Mode::Depth, 50);
+        drop(bridge.unsubscribe(&key, Mode::Depth, 50));
+        drop(bridge.subscribe(&key, Mode::Depth, 50));
         assert!(!quoted(&bridge), "the old quote is not merged");
 
-        bridge.subscribe(&key, Mode::Depth, 5);
+        drop(bridge.subscribe(&key, Mode::Depth, 5));
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
-        bridge.unsubscribe(&key, Mode::Depth, 50);
+        drop(bridge.unsubscribe(&key, Mode::Depth, 50));
         assert!(quoted(&bridge), "the 5-level book still reads the quote");
     }
 
@@ -767,7 +779,7 @@ mod tests {
         let manager = Arc::new(WebSocketManager::new());
         let bridge = BrokerBridge::new(manager.clone(), SymbolResolver::new());
         let key = InstrumentKey::new("SBIN", "NSE");
-        bridge.subscribe(&key, Mode::Depth, 5);
+        drop(bridge.subscribe(&key, Mode::Depth, 5));
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
         let book = FeedEvent::Depth(NormalizedDepth {
             symbol: "SBIN".into(),
@@ -795,7 +807,7 @@ mod tests {
     fn a_packet_without_a_trade_waits_for_the_price() {
         let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
         let key = InstrumentKey::new("NIFTY28NOV26FUT", "NFO");
-        bridge.subscribe(&key, Mode::Quote, 5);
+        drop(bridge.subscribe(&key, Mode::Quote, 5));
         let mut oi = NormalizedTick {
             symbol: key.symbol.clone(),
             exchange: key.exchange.clone(),

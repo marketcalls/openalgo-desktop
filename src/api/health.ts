@@ -186,6 +186,35 @@ export interface BrokerFeedLosses {
   skipped_total_since_start?: number
   /** Desktop: how the feed's connection held up (`feed_connections::json`). */
   connection?: FeedConnection
+  /** Desktop: the broker connections the feed has open (`feed_state::connections`). */
+  connections?: FeedPool
+}
+
+/** A feed's broker connections: the room each has and what each carries. */
+export interface FeedPool {
+  per_connection: number
+  most: number
+  open: { instruments: number; state: FeedConnection['state'] }[]
+}
+
+/** Desktop: where the feed's subscriptions stand (`feed_state::subscriptions`). */
+export interface FeedSubscriptions {
+  /** Taken, and not streaming yet (no broker session or symbol master). */
+  waiting: number
+  /** Released, and not confirmed by the broker yet. */
+  releasing: number
+  /** Releases the broker refused while no app waited, being tried again. */
+  release_retrying: number
+  /** Subscriptions the broker connection refused while no app waited. */
+  refused: number
+  refused_items: { symbol: string; exchange: string; mode: string; reason: string }[]
+}
+
+/** Desktop: where order updates come from (`feed_state::order_updates`). */
+export interface OrderUpdatesSource {
+  source: 'none' | 'order_socket' | 'market_feed' | 'broker_adapter' | 'not_started'
+  /** Null where the source's state is not known apart from the source. */
+  connected: boolean | null
 }
 
 /**
@@ -195,7 +224,16 @@ export interface BrokerFeedLosses {
 export interface FeedConnection {
   /** The broker of the latest connection; null before the first. */
   broker: string | null
-  state: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'auth_failed'
+  state:
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'reconnecting'
+    | 'auth_failed'
+    | 'connection_limit'
+    | 'ended_by_broker'
+  /** Why the broker refused or ended the feed, in the broker's words. */
+  message?: string | null
   connects: number
   /** Connections that ended, or attempts that failed, and were tried again. */
   disconnects: number
@@ -209,6 +247,8 @@ export interface MarketDataLosses {
   status: 'pass' | 'warn'
   broker_feeds: BrokerFeedLosses[]
   feed_clients: { coalesced: number; dropped: number; skipped: number }
+  subscriptions?: FeedSubscriptions
+  order_updates?: OrderUpdatesSource
 }
 
 export interface HistoricalMetric {

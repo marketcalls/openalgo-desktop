@@ -16,7 +16,7 @@
 use super::streams;
 use crate::services::health_service as health;
 use crate::state::{AppState, ServerStatus};
-use crate::websocket::{FeedStatus, WebSocketManager};
+use crate::websocket::{FeedStatus, StopKind, WebSocketManager};
 use serde::Serialize;
 
 /// How a part is doing; picks the badge colour.
@@ -145,6 +145,11 @@ fn stream_state(status: &FeedStatus) -> (State, &'static str) {
         FeedStatus::Connecting { .. } => (State::Waiting, "Connecting"),
         FeedStatus::Reconnecting { .. } => (State::Waiting, "Reconnecting"),
         FeedStatus::AuthFailed { .. } => (State::Problem, "Refused"),
+        FeedStatus::Halted {
+            kind: StopKind::ConnectionLimit,
+            ..
+        } => (State::Problem, "Too many connections"),
+        FeedStatus::Halted { .. } => (State::Problem, "Stopped by the broker"),
         FeedStatus::Disconnected => (State::Problem, "Not connected"),
     }
 }

@@ -9,16 +9,22 @@
 //! A trader who sees prices lag reads here whether the broker's feed keeps
 //! dropping or going quiet (the web has no such view; its feeds log it).
 
-use crate::websocket::{Connection, FeedStatus, WebSocketManager};
+use crate::websocket::{Connection, FeedStatus, StopKind, WebSocketManager};
 use serde_json::{json, Value};
 
-fn state(status: &FeedStatus) -> &'static str {
+/// A feed state as health names it.
+pub(crate) fn state(status: &FeedStatus) -> &'static str {
     match status {
         FeedStatus::Disconnected => "disconnected",
         FeedStatus::Connecting { .. } => "connecting",
         FeedStatus::Connected { .. } => "connected",
         FeedStatus::Reconnecting { .. } => "reconnecting",
         FeedStatus::AuthFailed { .. } => "auth_failed",
+        FeedStatus::Halted {
+            kind: StopKind::ConnectionLimit,
+            ..
+        } => "connection_limit",
+        FeedStatus::Halted { .. } => "ended_by_broker",
     }
 }
 
@@ -26,6 +32,8 @@ fn block(status: &FeedStatus, c: &Connection) -> Value {
     json!({
         "broker": c.broker,
         "state": state(status),
+        // The broker's own words when it refused or ended the feed.
+        "message": status.refusal(),
         "connects": c.connects,
         "disconnects": c.disconnects,
         "stalls": c.stalls,
@@ -71,6 +79,7 @@ mod tests {
             json!({
                 "broker": "kotak",
                 "state": "reconnecting",
+                "message": null,
                 "connects": 4,
                 "disconnects": 3,
                 "stalls": 1,
@@ -79,6 +88,19 @@ mod tests {
                     "at": "2026-10-26T04:58:00+00:00",
                 },
             })
+        );
+        // Too many connections on one login: the state and the broker's
+        // words (audit P-12).
+        let halted = FeedStatus::Halted {
+            broker: "sahi".into(),
+            kind: StopKind::ConnectionLimit,
+            message: "Close other Sahi streaming apps or sessions, then reconnect.".into(),
+        };
+        let entry = block(&halted, &c);
+        assert_eq!(entry["state"], "connection_limit");
+        assert_eq!(
+            entry["message"],
+            "Close other Sahi streaming apps or sessions, then reconnect."
         );
         let idle = json(&WebSocketManager::new());
         assert_eq!(idle["state"], "disconnected");

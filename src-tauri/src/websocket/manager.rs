@@ -14,37 +14,44 @@
 //! Subscriptions are reference counted per instrument and mode. The broker
 //! sees one subscription per instrument at its effective (highest) mode; a
 //! registry entry is removed when its last reference goes, so the registry
-//! is bounded by what clients currently hold.
+//! is bounded by what clients currently hold. A feed started with
+//! `connect_pool` spreads its instruments over several broker connections,
+//! as the web's `ConnectionPool` does (`pool`, audit C07).
 //!
-//! Resource ownership: the only spawned task is the supervisor, kept as a
-//! `JoinHandle` and aborted (after a graceful stop request) on `disconnect`.
-//! The command channel is bounded; the event channel is a bounded broadcast
-//! whose slow receivers see `Lagged` and skip ahead.
+//! Resource ownership: the spawned tasks are the supervisors, one per open
+//! connection, each kept as a `JoinHandle` and aborted (after a graceful
+//! stop request) on `disconnect`; an extra connection that carries nothing
+//! any more is stopped. The command channels are bounded; the event channel
+//! is a bounded broadcast whose slow receivers see `Lagged` and skip ahead.
 
-use crate::brokers::common::ratelimit::backoff_delay;
-use crate::brokers::common::redact::{url_safe_error, ws_error_kind};
 use crate::brokers::common::streaming::{
-    normalize_request, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, MarketEvent, Message,
-    PrepareError,
+    BrokerFeed, FeedRefusal, FeedSubscription, MarketEvent, Presubscribe, StopKind,
 };
 use crate::error::{AppError, Result};
-use futures_util::{SinkExt, StreamExt};
-use heartbeat::{Beat, Heartbeat};
 use parking_lot::Mutex;
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{broadcast, mpsc, watch};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
-use tokio::time::Instant;
-use tokio_tungstenite::tungstenite::Error as WsError;
 
 mod heartbeat;
 mod losses;
+mod pool;
+mod presubscribe;
+mod registry;
+mod release;
 mod stats;
+mod supervisor;
 pub use losses::{Reader, SinceConnect};
+pub use pool::{FeedFactory, PoolLimits};
+use registry::{Delta, Registry, Routed};
+use release::Written;
 pub use stats::{Connection, DropCause, FeedStats, LastDrop};
+#[cfg(test)]
+use supervisor::SessionEnd;
+use supervisor::Supervisor;
 
 /// Capacity of the event fan-out channel.
 pub const TICK_CHANNEL_CAP: usize = 4096;
@@ -63,7 +70,8 @@ pub struct FeedConfig {
     pub write_timeout: Duration,
     /// A connection that lived this long resets the backoff.
     pub stable_after: Duration,
-    /// Most instruments one connection may carry (Kite: 3000).
+    /// Most instruments the one connection of `connect` may carry (a pool
+    /// takes its own limits, `connect_pool`).
     pub max_instruments: usize,
     pub command_capacity: usize,
     pub event_capacity: usize,
@@ -107,60 +115,92 @@ pub enum FeedStatus {
         broker: String,
         message: String,
     },
+    /// The broker ended the feed for a reason other than the login (too
+    /// many connections on one login, audit P-12): it stays down until the
+    /// next sign-in, and the message says what to do.
+    Halted {
+        broker: String,
+        kind: StopKind,
+        message: String,
+    },
 }
 
-/// Change to apply on the live socket.
-#[derive(Debug, Clone)]
-enum Delta {
-    Subscribe(FeedSubscription),
-    Unsubscribe(FeedSubscription),
-    ModeChange(FeedSubscription, FeedSubscription),
+impl FeedStatus {
+    /// Why this connection streams nothing until the next sign-in: the
+    /// broker refused the login or ended the feed.
+    pub(crate) fn refusal(&self) -> Option<&str> {
+        match self {
+            FeedStatus::AuthFailed { message, .. } | FeedStatus::Halted { message, .. } => {
+                Some(message)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// A change for the socket.
+struct Apply {
+    deltas: Vec<Delta>,
+    /// The registry's change count once these deltas were made: a session
+    /// sent its whole set at or after it already carries them.
+    seq: u64,
+    /// A caller waits to hear what the socket did with it (a release,
+    /// audit C01); dropped unanswered when no socket carried it.
+    reply: Option<oneshot::Sender<Written>>,
+    /// The references the change dropped, put back in the registry when
+    /// the socket does not take it, so the next connection sends them.
+    undo: Vec<FeedSubscription>,
+}
+
+impl Apply {
+    fn plain(deltas: Vec<Delta>, seq: u64) -> Self {
+        Self {
+            deltas,
+            seq,
+            reply: None,
+            undo: Vec::new(),
+        }
+    }
 }
 
 enum Command {
-    Apply(Vec<Delta>),
+    Apply(Apply),
     /// Drop the socket and connect again (after the computer slept).
     Reconnect,
     Stop,
 }
 
-struct Entry {
-    base: FeedSubscription,
-    modes: BTreeMap<FeedMode, u32>,
-}
-
-impl Entry {
-    fn effective(&self) -> Option<FeedSubscription> {
-        self.modes
-            .keys()
-            .next_back()
-            .map(|m| self.base.with_mode(*m))
-    }
-}
-
-#[derive(Default)]
-struct Registry {
-    entries: HashMap<(String, String), Entry>,
-}
-
-impl Registry {
-    fn effective_all(&self) -> Vec<FeedSubscription> {
-        self.entries.values().filter_map(Entry::effective).collect()
-    }
-}
-
+/// One connection's socket task, and its state.
 struct Running {
     cmd: mpsc::Sender<Command>,
     task: JoinHandle<()>,
+    status: watch::Receiver<FeedStatus>,
 }
 
 pub struct WebSocketManager {
     events: broadcast::Sender<MarketEvent>,
+    /// The first connection's state: the feed's, for the UI and the feed
+    /// server.
     status: watch::Sender<FeedStatus>,
     registry: Arc<Mutex<Registry>>,
-    running: Mutex<Option<Running>>,
+    /// The broker connections, first one first; `None` where an extra one
+    /// is not open.
+    connections: Mutex<Vec<Option<Running>>>,
+    /// Makes the adapter for another connection of the session
+    /// (`connect_pool`); `None` for a feed of one connection.
+    factory: Mutex<Option<FeedFactory>>,
     config: FeedConfig,
     stats: Arc<FeedStats>,
+    /// Moves when `disconnect` forgets every reference, so a release
+    /// answered after it puts nothing back.
+    epoch: AtomicU64,
+    /// The broker session's refusals and its step before a new instrument
+    /// is subscribed (`presubscribe`).
+    refusal: Mutex<Option<FeedRefusal>>,
+    presubscribe: Mutex<Option<Presubscribe>>,
+    /// The broker's own words for a subscribe past the room, where its web
+    /// adapter refuses before the pool does (`set_room_refusal`).
+    room_refusal: Mutex<Option<&'static str>>,
 }
 
 impl Default for WebSocketManager {
@@ -180,10 +220,17 @@ impl WebSocketManager {
         Self {
             events,
             status,
-            registry: Arc::new(Mutex::new(Registry::default())),
-            running: Mutex::new(None),
+            registry: Arc::new(Mutex::new(Registry::with_limits(PoolLimits::single(
+                config.max_instruments,
+            )))),
+            connections: Mutex::new(Vec::new()),
+            factory: Mutex::new(None),
             config,
             stats: Arc::new(FeedStats::default()),
+            epoch: AtomicU64::new(0),
+            refusal: Mutex::new(None),
+            presubscribe: Mutex::new(None),
+            room_refusal: Mutex::new(None),
         }
     }
 
@@ -224,11 +271,13 @@ impl WebSocketManager {
         matches!(*self.status.borrow(), FeedStatus::Connected { .. })
     }
 
-    /// Whether a supervisor task is alive (connected or retrying).
+    /// Whether the first connection's task is alive (connected or
+    /// retrying).
     pub fn is_running(&self) -> bool {
-        self.running
+        self.connections
             .lock()
-            .as_ref()
+            .first()
+            .and_then(Option::as_ref)
             .is_some_and(|r| !r.task.is_finished())
     }
 
@@ -242,130 +291,211 @@ impl WebSocketManager {
         self.registry.lock().effective_all()
     }
 
-    /// Start (or restart) the feed with this broker adapter. Existing
+    /// The room the feed has: instruments per connection, and connections.
+    pub fn limits(&self) -> PoolLimits {
+        self.registry.lock().limits
+    }
+
+    /// Start (or restart) the feed on one connection with this adapter,
+    /// carrying at most `FeedConfig::max_instruments`. Existing
     /// subscriptions are kept and sent again on the new socket.
     pub async fn connect(&self, feed: Box<dyn BrokerFeed>) -> Result<()> {
-        self.stop_task().await;
-        self.stats.begin(feed.broker());
-        let (tx, rx) = mpsc::channel(self.config.command_capacity.max(1));
-        let ctx = Supervisor {
-            feed,
-            cmd: rx,
-            registry: self.registry.clone(),
-            events: self.events.clone(),
-            status: self.status.clone(),
-            config: self.config.clone(),
-            stats: self.stats.clone(),
-        };
-        let task = tokio::spawn(ctx.run());
-        *self.running.lock() = Some(Running { cmd: tx, task });
+        let limits = PoolLimits::single(self.config.max_instruments);
+        self.start(feed, None, limits).await;
         Ok(())
     }
 
-    /// Drop the socket and connect again at once, keeping every
-    /// subscription: after the computer slept the socket is likely dead
+    /// Start (or restart) the feed as a pool of connections (audit C07):
+    /// `feed` for the first, `more` for each further one, opened once the
+    /// open ones are full; `limits` how many instruments each carries and
+    /// how many there may be. Existing subscriptions are kept and sent
+    /// again.
+    pub async fn connect_pool(
+        &self,
+        feed: Box<dyn BrokerFeed>,
+        more: FeedFactory,
+        limits: PoolLimits,
+    ) -> Result<()> {
+        self.start(feed, Some(more), limits).await;
+        Ok(())
+    }
+
+    async fn start(
+        &self,
+        feed: Box<dyn BrokerFeed>,
+        more: Option<FeedFactory>,
+        limits: PoolLimits,
+    ) {
+        self.stop_all().await;
+        self.stats.begin(feed.broker());
+        let extra: Vec<usize> = {
+            let mut reg = self.registry.lock();
+            reg.set_limits(limits);
+            (1..reg.per_conn.len())
+                .filter(|c| reg.per_conn[*c] > 0)
+                .collect()
+        };
+        *self.factory.lock() = more;
+        let first = self.spawn(0, feed);
+        {
+            let mut connections = self.connections.lock();
+            connections.clear();
+            connections.push(Some(first));
+        }
+        for conn in extra {
+            self.open_extra(conn);
+        }
+    }
+
+    /// Drop the sockets and connect again at once, keeping every
+    /// subscription: after the computer slept a socket is likely dead
     /// though no error has come yet (ARCH-03). Nothing when no feed runs,
-    /// or when the command queue is full (the session is busy with commands
-    /// and will notice a dead socket itself).
+    /// or for a connection whose command queue is full (it is busy with
+    /// commands and will notice a dead socket itself).
     pub fn reconnect(&self) {
-        if let Some(r) = self.running.lock().as_ref() {
+        for r in self.connections.lock().iter().flatten() {
             let _ = r.cmd.try_send(Command::Reconnect);
+        }
+    }
+
+    /// Connect again each connection the broker ended for a reason the
+    /// trader can clear (`FeedStatus::Halted`: too many connections on one
+    /// login), and only those: a feed client signed in, as the web rebuilds
+    /// a disconnected adapter when a client authenticates
+    /// (`websocket_proxy/server.py` 905-931), so closing the other app and
+    /// reconnecting brings prices back without a logout.
+    pub fn resume(&self) {
+        for r in self.connections.lock().iter().flatten() {
+            if matches!(*r.status.borrow(), FeedStatus::Halted { .. }) {
+                let _ = r.cmd.try_send(Command::Reconnect);
+            }
         }
     }
 
     /// Stop the feed and forget every subscription (logout, broker switch).
     pub async fn disconnect(&self) -> Result<()> {
-        self.stop_task().await;
-        self.registry.lock().entries.clear();
+        self.stop_all().await;
+        self.epoch.fetch_add(1, Ordering::SeqCst);
+        self.registry.lock().clear();
+        *self.factory.lock() = None;
+        *self.refusal.lock() = None;
+        *self.presubscribe.lock() = None;
+        *self.room_refusal.lock() = None;
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
     }
 
-    async fn stop_task(&self) {
-        let running = self.running.lock().take();
-        if let Some(r) = running {
-            // Ask for a clean close; abort if the task does not finish soon.
-            let _ = r.cmd.try_send(Command::Stop);
-            let mut task = r.task;
-            if tokio::time::timeout(Duration::from_secs(2), &mut task)
-                .await
-                .is_err()
-            {
-                task.abort();
-                let _ = task.await;
-            }
+    async fn stop_all(&self) {
+        let all: Vec<Running> = self.connections.lock().drain(..).flatten().collect();
+        for r in all {
+            pool::stop(r).await;
         }
     }
 
-    /// Add references; the broker is told only about instruments whose
-    /// effective mode changed.
+    /// The broker's words for a subscribe past this feed's room, where its
+    /// web adapter refuses it before the pool does (Dhan's 20-level socket),
+    /// or none for the pool's words (the default; a disconnect clears it).
+    pub fn set_room_refusal(&self, words: Option<&'static str>) {
+        *self.room_refusal.lock() = words;
+    }
+
+    /// What a reference past the feed's room is refused with: the broker's
+    /// words when it has its own (`set_room_refusal`), else the web pool's
+    /// MAX_CAPACITY_REACHED words (`websocket_proxy/
+    /// connection_manager.py:364-369`) with this feed's own limits.
+    fn no_room(&self, reg: &Registry) -> String {
+        if let Some(words) = *self.room_refusal.lock() {
+            return words.to_string();
+        }
+        let limits = reg.limits;
+        format!(
+            "Maximum capacity reached: {} connections \u{d7} {} symbols = {} symbols. \
+             Currently subscribed to {} symbols.",
+            limits.connections,
+            limits.per_connection,
+            limits.total(),
+            reg.per_conn.iter().sum::<usize>()
+        )
+    }
+
+    /// Add references, all or none; the broker is told only about
+    /// instruments whose effective mode changed.
     pub async fn subscribe(&self, subs: Vec<FeedSubscription>) -> Result<()> {
+        let subs = self
+            .presubscribed(subs)
+            .await
+            .into_iter()
+            .collect::<std::result::Result<Vec<_>, String>>()
+            .map_err(AppError::Validation)?;
+        let usable = self.usable();
         let deltas = {
             let mut reg = self.registry.lock();
-            let new_instruments = subs
-                .iter()
-                .filter(|s| !reg.entries.contains_key(&s.instrument_key()))
-                .map(|s| s.instrument_key())
-                .collect::<std::collections::HashSet<_>>()
-                .len();
-            if reg.entries.len() + new_instruments > self.config.max_instruments {
-                return Err(AppError::Validation(format!(
-                    "You can stream at most {} instruments at once. Unsubscribe some before adding more.",
-                    self.config.max_instruments
-                )));
+            let open = |c: usize| usable.get(c).copied().unwrap_or(true);
+            let free: usize = (0..reg.limits.connections)
+                .filter(|c| open(*c))
+                .map(|c| {
+                    let held = reg.per_conn.get(c).copied().unwrap_or(0);
+                    reg.limits.per_connection.saturating_sub(held)
+                })
+                .sum();
+            if reg.new_instruments(&subs) > free {
+                return Err(AppError::Validation(self.no_room(&reg)));
             }
             let mut deltas = Vec::new();
             for s in subs {
-                let entry = reg
-                    .entries
-                    .entry(s.instrument_key())
-                    .or_insert_with(|| Entry {
-                        base: s.clone(),
-                        modes: BTreeMap::new(),
-                    });
-                let before = entry.effective();
-                *entry.modes.entry(s.mode).or_insert(0) += 1;
-                let after = entry.effective();
-                match (before, after) {
-                    (None, Some(a)) => deltas.push(Delta::Subscribe(a)),
-                    (Some(b), Some(a)) if b.mode != a.mode => deltas.push(Delta::ModeChange(b, a)),
-                    _ => {}
+                if let Some(conn) = reg.place(&s, &open) {
+                    deltas.extend(reg.add(s, conn));
                 }
             }
-            deltas
+            (deltas, reg.changes)
         };
         self.apply(deltas).await;
         Ok(())
+    }
+
+    /// Add references one by one, each while a connection has room for
+    /// another instrument, counted across every consumer of this manager
+    /// (feed clients, the sandbox, strategies, Flow): one answer each, so
+    /// a batch that crosses the limit still starts its admissible members
+    /// and refuses the rest with why (audit C02). What the broker refuses
+    /// (`set_refusal`) is refused, and a new instrument goes through the
+    /// broker's step first (`set_presubscribe`), in their words.
+    pub async fn admit(&self, subs: Vec<FeedSubscription>) -> Vec<std::result::Result<(), String>> {
+        let prepared = self.presubscribed(subs).await;
+        let usable = self.usable();
+        let (answers, deltas) = {
+            let mut reg = self.registry.lock();
+            let open = |c: usize| usable.get(c).copied().unwrap_or(true);
+            let mut answers = Vec::with_capacity(prepared.len());
+            let mut deltas = Vec::new();
+            for p in prepared {
+                let s = match p {
+                    Ok(s) => s,
+                    Err(why) => {
+                        answers.push(Err(why));
+                        continue;
+                    }
+                };
+                match reg.place(&s, &open) {
+                    Some(conn) => {
+                        deltas.extend(reg.add(s, conn));
+                        answers.push(Ok(()));
+                    }
+                    None => answers.push(Err(self.no_room(&reg))),
+                }
+            }
+            (answers, (deltas, reg.changes))
+        };
+        self.apply(deltas).await;
+        answers
     }
 
     /// Drop references; an instrument with none left is unsubscribed.
     pub async fn unsubscribe(&self, subs: Vec<FeedSubscription>) -> Result<()> {
         let deltas = {
             let mut reg = self.registry.lock();
-            let mut deltas = Vec::new();
-            for s in subs {
-                let key = s.instrument_key();
-                let Some(entry) = reg.entries.get_mut(&key) else {
-                    continue;
-                };
-                let before = entry.effective();
-                if let Some(n) = entry.modes.get_mut(&s.mode) {
-                    *n -= 1;
-                    if *n == 0 {
-                        entry.modes.remove(&s.mode);
-                    }
-                }
-                let after = entry.effective();
-                match (before, after) {
-                    (Some(b), None) => {
-                        reg.entries.remove(&key);
-                        deltas.push(Delta::Unsubscribe(b));
-                    }
-                    (Some(b), Some(a)) if b.mode != a.mode => deltas.push(Delta::ModeChange(b, a)),
-                    _ => {}
-                }
-            }
-            deltas
+            let removed = subs.iter().filter_map(|s| reg.remove(s)).collect();
+            (removed, reg.changes)
         };
         self.apply(deltas).await;
         Ok(())
@@ -373,516 +503,74 @@ impl WebSocketManager {
 
     /// Drop every subscription (the feed stays connected).
     pub async fn unsubscribe_all(&self) -> Result<()> {
-        let deltas: Vec<Delta> = {
+        let deltas = {
             let mut reg = self.registry.lock();
-            let all = reg.effective_all();
-            reg.entries.clear();
-            all.into_iter().map(Delta::Unsubscribe).collect()
+            let all = reg
+                .entries
+                .values()
+                .filter_map(|e| Some((e.conn, Delta::Unsubscribe(e.effective()?))))
+                .collect();
+            reg.clear();
+            (all, reg.changes)
         };
         self.apply(deltas).await;
         Ok(())
     }
 
-    async fn apply(&self, deltas: Vec<Delta>) {
+    /// Hand each connection its changes, made when the registry's change
+    /// count was `seq`. An extra connection that is not open yet is opened
+    /// (its first subscription sends what it carries); one that carries
+    /// nothing any more is closed.
+    async fn apply(&self, (deltas, seq): (Vec<Routed>, u64)) {
         if deltas.is_empty() {
             return;
         }
-        let tx = self.running.lock().as_ref().map(|r| r.cmd.clone());
-        if let Some(tx) = tx {
-            // Bounded: back-pressure rather than unbounded growth. If the
-            // task is gone the registry still holds the state for the next
-            // connection.
-            let _ = tx.send(Command::Apply(deltas)).await;
+        let mut by_conn: Vec<(usize, Vec<Delta>)> = Vec::new();
+        for (conn, d) in deltas {
+            match by_conn.iter_mut().find(|(c, _)| *c == conn) {
+                Some((_, v)) => v.push(d),
+                None => by_conn.push((conn, vec![d])),
+            }
         }
+        for (conn, deltas) in by_conn {
+            let tx = self
+                .connections
+                .lock()
+                .get(conn)
+                .and_then(Option::as_ref)
+                .map(|r| r.cmd.clone());
+            match tx {
+                // Bounded: back-pressure rather than unbounded growth. If
+                // the task is gone the registry still holds the state for
+                // the next connection.
+                Some(tx) => {
+                    let _ = tx.send(Command::Apply(Apply::plain(deltas, seq))).await;
+                }
+                None if conn > 0 => self.open_extra(conn),
+                None => {}
+            }
+        }
+        self.close_idle().await;
     }
 }
 
 impl Drop for WebSocketManager {
     fn drop(&mut self) {
-        if let Some(r) = self.running.get_mut().take() {
+        for r in self.connections.get_mut().drain(..).flatten() {
             r.task.abort();
         }
     }
 }
 
-/// Why one socket session ended.
-enum SessionEnd {
-    Stopped,
-    /// The connection ended (or was not made) for this cause; the manager
-    /// connects again after a backoff.
-    Dropped(DropCause),
-    AuthFailed(String),
-}
-
-/// A session goes on, or ends with the reason (`?` in its steps).
-type Sent = std::result::Result<(), SessionEnd>;
-
-const CONNECT_FAILED: SessionEnd = SessionEnd::Dropped(DropCause::ConnectFailed);
-
-/// What a login acknowledgement that did not come in time means.
-#[derive(Debug, Clone, Copy)]
-enum AckLapse {
-    /// It is optional: take the session as accepted.
-    Assume,
-    /// It is required: the session is lost.
-    Refuse,
-}
-
-struct Supervisor {
-    feed: Box<dyn BrokerFeed>,
-    cmd: mpsc::Receiver<Command>,
-    registry: Arc<Mutex<Registry>>,
-    events: broadcast::Sender<MarketEvent>,
-    status: watch::Sender<FeedStatus>,
-    config: FeedConfig,
-    stats: Arc<FeedStats>,
-}
-
-impl Supervisor {
-    async fn run(mut self) {
-        let broker = self.feed.broker().to_string();
-        let mut attempt: u32 = 0;
-        loop {
-            self.status.send_replace(FeedStatus::Connecting {
-                broker: broker.clone(),
-                attempt,
-            });
-            let started = Instant::now();
-            let end = self.connect_once(&broker).await;
-            match end {
-                SessionEnd::Stopped => {
-                    self.status.send_replace(FeedStatus::Disconnected);
-                    return;
-                }
-                SessionEnd::AuthFailed(message) => {
-                    tracing::warn!(broker = %broker, "Market data feed refused the session");
-                    self.status.send_replace(FeedStatus::AuthFailed {
-                        broker: broker.clone(),
-                        message,
-                    });
-                    // Do not hammer the broker with a dead token; wait for
-                    // a stop (logout) or a new `connect`.
-                    while let Some(cmd) = self.cmd.recv().await {
-                        if matches!(cmd, Command::Stop) {
-                            break;
-                        }
-                    }
-                    return;
-                }
-                SessionEnd::Dropped(cause) => self.stats.dropped(cause),
-            }
-            if started.elapsed() >= self.config.stable_after {
-                attempt = 0;
-            }
-            let delay = backoff_delay(attempt, self.config.backoff_base, self.config.backoff_max);
-            attempt = attempt.saturating_add(1);
-            self.status.send_replace(FeedStatus::Reconnecting {
-                broker: broker.clone(),
-                attempt,
-                delay_ms: delay.as_millis() as u64,
-            });
-            tracing::info!(broker = %broker, attempt, "Market data feed reconnecting in {:?}", delay);
-            // Sleep, still answering commands (registry already holds the
-            // state; a stop ends the loop).
-            let sleep = tokio::time::sleep(delay);
-            tokio::pin!(sleep);
-            loop {
-                tokio::select! {
-                    _ = &mut sleep => break,
-                    cmd = self.cmd.recv() => match cmd {
-                        None | Some(Command::Stop) => {
-                            self.status.send_replace(FeedStatus::Disconnected);
-                            return;
-                        }
-                        // Connect now rather than at the end of the backoff.
-                        Some(Command::Reconnect) => break,
-                        Some(Command::Apply(_)) => {}
-                    }
-                }
-            }
-        }
-    }
-
-    async fn connect_once(&mut self, broker: &str) -> SessionEnd {
-        match tokio::time::timeout(self.config.connect_timeout, self.feed.prepare()).await {
-            Ok(Ok(())) => {}
-            Ok(Err(PrepareError::AuthFailed(message))) => return SessionEnd::AuthFailed(message),
-            Ok(Err(PrepareError::Unavailable)) => return CONNECT_FAILED,
-            Err(_) => {
-                tracing::debug!(broker, "Market data feed preparation timed out");
-                return CONNECT_FAILED;
-            }
-        }
-        let mut retried = false;
-        let ws = loop {
-            let request = match self.feed.ws_request() {
-                Ok(r) => normalize_request(r),
-                Err(e) => {
-                    tracing::error!(
-                        broker,
-                        code = e.code(),
-                        "Market data feed request could not be built"
-                    );
-                    return SessionEnd::AuthFailed(e.client_message());
-                }
-            };
-            let connect = tokio_tungstenite::connect_async(request);
-            match tokio::time::timeout(self.config.connect_timeout, connect).await {
-                Ok(Err(e)) if !matches!(e, WsError::Http(_)) && !retried => {
-                    if self.feed.on_connect_failed(&url_safe_error(&e)) {
-                        retried = true;
-                        continue;
-                    }
-                    break Ok(Err(e));
-                }
-                other => break other,
-            }
-        };
-        let ws = match ws {
-            Ok(Ok((ws, _))) => ws,
-            Ok(Err(WsError::Http(resp))) => {
-                let code = resp.status().as_u16();
-                tracing::warn!(broker, status = code, "Market data feed handshake refused");
-                if self.feed.is_auth_failure(Some(code)) {
-                    return SessionEnd::AuthFailed(
-                        "The broker refused the live market data session. Log in to your broker again."
-                            .into(),
-                    );
-                }
-                return CONNECT_FAILED;
-            }
-            Ok(Err(e)) => {
-                tracing::debug!(
-                    broker,
-                    kind = ws_error_kind(&e),
-                    "Market data feed connect failed"
-                );
-                return CONNECT_FAILED;
-            }
-            Err(_) => {
-                tracing::debug!(broker, "Market data feed connect timed out");
-                return CONNECT_FAILED;
-            }
-        };
-        self.stats.opened();
-        let (mut write, mut read) = ws.split();
-        let end = self.session(broker, &mut write, &mut read).await;
-        // Close before reconnecting so the descriptor is released on every
-        // path; bounded so a dead peer cannot hold us.
-        let _ = tokio::time::timeout(Duration::from_secs(2), write.close()).await;
-        drop(write);
-        drop(read);
-        end
-    }
-
-    /// Send `frames` in order, all within the write timeout. An error when
-    /// the socket failed or did not take them in time (TIME-02): the
-    /// session then ends and the socket is replaced.
-    async fn send_all<S>(&self, write: &mut S, frames: Vec<Message>) -> Sent
-    where
-        S: futures_util::Sink<Message, Error = WsError> + Unpin,
-    {
-        if frames.is_empty() {
-            return Ok(());
-        }
-        let send = async {
-            for f in frames {
-                write.send(f).await?;
-            }
-            Ok::<(), WsError>(())
-        };
-        match tokio::time::timeout(self.config.write_timeout, send).await {
-            Ok(sent) => sent.map_err(|_| SessionEnd::Dropped(DropCause::Closed)),
-            Err(_) => {
-                tracing::warn!(
-                    broker = self.feed.broker(),
-                    "Market data feed stopped taking frames; reconnecting"
-                );
-                Err(SessionEnd::Dropped(DropCause::NotTakingFrames))
-            }
-        }
-    }
-
-    /// Sends the full subscription set and reports the feed connected.
-    async fn subscribe_all<S>(&mut self, broker: &str, write: &mut S) -> Sent
-    where
-        S: futures_util::Sink<Message, Error = WsError> + Unpin,
-    {
-        self.resubscribe(write).await?;
-        self.stats.mark_connected();
-        self.status.send_replace(FeedStatus::Connected {
-            broker: broker.to_string(),
-        });
-        Ok(())
-    }
-
-    /// One message from the broker: market events published, replies sent,
-    /// and the subscriptions sent once the login is acknowledged. An `Err`
-    /// ends the session.
-    async fn on_message<S>(
-        &mut self,
-        broker: &str,
-        write: &mut S,
-        msg: Message,
-        subscribed: &mut bool,
-    ) -> Sent
-    where
-        S: futures_util::Sink<Message, Error = WsError> + Unpin,
-    {
-        if let Message::Close(_) = msg {
-            return Err(SessionEnd::Dropped(DropCause::Closed));
-        }
-        for ev in self.feed.parse(&msg) {
-            match ev {
-                FeedEvent::AuthFailed(m) => return Err(SessionEnd::AuthFailed(m)),
-                FeedEvent::AuthOk => {
-                    if !*subscribed {
-                        self.subscribe_all(broker, write).await?;
-                        *subscribed = true;
-                    }
-                }
-                FeedEvent::Heartbeat => {}
-                FeedEvent::Reply(m) => self.send_all(write, vec![m]).await?,
-                e @ (FeedEvent::Tick(_) | FeedEvent::Depth(_) | FeedEvent::OrderUpdate(_)) => {
-                    self.stats.mark_event();
-                    // No receiver yet is normal; nothing is retained.
-                    let _ = self.events.send(Arc::new(e));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Coalesces the commands already waiting into `deltas`, so a burst of
-    /// subscribe calls reaches the broker as batches. The end of the session
-    /// when a stop or a reconnect was among them.
-    fn coalesce(&mut self, deltas: &mut Vec<Delta>) -> Option<SessionEnd> {
-        while let Ok(more) = self.cmd.try_recv() {
-            match more {
-                Command::Apply(d) => deltas.extend(d),
-                Command::Reconnect => return Some(self.reconnecting()),
-                Command::Stop => return Some(SessionEnd::Stopped),
-            }
-        }
-        None
-    }
-
-    /// A reconnect was asked for: the session ends, and the registry is
-    /// sent again on the new socket.
-    fn reconnecting(&self) -> SessionEnd {
-        tracing::info!(
-            broker = self.feed.broker(),
-            "Market data feed reconnecting after the computer slept"
-        );
-        SessionEnd::Dropped(DropCause::Woke)
-    }
-
-    /// Whether the feed stalled: nothing received within the stall timeout,
-    /// or no market data while the socket stayed open.
-    fn stalled(&mut self, broker: &str, last_rx: Instant) -> Option<DropCause> {
-        if last_rx.elapsed() >= self.config.stall_timeout {
-            tracing::warn!(broker, "Market data feed stalled; reconnecting");
-            return Some(DropCause::Silent);
-        }
-        if self.feed.data_stalled() {
-            tracing::warn!(
-                broker,
-                "Market data stopped while the socket stayed open; reconnecting"
-            );
-            return Some(DropCause::DataStopped);
-        }
-        None
-    }
-
-    async fn session<S, R>(&mut self, broker: &str, write: &mut S, read: &mut R) -> SessionEnd
-    where
-        S: futures_util::Sink<Message, Error = WsError> + Unpin,
-        R: futures_util::Stream<Item = std::result::Result<Message, WsError>> + Unpin,
-    {
-        let hello = self.feed.on_connected();
-        if let Err(end) = self.send_all(write, hello).await {
-            return end;
-        }
-        let mut subscribed = false;
-        if !self.feed.awaits_auth_ack() {
-            if let Err(end) = self.subscribe_all(broker, write).await {
-                return end;
-            }
-            subscribed = true;
-        }
-        let mut heartbeat = Heartbeat::new(&*self.feed);
-        let check = (self.config.stall_timeout / 4).max(Duration::from_millis(10));
-        let mut watchdog = tokio::time::interval_at(Instant::now() + check, check);
-        let mut last_rx = Instant::now();
-        let ack = self.ack_wait(subscribed);
-        let ack_deadline =
-            tokio::time::sleep(ack.map_or(Duration::from_secs(3600), |(after, _)| after));
-        tokio::pin!(ack_deadline);
-        loop {
-            tokio::select! {
-                msg = read.next() => {
-                    let msg = match msg {
-                        Some(Ok(m)) => m,
-                        Some(Err(e)) => {
-                            tracing::debug!(broker, kind = ws_error_kind(&e), "Market data feed read error");
-                            return SessionEnd::Dropped(DropCause::Closed);
-                        }
-                        None => return SessionEnd::Dropped(DropCause::Closed),
-                    };
-                    last_rx = Instant::now();
-                    heartbeat.heard();
-                    if let Err(end) = self.on_message(broker, write, msg, &mut subscribed).await {
-                        return end;
-                    }
-                }
-                cmd = self.cmd.recv() => {
-                    if let Err(end) = self.on_command(write, cmd, subscribed).await {
-                        return end;
-                    }
-                }
-                beat = heartbeat.next() => match beat {
-                    Beat::Due(m) => {
-                        if let Err(end) = self.send_all(write, vec![m]).await {
-                            return end;
-                        }
-                        heartbeat.sent();
-                    }
-                    Beat::Unanswered => {
-                        tracing::warn!(broker, "The broker did not answer the feed's heartbeat; reconnecting");
-                        return SessionEnd::Dropped(DropCause::HeartbeatUnanswered);
-                    }
-                },
-                _ = &mut ack_deadline, if ack.is_some() && !subscribed => {
-                    let lapse = ack.map_or(AckLapse::Refuse, |(_, lapse)| lapse);
-                    if let Err(end) = self.on_ack_lapse(broker, write, lapse).await {
-                        return end;
-                    }
-                    subscribed = true;
-                }
-                _ = watchdog.tick() => {
-                    if let Some(cause) = self.stalled(broker, last_rx) {
-                        return SessionEnd::Dropped(cause);
-                    }
-                }
-            }
-        }
-    }
-
-    /// The login acknowledgement this session still waits for, and what
-    /// its absence means once the wait is over; `None` when nothing is
-    /// awaited.
-    fn ack_wait(&self, subscribed: bool) -> Option<(Duration, AckLapse)> {
-        if subscribed {
-            return None;
-        }
-        // An optional acknowledgement (Groww: 2 s, like the web).
-        if let Some(after) = self.feed.auth_ack_timeout() {
-            return Some((after, AckLapse::Assume));
-        }
-        self.feed
-            .auth_ack_deadline()
-            .map(|after| (after, AckLapse::Refuse))
-    }
-
-    /// The broker did not acknowledge the login in time: take the session
-    /// as accepted when the acknowledgement is optional, else end it so the
-    /// capped backoff reconnects (TIME-05). Frames that keep arriving
-    /// without an acknowledgement (heartbeats) must not keep a socket that
-    /// never streams.
-    async fn on_ack_lapse<S>(&mut self, broker: &str, write: &mut S, lapse: AckLapse) -> Sent
-    where
-        S: futures_util::Sink<Message, Error = WsError> + Unpin,
-    {
-        match lapse {
-            AckLapse::Assume => self.subscribe_all(broker, write).await,
-            AckLapse::Refuse => {
-                tracing::warn!(
-                    broker,
-                    "The broker did not confirm the market data login in time; reconnecting"
-                );
-                Err(SessionEnd::Dropped(DropCause::LoginNotConfirmed))
-            }
-        }
-    }
-
-    /// One command from the manager; subscription changes wait for the
-    /// login acknowledgement (they go out with the full set after it).
-    async fn on_command<S>(&mut self, write: &mut S, cmd: Option<Command>, subscribed: bool) -> Sent
-    where
-        S: futures_util::Sink<Message, Error = WsError> + Unpin,
-    {
-        let mut deltas = match cmd {
-            Some(Command::Apply(d)) => d,
-            Some(Command::Reconnect) => return Err(self.reconnecting()),
-            None | Some(Command::Stop) => return Err(SessionEnd::Stopped),
-        };
-        if let Some(end) = self.coalesce(&mut deltas) {
-            return Err(end);
-        }
-        if !subscribed {
-            return Ok(());
-        }
-        let frames = self.delta_frames(deltas);
-        self.send_all(write, frames).await
-    }
-
-    /// Frames for a run of deltas, in order. Consecutive subscribes (and
-    /// consecutive unsubscribes) go to the feed in one call, so feeds that
-    /// can batch send one frame or request per run rather than one per
-    /// instrument (web #2176: Firstock, Pocketful, RMoney batching).
-    fn delta_frames(&mut self, deltas: Vec<Delta>) -> Vec<Message> {
-        let mut frames = Vec::new();
-        let mut subs: Vec<FeedSubscription> = Vec::new();
-        let mut unsubs: Vec<FeedSubscription> = Vec::new();
-        for d in deltas {
-            match d {
-                Delta::Subscribe(s) => {
-                    if !unsubs.is_empty() {
-                        frames.extend(self.feed.unsubscribe_frames(&std::mem::take(&mut unsubs)));
-                    }
-                    subs.push(s);
-                }
-                Delta::Unsubscribe(s) => {
-                    if !subs.is_empty() {
-                        frames.extend(self.feed.subscribe_frames(&std::mem::take(&mut subs)));
-                    }
-                    unsubs.push(s);
-                }
-                Delta::ModeChange(old, new) => {
-                    if !subs.is_empty() {
-                        frames.extend(self.feed.subscribe_frames(&std::mem::take(&mut subs)));
-                    }
-                    if !unsubs.is_empty() {
-                        frames.extend(self.feed.unsubscribe_frames(&std::mem::take(&mut unsubs)));
-                    }
-                    frames.extend(self.feed.mode_change_frames(&old, &new));
-                }
-            }
-        }
-        if !subs.is_empty() {
-            frames.extend(self.feed.subscribe_frames(&subs));
-        }
-        if !unsubs.is_empty() {
-            frames.extend(self.feed.unsubscribe_frames(&unsubs));
-        }
-        frames
-    }
-
-    async fn resubscribe<S>(&mut self, write: &mut S) -> Sent
-    where
-        S: futures_util::Sink<Message, Error = WsError> + Unpin,
-    {
-        // The session was just accepted: its post-login frames go first.
-        let mut frames = self.feed.on_authenticated();
-        let subs = self.registry.lock().effective_all();
-        if !subs.is_empty() {
-            frames.extend(self.feed.subscribe_frames(&subs));
-        }
-        self.send_all(write, frames).await
-    }
-}
-
 #[cfg(test)]
 mod deadline_tests;
+#[cfg(test)]
+mod pool_tests;
+#[cfg(test)]
+mod presubscribe_tests;
+#[cfg(test)]
+mod release_tests;
+#[cfg(test)]
+mod session_tests;
 #[cfg(test)]
 mod tests;

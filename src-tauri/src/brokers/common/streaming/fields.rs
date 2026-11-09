@@ -188,32 +188,145 @@ pub struct QuoteExtras {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub day_close: Option<f64>,
     /// The packet's own exchange or feed time, epoch milliseconds (Zerodha
-    /// `exchange_timestamp`, the Noren family's `<broker>_timestamp`).
+    /// `exchange_timestamp`, the Noren family's `<broker>_timestamp`). It
+    /// belongs to this packet alone: the next packet's frames carry the
+    /// next packet's time or none, never this one sent again as current
+    /// (web mStock sends no `exchange_timestamp` for a packet without one).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exchange_time_ms: Option<i64>,
+    /// What this packet says is gone (`clear`): not kept from earlier
+    /// packets, where a `None` keeps the last value.
+    #[serde(skip)]
+    pub cleared: ClearedExtras,
+}
+
+/// One of the [`QuoteExtras`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum ExtraField {
+    UpperCircuit = 1 << 0,
+    LowerCircuit = 1 << 1,
+    High52Week = 1 << 2,
+    Low52Week = 1 << 3,
+    BidPrice = 1 << 4,
+    BidQuantity = 1 << 5,
+    AskPrice = 1 << 6,
+    AskQuantity = 1 << 7,
+    PreviousOi = 1 << 8,
+    OiChange = 1 << 9,
+    TotalOi = 1 << 10,
+    DayClose = 1 << 11,
+}
+
+/// The [`ExtraField`]s a packet clears.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ClearedExtras(u16);
+
+impl ClearedExtras {
+    pub const fn contains(self, field: ExtraField) -> bool {
+        self.0 & field as u16 != 0
+    }
 }
 
 impl QuoteExtras {
+    /// No value: what it clears is not a value.
     pub fn is_empty(&self) -> bool {
-        *self == Self::default()
+        Self {
+            cleared: ClearedExtras::default(),
+            ..*self
+        } == Self::default()
     }
 
-    /// These fields, each replaced by `newer`'s where it carries one.
+    /// `field` is gone (a book that emptied both sides has no best bid or
+    /// ask): left out of this packet's frames and not kept from earlier
+    /// ones, unlike a `None`, which keeps the last value.
+    pub fn clear(&mut self, field: ExtraField) {
+        use ExtraField as X;
+        match field {
+            X::UpperCircuit => self.upper_circuit = None,
+            X::LowerCircuit => self.lower_circuit = None,
+            X::High52Week => self.high_52_week = None,
+            X::Low52Week => self.low_52_week = None,
+            X::BidPrice => self.bid_price = None,
+            X::BidQuantity => self.bid_quantity = None,
+            X::AskPrice => self.ask_price = None,
+            X::AskQuantity => self.ask_quantity = None,
+            X::PreviousOi => self.previous_oi = None,
+            X::OiChange => self.oi_change = None,
+            X::TotalOi => self.total_oi = None,
+            X::DayClose => self.day_close = None,
+        }
+        self.cleared.0 |= field as u16;
+    }
+
+    /// The best bid and ask, with their quantities, are gone.
+    pub fn clear_best_bid_ask(&mut self) {
+        for f in [
+            ExtraField::BidPrice,
+            ExtraField::BidQuantity,
+            ExtraField::AskPrice,
+            ExtraField::AskQuantity,
+        ] {
+            self.clear(f);
+        }
+    }
+
+    /// These fields, each replaced by `newer`'s where it carries one and
+    /// dropped where `newer` clears it; the packet's own time is `newer`'s,
+    /// none included.
     pub fn overlay(self, newer: Self) -> Self {
+        use ExtraField as X;
+        let gone = newer.cleared;
+        fn pick<T>(gone: bool, newer: Option<T>, older: Option<T>) -> Option<T> {
+            if gone {
+                None
+            } else {
+                newer.or(older)
+            }
+        }
         Self {
-            upper_circuit: newer.upper_circuit.or(self.upper_circuit),
-            lower_circuit: newer.lower_circuit.or(self.lower_circuit),
-            high_52_week: newer.high_52_week.or(self.high_52_week),
-            low_52_week: newer.low_52_week.or(self.low_52_week),
-            bid_price: newer.bid_price.or(self.bid_price),
-            bid_quantity: newer.bid_quantity.or(self.bid_quantity),
-            ask_price: newer.ask_price.or(self.ask_price),
-            ask_quantity: newer.ask_quantity.or(self.ask_quantity),
-            previous_oi: newer.previous_oi.or(self.previous_oi),
-            oi_change: newer.oi_change.or(self.oi_change),
-            total_oi: newer.total_oi.or(self.total_oi),
-            day_close: newer.day_close.or(self.day_close),
-            exchange_time_ms: newer.exchange_time_ms.or(self.exchange_time_ms),
+            upper_circuit: pick(
+                gone.contains(X::UpperCircuit),
+                newer.upper_circuit,
+                self.upper_circuit,
+            ),
+            lower_circuit: pick(
+                gone.contains(X::LowerCircuit),
+                newer.lower_circuit,
+                self.lower_circuit,
+            ),
+            high_52_week: pick(
+                gone.contains(X::High52Week),
+                newer.high_52_week,
+                self.high_52_week,
+            ),
+            low_52_week: pick(
+                gone.contains(X::Low52Week),
+                newer.low_52_week,
+                self.low_52_week,
+            ),
+            bid_price: pick(gone.contains(X::BidPrice), newer.bid_price, self.bid_price),
+            bid_quantity: pick(
+                gone.contains(X::BidQuantity),
+                newer.bid_quantity,
+                self.bid_quantity,
+            ),
+            ask_price: pick(gone.contains(X::AskPrice), newer.ask_price, self.ask_price),
+            ask_quantity: pick(
+                gone.contains(X::AskQuantity),
+                newer.ask_quantity,
+                self.ask_quantity,
+            ),
+            previous_oi: pick(
+                gone.contains(X::PreviousOi),
+                newer.previous_oi,
+                self.previous_oi,
+            ),
+            oi_change: pick(gone.contains(X::OiChange), newer.oi_change, self.oi_change),
+            total_oi: pick(gone.contains(X::TotalOi), newer.total_oi, self.total_oi),
+            day_close: pick(gone.contains(X::DayClose), newer.day_close, self.day_close),
+            exchange_time_ms: newer.exchange_time_ms,
+            cleared: ClearedExtras::default(),
         }
     }
 }
@@ -241,6 +354,9 @@ pub enum BrokerField {
     OiLow,
     /// Groww: the day's traded value (`value`).
     TradedValue,
+    /// Fyers: whether the message is the first full one or an update
+    /// (`update_type`: `snapshot` or `live`).
+    UpdateType,
 }
 
 impl BrokerField {
@@ -258,19 +374,22 @@ impl BrokerField {
             BrokerField::OiHigh => "oi_high",
             BrokerField::OiLow => "oi_low",
             BrokerField::TradedValue => "value",
+            BrokerField::UpdateType => "update_type",
         }
     }
 
     /// The lowest mode whose frames carry it (and every mode above).
     pub const fn from_mode(self) -> FeedMode {
         match self {
-            BrokerField::IndicativeEquilibriumPrice | BrokerField::TradedValue => FeedMode::Ltp,
+            BrokerField::IndicativeEquilibriumPrice
+            | BrokerField::TradedValue
+            | BrokerField::UpdateType => FeedMode::Ltp,
             BrokerField::OiHigh | BrokerField::OiLow => FeedMode::Depth,
             _ => FeedMode::Quote,
         }
     }
 
-    pub const ALL: [BrokerField; 9] = [
+    pub const ALL: [BrokerField; 10] = [
         BrokerField::IndicativeEquilibriumPrice,
         BrokerField::ReferencePrice,
         BrokerField::IndicativeEquilibriumQuantity,
@@ -280,6 +399,7 @@ impl BrokerField {
         BrokerField::OiHigh,
         BrokerField::OiLow,
         BrokerField::TradedValue,
+        BrokerField::UpdateType,
     ];
 }
 
@@ -289,6 +409,8 @@ pub enum BrokerValue {
     Int(i64),
     Float(f64),
     Bool(bool),
+    /// A fixed text the adapter names (Fyers' `snapshot` / `live`).
+    Text(&'static str),
 }
 
 impl Serialize for BrokerValue {
@@ -297,6 +419,7 @@ impl Serialize for BrokerValue {
             BrokerValue::Int(v) => s.serialize_i64(v),
             BrokerValue::Float(v) => s.serialize_f64(v),
             BrokerValue::Bool(v) => s.serialize_bool(v),
+            BrokerValue::Text(v) => s.serialize_str(v),
         }
     }
 }

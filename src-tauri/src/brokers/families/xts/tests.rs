@@ -1232,6 +1232,7 @@ mod subscription_batches {
             instruments: (0..n)
                 .map(|i| json!({"exchangeSegment": 1, "exchangeInstrumentID": i}))
                 .collect(),
+            release: None,
         }
     }
 
@@ -1569,6 +1570,7 @@ mod subscription_batches {
             subscribe,
             code: 1501,
             instruments: vec![json!({"exchangeSegment": 1, "exchangeInstrumentID": 7})],
+            release: None,
         };
         for first in [false, true] {
             let (url, seen) = recorded(&[1]).await;

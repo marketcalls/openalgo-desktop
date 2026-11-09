@@ -140,7 +140,8 @@ fn frame(event: &FeedEvent, key: &InstrumentKey, mode: Mode, broker: &str) -> Op
         }
         _ => return None,
     };
-    if update.mode < mode {
+    // A Depth wait wants a book: a full tick without one does not end it.
+    if update.mode < mode || (mode == Mode::Depth && update.depth.is_none()) {
         return None;
     }
     serde_json::from_str(&market_data(&update, mode, DEFAULT_DEPTH, broker)).ok()

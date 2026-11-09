@@ -1,6 +1,7 @@
 //! Manager tests against a local fake WebSocket server on an ephemeral port.
 
 use super::*;
+use crate::brokers::common::streaming::{FeedEvent, FeedMode, Message, PrepareError};
 use crate::brokers::mock::MockFeed;
 use crate::websocket::handshake;
 use futures_util::{SinkExt, StreamExt};
@@ -8,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
 
-fn fast() -> FeedConfig {
+pub(super) fn fast() -> FeedConfig {
     FeedConfig {
         backoff_base: Duration::from_millis(5),
         backoff_max: Duration::from_millis(20),
@@ -36,7 +37,7 @@ fn sub(symbol: &str, mode: FeedMode) -> FeedSubscription {
 
 /// Server that records every text frame per connection index and runs
 /// `script(conn_index)`: send these frames, then close (true) or hold.
-async fn server(
+pub(super) async fn server(
     script: impl Fn(usize) -> (Vec<String>, bool) + Send + Sync + 'static,
 ) -> (String, Arc<Mutex<Vec<(usize, String)>>>, JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -82,7 +83,7 @@ async fn server(
     (url, seen, task)
 }
 
-async fn wait_for(mut f: impl FnMut() -> bool) {
+pub(super) async fn wait_for(mut f: impl FnMut() -> bool) {
     for _ in 0..400 {
         if f() {
             return;
@@ -172,17 +173,26 @@ async fn subscriptions_are_reference_counted_with_effective_mode() {
     let m = WebSocketManager::with_config(fast());
     m.connect(Box::new(MockFeed::new(url))).await.unwrap();
     wait_for(|| m.is_connected()).await;
+    // Each change reaches the socket before the next: changes that land in
+    // one flush go as their net change (`registry::in_web_order`).
+    let sent = |n: usize| {
+        let seen = seen.clone();
+        move || seen.lock().len() >= n
+    };
     m.subscribe(vec![sub("SBIN", FeedMode::Ltp)]).await.unwrap();
+    wait_for(sent(1)).await;
     m.subscribe(vec![sub("SBIN", FeedMode::Ltp)]).await.unwrap();
     m.subscribe(vec![sub("SBIN", FeedMode::Quote)])
         .await
         .unwrap();
     assert_eq!(m.instrument_count(), 1);
     assert_eq!(m.subscriptions()[0].mode, FeedMode::Quote);
+    wait_for(sent(3)).await;
     m.unsubscribe(vec![sub("SBIN", FeedMode::Quote)])
         .await
         .unwrap();
     assert_eq!(m.subscriptions()[0].mode, FeedMode::Ltp);
+    wait_for(sent(5)).await;
     m.unsubscribe(vec![sub("SBIN", FeedMode::Ltp)])
         .await
         .unwrap();
@@ -220,7 +230,9 @@ async fn subscriptions_are_reference_counted_with_effective_mode() {
         .subscribe(vec![sub("D", FeedMode::Ltp)])
         .await
         .unwrap_err();
-    assert!(e.client_message().contains("at most 3 instruments"));
+    assert!(e
+        .client_message()
+        .contains("= 3 symbols. Currently subscribed to 3 symbols."));
     m.unsubscribe_all().await.unwrap();
     assert_eq!(m.instrument_count(), 0);
     m.disconnect().await.unwrap();
@@ -242,6 +254,9 @@ async fn subscription_bursts_reach_the_feed_as_one_run() {
     ])
     .await
     .unwrap();
+    // The burst reaches the socket first; in one flush with the release
+    // below it would go as its net change.
+    wait_for(|| !seen.lock().is_empty()).await;
     m.unsubscribe(vec![sub("A", FeedMode::Ltp), sub("C", FeedMode::Ltp)])
         .await
         .unwrap();
@@ -818,4 +833,30 @@ async fn mstock_socket_address_never_reaches_the_log() {
         "an mStock credential reached the log:\n{}",
         out
     );
+}
+
+/// Audit C02: `admit` answers each reference. Those that fit the
+/// connection's room are taken and the rest refused with why, so a batch
+/// past the limit still starts its admissible members; an instrument
+/// already held needs no room.
+#[tokio::test]
+async fn admit_takes_what_fits_and_refuses_the_rest() {
+    let m = WebSocketManager::with_config(fast());
+    let answers = m
+        .admit(vec![
+            sub("A", FeedMode::Ltp),
+            sub("B", FeedMode::Ltp),
+            sub("C", FeedMode::Ltp),
+            sub("D", FeedMode::Ltp),
+            sub("A", FeedMode::Quote),
+        ])
+        .await;
+    assert_eq!(
+        answers.iter().map(|a| a.is_ok()).collect::<Vec<_>>(),
+        [true, true, true, false, true]
+    );
+    assert!(answers[3]
+        .as_ref()
+        .is_err_and(|why| why.contains("= 3 symbols. Currently subscribed to 3 symbols.")));
+    assert_eq!(m.instrument_count(), 3);
 }

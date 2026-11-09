@@ -115,6 +115,64 @@ fn a_packet_without_a_price_first_keeps_its_fields_for_the_price() {
     assert!(s.tick().knows(QuoteField::OpenInterest));
 }
 
+/// A packet with neither a price nor a trade time (HDFC before the first
+/// trade, bk-b's no_trade_yet) brings only what it marks as carried: a
+/// book on it carries no `ltt` and none of the zeros its mode would stand
+/// for; a real trade time from earlier in the connection stays.
+#[test]
+fn a_packet_without_a_trade_brings_only_what_it_carries() {
+    use crate::brokers::common::streaming::NormalizedDepth;
+    use crate::feed::InstrumentKey;
+    let mut t = NormalizedTick {
+        symbol: "NIFTY28NOV26FUT".into(),
+        exchange: "NFO".into(),
+        mode: 3,
+        close: 494.05,
+        timestamp_ms: 1_740_729_540_000,
+        ..Default::default()
+    };
+    t.mark_absent(QuoteField::Ltp);
+    t.mark_absent(QuoteField::LastTradeTime);
+    t.mark_carried(QuoteField::Close);
+    let s = merge(None, &t, 1);
+    let k = s.tick().known();
+    for f in [
+        QuoteField::Open,
+        QuoteField::High,
+        QuoteField::Low,
+        QuoteField::Volume,
+    ] {
+        assert!(!k.contains(f), "{:?}", f);
+    }
+    assert!(k.contains(QuoteField::Close));
+    let mut valued = t.clone();
+    valued.volume = 5;
+    assert!(
+        merge(None, &valued, 1).tick().knows(QuoteField::Volume),
+        "a value it sent"
+    );
+    let book = NormalizedDepth {
+        symbol: t.symbol.clone(),
+        exchange: t.exchange.clone(),
+        timestamp_ms: t.timestamp_ms,
+        ..Default::default()
+    };
+    let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
+    let u = crate::feed::bridge::depth_update(key, &book, Some(s.tick()), s.book_lacks());
+    assert_eq!(u.ltt, None, "not the packet's time");
+    let q = u.quote.unwrap_or_default();
+    assert_eq!((q.open, q.high, q.volume), (None, None, None));
+    assert_eq!(q.close, Some(494.05));
+
+    let s = merge(Some(&merge(None, &quote_packet(), 1)), &t, 1);
+    assert!(!s.tick().absent.contains(QuoteField::LastTradeTime));
+    assert_eq!(
+        s.tick().last_trade_time_ms,
+        1_740_729_550_000,
+        "the earlier real one"
+    );
+}
+
 /// A genuine zero replaces a value: no volume yet after a session's first
 /// packet, a total that went to 0.
 #[test]
@@ -158,12 +216,14 @@ fn the_trade_time_goes_with_its_price() {
 }
 
 /// The optional shared fields stay until a packet sends a new value; the
-/// broker-only fields last one packet (Upstox's auction price).
+/// packet's own exchange time and the broker-only fields last one packet
+/// (bk-c's mstock/quote_mode, Upstox's auction price).
 #[test]
 fn extras_stay_and_broker_fields_last_one_packet() {
     use crate::brokers::common::streaming::{BrokerField, BrokerValue};
     let mut first = quote_packet();
     first.extras.upper_circuit = Some(540.0);
+    first.extras.exchange_time_ms = Some(1_740_729_550_050);
     first.broker_fields.set(
         BrokerField::IndicativeEquilibriumPrice,
         BrokerValue::Float(0.0),
@@ -184,5 +244,69 @@ fn extras_stay_and_broker_fields_last_one_packet() {
         (x.upper_circuit, x.lower_circuit),
         (Some(540.0), Some(440.0))
     );
+    assert_eq!(x.exchange_time_ms, None, "a packet's own time is not kept");
     assert!(s.tick().broker_fields.is_empty());
+}
+
+/// A packet can clear an extra (a book that emptied both sides has no best
+/// bid or ask: web groww depth clear), which a `None` would have kept.
+#[test]
+fn a_cleared_extra_is_gone_where_a_missing_one_stays() {
+    use crate::brokers::common::streaming::ExtraField;
+    let mut first = quote_packet();
+    first.extras.bid_price = Some(219.25);
+    first.extras.ask_price = Some(219.35);
+    first.extras.upper_circuit = Some(540.0);
+    let s = merge(None, &first, 1);
+    let s = merge(Some(&s), &ltpc_packet(220.0), 1);
+    assert_eq!(s.tick().extras.bid_price, Some(219.25), "not sent: kept");
+    let mut emptied = ltpc_packet(220.5);
+    emptied.extras.clear_best_bid_ask();
+    let s = merge(Some(&s), &emptied, 1);
+    let x = s.tick().extras;
+    assert_eq!((x.bid_price, x.ask_price), (None, None));
+    assert_eq!(x.upper_circuit, Some(540.0));
+    let mut circuit = ltpc_packet(221.0);
+    circuit.extras.clear(ExtraField::UpperCircuit);
+    let s = merge(Some(&s), &circuit, 1);
+    assert_eq!(s.tick().extras.upper_circuit, None);
+    assert!(
+        s.tick().extras.cleared == Default::default(),
+        "the mark is per packet"
+    );
+}
+
+/// A field a packet clears is dropped from the snapshot until a packet
+/// carries it again (web Tradejini and Samco prune the book's totals when
+/// the Depth holder leaves); one it only lacks is kept.
+#[test]
+fn a_cleared_field_is_gone_where_an_absent_one_stays() {
+    let s = merge(None, &quote_packet(), 1);
+    let mut gone = quote_packet();
+    gone.mark_cleared(QuoteField::TotalBuyQuantity);
+    gone.mark_absent(QuoteField::TotalSellQuantity);
+    let s = merge(Some(&s), &gone, 1);
+    assert!(!s.tick().knows(QuoteField::TotalBuyQuantity));
+    assert!(s.tick().knows(QuoteField::TotalSellQuantity));
+    assert_eq!(s.tick().total_sell_quantity, 800);
+    let s = merge(Some(&s), &ltpc_packet(221.0), 1);
+    assert!(!s.tick().knows(QuoteField::TotalBuyQuantity), "stays gone");
+    let s = merge(Some(&s), &quote_packet(), 1);
+    assert!(
+        s.tick().knows(QuoteField::TotalBuyQuantity),
+        "back when sent"
+    );
+}
+
+/// A packet that marks the change absent (its stream has none) gets none
+/// worked out from the price and the close, which an adapter could not
+/// otherwise leave out.
+#[test]
+fn a_change_marked_absent_is_not_worked_out() {
+    let s = merge(None, &quote_packet(), 1);
+    assert!(s.tick().knows(QuoteField::Change));
+    let mut next = ltpc_packet(221.0);
+    next.mark_absent(QuoteField::Change);
+    let s = merge(Some(&s), &next, 1);
+    assert!(!s.tick().knows(QuoteField::Change));
 }

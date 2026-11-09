@@ -74,6 +74,11 @@ pub struct FeedConfig {
     pub throttle: Duration,
     /// What one connection may send before it is closed (RATE-01).
     pub frame_budget: FrameBudget,
+    /// Longest a subscribe or unsubscribe waits for the source's answer
+    /// before its item is answered as not done (audit C01, C02). An XTS
+    /// release of 3,000 instruments takes 60 REST calls half a second
+    /// apart.
+    pub op_timeout: Duration,
     /// Who may open a connection, read at each handshake (security
     /// review S-10).
     pub handshake: HandshakeGate,
@@ -294,6 +299,7 @@ impl Default for FeedConfig {
             max_subscriptions_per_client: 3000,
             throttle: Duration::ZERO,
             frame_budget: FrameBudget::default(),
+            op_timeout: Duration::from_secs(60),
             handshake: HandshakeGate::fixed(HandshakePolicy::default()),
         }
     }

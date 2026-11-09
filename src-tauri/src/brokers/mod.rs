@@ -592,6 +592,30 @@ pub trait Broker: Send + Sync {
     fn feed_refusal(&self, _exchange: &str) -> Option<String> {
         None
     }
+
+    /// The step the live feed awaits before it subscribes an instrument no
+    /// consumer holds yet (`common::streaming::Presubscribe`): Samco looks
+    /// a cold index's streaming id up over REST, as the web does when
+    /// subscribing (its REST lookup needs the session's `auth`, as
+    /// `create_feed` gets it; the broker keeps no token). Default: none,
+    /// every subscription streams as the master describes it.
+    fn feed_presubscribe(&self, _auth: &AuthToken) -> Option<common::streaming::Presubscribe> {
+        None
+    }
+
+    /// An update from the broker's order socket, completed before it is
+    /// published: IndMoney's stream names an order it did not see placed
+    /// by its id alone, and the web looks it up in the order book (bk-b
+    /// RB-11). `auth` is the session's, as `create_feed` gets it (the
+    /// broker keeps no token). The relay awaits it within a deadline and
+    /// holds no lock meanwhile. Default: as it came.
+    async fn complete_order_update(
+        &self,
+        _auth: &AuthToken,
+        update: common::streaming::OrderUpdate,
+    ) -> common::streaming::OrderUpdate {
+        update
+    }
 }
 
 /// One API plan of a broker (`Broker::rate_plans`).

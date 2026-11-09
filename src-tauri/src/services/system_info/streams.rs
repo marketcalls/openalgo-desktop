@@ -69,6 +69,9 @@ pub(super) fn describe(
             "The broker refused the session. Sign in to your broker again from the Broker page."
                 .to_string(),
         ),
+        // The broker's own reason and what to do (audit P-12), never
+        // "sign in again" when the login is fine.
+        FeedStatus::Halted { message, .. } => (false, message.clone()),
         FeedStatus::Disconnected => (
             false,
             "Not connected. If this lasts, sign in to your broker again from the Broker page."

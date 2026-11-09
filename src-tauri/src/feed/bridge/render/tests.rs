@@ -19,14 +19,21 @@ pub(in crate::feed::bridge) fn full_tick(symbol: &str, exchange: &str) -> Normal
     }
 }
 
+/// A full tick reaches every mode, Depth holders included, with no book
+/// of its own (lead decision 2026-11-09); its book, sent on its own, reaches
+/// Depth holders only.
 #[test]
-fn full_equity_tick_serves_quote_and_depth_serves_depth_holders() {
+fn full_equity_tick_serves_every_mode_and_depth_serves_depth_holders() {
     let k = InstrumentKey::new("RELIANCE", "NSE");
     let t = full_tick("RELIANCE", "NSE");
     let u = tick_update(k.clone(), &t).expect("a price");
-    assert_eq!(u.mode, Mode::Quote);
-    assert!(!u.exact_mode);
+    assert_eq!(u.mode, Mode::Depth);
+    assert!(!u.exact_mode && u.depth.is_none());
     assert_eq!(u.quote.as_ref().and_then(|q| q.oi), Some(0));
+    let frame = crate::feed::protocol::market_data(&u, Mode::Depth, 5, "hdfcsky");
+    let v: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert!(v["data"].get("depth").is_none(), "{}", v);
+    assert_eq!(v["data"]["ltp"], 1167.7);
     let d = NormalizedDepth {
         symbol: "RELIANCE".into(),
         exchange: "NSE".into(),
@@ -90,7 +97,7 @@ fn index_full_tick_reaches_every_mode_with_change_fields() {
 fn frame_data(t: &NormalizedTick, mode: Mode, broker: &str) -> serde_json::Value {
     let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
     let tick = tick_update(key.clone(), t).expect("a price");
-    let update = if mode == Mode::Depth && tick.mode < Mode::Depth {
+    let update = if mode == Mode::Depth {
         let d = NormalizedDepth {
             symbol: t.symbol.clone(),
             exchange: t.exchange.clone(),
@@ -374,4 +381,73 @@ fn a_book_sends_only_what_it_carries() {
     let u = depth_update(k, &book, Some(&t), AbsentFields::default());
     assert_eq!(u.quote.unwrap().total_buy_quantity, Some(0), "the book's 0");
     assert_eq!(u.depth.unwrap().buy[0].orders, Some(0));
+}
+
+/// Once a book has come in a connection, a full tick carries it to Depth
+/// holders (lead decision 2026-11-09, the Samco ruling), also where the
+/// broker's Depth holder waits for a book (Definedge); before the first
+/// book, on a Quote packet and in a new connection the tick has none.
+#[test]
+fn a_full_tick_after_a_book_carries_that_book() {
+    use crate::brokers::types::DepthLevel as Level;
+    use crate::feed::bridge::snapshot::{keep_book, merge, LastBook};
+    use std::collections::HashMap;
+    let key = InstrumentKey::new("SBIN", "NSE");
+    let level = |price| Level {
+        price,
+        quantity: 10,
+        orders: 2,
+    };
+    let d = NormalizedDepth {
+        symbol: "SBIN".into(),
+        exchange: "NSE".into(),
+        ltp: 1167.7,
+        buy: vec![level(1167.6)],
+        sell: vec![level(1167.8)],
+        timestamp_ms: 1_791_000_000_050,
+        ..Default::default()
+    };
+    let mut map = HashMap::new();
+    map.insert(key.clone(), merge(None, &full_tick("SBIN", "NSE"), 1));
+    let first = snapshot_update(key.clone(), &map[&key]).expect("a price");
+    assert!(first.depth.is_none(), "no book yet");
+    assert!(!crate::feed::protocol::reaches(
+        &first,
+        Mode::Depth,
+        "definedge"
+    ));
+    let book = depth_update(
+        key.clone(),
+        &d,
+        Some(map[&key].tick()),
+        map[&key].book_lacks(),
+    );
+    keep_book(&mut map, &key, LastBook::of(&book).expect("a book"), 1);
+
+    let mut next = full_tick("SBIN", "NSE");
+    next.ltp = 1168.0;
+    let s = merge(map.get(&key), &next, 1);
+    let u = snapshot_update(key.clone(), &s).expect("a price");
+    assert_eq!(u.ltp, 1168.0, "the tick's price, not the book's");
+    assert_eq!(u.depth.as_ref().map(|b| b.buy[0].price), Some(1167.6));
+    assert!(crate::feed::protocol::reaches(&u, Mode::Depth, "definedge"));
+    let mut quote = next.clone();
+    quote.mode = 2;
+    let q = snapshot_update(key.clone(), &merge(Some(&s), &quote, 1)).expect("a price");
+    assert!(q.depth.is_none(), "a Quote packet reaches no Depth holder");
+    let fresh = merge(Some(&s), &next, 2);
+    assert!(
+        snapshot_update(key.clone(), &fresh)
+            .and_then(|u| u.depth)
+            .is_none(),
+        "a new connection"
+    );
+
+    let mut early = HashMap::new();
+    keep_book(&mut early, &key, LastBook::of(&book).expect("a book"), 1);
+    let s = merge(early.get(&key), &next, 1);
+    assert!(
+        snapshot_update(key, &s).and_then(|u| u.depth).is_some(),
+        "a book before the first tick"
+    );
 }

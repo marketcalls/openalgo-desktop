@@ -40,7 +40,16 @@
 //! * **Optional shared fields** ([`QuoteExtras`], C06): `t.extras.
 //!   upper_circuit = Some(v)`, likewise the 52-week range, the best bid and
 //!   ask, previous OI, OI change, total OI, the day's close and the packet's
-//!   exchange time. Leave `None` what the packet did not carry.
+//!   exchange time. Leave `None` what the packet did not carry (the
+//!   bridge keeps the last value); `t.extras.clear(ExtraField::BidPrice)` or
+//!   `clear_best_bid_ask()` for what the packet says is gone (an emptied
+//!   book). The exchange time belongs to its packet alone and is never
+//!   kept.
+//! * **Gone:** `t.mark_cleared(QuoteField::TotalBuyQuantity)` drops a quote
+//!   field from what the bridge keeps (`mark_absent` keeps it).
+//! * **Number form:** `t.numbers.set(Number::Ltp, NumberForm::Integer)` (a
+//!   whole value as an integer, as 5paisa's JSON sends it) or
+//!   `NumberForm::Double` (Jainam's 1105 text event), for this packet.
 //! * **Broker-only fields** ([`BrokerField`]): `t.broker_fields.set(
 //!   BrokerField::IndicativeEquilibriumPrice, BrokerValue::Float(v))`. The
 //!   set of keys is fixed in `fields.rs`, so a broker field can never
@@ -67,7 +76,12 @@ pub use tokio_tungstenite::tungstenite::handshake::client::Request as WsRequest;
 pub use tokio_tungstenite::tungstenite::Message;
 
 mod fields;
-pub use fields::{AbsentFields, BrokerField, BrokerFields, BrokerValue, QuoteExtras, QuoteField};
+mod numbers;
+pub use fields::{
+    AbsentFields, BrokerField, BrokerFields, BrokerValue, ClearedExtras, ExtraField, QuoteExtras,
+    QuoteField,
+};
+pub use numbers::{Number, NumberForm, NumberForms};
 
 /// Longest a feed waits for a required login acknowledgement
 /// (`BrokerFeed::auth_ack_deadline`).
@@ -183,6 +197,14 @@ pub struct NormalizedTick {
     /// The broker-only fields this packet carried.
     #[serde(skip_serializing_if = "BrokerFields::is_empty")]
     pub broker_fields: BrokerFields,
+    /// The JSON number form of this packet's values where the broker's own
+    /// JSON decides it (`numbers.rs`), for this packet only; canonical keys
+    /// and the broker's names alike.
+    #[serde(skip)]
+    pub numbers: NumberForms,
+    /// What this packet says is gone (`mark_cleared`).
+    #[serde(skip_serializing_if = "AbsentFields::is_empty")]
+    pub cleared: AbsentFields,
 }
 
 impl NormalizedTick {
@@ -201,6 +223,16 @@ impl NormalizedTick {
     }
 
     /// This packet carries `field` although its mode would not.
+    /// `field` is gone: not in this packet, and dropped from what the
+    /// bridge keeps for the instrument until a packet carries it again
+    /// (web Tradejini and Samco prune the book's totals when the Depth
+    /// holder leaves). `mark_absent` keeps the last value instead. Not for
+    /// the price or the trade time, which go with each packet anyway.
+    pub fn mark_cleared(&mut self, field: QuoteField) {
+        self.mark_absent(field);
+        self.cleared = self.cleared.with(field);
+    }
+
     pub fn mark_carried(&mut self, field: QuoteField) {
         self.carried = self.carried.with(field);
         self.absent = self.absent.without(field);
@@ -323,6 +355,73 @@ impl std::fmt::Debug for OrderFeed {
 /// Events published to subscribers of the manager (shared, cheap to clone).
 pub type MarketEvent = Arc<FeedEvent>;
 
+/// The instruments a broker refused to release, each with why, for the
+/// trader (`BrokerFeed::release_frames`).
+pub type ReleaseRefusals = Vec<(FeedSubscription, String)>;
+
+/// Where a broker that answers a release apart from the socket sends that
+/// answer (`BrokerFeed::release_frames`).
+pub type ReleaseAnswer = tokio::sync::oneshot::Receiver<ReleaseRefusals>;
+
+/// A broker's step before a new instrument is subscribed
+/// (`Broker::feed_presubscribe`): each subscription as the feed will
+/// stream it (only its broker fields, `token`, `brsymbol` and
+/// `brexchange`, may change), or why it cannot be, in the web's words, in
+/// the order asked. Samco looks an index's streaming id up over REST, as
+/// the web does when subscribing. The manager awaits it within a deadline
+/// and holds no lock meanwhile.
+pub type Presubscribe = Arc<
+    dyn Fn(
+            Vec<FeedSubscription>,
+        ) -> futures_util::future::BoxFuture<
+            'static,
+            Vec<std::result::Result<FeedSubscription, String>>,
+        > + Send
+        + Sync,
+>;
+
+/// Why the broker session's feed refuses a subscription outright (a mode,
+/// depth or exchange its web adapter refuses), in the web's words; `None`
+/// takes it. Every consumer of the feed hears it, not only feed clients.
+pub type FeedRefusal = Arc<dyn Fn(&FeedSubscription) -> Option<String> + Send + Sync>;
+
+/// How a broker socket ended, for `BrokerFeed::on_ended` (audit P-12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ended<'a> {
+    /// The connection closed: the broker's close code and reason, the code
+    /// `None` on a read error or the end of the stream.
+    Closed { code: Option<u16>, reason: &'a str },
+    /// The broker refused the WebSocket upgrade with this HTTP status, one
+    /// `BrokerFeed::is_auth_failure` does not claim.
+    Refused(u16),
+}
+
+/// What the manager does after a socket ended (`BrokerFeed::on_ended`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Reconnect {
+    /// Connect again after the manager's capped backoff.
+    Backoff,
+    /// Connect again after this long, as the broker asks.
+    After(Duration),
+    /// Do not connect again until the next broker sign-in; the message is
+    /// the trader's, and the kind says what the status and Health tell
+    /// them ("log in again" only for `StopKind::Auth`).
+    Stop { kind: StopKind, message: String },
+}
+
+/// Why a broker ended its feed for good (`Reconnect::Stop`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StopKind {
+    /// The login is no longer valid: the trader logs in again.
+    Auth,
+    /// Too many connections on one login (another app or session holds
+    /// them): the trader closes the others.
+    ConnectionLimit,
+    /// Any other reason the broker gave.
+    Other,
+}
+
 /// The per-broker streaming adapter.
 #[async_trait]
 pub trait BrokerFeed: Send + Sync {
@@ -388,6 +487,19 @@ pub trait BrokerFeed: Send + Sync {
     /// subscribed with).
     fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message>;
 
+    /// Frames that release these instruments, and, when the broker answers
+    /// a release apart from the socket (XTS releases over REST), a receiver
+    /// of the ones it refused to let go, with why. The manager asks this
+    /// for a release a caller waits on (audit C01); a sender dropped
+    /// without an answer means the release was not confirmed. Default: the
+    /// unsubscribe frames, whose writing is the whole release.
+    fn release_frames(
+        &mut self,
+        subs: &[FeedSubscription],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        (self.unsubscribe_frames(subs), None)
+    }
+
     /// Frames that move an instrument from one effective mode to another.
     /// Default: unsubscribe the old mode, subscribe the new one.
     fn mode_change_frames(
@@ -434,6 +546,32 @@ pub trait BrokerFeed: Send + Sync {
     fn is_auth_failure(&self, http_status: Option<u16>) -> bool {
         matches!(http_status, Some(401) | Some(403))
     }
+
+    /// The socket ended (a close frame, a read error, or an upgrade refused
+    /// with a status `is_auth_failure` does not claim): what the manager
+    /// does next. A broker whose close codes mean something (Sahi's 4429
+    /// for too many connections on one token) answers by them; the
+    /// default is the capped backoff (audit P-12).
+    fn on_ended(&mut self, _ended: Ended<'_>) -> Reconnect {
+        Reconnect::Backoff
+    }
+
+    /// What the feed tells the broker before the manager closes its socket
+    /// deliberately (a logout, a broker switch, quitting, or an extra
+    /// connection that carries nothing any more); never after an error or
+    /// a close the broker made. Motilal's order socket says
+    /// `{"clientid", "action":"logout"}` there, as the web's adapter does
+    /// (motilal_order_adapter.py:131-139). Sent with a short bounded wait.
+    /// Default: nothing.
+    fn farewell_frames(&self) -> Vec<Message> {
+        Vec::new()
+    }
+
+    /// The trader asked to connect again after this feed answered
+    /// `Reconnect::Stop` with a kind other than `Auth` (a feed client
+    /// signed in, or the computer woke): start the broker's retry budget
+    /// afresh, as the web's rebuilt adapter does.
+    fn on_resume(&mut self) {}
 }
 
 /// A handshake request whose URL has no path (`wss://ws.kite.trade?api_key=..`)

@@ -3,21 +3,25 @@
 //! and a heartbeat it never answers all end the session, so the manager
 //! reconnects; a quiet broker that answers its heartbeats keeps it.
 
+use super::registry::Entry;
 use super::*;
-use crate::brokers::common::streaming::AUTH_ACK_DEADLINE;
+use crate::brokers::common::streaming::{FeedEvent, FeedMode, Message, AUTH_ACK_DEADLINE};
+use std::collections::BTreeMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use tokio::time::Instant;
+use tokio_tungstenite::tungstenite::Error as WsError;
 
 /// Takes `take` frames, then never takes another: `poll_ready` stays
 /// pending, as a send does once a peer stops reading and the socket
 /// buffer is full.
-struct StuckSink {
-    sent: Arc<Mutex<Vec<(Duration, String)>>>,
-    take: usize,
-    start: Instant,
+pub(super) struct StuckSink {
+    pub(super) sent: Arc<Mutex<Vec<(Duration, String)>>>,
+    pub(super) take: usize,
+    pub(super) start: Instant,
     /// The broker's side of the socket, when it answers a ping with a
     /// pong as WebSocket servers do.
-    pongs: Option<mpsc::Sender<Message>>,
+    pub(super) pongs: Option<mpsc::Sender<Message>>,
 }
 
 impl futures_util::Sink<Message> for StuckSink {
@@ -81,10 +85,10 @@ fn broker_frames() -> (mpsc::Sender<Message>, Frames) {
 /// A feed that logs in with `LOGIN`, heartbeats with `HB` every 5 s and
 /// answers `PING` with `PONG`. `HB` from the broker is a heartbeat and
 /// `OK` its login acknowledgement.
-struct ScriptedFeed {
-    awaits_ack: bool,
-    optional_ack: Option<Duration>,
-    reply_within: Option<Duration>,
+pub(super) struct ScriptedFeed {
+    pub(super) awaits_ack: bool,
+    pub(super) optional_ack: Option<Duration>,
+    pub(super) reply_within: Option<Duration>,
 }
 
 impl BrokerFeed for ScriptedFeed {
@@ -130,7 +134,7 @@ impl BrokerFeed for ScriptedFeed {
 
 /// A supervisor for `feed` holding one subscription, and the sender of
 /// its commands.
-fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender<Command>) {
+pub(super) fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender<Command>) {
     let (cmd_tx, cmd) = mpsc::channel(4);
     let sub = FeedSubscription {
         symbol: "SBIN".into(),
@@ -147,6 +151,8 @@ fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender<Command>) 
         Entry {
             base: sub,
             modes: BTreeMap::from([(FeedMode::Ltp, 1)]),
+            depths: BTreeMap::new(),
+            conn: 0,
         },
     );
     let config = FeedConfig {
@@ -162,6 +168,8 @@ fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender<Command>) 
         status: watch::channel(FeedStatus::Disconnected).0,
         config,
         stats: Arc::default(),
+        conn: 0,
+        synced: 0,
     };
     (s, cmd_tx)
 }
@@ -232,6 +240,9 @@ async fn run_on(
         SessionEnd::Stopped => "stopped",
         SessionEnd::Dropped(cause) => cause.name(),
         SessionEnd::AuthFailed(_) => "auth_failed",
+        SessionEnd::DroppedFor(..) => "dropped_for",
+        SessionEnd::Halted(..) => "halted",
+        SessionEnd::WriteFailed => "write_failed",
     });
     let sent = sent.lock().clone();
     Run {

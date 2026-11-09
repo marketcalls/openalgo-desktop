@@ -186,8 +186,10 @@ async fn feed_client_to_broker_and_back_through_the_manager() {
 
 /// A broker whose feed does not stream an exchange (Groww and MCX, web
 /// openalgo#2341) answers each subscribe item on it with why, before the
-/// symbol is looked up, and nothing is held for it; the other items
-/// subscribe. A broker session's end (`reset`) drops the refusal.
+/// symbol is looked up as Groww's adapter does (groww_adapter.py:388), and
+/// nothing is held for it; the other items subscribe. A broker session's
+/// end (`reset`) drops the refusal, and the unknown symbol is then answered
+/// in Groww's words.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_exchange_the_feed_does_not_stream_is_refused_per_item() {
     let manager = Arc::new(WebSocketManager::new());
@@ -208,7 +210,7 @@ async fn an_exchange_the_feed_does_not_stream_is_refused_per_item() {
             auth: Arc::new(StaticAuth {
                 api_key: API_KEY.into(),
                 user_id: USER_ID.into(),
-                broker: Some(BROKER.into()),
+                broker: Some("groww".into()),
             }),
             orders: None,
             supported_brokers: brokers(),
@@ -234,7 +236,7 @@ async fn an_exchange_the_feed_does_not_stream_is_refused_per_item() {
     let ack = c.request(subscribe).await;
     assert_eq!(
         ack["subscriptions"][1]["message"],
-        "Token not found for CRUDEOIL19NOV26FUT on MCX"
+        "Symbol CRUDEOIL19NOV26FUT not found for exchange MCX"
     );
 
     h.stop().await;

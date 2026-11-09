@@ -43,7 +43,7 @@ use super::{BinaryDecoder, MarketKeys, XtsConfig};
 use crate::brokers::common::mapping::Exchange;
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedSubscription, Message, NormalizedDepth, NormalizedTick,
-    PrepareError, WsRequest,
+    PrepareError, ReleaseAnswer, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -57,6 +57,7 @@ use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use worker::{subscription_worker, WorkerSetup};
 
+mod release;
 pub(crate) mod worker;
 
 /// Instruments per subscription call (web F `adapter.py:36`).
@@ -180,6 +181,9 @@ pub struct Command {
     pub subscribe: bool,
     pub code: u16,
     pub instruments: Vec<Value>,
+    /// A release the manager waits on: answered, never retried behind its
+    /// caller's back (audit C01).
+    pub release: Option<release::Waited>,
 }
 
 /// Whether the market-data token may be sent to `url`.
@@ -281,6 +285,9 @@ pub async fn subscription_call(
     let body = resp.text().await.map_err(transient)?;
     let v: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
     if v.get("type").and_then(Value::as_str) != Some("success") {
+        if !subscribe && release::is_not_subscribed(&body) {
+            return Ok(CallOutcome::Done(Vec::new()));
+        }
         if is_already_subscribed(&body) {
             return Ok(CallOutcome::AlreadySubscribed);
         }
@@ -338,6 +345,8 @@ pub struct CommandReport {
     pub retry: Vec<Value>,
     /// The token was refused: the feed must reconnect.
     pub reconnect: bool,
+    /// Instruments of the batches the broker refused, with why.
+    pub refused: Vec<(Value, String)>,
 }
 
 /// Run one command: at most `SUBSCRIBE_BATCH` instruments per call, `gap`
@@ -414,14 +423,23 @@ pub async fn run_command(
                     "Subscription refused the market data token; reconnecting"
                 );
                 report.reconnect = true;
+                let why = release::TOKEN_REFUSED.to_string();
+                report
+                    .refused
+                    .extend(batch.into_iter().map(|i| (i, why.clone())));
             }
-            Err(CallError::Refused(e)) => tracing::warn!(
-                broker = t.broker,
-                code = cmd.code,
-                subscribe = cmd.subscribe,
-                "Subscription call refused: {}",
-                e
-            ),
+            Err(CallError::Refused(e)) => {
+                tracing::warn!(
+                    broker = t.broker,
+                    code = cmd.code,
+                    subscribe = cmd.subscribe,
+                    "Subscription call refused: {}",
+                    e
+                );
+                report
+                    .refused
+                    .extend(batch.into_iter().map(|i| (i, e.clone())));
+            }
         }
     }
     report.calls = calls;
@@ -634,7 +652,7 @@ impl XtsFeed {
         out
     }
 
-    fn key(sub: &FeedSubscription) -> Option<(i64, String)> {
+    pub(super) fn key(sub: &FeedSubscription) -> Option<(i64, String)> {
         let ex: Exchange = sub.exchange.parse().ok()?;
         Some((mapping::segment_code(ex)?, sub.token.trim().to_string()))
     }
@@ -643,11 +661,9 @@ impl XtsFeed {
     pub fn commands(&self, subs: &[FeedSubscription], subscribe: bool) -> Vec<Command> {
         let mut by_code: Vec<(u16, Vec<Value>)> = Vec::new();
         for s in subs {
-            let Some((seg, token)) = Self::key(s) else {
+            let Some((code, inst)) = self.instrument(s) else {
                 continue;
             };
-            let code = self.cfg.mode_code(s.mode.code());
-            let inst = json!({"exchangeSegment": seg, "exchangeInstrumentID": mapping::instrument_id(&token)});
             match by_code.iter_mut().find(|(c, _)| *c == code) {
                 Some((_, v)) => v.push(inst),
                 None => by_code.push((code, vec![inst])),
@@ -659,6 +675,7 @@ impl XtsFeed {
                 subscribe,
                 code,
                 instruments,
+                release: None,
             })
             .collect()
     }
@@ -954,15 +971,18 @@ impl BrokerFeed for XtsFeed {
     }
 
     fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
-        for s in subs {
-            if let Some(k) = Self::key(s) {
-                self.book.remove(&k);
-            }
-        }
+        self.forget(subs);
         for c in self.commands(subs, false) {
             self.enqueue(c);
         }
         Vec::new()
+    }
+
+    fn release_frames(
+        &mut self,
+        subs: &[FeedSubscription],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        release::frames(self, subs)
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

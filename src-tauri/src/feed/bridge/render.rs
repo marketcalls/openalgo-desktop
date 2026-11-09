@@ -4,6 +4,7 @@
 //! only when the packet (or, through the bridge's snapshot, an earlier one
 //! of the same connection) carried it (audit C03).
 
+use super::snapshot::Snapshot;
 use crate::brokers::common::streaming::{
     AbsentFields, NormalizedDepth, NormalizedTick, QuoteField,
 };
@@ -31,8 +32,10 @@ fn quote_fields(key: &InstrumentKey, t: &NormalizedTick, known: AbsentFields) ->
         oi: int(F::OpenInterest, t.oi),
         price_change: has(F::Change).then_some(t.change),
         price_change_percent: has(F::Change).then_some(t.change_percent),
+        trade_time: has(F::LastTradeTime).then_some(t.last_trade_time_ms),
         extras: t.extras,
         broker_fields: t.broker_fields.clone(),
+        numbers: t.numbers,
     }
 }
 
@@ -50,19 +53,18 @@ fn ltt(t: &NormalizedTick, known: AbsentFields) -> Option<i64> {
 }
 
 /// A tick, or nothing when no traded price is known for it (a packet
-/// without a trade, before the instrument's first price). A non-index full
-/// tick is served at Quote: its book follows as a separate `Depth` event.
+/// without a trade, before the instrument's first price). It reaches every
+/// mode up to its own: a full tick reaches Depth holders too, with no
+/// `depth` key when its book does not come with it (lead decision
+/// 2026-11-09: one frame per held mode per tick; the web publishes such a
+/// packet on its Depth topic without a book). A book right behind its tick
+/// goes out with it instead (`bridge::pairing`).
 pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> Option<MarketUpdate> {
     let known = t.known();
     if !known.contains(QuoteField::Ltp) {
         return None;
     }
-    let raw = Mode::from_u8(t.mode).unwrap_or(Mode::Ltp);
-    let mode = if raw == Mode::Depth && !key.is_index() {
-        Mode::Quote
-    } else {
-        raw
-    };
+    let mode = Mode::from_u8(t.mode).unwrap_or(Mode::Ltp);
     Some(MarketUpdate {
         quote: Some(quote_fields(&key, t, known)),
         key,
@@ -74,6 +76,26 @@ pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> Option<Mark
         exact_mode: false,
         token: None,
     })
+}
+
+/// A tick on its instrument's snapshot. Once a book has come in this
+/// connection, a full tick carries that book, with the book's totals where
+/// the tick has none, so a Depth holder hears every tick (lead decision
+/// 2026-11-09, the Samco ruling). Before the first book it is a tick
+/// without one (`tick_update`).
+pub(in crate::feed) fn snapshot_update(key: InstrumentKey, s: &Snapshot) -> Option<MarketUpdate> {
+    let mut u = tick_update(key, s.tick())?;
+    if u.mode != Mode::Depth {
+        return Some(u);
+    }
+    if let Some(last) = s.book() {
+        if let Some(q) = u.quote.as_mut() {
+            q.total_buy_quantity = q.total_buy_quantity.or(last.total_buy);
+            q.total_sell_quantity = q.total_sell_quantity.or(last.total_sell);
+        }
+        u.depth = Some(last.book.clone());
+    }
+    Some(u)
 }
 
 /// What a depth frame knows of the quote before its instrument's first
