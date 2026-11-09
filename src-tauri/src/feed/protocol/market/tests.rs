@@ -835,7 +835,7 @@ fn a_trade_time_goes_out_as_ist_text() {
 }
 
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,
-/// Tradejini, Kotak and Pocketful send no canonical change on an index;
+/// Tradejini, Kotak, Pocketful and both HDFC send no canonical change on an index;
 /// the broker's own names still go where it sends them (AliceBlue's
 /// `change_percent`); Zerodha's index frames carry the canonical ones.
 #[test]
@@ -847,6 +847,8 @@ fn the_canonical_index_change_follows_the_broker() {
         "tradejini",
         "kotak",
         "pocketful",
+        "hdfcsky",
+        "hdfcsecurities",
     ] {
         let d = data_at(index(), Mode::Quote, broker);
         assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
@@ -858,6 +860,10 @@ fn the_canonical_index_change_follows_the_broker() {
     );
     assert_eq!(
         data_at(index(), Mode::Quote, "kotak")["percent_change"],
+        1.25
+    );
+    assert_eq!(
+        data_at(index(), Mode::Quote, "hdfcsky")["change_percent"],
         1.25
     );
     assert_eq!(

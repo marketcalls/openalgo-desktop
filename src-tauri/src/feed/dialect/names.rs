@@ -632,7 +632,7 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .richer()
             .floats(&["total_buy_quantity", "total_sell_quantity"]),
         "arrow" => d(Absent, ARROW_HDFC).open_interest().richer(),
-        "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest(),
+        "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest().no_index_change(),
         "rupeezy" => d(Absent, RUPEEZY).open_interest(),
         // aliceblue_adapter.py:1243-1305: no symbol, exchange or mode in
         // `data`, and `timestamp` in the Depth dict only.
