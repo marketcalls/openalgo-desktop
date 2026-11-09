@@ -11,7 +11,7 @@
 //! Production wires the broker streaming manager through `feed::bridge`;
 //! tests use [`FakeSource`].
 
-use crate::brokers::common::streaming::{BrokerFields, NumberForms, QuoteExtras};
+use crate::brokers::common::streaming::{BrokerFields, NumberForms, QuoteExtras, TimeText};
 use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
@@ -159,6 +159,8 @@ pub struct QuoteFields {
     pub broker_fields: BrokerFields,
     /// The number forms the packet marked (`NormalizedTick::numbers`).
     pub numbers: NumberForms,
+    /// The text form of the trade time (`NormalizedTick::time_text`).
+    pub time_text: Option<TimeText>,
 }
 
 /// A normalized update from the broker feed.

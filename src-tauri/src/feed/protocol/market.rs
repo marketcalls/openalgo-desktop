@@ -4,7 +4,7 @@
 //! left out, never sent as 0 (web openalgo#2376, audit C03).
 
 use super::to_json;
-use crate::brokers::common::streaming::{Number, NumberForm};
+use crate::brokers::common::streaming::{Number, NumberForm, TimeText};
 use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Fold, Key, Source, Unit};
 use crate::feed::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
 use serde::ser::{SerializeMap, Serializer};
@@ -147,16 +147,28 @@ struct MarketDataOut<'a> {
 }
 
 /// The values a frame may show, under any name: the update's quote without
-/// an index's order-flow fields (no web adapter's index dict has them).
-/// Which canonical keys carry them is the broker's `Keys`; a web name reads
-/// the value whatever its canonical key does.
-fn shown_quote(update: &MarketUpdate) -> QuoteFields {
+/// the order-flow fields of an index whose canonical keys the broker leaves
+/// out at `content` (most web adapters' index dicts have none; mStock's
+/// fixed 123-byte packet carries them, mstock_adapter.py:362-375). A web
+/// name reads the same values, so it goes and stays with them; a field
+/// the packet only filled with 0 is marked absent by the feed and never
+/// reaches here.
+fn shown_quote(update: &MarketUpdate, dia: &Dialect, content: Mode) -> QuoteFields {
     let mut q = update.quote.clone().unwrap_or_default();
     if update.key.is_index() {
-        q.last_quantity = None;
-        q.average_price = None;
-        q.total_buy_quantity = None;
-        q.total_sell_quantity = None;
+        let off = |k: Key| !dia.keys.has(k, true, content);
+        if off(Key::LastQuantity) {
+            q.last_quantity = None;
+        }
+        if off(Key::AveragePrice) {
+            q.average_price = None;
+        }
+        if off(Key::TotalBuyQuantity) {
+            q.total_buy_quantity = None;
+        }
+        if off(Key::TotalSellQuantity) {
+            q.total_sell_quantity = None;
+        }
     }
     q
 }
@@ -204,15 +216,21 @@ fn time(ms: i64, unit: Unit) -> Value {
     }
 }
 
-/// A trade time as text, `YYYY-MM-DD HH:MM:SS` in IST: what web Python's
-/// `str(datetime.fromtimestamp(seconds))` writes on a host on IST (the
-/// desktop keeps IST everywhere, so CI and every computer agree).
-fn time_text(ms: i64) -> Option<Value> {
+/// A trade time as text in `form`: `YYYY-MM-DD HH:MM:SS` in IST is what web
+/// Python's `str(datetime.fromtimestamp(seconds))` writes on a host on IST
+/// (the desktop keeps IST everywhere, so CI and every computer agree),
+/// `HH:MM:SS` the time of day the Noren family and Definedge pass through,
+/// and epoch seconds as a string Definedge's other form.
+fn time_text(ms: i64, form: TimeText) -> Option<Value> {
     use chrono::TimeZone;
-    let t = crate::clock::ist_offset()
-        .timestamp_opt(ms.div_euclid(1000), 0)
-        .single()?;
-    Some(t.format("%Y-%m-%d %H:%M:%S").to_string().into())
+    let secs = ms.div_euclid(1000);
+    let t = crate::clock::ist_offset().timestamp_opt(secs, 0).single()?;
+    let text = match form {
+        TimeText::DateTime => t.format("%Y-%m-%d %H:%M:%S").to_string(),
+        TimeText::TimeOfDay => t.format("%H:%M:%S").to_string(),
+        TimeText::EpochSeconds => secs.to_string(),
+    };
+    Some(text.into())
 }
 
 /// The packet value `source` reads, for the number form the packet marked.
@@ -302,7 +320,12 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::Change => f(q.price_change),
         Source::ChangePercent => f(q.price_change_percent),
         Source::TradeTime(unit) => fr.update.ltt.map(|ms| time(ms, unit)),
-        Source::TradeTimeText => q.trade_time.and_then(time_text),
+        Source::TradeTimeText => q
+            .trade_time
+            .and_then(|ms| time_text(ms, q.time_text.unwrap_or(TimeText::DateTime))),
+        Source::TradeTimeOfDay => q
+            .trade_time
+            .and_then(|ms| time_text(ms, q.time_text.unwrap_or(TimeText::TimeOfDay))),
         Source::Extra(e) => extra(e, q),
         Source::DepthLevels => {
             let book = fr.content == Mode::Depth && !fr.update.key.is_index();
@@ -371,11 +394,11 @@ pub(crate) fn reaches(update: &MarketUpdate, mode: Mode, broker: &str) -> bool {
 pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -> String {
     let key: &InstrumentKey = &update.key;
     let dia = dialect(broker);
-    let q = shown_quote(update);
     let content = match dia.fold {
         Fold::PerMode => mode,
         Fold::Richer => update.mode.max(mode),
     };
+    let q = shown_quote(update, &dia, content);
     let mut d = canonical(update, &q, mode, content, &dia);
     if dia.keys.has(Key::Depth, key.is_index(), content) {
         d.depth = book(update, mode, depth).map(|b| BookOut {
@@ -446,6 +469,9 @@ fn canonical<'a>(
     let i = |v: Option<i64>| v.map(Value::from);
     let f = |v: Option<f64>| v.map(Value::from);
     let ltp_copy = mode == Mode::Ltp && update.mode > Mode::Ltp;
+    // `data.mode`: the dict's own mode, or the holder's where the web
+    // adapter writes each subscription's mode into the dict it publishes.
+    let written = if dia.mode_of_holder { mode } else { content };
     let on = |k: Key| dia.keys.has(k, key.is_index(), content);
     let ltt = update
         .ltt
@@ -455,8 +481,8 @@ fn canonical<'a>(
         exchange: on(Key::Exchange).then_some(key.exchange.as_str()),
         mode: on(Key::Mode)
             .then_some(match dia.data_mode {
-                DataMode::Label => Some(ModeOut::Label(content.data_label())),
-                DataMode::Number => Some(ModeOut::Number(content.as_u8())),
+                DataMode::Label => Some(ModeOut::Label(written.data_label())),
+                DataMode::Number => Some(ModeOut::Number(written.as_u8())),
                 DataMode::Absent => None,
             })
             .flatten(),
