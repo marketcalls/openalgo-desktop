@@ -70,6 +70,15 @@ fn level(price: f64, size: i64, orders: i64) -> Value {
     json!({"Price": price, "Size": size, "TotalOrders": orders})
 }
 
+/// A 1502 with its Touchline and no book side anywhere.
+fn no_book() -> Value {
+    let mut v = depth_1502();
+    let o = v.as_object_mut().unwrap();
+    o.remove("Bids");
+    o.remove("Asks");
+    v
+}
+
 fn depth_1502() -> Value {
     json!({
         "MessageCode": 1502, "ExchangeSegment": 1, "ExchangeInstrumentID": 2885,
@@ -208,6 +217,79 @@ fn rmoney_reads_its_payload_variants() {
                 .is_empty()
         );
     }
+}
+
+/// R107-09: RMoney clears a side it sends empty wherever its web adapter
+/// looks for one (the list in `Touchline`, `BidInfo` / `AskInfo` at the
+/// root or in `Touchline`, an empty object included), so the old book does
+/// not stand, and the best level XTS keeps in `Touchline.BidInfo` does not
+/// stand in for a side the message cleared; a 1502 naming no side makes no
+/// book, so the instrument's last book stands.
+#[test]
+fn rmoney_clears_a_side_sent_empty_anywhere() {
+    let mut touchline_lists = no_book();
+    touchline_lists["Touchline"]["Bids"] = json!([]);
+    touchline_lists["Touchline"]["Asks"] = json!([]);
+    let mut root_info = no_book();
+    root_info["BidInfo"] = json!([]);
+    root_info["AskInfo"] = json!({});
+    let mut touchline_info = no_book();
+    touchline_info["Touchline"]["BidInfo"] = json!([]);
+    touchline_info["Touchline"]["AskInfo"] = json!([]);
+    for (what, payload) in [
+        ("Touchline lists", touchline_lists),
+        ("root info", root_info),
+        ("Touchline info", touchline_info),
+    ] {
+        let (_, b) = decode(&mut feed(&rmoney::CONFIG), "1502-json-full", payload);
+        assert_eq!(b.len(), 1, "{}: a cleared book is a book", what);
+        assert!(b[0].buy.is_empty() && b[0].sell.is_empty(), "{}", what);
+    }
+
+    let mut beside_best = no_book();
+    beside_best["Touchline"]["Bids"] = json!([]);
+    beside_best["Touchline"]["Asks"] = json!([level(2500.4, 95, 4)]);
+    beside_best["Touchline"]["BidInfo"] = level(2500.1, 120, 3);
+    let (_, b) = decode(&mut feed(&rmoney::CONFIG), "1502-json-full", beside_best);
+    assert_eq!((b[0].buy.len(), b[0].sell.len()), (0, 1));
+
+    let (t, b) = decode(&mut feed(&rmoney::CONFIG), "1502-json-full", no_book());
+    assert_eq!(t.len(), 1);
+    assert!(b.is_empty(), "no side named: the last book stands");
+}
+
+/// R107-09: a side RMoney names nowhere is not a cleared one: the
+/// instrument's last side stands (bid and ask go only on an explicit
+/// clear), a side it names replaces it, an empty one clears it, and a side
+/// never seen in this connection is empty (a new connection starts afresh).
+#[test]
+fn rmoney_keeps_a_side_named_nowhere() {
+    let mut f = feed(&rmoney::CONFIG);
+    let (_, b) = decode(&mut f, "1502-json-full", depth_1502());
+    assert_eq!((b[0].buy.len(), b[0].sell.len()), (2, 1));
+
+    let mut bids_only = no_book();
+    bids_only["Bids"] = json!([level(2499.5, 10, 1)]);
+    let (_, b) = decode(&mut f, "1502-json-full", bids_only);
+    assert_eq!(b[0].buy[0].price, 2499.5);
+    assert_eq!(
+        (b[0].sell.len(), b[0].sell[0].price),
+        (1, 2500.4),
+        "asks kept"
+    );
+
+    let mut bids_cleared = no_book();
+    bids_cleared["Touchline"]["Bids"] = json!([]);
+    let (_, b) = decode(&mut f, "1502-json-full", bids_cleared);
+    assert!(b[0].buy.is_empty(), "bids cleared");
+    assert_eq!(b[0].sell[0].price, 2500.4, "asks kept");
+
+    f.on_connected();
+    let mut asks_only = no_book();
+    asks_only["Asks"] = json!([level(2501.0, 5, 1)]);
+    let (_, b) = decode(&mut f, "1502-json-full", asks_only);
+    assert!(b[0].buy.is_empty(), "no bid side seen on this connection");
+    assert_eq!(b[0].sell[0].price, 2501.0);
 }
 
 /// FB-05: Jainam's and RMoney's web clients take the code of a payload

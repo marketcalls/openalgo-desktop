@@ -31,6 +31,7 @@ corpus_cases!(
         quote_before_the_login_answer,
         ltp_then_quote,
         price_without_its_time,
+        two_clients_share_a_quote,
         depth_future_book_clear,
         index_quote,
         reconnect_subscribes_again,

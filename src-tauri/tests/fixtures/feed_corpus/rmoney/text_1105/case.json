@@ -14,16 +14,6 @@
       "brexchange": "NSECM"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      20
-    ],
-    "NFO": [
-      5,
-      20
-    ]
-  },
   "http": [
     {
       "path": "/apimarketdata/instruments/subscription",
@@ -62,7 +52,8 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The event carries no trade time; the web sends ltt 0 (.get('LastTradedTime', 0)), the desktop leaves ltt out (docs: a field the stream does not carry is left out; never a receipt time passed off as a trade time).",
-      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs trade"
+      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs trade",
+      "approval": "leave-out-unsent"
     }
   ]
 }

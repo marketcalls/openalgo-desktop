@@ -14,16 +14,6 @@
       "brexchange": "NSECM"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      20
-    ],
-    "NFO": [
-      5,
-      20
-    ]
-  },
   "http": [
     {
       "path": "/apimarketdata/instruments/subscription",
@@ -62,7 +52,8 @@
       "key": "frame",
       "kind": "web-defect",
       "reason": "The web drops a 1105 text event: its client compares the stored string instrument id with an int, so no 1105 event passes its subscription filter, and its adapter drops a message without MessageCode as an unknown code. The desktop decodes the touchline its codes 110-119 carry (audit appendix, inherited item 4).",
-      "ref": "wisdom_websocket.py _process_1105_data; wisdom_adapter.py _process_json_data"
+      "ref": "wisdom_websocket.py _process_1105_data; wisdom_adapter.py _process_json_data",
+      "approval": "never-copy-web-defect"
     }
   ]
 }

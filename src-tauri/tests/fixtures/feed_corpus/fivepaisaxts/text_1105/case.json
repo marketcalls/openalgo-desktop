@@ -14,16 +14,6 @@
       "brexchange": "NSECM"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      20
-    ],
-    "NFO": [
-      5,
-      20
-    ]
-  },
   "http": [
     {
       "path": "/apimarketdata/instruments/subscription",
@@ -62,7 +52,8 @@
       "key": "frame",
       "kind": "web-defect",
       "reason": "The web passes a 1105 text event to its adapter without a MessageCode, and the adapter drops it as an unknown code; the desktop decodes the touchline its codes 110-119 carry (audit appendix, inherited item 4).",
-      "ref": "fivepaisaxts_websocket.py _process_1105_data; fivepaisaxts_adapter.py _process_json_data"
+      "ref": "fivepaisaxts_websocket.py _process_1105_data; fivepaisaxts_adapter.py _process_json_data",
+      "approval": "never-copy-web-defect"
     }
   ]
 }

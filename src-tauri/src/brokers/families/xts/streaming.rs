@@ -62,6 +62,7 @@ use worker::{subscription_worker, WorkerSetup};
 
 mod normalise;
 mod release;
+mod sides;
 mod variants;
 pub(crate) mod worker;
 
@@ -462,6 +463,8 @@ pub struct XtsFeed {
     socket: Option<(Secret, Secret)>,
     /// `(segment code, instrument id)` -> subscription.
     book: HashMap<(i64, String), FeedSubscription>,
+    /// RMoney's last book sides per instrument (`sides`, audit R107-09).
+    sides: sides::KeptSides,
     commands: Option<mpsc::Sender<Command>>,
     worker: Option<JoinHandle<()>>,
     snapshots_tx: mpsc::Sender<String>,
@@ -575,6 +578,7 @@ impl XtsFeed {
             },
             socket: None,
             book: HashMap::new(),
+            sides: Default::default(),
             commands: None,
             worker: None,
             snapshots_tx,
@@ -699,17 +703,18 @@ impl XtsFeed {
 
     /// Decode one market-data message (JSON shape) into events, routed by
     /// `(segment, instrument id)` to its subscription.
-    pub fn normalise(&self, v: &Value) -> Vec<FeedEvent> {
-        let canonical;
-        let v = if self.cfg.hooks.payload_variants {
-            canonical = variants::canonical(v);
-            &canonical
-        } else {
-            v
-        };
-        let seg = mapping::i(v, "ExchangeSegment");
-        let id = mapping::s(v, "ExchangeInstrumentID");
-        let Some(sub) = self.book.get(&(seg, id.trim().to_string())) else {
+    pub fn normalise(&mut self, v: &Value) -> Vec<FeedEvent> {
+        let mut canonical = None;
+        if self.cfg.hooks.payload_variants {
+            let mut c = variants::canonical(v);
+            let route = sides::route(&c);
+            if self.book.contains_key(&route) {
+                self.sides.complete(route, &mut c);
+            }
+            canonical = Some(c);
+        }
+        let v = canonical.as_ref().unwrap_or(v);
+        let Some(sub) = self.book.get(&sides::route(v)) else {
             return Vec::new();
         };
         let code = mapping::i(v, "MessageCode");
@@ -727,8 +732,9 @@ impl XtsFeed {
     /// One event's payload (a 1105 text packet or a JSON message) with the
     /// code the member's web client gives it (audit FB-05). `event` is the
     /// Socket.IO event's name; a subscribe snapshot has none.
-    fn handle_payload(&self, event: Option<&str>, payload: &Value) -> Vec<FeedEvent> {
-        let hooks = &self.cfg.hooks;
+    fn handle_payload(&mut self, event: Option<&str>, payload: &Value) -> Vec<FeedEvent> {
+        let cfg = self.cfg;
+        let hooks = &cfg.hooks;
         let parsed;
         let v = match payload {
             Value::String(s) if s.starts_with("t:") => {
@@ -907,6 +913,7 @@ impl BrokerFeed for XtsFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         self.pending_attachments = 0;
+        self.sides.clear();
         while self.snapshots_rx.try_recv().is_ok() {}
         // Web `_on_connect`: silence is measured from the connection.
         self.last_data = Some(now_secs());

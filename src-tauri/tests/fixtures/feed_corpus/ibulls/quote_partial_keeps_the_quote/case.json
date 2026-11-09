@@ -15,16 +15,6 @@
       "brexchange": "NSECM"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      20
-    ],
-    "NFO": [
-      5,
-      20
-    ]
-  },
   "http": [
     {
       "path": "/apibinarymarketdata/instruments/subscription",
@@ -61,61 +51,71 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The event carries no trade time; the web sends ltt 0 (.get('LastTradedTime', 0)), the desktop leaves ltt out (docs: a field the stream does not carry is left out; never a receipt time passed off as a trade time).",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs trade"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs trade",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "The partial does not repeat average_price; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "The partial does not repeat close; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "The partial does not repeat high; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "The partial does not repeat last_quantity; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "The partial does not repeat low; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "The partial does not repeat open; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "The partial does not repeat total_buy_quantity; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "The partial does not repeat total_sell_quantity; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "The partial does not repeat volume; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "ibulls_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     }
   ]
 }
