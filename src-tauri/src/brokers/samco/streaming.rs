@@ -482,6 +482,9 @@ fn book(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> NormalizedDepth 
         total_sell_quantity: int(tsq),
         timestamp_ms: ts,
         absent,
+        // Samco's book carries no broker-only fields and no feed time of its
+        // own: the quote's time is the frame's.
+        ..Default::default()
     }
 }
 
