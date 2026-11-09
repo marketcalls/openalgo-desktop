@@ -205,6 +205,12 @@ def build() -> str:
         unknown = sorted(set(not_applicable) - set(names))
         if unknown:
             problems.append(f"{broker} broker.json: not_applicable names no scenario: {unknown}")
+        blank = sorted(s for s, why in not_applicable.items() if not str(why).strip())
+        if blank:
+            problems.append(f"{broker} broker.json: not_applicable gives no reason for {blank}")
+        covered = sorted(set(not_applicable) & seen)
+        if covered:
+            problems.append(f"{broker} broker.json: not_applicable names scenarios a case covers: {covered}")
         missing = [s for s in missing if s not in not_applicable]
         missing += [f"({s}: not applicable: {why})" for s, why in sorted(not_applicable.items())]
         if cases:
