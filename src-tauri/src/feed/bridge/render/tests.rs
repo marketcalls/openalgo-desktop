@@ -414,6 +414,7 @@ fn a_full_tick_after_a_book_carries_that_book() {
     assert!(!crate::feed::protocol::reaches(
         &first,
         Mode::Depth,
+        5,
         "definedge"
     ));
     let book = depth_update(
@@ -422,7 +423,13 @@ fn a_full_tick_after_a_book_carries_that_book() {
         Some(map[&key].tick()),
         map[&key].book_lacks(),
     );
-    keep_book(&mut map, &key, LastBook::of(&book).expect("a book"), 1);
+    keep_book(
+        &mut map,
+        &key,
+        LastBook::of(&book).expect("a book"),
+        1,
+        false,
+    );
 
     let mut next = full_tick("SBIN", "NSE");
     next.ltp = 1168.0;
@@ -449,7 +456,13 @@ fn a_full_tick_after_a_book_carries_that_book() {
     );
 
     let mut early = HashMap::new();
-    keep_book(&mut early, &key, LastBook::of(&book).expect("a book"), 1);
+    keep_book(
+        &mut early,
+        &key,
+        LastBook::of(&book).expect("a book"),
+        1,
+        false,
+    );
     let s = merge(early.get(&key), &next, 1);
     assert!(
         snapshot_update(key, &s).and_then(|u| u.depth).is_some(),

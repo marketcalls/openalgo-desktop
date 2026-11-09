@@ -334,6 +334,10 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::TradeTimeOfDay => q
             .trade_time
             .and_then(|ms| time_text(ms, q.time_text.unwrap_or(TimeText::TimeOfDay))),
+        Source::TradeTimeMarked => {
+            let form = q.time_text?;
+            q.trade_time.and_then(|ms| time_text(ms, form))
+        }
         Source::Extra(e) => extra(e, q),
         Source::DepthLevels => {
             let book = fr.content == Mode::Depth && !fr.update.key.is_index();

@@ -79,6 +79,11 @@ pub(crate) enum Source {
     /// when the broker sent one (the Noren family's `last_trade_time`, the
     /// broker's `ltt` passed through), or in the form the packet marks.
     TradeTimeOfDay,
+    /// The exchange's trade time in the text form the packet marks, and only
+    /// when it marks one (`NormalizedTick::time_text`): Definedge's web sends
+    /// `last_trade_time` and `ltt_time` only for a packet whose trade time is
+    /// the depth feed's `ltt` clock (`HH:MM:SS`), none for a feed time `ft`.
+    TradeTimeMarked,
     Extra(Extra),
     /// The book depth the frame streams (Dhan, the Noren family:
     /// `depth_level`): the levels the book was served at.
@@ -372,6 +377,8 @@ const ALICEBLUE: &[WebName] = &[
 
 const DEFINEDGE: &[WebName] = &[
     n("ltq", S::LastQuantity, Q),
+    n("last_trade_time", S::TradeTimeMarked, Q),
+    n("ltt_time", S::TradeTimeMarked, D),
     n("change_percent", S::ChangePercent, Q),
     n("percent_change", S::ChangePercent, Q),
     n("prev_oi", S::Extra(E::PreviousOi), Q),

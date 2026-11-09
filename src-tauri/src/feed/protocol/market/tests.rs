@@ -1090,6 +1090,37 @@ fn a_trade_time_goes_out_in_the_text_form_of_its_packet() {
     assert_eq!(at(Source::TradeTimeOfDay, &f), None);
 }
 
+/// Definedge's `last_trade_time` (Quote up) and `ltt_time` (Depth) go only
+/// with a packet that marked its trade time's text form (the depth feed's
+/// `ltt` clock); a packet whose trade time is the feed time sends neither.
+#[test]
+fn definedge_names_a_trade_time_only_from_its_clock() {
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.trade_time = Some(1_791_000_000_000);
+    }
+    for mode in [Mode::Quote, Mode::Depth] {
+        let d = render(&u, mode, "definedge");
+        assert!(
+            d.get("last_trade_time").is_none() && d.get("ltt_time").is_none(),
+            "{}",
+            d
+        );
+    }
+    if let Some(q) = u.quote.as_mut() {
+        q.time_text = Some(TimeText::TimeOfDay);
+    }
+    let quote = render(&u, Mode::Quote, "definedge");
+    assert_eq!(quote["last_trade_time"], "09:30:00");
+    assert!(quote.get("ltt_time").is_none(), "Depth only");
+    let depth = render(&u, Mode::Depth, "definedge");
+    assert_eq!(depth["last_trade_time"], "09:30:00");
+    assert_eq!(depth["ltt_time"], "09:30:00");
+    assert!(data_at(equity(), Mode::Ltp, "definedge")
+        .get("last_trade_time")
+        .is_none());
+}
+
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,
 /// Tradejini, Kotak and Pocketful send no canonical change on an index;
 /// the broker's own names still go where it sends them (AliceBlue's
