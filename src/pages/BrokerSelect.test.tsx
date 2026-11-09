@@ -183,6 +183,19 @@ describe('Select Broker cards', () => {
     ).toBeInTheDocument()
     expect((await card('dhan')).queryByText(/Dhan requires/)).toBeNull()
   })
+
+  it('says the Dhan Sandbox prices are simulated on its card, configured or active', async () => {
+    list = brokerList([
+      saved(brokerEntry('dhan_sandbox', 'Dhan (Sandbox)', 'saved_keys'), {}),
+      brokerEntry('dhan', 'Dhan', 'redirect'),
+    ])
+    serve()
+    renderPage()
+    expect(
+      (await card('dhan_sandbox')).getByText(/Simulated prices, not market prices/)
+    ).toBeInTheDocument()
+    expect((await card('dhan')).queryByText(/Simulated prices/)).toBeNull()
+  })
 })
 
 // A refused broker login comes back as /broker?error=<id>&broker=<id>.
