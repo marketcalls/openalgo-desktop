@@ -64,7 +64,7 @@
       "subscribers/wsproxy_subscriber.py::on_order_update"
     ],
     "notes": [
-      "Each answer to the CASH order list is one poll of the web's poller (web_adapters/groww.py serve and poll); the FNO list stays empty. The web's Groww order book carries no filled_quantity, pending_quantity, average_price or rejection reason (order_data.py:58-86, :118-145), so its poller sees a fill only as a status change and relays zeros and an empty reason.",
+      "Each answer to the CASH order list is one poll of the web's own poll loop (web_adapters/groww.py through polling.py); the FNO list stays empty. The web's Groww order book carries no filled_quantity, pending_quantity, average_price or rejection reason (order_data.py:58-86, :118-145), so its poller sees a fill only as a status change and relays zeros and an empty reason.",
       "The desktop reads both segment lists (brokers/groww/orders.rs::raw_orders), maps each row (mapping.rs::map_order: pending from remaining_quantity, rejection_reason from remark) and publishes every row whose (status, filled quantity) changed or that is new (common/order_poll.rs::diff).",
       "The book rows follow Groww's 04-orders List orders fields; the RMS text is a full margin refusal as Groww's remark carries it. The order from the Groww app is a MARKET order whose row carries its protected limit price (1497.95)."
     ]

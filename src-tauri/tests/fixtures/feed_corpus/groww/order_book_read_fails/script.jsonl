@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "http_polled", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "note": "The poller has read the empty book (CASH and FNO lists): its silent baseline."}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "body": "frames/list_refused.json", "note": "Groww refuses the CASH list: the poll fails (order_api.py:139-145, orders.rs raw_orders), publishes nothing and keeps its baseline."}
+{"step": "http_polled", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "note": "The refused read has happened."}
+{"step": "silence", "client": "a", "ms": 300, "note": "Nothing for a failed read."}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=FNO&page=0&page_size=100", "body": "frames/list_refused.json", "note": "The FNO list is refused too; the CASH read still fails first, so this poll is an error as well."}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "body": "frames/book_open.json", "note": "CASH answers again with an open order; FNO is still refused, which the poll skips (order_api.py:146), so the book is the CASH list."}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json", "note": "The open order is new against the baseline kept from before the failures, so it is relayed: a failed read neither publishes nor resets the baseline."}
