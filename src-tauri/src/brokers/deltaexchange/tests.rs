@@ -676,11 +676,11 @@ fn feed_decodes_ticker_and_book_frames_and_merges_them() {
     let FeedEvent::Tick(t) = &ev[0] else {
         panic!("{:?}", ev)
     };
-    // The ticker is a Quote packet whatever the subscription (carrier:
-    // the packet's mode), carrying OI.
+    // Before any book a Depth holder's ticker is a full tick (its frame
+    // goes out without a book), carrying OI.
     assert_eq!(
         (t.symbol.as_str(), t.exchange.as_str(), t.mode),
-        ("BTCUSDFUT", "CRYPTO", 2)
+        ("BTCUSDFUT", "CRYPTO", 3)
     );
     assert_eq!(
         (t.ltp, t.open, t.high, t.low, t.close, t.oi),
@@ -751,6 +751,30 @@ fn a_reconnect_forgets_the_last_ticker_and_book() {
         assert!(!t.knows(field), "{:?} from before the drop", field);
     }
     assert_eq!(t.extras.bid_price, None);
+}
+
+/// A Depth holder hears a ticker before any book (after a reconnect, or
+/// at the start): a full tick, so the bridge sends its Depth frame without
+/// a book (lead decision 2026-11-09: a Depth holder with no book known still
+/// gets a Depth frame per tick). Lower holders' ticks stay Quote packets.
+#[test]
+fn a_depth_holder_hears_a_ticker_before_any_book() {
+    let mut f = DeltaFeed::new(WS_PUBLIC_URL);
+    f.subscribe_frames(&[
+        sub("BTCUSDFUT", "BTCUSD", FeedMode::Depth),
+        sub("ETHUSDFUT", "ETHUSD", FeedMode::Quote),
+    ]);
+    let lines: Vec<&str> = fixture!("ws_frames.jsonl").lines().collect();
+    let ev = f.parse(&Message::Text(lines[1].into()));
+    let [FeedEvent::Tick(t)] = &ev[..] else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!(t.mode, FeedMode::Depth.code());
+    let ev = f.parse(&Message::Text(lines[2].into()));
+    let [FeedEvent::Tick(t)] = &ev[..] else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!(t.mode, FeedMode::Quote.code());
 }
 
 #[test]
