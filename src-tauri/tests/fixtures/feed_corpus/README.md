@@ -333,13 +333,46 @@ case, and with the frozen clock at the script line being replayed, so the
 web's draws are the same on every run and a receipt time it stamped at an
 earlier step is written `"<receipt_ms:N>"` in `web.json`.
 
-`approved` (true or false) records the lead's decision. A deviation no
-difference shows any more fails the case, so remove it with the fix.
-`feed_corpus::inventory::every_deviation_has_a_known_kind_and_a_reason`
+Every deviation names the decision it follows in `"approval"`: a rule of
+`approvals.json` (in this folder), which quotes the lead's or the
+maintainer's decision exactly, with who made it, when, and where it is
+written (`.lane/107/decisions.md`, `.lane/107/review-fixes.md`, or the
+lead's message):
+
+```json
+{"key": "ltt", "kind": "web-defect", "reason": "...", "approval": "alias-unit"}
+```
+
+An open gap is never approved. The old `approved` flag is replaced by
+`approval`. Set approvals with `scripts/feed_corpus/approve.py`:
+
+```
+python3 scripts/feed_corpus/approve.py rules                      # the rules
+python3 scripts/feed_corpus/approve.py list --broker dhan --pending
+python3 scripts/feed_corpus/approve.py set alias-unit --broker dhan --key ltt --kind web-defect
+python3 scripts/feed_corpus/approve.py add-rule dhan-ltt-seconds --by lead \
+    --source ".lane/107/decisions.md" --quote "<the decision, word for word>"
+```
+
+`set` writes the rule on every matching deviation (by `--case`, `--key`,
+`--kind`, `--reason-has`; `--dry-run` shows them), drops `approved`, and
+refuses a rule the registry does not have or an open gap. Add a rule only
+for a decision the lead or the maintainer made, quoted word for word; a
+rule's quote is never edited.
+
+A deviation no difference shows any more fails the case, so remove it with
+the fix. `feed_corpus::inventory::every_deviation_has_a_known_kind_and_a_reason`
 reads every `case.json` on disk and lists together each deviation without
-its key, with a key twice, of a kind not above, without a reason, or with
-an `approved` that is not true or false; `parity_matrix.py` refuses to
-write the matrix over such a deviation, so what it counts can be trusted.
+its key, with a key twice, of a kind not above, without a reason, with an
+`approved` that is not true or false, or with an `approval` that names no
+rule (or sits on an open gap); `parity_matrix.py` refuses to write the
+matrix over such a deviation, so what it counts can be trusted.
+
+Whether 1.0.7 can ship is `scripts/feed_corpus/release_gate.py --check`
+(CI's code-health job runs it, apart from the matrix's freshness check):
+it fails while a deviation names no rule or still carries `approved`, a
+case declares an open gap, a capability the web offers (`broker.json`) has
+no case, or a harness module does not build its broker (below).
 
 ## Adding a case to a broker
 
@@ -400,8 +433,12 @@ credentials are fake values (never real ones, never anything gitleaks
 matches). A feed made by `Broker::create_feed` goes in with
 `Feeds::boxed(..)`, an order feed from `Broker::create_order_feed` with
 `.with_order_feed(..)`, a deep-book socket with `.with_depth(levels, ..)`.
-Build the broker itself and pass it with the session's auth,
-`.with_broker(broker.clone(), &auth)`, as the app does: the bridge then
+Every broker module builds the broker itself and passes it with the
+session's auth, `.with_broker(broker.clone(), &auth)`, as the app does (a
+module that does not fails every case, unless it is still on the
+`WITHOUT_BROKER` list in `tests/it/feed_corpus/mod.rs`, a ratchet that
+only shrinks: take the broker off it in the change that passes its broker;
+the release gate fails while it is not empty): the bridge then
 takes its depth levels (`Broker::feed_depth_levels`, in place of
 `case.json`'s `depth_levels`) and its exchange refusals
 (`Broker::feed_refusal`), so a refusal case (an exchange or mode the

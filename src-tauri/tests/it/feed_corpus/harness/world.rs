@@ -163,6 +163,25 @@ impl Feeds {
     }
 }
 
+/// Every broker module builds its session's broker (`Feeds::with_broker`),
+/// as a session does, except those still on the ratchet list
+/// (`feed_corpus::WITHOUT_BROKER`), which may not pass one.
+fn session_required(case: &Case, feeds: &Feeds) {
+    let listed = crate::feed_corpus::WITHOUT_BROKER.contains(&case.broker.as_str());
+    match (feeds.broker.is_some(), listed) {
+        (false, false) => panic!(
+            "feed corpus {}: build the session's broker and pass it with \
+             Feeds::with_broker(broker, &auth), as broker_runtime does",
+            case.id
+        ),
+        (true, true) => panic!(
+            "feed corpus {}: {} passes its broker now: take it off WITHOUT_BROKER",
+            case.id, case.broker
+        ),
+        _ => {}
+    }
+}
+
 /// The managers' timings for a test: reconnect at once, never call a
 /// quiet socket stalled within a case.
 fn manager_config() -> ManagerConfig {
@@ -223,6 +242,7 @@ impl World {
             orders: case.orders,
         };
         let feeds = feeds(&env);
+        session_required(case, &feeds);
 
         let market = Arc::new(WebSocketManager::with_config(manager_config()));
         let deep = Arc::new(WebSocketManager::with_config(manager_config()));

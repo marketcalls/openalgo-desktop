@@ -16,14 +16,16 @@ cell names the corpus cases that cover it and their result:
 - a case "matches web" when it declares no deviation, and is checked
   against the web's own output when it has `web.json` (else it is worked
   by hand, marked "by hand"); otherwise it lists its deviations by kind,
-  approved or pending (`case.json` `deviations[].approved`), and any
-  `open` one is a gap 1.0.7 cannot ship with;
+  approved (`case.json` `deviations[].approval` names a rule of
+  `approvals.json`, the lead's or the maintainer's decision it follows) or
+  pending, and any `open` one is a gap 1.0.7 cannot ship with;
 - a scenario the broker's stream cannot produce is named in its
   `broker.json` `not_applicable` (`{"partial-packet": "why"}`) and listed
   as not applicable, with the reason, instead of as not yet covered.
 
-A case's result holds when its test passes (lane-test or CI). Standard
-library only.
+A case's result holds when its test passes (lane-test or CI). This is a
+freshness check of the generated file; whether 1.0.7 can ship is
+`release_gate.py --check`. Standard library only.
 """
 
 from __future__ import annotations
@@ -43,6 +45,17 @@ COLUMNS = [("ltp", "LTP"), ("quote", "Quote"), (5, "Depth 5"), (20, "Depth 20"),
            (50, "Depth 50"), ("orders", "Order updates")]
 MODES = {"ltp": 1, "quote": 2, "depth": 3}
 HARNESS_CASE = ROOT / "src-tauri/tests/it/feed_corpus/harness/case.rs"
+APPROVALS = CORPUS / "approvals.json"
+
+
+def approval_rules() -> dict:
+    """The rules a deviation's `approval` may name (approvals.json)."""
+    return json.loads(APPROVALS.read_text(encoding="utf-8"))["rules"]
+
+
+def approved(dv: dict, rules: dict) -> bool:
+    """A deviation names the rule it follows (never an open gap)."""
+    return dv.get("kind") != "open" and dv.get("approval") in rules
 
 
 def scenarios() -> list[str]:
@@ -71,9 +84,10 @@ def deviation_kinds() -> list[str]:
     return kinds
 
 
-def deviation_problems(name: str, case: dict, kinds: list[str]) -> list[str]:
+def deviation_problems(name: str, case: dict, kinds: list[str], rules: dict | None = None) -> list[str]:
     """What the matrix could not count in a case's deviations (as the
     harness's `deviation_problems` checks them)."""
+    rules = approval_rules() if rules is None else rules
     out = []
     for i, dv in enumerate(case.get("deviations", []), 1):
         label = f"{name}: deviation {dv.get('key') or i}"
@@ -83,6 +97,11 @@ def deviation_problems(name: str, case: dict, kinds: list[str]) -> list[str]:
             out.append(f"{label} gives no reason")
         if "approved" in dv and not isinstance(dv["approved"], bool):
             out.append(f"{label}: approved is true or false")
+        if "approval" in dv:
+            if dv["approval"] not in rules:
+                out.append(f"{label}: approval {dv['approval']!r} is no rule in approvals.json")
+            if dv.get("kind") == "open":
+                out.append(f"{label}: an open gap is never approved")
     return out
 
 
@@ -118,14 +137,14 @@ def covers(case_dir: Path) -> set:
     return cells
 
 
-def result(case: dict, has_web: bool) -> tuple[str, int]:
+def result(case: dict, has_web: bool, rules: dict) -> tuple[str, int]:
     """The case's result, and its rank (higher is worse)."""
     devs = case.get("deviations", [])
     checked = "" if has_web else " (by hand)"
     if not devs:
         return "matches web" + checked, 0
     open_ = [d for d in devs if d["kind"] == "open"]
-    pending = [d for d in devs if d["kind"] != "open" and not d.get("approved")]
+    pending = [d for d in devs if d["kind"] != "open" and not approved(d, rules)]
     if open_:
         return f"open gap: {', '.join(d['key'] for d in open_)}" + checked, 3
     if pending:
@@ -149,6 +168,7 @@ def offered(web: dict | None, col) -> bool | None:
 def build() -> str:
     names = scenarios()
     kinds = deviation_kinds()
+    rules = approval_rules()
     problems = []
     rows, devs, scen = [], [], []
     totals = {"cases": 0, "open": 0, "pending": 0}
@@ -161,13 +181,13 @@ def build() -> str:
         seen = set()
         for d in cases:
             case = json.loads((d / "case.json").read_text())
-            problems += deviation_problems(f"{broker}/{d.name}", case, kinds)
-            res, rank = result(case, (d / "web.json").exists())
+            problems += deviation_problems(f"{broker}/{d.name}", case, kinds, rules)
+            res, rank = result(case, (d / "web.json").exists(), rules)
             totals["cases"] += 1
             for dv in case.get("deviations", []):
                 if dv["kind"] == "open":
                     totals["open"] += 1
-                elif not dv.get("approved"):
+                elif not approved(dv, rules):
                     totals["pending"] += 1
                 devs.append((broker, d.name, dv))
             seen |= set(case.get("scenarios", []))
@@ -224,8 +244,10 @@ def build() -> str:
         "(`src-tauri/tests/fixtures/feed_corpus`); do not edit by hand. A cell lists the",
         "corpus cases covering that broker, mode and depth, or its order updates, with",
         "the worst result among them; what the web offers is each broker's",
-        "`broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships",
-        "when every cell is \"matches web\", \"approved deviation\" or \"not offered by the web\".",
+        "`broker.json`. A result holds when the case's test passes in CI. A deviation is",
+        "approved when it names the rule it follows (`approvals.json`). 1.0.7 ships when",
+        "`scripts/feed_corpus/release_gate.py --check` passes: every cell \"matches web\",",
+        "\"approved deviation\" or \"not offered by the web\", and every module builds its broker.",
         "",
         f"Cases: {totals['cases']}. Open gaps: {totals['open']}. Deviations pending approval: {totals['pending']}.",
         "",
@@ -235,10 +257,11 @@ def build() -> str:
     out += ["| " + " | ".join(r) + " |" for r in rows]
     out += ["", "## Scenarios covered", "", "| Broker | Covered | Not yet |", "| --- | --- | --- |"]
     out += [f"| {b} | {', '.join(c) or '-'} | {', '.join(m) or '-'} |" for b, c, m in scen]
-    out += ["", "## Deviations", "", "| Broker | Case | Key | Kind | Approved | Reason |", "| --- | --- | --- | --- | --- | --- |"]
+    out += ["", "## Deviations", "", "| Broker | Case | Key | Kind | Approval | Reason |", "| --- | --- | --- | --- | --- | --- |"]
     for b, c, d in devs:
         reason = d["reason"].replace("|", "/")
-        out.append(f"| {b} | `{c}` | `{d['key']}` | {d['kind']} | {'yes' if d.get('approved') else 'no'} | {reason} |")
+        rule = f"`{d['approval']}`" if approved(d, rules) else "pending"
+        out.append(f"| {b} | `{c}` | `{d['key']}` | {d['kind']} | {rule} | {reason} |")
     return "\n".join(out) + "\n"
 
 
