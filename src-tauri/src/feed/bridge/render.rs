@@ -132,6 +132,9 @@ pub(crate) fn depth_update(
     let base = last.cloned().unwrap_or_else(no_quote_yet);
     let known = base.known();
     let mut q = quote_fields(&key, &base, known);
+    for (field, value) in d.broker_fields.iter() {
+        q.broker_fields.set(field, value);
+    }
     let lacks = d.absent.union(book_lacks);
     if !lacks.contains(F::TotalBuyQuantity) {
         q.total_buy_quantity = Some(d.total_buy_quantity);

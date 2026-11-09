@@ -180,6 +180,7 @@ impl Snapshot {
             // `upstox_adapter.py`: levels are price and quantity).
             absent: AbsentFields::of(&[QuoteField::Orders]),
             feed_time_ms: None,
+            broker_fields: Default::default(),
         };
         vec![FeedEvent::Tick(t), FeedEvent::Depth(depth)]
     }

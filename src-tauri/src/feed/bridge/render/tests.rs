@@ -383,6 +383,30 @@ fn a_book_sends_only_what_it_carries() {
     assert_eq!(u.depth.unwrap().buy[0].orders, Some(0));
 }
 
+/// A book packet's broker-only fields (Fyers' depth packet `update_type`)
+/// go into the Depth frame built on it, over the tick's for the same key.
+#[test]
+fn a_book_names_its_own_broker_fields() {
+    use crate::brokers::common::streaming::{BrokerField, BrokerValue};
+    let key = InstrumentKey::new("SBIN", "NSE");
+    let mut tick = full_tick("SBIN", "NSE");
+    tick.broker_fields
+        .set(BrokerField::UpdateType, BrokerValue::Text("snapshot"));
+    let mut book = NormalizedDepth {
+        symbol: "SBIN".into(),
+        exchange: "NSE".into(),
+        ..Default::default()
+    };
+    book.broker_fields
+        .set(BrokerField::UpdateType, BrokerValue::Text("live"));
+    let u = depth_update(key, &book, Some(&tick), AbsentFields::default());
+    let fields = u.quote.map(|q| q.broker_fields).unwrap_or_default();
+    assert_eq!(
+        fields.get(BrokerField::UpdateType),
+        Some(BrokerValue::Text("live"))
+    );
+}
+
 /// Once a book has come in a connection, a full tick carries it to Depth
 /// holders (lead decision 2026-11-09, the Samco ruling), also where the
 /// broker's Depth holder waits for a book (Definedge); before the first

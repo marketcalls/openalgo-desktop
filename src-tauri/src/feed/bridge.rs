@@ -524,9 +524,16 @@ impl BrokerBridge {
                 let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
                 let epoch = self.connection();
                 // A broker with a deeper socket: its books are at its levels,
-                // the main feed's at the main levels (a fallen-back holder's).
+                // the main feed's at the main levels (a fallen-back holder's,
+                // also when the deeper socket did not start this session).
                 let deep_levels = *self.deep.lock();
-                let levels = deep_levels.map(|l| if deep { l } else { DEFAULT_DEPTH });
+                let levels = deep_levels.or(*self.deep_down.lock()).map(|l| {
+                    if deep {
+                        l
+                    } else {
+                        DEFAULT_DEPTH
+                    }
+                });
                 let mut st = self.state.lock();
                 if !st.holds(&key) {
                     return None;
@@ -700,6 +707,36 @@ mod tests {
         drop(bridge.subscribe(&tcs, Mode::Ltp, 5));
         bridge.stop().await;
         assert!(!relayed(&bridge, "TCS"));
+    }
+
+    /// A main-feed book names the main levels for a broker with a deeper
+    /// socket, also when that socket did not start this session (Dhan:
+    /// `depth_level` 5, web dhan_adapter.py:930; bk-a's
+    /// dhan/depth_20_feed_not_made), and no levels for one without.
+    #[test]
+    fn a_main_book_names_the_main_levels_when_the_deep_socket_is_down() {
+        let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
+        let key = InstrumentKey::new("RELIANCE", "NSE");
+        drop(bridge.subscribe(&key, Mode::Depth, 20));
+        let book = FeedEvent::Depth(NormalizedDepth {
+            symbol: "RELIANCE".into(),
+            exchange: "NSE".into(),
+            buy: vec![Default::default(); 5],
+            sell: vec![Default::default(); 5],
+            ..Default::default()
+        });
+        let levels = |b: &BrokerBridge| {
+            b.convert(&book)
+                .and_then(|u| u.depth)
+                .and_then(|d| d.levels)
+        };
+        assert_eq!(levels(&bridge), None, "no deeper socket");
+        bridge.set_deep_unavailable(20);
+        assert_eq!(
+            levels(&bridge),
+            Some(DEFAULT_DEPTH),
+            "the deeper socket is down"
+        );
     }
 
     /// WS-01: a session's "cannot stream" lasts until the session ends

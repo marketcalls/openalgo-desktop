@@ -185,7 +185,8 @@ Deliberate differences, each a web defect or a desktop rule:
   digits, `Source::ExchangeToken`, fyers_mapping.py:82) on HSM frames and
   the ticker (`NSE:SBIN-EQ`, the master's `brsymbol`) on TBT 50-level
   frames; an index has no `token` (the web's `""` placeholder).
-- Fyers' `update_type` (`BrokerField::UpdateType`, text) and its 50-level
+- Fyers' `update_type` (`BrokerField::UpdateType`, text; a depth packet's
+  own on the Depth frame built on it, `NormalizedDepth::broker_fields`) and its 50-level
   frame's `total_buy_qty`, `total_sell_qty`, `feed_time` (the TBT
   packet's own feed time, seconds), `depth_levels` (the levels the book
   holds, its longer side, fyers_tbt_websocket.py:519-530), `is_50_depth`
