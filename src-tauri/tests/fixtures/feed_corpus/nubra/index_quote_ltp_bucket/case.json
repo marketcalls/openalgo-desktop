@@ -1,0 +1,47 @@
+{
+  "broker": "nubra",
+  "summary": "Quote and LTP on the NIFTY index: the index channel gives the value, high, low and previous close, the day bucket the open; a Depth subscribe on the index is refused with the web's words.",
+  "scenarios": [
+    "index",
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/nubra/api/nubrawebsocket.py::NubraWebSocket._decode_protobuf",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_index_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_ohlcv_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_orderbook_data"
+    ],
+    "notes": [
+      "change 50.5 = 24350.5 - 24300.0 (0.21%), then 60.0 (0.25%)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Before the day bucket the web sends open 0 (ohlcv.get('open', 0)); a field the stream has not sent is left out (web openalgo#2376), as the desktop does.",
+      "ref": "nubra_adapter.py:711"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "Once the day bucket came the web sends the bucket's close (today's price) as close, ahead of prev_close (ohlcv.get('close', prev_close)); close is the previous day's close, which the desktop keeps sending (the audit's 'Nubra bucket close' note).",
+      "ref": "nubra_adapter.py:712"
+    }
+  ]
+}

@@ -27,5 +27,6 @@ corpus_cases!(
         refused_reconnect,
         deliberate_disconnect,
         order_postbacks,
+        cds_quote_currency_unit,
     ]
 );

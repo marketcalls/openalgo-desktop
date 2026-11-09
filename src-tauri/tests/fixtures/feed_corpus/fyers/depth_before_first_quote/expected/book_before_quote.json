@@ -1,0 +1,73 @@
+{
+  "broker": "fyers",
+  "data": {
+    "data_type": "Depth",
+    "depth": {
+      "buy": [
+        {
+          "orders": 1,
+          "price": 801.45,
+          "quantity": 10
+        },
+        {
+          "orders": 2,
+          "price": 801.4,
+          "quantity": 25
+        },
+        {
+          "orders": 3,
+          "price": 801.35,
+          "quantity": 40
+        },
+        {
+          "orders": 4,
+          "price": 801.3,
+          "quantity": 55
+        },
+        {
+          "orders": 5,
+          "price": 801.25,
+          "quantity": 70
+        }
+      ],
+      "sell": [
+        {
+          "orders": 2,
+          "price": 801.5,
+          "quantity": 20
+        },
+        {
+          "orders": 3,
+          "price": 801.55,
+          "quantity": 35
+        },
+        {
+          "orders": 4,
+          "price": 801.6,
+          "quantity": 50
+        },
+        {
+          "orders": 5,
+          "price": 801.65,
+          "quantity": 65
+        },
+        {
+          "orders": 6,
+          "price": 801.7,
+          "quantity": 80
+        }
+      ]
+    },
+    "exchange": "NSE",
+    "ltp": 0.0,
+    "subscription_mode": 3,
+    "symbol": "SBIN",
+    "timestamp": "<receipt_ms>",
+    "token": "3045",
+    "update_type": "snapshot"
+  },
+  "exchange": "NSE",
+  "mode": 3,
+  "symbol": "SBIN",
+  "type": "market_data"
+}

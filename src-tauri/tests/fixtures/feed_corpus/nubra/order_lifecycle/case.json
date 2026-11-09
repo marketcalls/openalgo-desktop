@@ -1,0 +1,32 @@
+{
+  "broker": "nubra",
+  "summary": "Nubra's order socket (its address from /userinfo, behind the loopback relay): the notification subscribe, then an order open, partly filled and complete, one rejected with its reason and one cancelled, each an order_update frame with the master's symbol.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/nubra/streaming/nubra_order_adapter.py::NubraOrderUpdateAdapter.normalize",
+      "broker/nubra/streaming/nubra_order_adapter.py::_decode_fields"
+    ],
+    "notes": [
+      "Field numbers as the web's normalize reads them (the message is not in the web's protos)."
+    ]
+  },
+  "deviations": []
+}

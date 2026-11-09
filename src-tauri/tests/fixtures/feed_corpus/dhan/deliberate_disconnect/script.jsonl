@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 17, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "connection": 1}
+{"step": "drop_upstream", "note": "A close Dhan makes: no farewell, the feed connects again."}
+{"step": "upstream_connected", "connection": 2, "path": "/?version=2&token=t&clientId=c&authType=2"}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 17, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "connection": 2}
+{"step": "disconnect", "socket": "main", "note": "A logout: the disconnect request, then the close."}
+{"step": "upstream_receives", "frames": [{"text": "{\"RequestCode\": 12}"}, {"close": null}], "connection": 2}
+{"step": "upstream_connections", "count": 2, "ms": 300}

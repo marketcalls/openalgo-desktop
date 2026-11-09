@@ -1,0 +1,43 @@
+{
+  "broker": "dhan_sandbox",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "CDS": [
+        5
+      ],
+      "BCD": [
+        5
+      ],
+      "NSE_INDEX": [
+        5
+      ],
+      "BSE_INDEX": [
+        5
+      ]
+    },
+    "orders": false
+  },
+  "sources": [
+    "broker/dhan_sandbox/streaming/dhan_sandbox_adapter.py::Dhan_sandboxWebSocketAdapter"
+  ],
+  "notes": [
+    "No broker socket: a simulated feed (a random walk once a second); the desktop ports it exactly (maintainer, 2026-11-09). Its prices are simulated prices, not market prices."
+  ]
+}

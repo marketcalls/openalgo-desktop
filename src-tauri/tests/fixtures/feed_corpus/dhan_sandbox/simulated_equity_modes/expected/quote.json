@@ -1,0 +1,25 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 2,
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 2,
+    "ltp": "<random:float>",
+    "ltt": "<receipt_ms>",
+    "timestamp": "<receipt_ms>",
+    "volume": "<random:int>",
+    "oi": "<random:int>",
+    "open": "<random:float>",
+    "high": "<random:float>",
+    "low": "<random:float>",
+    "close": "<random:float>",
+    "last_trade_quantity": "<random:int>",
+    "average_price": "<random:float>",
+    "total_buy_quantity": "<random:int>",
+    "total_sell_quantity": "<random:int>"
+  },
+  "broker": "dhan_sandbox"
+}

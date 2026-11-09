@@ -1,0 +1,89 @@
+{
+  "broker": "upstox",
+  "summary": "Upstox drops the socket: the feed authorizes again, connects to the new signed address and subscribes again; the first packet after it shows only what it carries.",
+  "scenarios": [
+    "reconnect",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "NSE_FO|52175",
+      "brsymbol": "NIFTY FUT 25 NOV 26",
+      "brexchange": "NSE_FO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._process_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._merge_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._build_payload",
+      "broker/upstox/streaming/upstox_client.py::UpstoxWebSocketClient._decode_protobuf_to_dict",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._on_connect"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The web keeps Upstox's merged snapshot across a reconnect (_on_connect replays the subscriptions only), so its first packet after an outage publishes the old session's fields as current; the desktop starts the merge afresh (UpstoxFeed::on_connected), as CLAUDE.md requires (a cached market field belongs to the session that sent it) and the audit's regression matrix asks (reconnect with the first packet partial). Lead ruling 2026-11-09.",
+      "ref": "brokers/upstox/streaming.rs on_connected; upstox_adapter.py:621-657"
+    }
+  ]
+}

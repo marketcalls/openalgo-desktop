@@ -13,7 +13,9 @@ use super::master_contract::*;
 use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    BrokerField, BrokerValue, FeedEvent, FeedMode, FeedSubscription, Message,
+};
 use base64::Engine;
 use chrono::NaiveDate;
 use serde_json::{json, Value};
@@ -961,6 +963,13 @@ fn hsm_snapshot_and_update_frames_parse_with_scaling() {
         })
         .collect();
     assert_eq!(ticks.len(), 3);
+    // web fyers_adapter.py:464: a full record is a `snapshot`.
+    for t in &ticks {
+        assert_eq!(
+            t.broker_fields.get(BrokerField::UpdateType),
+            Some(BrokerValue::Text("snapshot"))
+        );
+    }
     let s = &ticks[0];
     assert_eq!((s.symbol.as_str(), s.exchange.as_str()), ("SBIN", "NSE"));
     // value / (10^precision * multiplier)
@@ -978,7 +987,8 @@ fn hsm_snapshot_and_update_frames_parse_with_scaling() {
     );
     assert_eq!(s.last_trade_time_ms, 1_790_992_800_000);
     assert_eq!(s.change, 3.45);
-    assert_eq!(s.mode, 3);
+    // A symbol-feed record is a Quote packet (carrier: the packet's mode).
+    assert_eq!(s.mode, 2);
     let n = &ticks[1];
     assert_eq!(
         (n.symbol.as_str(), n.exchange.as_str()),
@@ -1027,6 +1037,11 @@ fn hsm_snapshot_and_update_frames_parse_with_scaling() {
     match &ev[..] {
         [FeedEvent::Tick(t)] => {
             assert_eq!((t.ltp, t.volume, t.open), (954.2, 4_823_200, 951.0));
+            // web fyers_hsm_websocket.py:779: an update is `live`.
+            assert_eq!(
+                t.broker_fields.get(BrokerField::UpdateType),
+                Some(BrokerValue::Text("live"))
+            );
         }
         other => panic!("unexpected {:?}", other),
     }

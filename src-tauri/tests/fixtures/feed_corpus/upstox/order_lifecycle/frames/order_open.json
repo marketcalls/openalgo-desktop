@@ -1,0 +1,1 @@
+{"update_type": "order", "order_id": "251109000001", "exchange": "NSE", "trading_symbol": "RELIANCE-EQ", "instrument_token": "NSE_EQ|INE002A01018", "transaction_type": "BUY", "quantity": 10, "price": 1300.5, "trigger_price": 0, "order_type": "LIMIT", "product": "D", "status": "open", "filled_quantity": 0, "pending_quantity": 10, "average_price": 0, "status_message": ""}

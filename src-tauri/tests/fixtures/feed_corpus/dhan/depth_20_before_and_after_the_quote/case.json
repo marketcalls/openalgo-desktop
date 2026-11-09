@@ -14,12 +14,6 @@
       "brexchange": "NSE_EQ"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      20
-    ]
-  },
   "provenance": {
     "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
     "method": "by-hand",
@@ -33,12 +27,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
-    },
-    {
       "key": "ltp",
       "kind": "desktop-decision",
       "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote, its last traded price after; the web's 20-level frame has no ltp.",
@@ -46,39 +34,21 @@
     },
     {
       "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "The desktop sends the sum of the 20 visible bid quantities as the total buy quantity; Dhan's 20-level packet carries no total and the web sends none. A sum of the visible levels is not the exchange's total.",
-      "ref": "audit C03; brokers/dhan/streaming.rs Dhan20DepthFeed::parse_binary"
+      "kind": "desktop-decision",
+      "reason": "A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web.",
+      "ref": "decisions.md (Kept: depth frame keeps ltp + timestamp + latest quote); feed::bridge::depth_update"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "As total_buy_quantity, for the asks.",
-      "ref": "audit C03"
-    },
-    {
-      "key": "depth_level",
-      "kind": "open",
-      "reason": "The web names the book's depth (20); the desktop's common carrier drops it.",
-      "ref": "audit C06; dhan_adapter.py:851"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "The desktop's depth frame sends OI 0 for an equity whose quote carried none; the web's frame has no OI.",
-      "ref": "audit C05; feed::protocol::market_data"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "As oi.",
-      "ref": "audit C05"
+      "kind": "desktop-decision",
+      "reason": "A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web.",
+      "ref": "decisions.md (Kept: depth frame keeps ltp + timestamp + latest quote); feed::bridge::depth_update"
     },
     {
       "key": "ltt",
       "kind": "desktop-decision",
-      "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
-      "ref": "feed::bridge::depth_update"
+      "reason": "The desktop's Depth frame carries the instrument's latest quote, its trade time included (1.0.6 decision, kept for 1.0.7: the depth frame keeps ltp, timestamp and the latest quote); the web's Dhan 20-level frame carries the book alone.",
+      "ref": "decisions.md (Kept: depth frame keeps ltp + timestamp + latest quote); feed::bridge::depth_update"
     },
     {
       "key": "volume",

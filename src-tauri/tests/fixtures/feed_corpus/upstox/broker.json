@@ -1,0 +1,19 @@
+{
+  "broker": "upstox",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": "the portfolio stream (update_types=order)"
+  },
+  "sources": [
+    "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._get_upstox_mode",
+    "broker/upstox/streaming/upstox_order_adapter.py",
+    "services/order_update_service.py"
+  ],
+  "notes": [
+    "Quote and Depth are both Upstox full (5 levels); a Depth 20, 30 or 50 ask is served as 5 (full_d30 is Plus-only and never requested), acknowledged with the depth asked for, as on the web (feed::dialect, DepthAck::Echo)."
+  ]
+}

@@ -1,0 +1,227 @@
+{
+  "broker": "dhan_sandbox",
+  "summary": "The simulated feed on an at-the-money call: the spot is the median strike of the listed calls (25,000), the price starts at the web's premium for it (147.89) and drifts towards the fair premium (150) each second.",
+  "scenarios": [
+    "first-full-packet",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV2624800CE",
+      "exchange": "NFO",
+      "token": "24800",
+      "brexchange": "NSE_FNO",
+      "expiry": "25-NOV-26",
+      "strike": 24800.0,
+      "instrumenttype": "CE",
+      "lotsize": 75
+    },
+    {
+      "symbol": "NIFTY25NOV2624900CE",
+      "exchange": "NFO",
+      "token": "24900",
+      "brexchange": "NSE_FNO",
+      "expiry": "25-NOV-26",
+      "strike": 24900.0,
+      "instrumenttype": "CE",
+      "lotsize": 75
+    },
+    {
+      "symbol": "NIFTY25NOV2625000CE",
+      "exchange": "NFO",
+      "token": "25000",
+      "brexchange": "NSE_FNO",
+      "expiry": "25-NOV-26",
+      "strike": 25000.0,
+      "instrumenttype": "CE",
+      "lotsize": 75
+    },
+    {
+      "symbol": "NIFTY25NOV2625100CE",
+      "exchange": "NFO",
+      "token": "25100",
+      "brexchange": "NSE_FNO",
+      "expiry": "25-NOV-26",
+      "strike": 25100.0,
+      "instrumenttype": "CE",
+      "lotsize": 75
+    },
+    {
+      "symbol": "NIFTY25NOV2625200CE",
+      "exchange": "NFO",
+      "token": "25200",
+      "brexchange": "NSE_FNO",
+      "expiry": "25-NOV-26",
+      "strike": 25200.0,
+      "instrumenttype": "CE",
+      "lotsize": 75
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/dhan_sandbox/streaming/dhan_sandbox_adapter.py::Dhan_sandboxWebSocketAdapter._mock_streaming_loop",
+      "broker/dhan_sandbox/streaming/dhan_sandbox_adapter.py::Dhan_sandboxWebSocketAdapter._derive_reference_price",
+      "broker/dhan_sandbox/streaming/dhan_sandbox_adapter.py::Dhan_sandboxWebSocketAdapter.subscribe"
+    ],
+    "notes": [
+      "Each pushed tick frame is one wake of the simulated loop: the desktop's ticker sends it once a second, and the web glue runs one round of _mock_streaming_loop for it."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltp",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "open",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "high",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "low",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "close",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "average_price",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "volume",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "oi",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "random-values",
+      "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
+      "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model"
+    }
+  ],
+  "invariants": [
+    {
+      "key": "ltp",
+      "at_least": 140.0,
+      "at_most": 160.0
+    },
+    {
+      "key": "open",
+      "at_least": {
+        "key": "ltp",
+        "times": 0.949
+      },
+      "at_most": {
+        "key": "ltp",
+        "times": 0.951
+      }
+    },
+    {
+      "key": "high",
+      "at_least": {
+        "key": "ltp",
+        "times": 1.049
+      },
+      "at_most": {
+        "key": "ltp",
+        "times": 1.051
+      }
+    },
+    {
+      "key": "low",
+      "at_least": {
+        "key": "ltp",
+        "times": 0.899
+      },
+      "at_most": {
+        "key": "ltp",
+        "times": 0.901
+      }
+    },
+    {
+      "key": "close",
+      "at_least": {
+        "key": "ltp",
+        "times": 0.979
+      },
+      "at_most": {
+        "key": "ltp",
+        "times": 0.981
+      }
+    },
+    {
+      "key": "average_price",
+      "at_least": {
+        "key": "ltp",
+        "times": 1.0
+      },
+      "at_most": {
+        "key": "ltp",
+        "times": 1.0
+      }
+    },
+    {
+      "key": "volume",
+      "at_least": 1000,
+      "at_most": 50000
+    },
+    {
+      "key": "oi",
+      "at_least": 10000,
+      "at_most": 500000
+    },
+    {
+      "key": "last_trade_quantity",
+      "at_least": 1,
+      "at_most": 100
+    },
+    {
+      "key": "total_buy_quantity",
+      "at_least": 5000,
+      "at_most": 100000
+    },
+    {
+      "key": "total_sell_quantity",
+      "at_least": 5000,
+      "at_most": 100000
+    }
+  ]
+}

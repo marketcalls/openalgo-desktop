@@ -1,0 +1,19 @@
+{
+  "broker": "nubra",
+  "data": {
+    "close": 24300.0,
+    "exchange": "NSE_INDEX",
+    "high": 24400.25,
+    "low": 24290.75,
+    "ltp": 24350.5,
+    "mode": "quote",
+    "prev_close": 24300.0,
+    "symbol": "NIFTY",
+    "timestamp": 1740729566039,
+    "volume": 0
+  },
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "symbol": "NIFTY",
+  "type": "market_data"
+}

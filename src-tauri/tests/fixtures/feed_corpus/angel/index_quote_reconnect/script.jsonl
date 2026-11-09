@@ -1,0 +1,9 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"correlationID": "openalgo", "action": 1, "params": {"mode": 2, "tokenList": [{"exchangeType": 1, "tokens": ["99926000"]}]}}}]}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "headers": {"authorization": "jwt", "x-api-key": "key", "x-client-code": "client", "x-feed-token": "feed"}}
+{"step": "upstream_receives", "frames": [{"json": {"correlationID": "openalgo", "action": 1, "params": {"mode": 2, "tokenList": [{"exchangeType": 1, "tokens": ["99926000"]}]}}}], "connection": 2, "note": "The manager subscribes again on the new connection."}
+{"step": "push", "frame": "frames/quote_after_reconnect.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_after_reconnect.json"}

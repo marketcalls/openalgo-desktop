@@ -320,6 +320,13 @@ impl UpstoxFeed {
             }
             return Vec::new();
         }
+        // web `_build_payload`: a tick is stamped with the broker's
+        // `currentTs`, receipt time only when the frame has none (audit P-02).
+        let stamped = if resp.current_ts > 0 {
+            resp.current_ts
+        } else {
+            now_ms()
+        };
         let mut out = Vec::new();
         for (key, feed) in resp.feeds {
             let Some((ik, sub)) = self.find_sub(&key).map(|(k, s)| (k.clone(), s.clone())) else {
@@ -328,7 +335,7 @@ impl UpstoxFeed {
             };
             let snapshot = self.snapshots.entry(ik).or_default();
             snapshot.merge(feed.feed_union.as_ref());
-            out.extend(snapshot.events(&sub.symbol, &sub.exchange, sub.mode, now_ms()));
+            out.extend(snapshot.events(&sub.symbol, &sub.exchange, sub.mode, stamped));
         }
         out
     }

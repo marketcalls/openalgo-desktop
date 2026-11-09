@@ -1,0 +1,34 @@
+{
+  "broker": "nubra",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ]
+    },
+    "orders": "a dedicated notifications socket (named by /userinfo)"
+  },
+  "sources": [
+    "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter.subscribe",
+    "broker/nubra/streaming/nubra_mapping.py::NubraCapabilityRegistry",
+    "broker/nubra/streaming/nubra_order_adapter.py"
+  ],
+  "notes": [
+    "Depth on an index is refused, as the web refuses it (Depth mode not supported for index symbols, feed::refusals).",
+    "LTP and Quote ride the index channel on the web; the desktop also subscribes the order book for instruments in every mode."
+  ]
+}

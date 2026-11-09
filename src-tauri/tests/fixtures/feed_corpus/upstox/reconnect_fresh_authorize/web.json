@@ -1,0 +1,84 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "upstox",
+  "inputs_sha256": "871c5a55d1609755f34ef0dc0614be025f2602189d2ba2b6cd1e1fb20b16f2d7",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "NSE_FO|52175",
+      "brsymbol": "NIFTY FUT 25 NOV 26",
+      "brexchange": "NSE_FO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "NSE_FO|52175",
+            "ltp": 219.3,
+            "open": 480.0,
+            "high": 495.0,
+            "low": 210.0,
+            "close": 494.05,
+            "last_trade_quantity": 100,
+            "last_quantity": 100,
+            "volume": 1234575,
+            "average_price": 300.25,
+            "total_buy_quantity": 5000,
+            "total_sell_quantity": 6000,
+            "oi": 98765.0,
+            "ltt": 1740729550000,
+            "last_trade_time": 1740729550000,
+            "timestamp": 1740729566039
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "NSE_FO|52175",
+            "ltp": 220.0,
+            "open": 480.0,
+            "high": 495.0,
+            "low": 210.0,
+            "close": 494.05,
+            "last_trade_quantity": 150,
+            "last_quantity": 150,
+            "volume": 1234575,
+            "average_price": 300.25,
+            "total_buy_quantity": 5000,
+            "total_sell_quantity": 6000,
+            "oi": 98765.0,
+            "ltt": 1740729553000,
+            "last_trade_time": 1740729553000,
+            "timestamp": 1740729570000
+          }
+        }
+      ]
+    }
+  ]
+}

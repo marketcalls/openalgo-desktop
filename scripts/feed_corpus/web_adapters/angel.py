@@ -1,5 +1,10 @@
 """Angel One: SmartWebSocketV2's binary parser and the adapter's
-normaliser, with the state test/test_angel_quote_feed.py builds."""
+normaliser, with the state test/test_angel_quote_feed.py builds, and the
+order-status adapter's normaliser.
+
+`to_openalgo_symbol` reads the database; the glue's stand-in does the same
+lookups on the case's symbol master (`Glue.to_openalgo_symbol`).
+"""
 
 from webkit import Glue, Source
 
@@ -24,7 +29,16 @@ class Angel(Glue):
             "AngelWebSocketAdapter",
             ["_on_data", "_price_divisor", "_normalize_market_data", "_extract_depth_data"],
         ),
+        Source(
+            "broker/angel/streaming/angel_order_adapter.py",
+            None,
+            ["_STATUS_CODE_MAP", "_STATUS_TEXT_MAP", "_PRODUCT_MAP", "_PRICETYPE_MAP"],
+        ),
+        Source("broker/angel/streaming/angel_order_adapter.py", "AngelOrderUpdateAdapter", ["normalize"]),
     ]
+
+    def stubs(self):
+        return {"to_openalgo_symbol": self.to_openalgo_symbol}
 
     def start(self):
         self.ws = self.new("SmartWebSocketV2")
@@ -34,6 +48,7 @@ class Angel(Glue):
             _token_index={},
             publish_market_data=self.publish,
         )
+        self.orders = self.new("AngelOrderUpdateAdapter")
 
     def subscribe(self, row, mode, depth):
         sub = {
@@ -51,5 +66,9 @@ class Angel(Glue):
         self.ad.subscriptions.pop(f"{row['symbol']}_{row['exchange']}_{mode}", None)
 
     def push(self, socket, frame):
-        if isinstance(frame, bytes):
+        if socket == "orders":
+            fields = self.orders.normalize(frame)
+            if fields:
+                self.order(fields)
+        elif isinstance(frame, bytes):
             self.ad._on_data(None, self.ws._parse_binary_data(frame))

@@ -1,0 +1,26 @@
+# Another order, rejected with its reason.
+# Any(Any(NubraToClientIntentUpdate)): field 1 is the order response, read field by field:
+#   {
+#    "order_id": 261109002,
+#    "status": 3,
+#    "product": "1 (CNC)",
+#    "price_type": "1 (LIMIT)",
+#    "qty": 10,
+#    "filled": 0,
+#    "price_paise": 130050,
+#    "avg_paise": 0,
+#    "side": "1 (BUY)",
+#    "refdata": {
+#     "ref_id": 2885,
+#     "stock_name": "RELIANCE",
+#     "exchange": "NSE",
+#     "derivative_type": "STOCK"
+#    },
+#    "reason": "Insufficient margin"
+#   }
+0a27747970652e676f6f676c65617069732e636f6d2f676f6f676c652e70726f
+746f6275662e416e791285010a33747970652e676f6f676c65617069732e636f
+6d2f6e756272612e4e75627261546f436c69656e74496e74656e745570646174
+65124e0a4c088aeac07c100338014001680a7000880182f807900100ca011908
+c5162a0852454c49414e434552034e53455a0553544f434be80101fa0113496e
+73756666696369656e74206d617267696e

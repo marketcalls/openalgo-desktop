@@ -1,0 +1,25 @@
+# The order complete.
+# Any(Any(NubraToClientIntentUpdate)): field 1 is the order response, read field by field:
+#   {
+#    "order_id": 261109001,
+#    "status": 2,
+#    "product": "1 (CNC)",
+#    "price_type": "1 (LIMIT)",
+#    "qty": 10,
+#    "filled": 10,
+#    "price_paise": 130050,
+#    "avg_paise": 130045,
+#    "side": "1 (BUY)",
+#    "refdata": {
+#     "ref_id": 2885,
+#     "stock_name": "RELIANCE",
+#     "exchange": "NSE",
+#     "derivative_type": "STOCK"
+#    },
+#    "reason": ""
+#   }
+0a27747970652e676f6f676c65617069732e636f6d2f676f6f676c652e70726f
+746f6275662e416e7912710a33747970652e676f6f676c65617069732e636f6d
+2f6e756272612e4e75627261546f436c69656e74496e74656e74557064617465
+123a0a380889eac07c100238014001680a700a880182f8079001fdf707ca0119
+08c5162a0852454c49414e434552034e53455a0553544f434be80101

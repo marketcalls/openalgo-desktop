@@ -1,0 +1,44 @@
+# The first full packet on the first connection.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_FO|52175": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 219.3,
+#         "ltt": "1740729550000",
+#         "ltq": "100",
+#         "cp": 494.05
+#        },
+#        "marketOHLC": {
+#         "ohlc": [
+#          {
+#           "interval": "1d",
+#           "open": 480.0,
+#           "high": 495.0,
+#           "low": 210.0,
+#           "close": 219.3,
+#           "vol": "1234500",
+#           "ts": "1740681000000"
+#          }
+#         ]
+#        },
+#        "atp": 300.25,
+#        "vtt": "1234575",
+#        "oi": 98765.0,
+#        "tbq": 5000.0,
+#        "tsq": 6000.0
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729566039"
+#   }
+08011293010a0c4e53455f464f7c3532313735128201127e0a7c0a1b099a9999
+9999696b4010b089c4dcd432186421cdcccccccce07e4022350a330a02316411
+0000000000007e40190000000000f07e40210000000000406a40299a99999999
+696b4030c4ac4b38c0e8b0c5d432290000000000c47240308fad4b3900000000
+d01cf84049000000000088b34051000000000070b740200118d786c5dcd432

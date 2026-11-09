@@ -1,0 +1,74 @@
+{
+  "broker": "upstox",
+  "data": {
+    "average_price": 300.25,
+    "close": 494.05,
+    "depth": {
+      "buy": [
+        {
+          "price": 219.25,
+          "quantity": 50
+        },
+        {
+          "price": 219.2,
+          "quantity": 100
+        },
+        {
+          "price": 219.15,
+          "quantity": 150
+        },
+        {
+          "price": 219.1,
+          "quantity": 200
+        },
+        {
+          "price": 219.05,
+          "quantity": 250
+        }
+      ],
+      "sell": [
+        {
+          "price": 219.35,
+          "quantity": 40
+        },
+        {
+          "price": 219.4,
+          "quantity": 80
+        },
+        {
+          "price": 219.45,
+          "quantity": 120
+        },
+        {
+          "price": 219.5,
+          "quantity": 160
+        },
+        {
+          "price": 219.55,
+          "quantity": 200
+        }
+      ],
+      "timestamp": 1740729566039
+    },
+    "exchange": "NFO",
+    "high": 495.0,
+    "last_quantity": 100,
+    "last_trade_quantity": 100,
+    "last_trade_time": 1740729550000,
+    "low": 210.0,
+    "ltp": 219.3,
+    "ltt": 1740729550000,
+    "oi": 98765.0,
+    "open": 480.0,
+    "symbol": "NIFTY25NOV26FUT",
+    "timestamp": 1740729566039,
+    "token": "NSE_FO|52175",
+    "total_buy_quantity": 5000,
+    "total_sell_quantity": 6000,
+    "volume": 1234575
+  },
+  "exchange": "NFO",
+  "mode": 3,
+  "symbol": "NIFTY25NOV26FUT",
+  "type": "market_data"
+}

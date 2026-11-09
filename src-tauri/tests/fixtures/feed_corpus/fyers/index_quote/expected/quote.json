@@ -1,0 +1,24 @@
+{
+  "broker": "fyers",
+  "data": {
+    "change": 50.5,
+    "change_percent": 0.21,
+    "close": 24300.0,
+    "data_type": "Quote",
+    "exchange": "NSE_INDEX",
+    "exchange_time": 1793170001,
+    "high": 24400.25,
+    "low": 24290.75,
+    "ltp": 24350.5,
+    "open": 24310.0,
+    "percent_change": 0.21,
+    "subscription_mode": 2,
+    "symbol": "NIFTY",
+    "timestamp": "<receipt_ms>",
+    "update_type": "snapshot"
+  },
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "symbol": "NIFTY",
+  "type": "market_data"
+}

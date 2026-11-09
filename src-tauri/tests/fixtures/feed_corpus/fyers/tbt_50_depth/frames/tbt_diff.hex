@@ -1,0 +1,11 @@
+# A TBT diff: level 1 of the bids changes quantity; level 2 of the asks is sent with price 0, which empties it.
+# Fyers TBT SocketMessage (msg.proto): feeds[NSE:SBIN-EQ].depth, these values:
+#   {"snapshot": false
+#   tbq": null
+#   tsq": null
+#   bids (price paise, qty, orders, num)": [[null, 30, null, 1]]
+#   asks": [[0, null, null, 2]]
+#   feed_time": 1793170003
+#   ticker": "NSE:SBIN-EQ"}
+12380a0b4e53453a5342494e2d455112292a121a060a00220208022208120208
+1e22020801320608d3b486d7065a0b4e53453a5342494e2d4551

@@ -1,0 +1,50 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "zerodha",
+  "inputs_sha256": "269c82f1a0082705c6ee22996f154b482c66402e86636c3d05ac225de385339a",
+  "instruments": [
+    {
+      "symbol": "USDINR25NOV26FUT",
+      "exchange": "CDS",
+      "token": "268040195",
+      "brsymbol": "USDINR26NOVFUT",
+      "brexchange": "CDS",
+      "expiry": "25-NOV-26",
+      "lotsize": 1,
+      "instrumenttype": "FUT",
+      "tick_size": 0.0025
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "CDS_USDINR25NOV26FUT_QUOTE",
+          "exchange": "CDS",
+          "symbol": "USDINR25NOV26FUT",
+          "mode": 2,
+          "data": {
+            "symbol": "USDINR25NOV26FUT",
+            "exchange": "CDS",
+            "mode": "quote",
+            "ltp": 8812340.0,
+            "ltt": "<receipt_ms>",
+            "timestamp": "<receipt_ms>",
+            "volume": 152340,
+            "last_quantity": 1,
+            "average_price": 8811000.0,
+            "total_buy_quantity": 2100,
+            "total_sell_quantity": 1900,
+            "open": 8805000.0,
+            "high": 8820000.0,
+            "low": 8800000.0,
+            "close": 8808000.0
+          }
+        }
+      ]
+    }
+  ]
+}

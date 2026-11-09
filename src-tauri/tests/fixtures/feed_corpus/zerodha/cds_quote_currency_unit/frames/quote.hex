@@ -1,0 +1,15 @@
+# Kite binary frame: one 44-byte quote packet for USDINR25NOV26FUT (token 268040195, CDS).
+# Kite sends currency prices in units of 10^-7 rupees (zerodha-api-docs 10-websocket.md).
+0001                    # packets in this frame
+002c                    # packet length 44
+0ff9f803                # instrument token 268040195 (low byte 3: CDS)
+34869050                # last price, in 10^-7 rupees (CDS) 881234000
+00000001                # last traded quantity 1
+348484e0                # average traded price 881100000
+00025314                # volume 152340
+00000834                # total buy quantity 2100
+0000076c                # total sell quantity 1900
+347b5d20                # open 880500000
+34924080                # high 882000000
+3473bc00                # low 880000000
+347ff100                # close (previous day) 880800000

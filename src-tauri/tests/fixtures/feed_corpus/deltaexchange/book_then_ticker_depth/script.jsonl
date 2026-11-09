@@ -1,0 +1,6 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"type": "subscribe", "payload": {"channels": [{"name": "ticker", "symbols": ["BTCUSD"]}]}}}, {"json": {"type": "subscribe", "payload": {"channels": [{"name": "ob_l2", "symbols": ["BTCUSD"]}]}}}], "note": "Depth takes the ticker for its prices and the book channel, one symbol per ob_l2 frame."}
+{"step": "push", "frame": "frames/book.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_before_ticker.json", "note": "The book before any ticker: three levels a side as Delta sent them, padded to five."}
+{"step": "push", "frame": "frames/ticker.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_after_ticker.json", "note": "Audit P-07: the ticker sends the Depth subscriber its book again with the new prices, as the web publishes the merged snapshot on either channel."}

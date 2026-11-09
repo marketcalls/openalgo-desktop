@@ -1,0 +1,66 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "fyers",
+  "inputs_sha256": "37dd7f835400067ef8137835321660c10d98795b270b9de9221c99967f807ca6",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "101000000026000",
+      "brsymbol": "NSE:NIFTY50-INDEX",
+      "brexchange": "NSE",
+      "name": "Nifty 50",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "token": "",
+            "ltp": 24350.5,
+            "open": 24310.0,
+            "high": 24400.25,
+            "low": 24290.75,
+            "close": 24300.0,
+            "bid_price": 0.0,
+            "ask_price": 0.0,
+            "bid_size": 0,
+            "ask_size": 0,
+            "volume": 0,
+            "oi": 0,
+            "upper_circuit": 0.0,
+            "lower_circuit": 0.0,
+            "last_traded_time": 0,
+            "exchange_time": 1793170001,
+            "avg_trade_price": 0.0,
+            "last_trade_quantity": 0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "change": 50.5,
+            "change_percent": 0.21,
+            "percent_change": 0.21,
+            "timestamp": "<receipt_s>",
+            "data_type": "Quote",
+            "update_type": "snapshot",
+            "subscription_mode": 2
+          }
+        }
+      ]
+    }
+  ]
+}

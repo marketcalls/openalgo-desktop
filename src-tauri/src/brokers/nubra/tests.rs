@@ -638,9 +638,10 @@ fn index_frames_tick_indices_and_instruments() {
     );
     assert_eq!(n.change, 124.35);
     let FeedEvent::Tick(r) = &ev[1] else { panic!() };
-    assert_eq!((r.symbol.as_str(), r.mode, r.ltp), ("RELIANCE", 1, 1426.5));
-    // LTP mode carries only the price.
-    assert_eq!((r.high, r.volume), (0.0, 0));
+    // An index-channel message is a Quote packet whatever the
+    // subscription (carrier: the packet's mode); the bridge serves LTP
+    // holders their LTP frame from it.
+    assert_eq!((r.symbol.as_str(), r.mode, r.ltp), ("RELIANCE", 2, 1426.5));
 
     // WebSocketMsgIndexBucket: 5 open after the index channel is live only
     // contributes the open.

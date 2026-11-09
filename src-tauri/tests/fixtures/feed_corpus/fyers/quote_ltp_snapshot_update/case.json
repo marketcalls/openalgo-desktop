@@ -1,0 +1,45 @@
+{
+  "broker": "fyers",
+  "summary": "Quote and LTP on one equity: HSM's binary login waits for its K, the symbol-feed snapshot gives both frames, and an update record carrying only the changed fields is applied whole to the snapshot.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "10100000003045",
+      "brsymbol": "NSE:SBIN-EQ",
+      "brexchange": "NSE",
+      "name": "STATE BANK OF INDIA"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fyers/streaming/fyers_hsm_websocket.py::FyersHSMWebSocket._parse_data_feed",
+      "broker/fyers/streaming/fyers_hsm_websocket.py::FyersHSMWebSocket._parse_update_data",
+      "broker/fyers/streaming/fyers_adapter.py::FyersAdapter._on_message",
+      "broker/fyers/streaming/fyers_mapping.py::FyersDataMapper.map_to_openalgo_quote",
+      "test/test_fyers_quote_feed.py::BASE"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
+      "ref": "fyers_mapping.py:178; fyers_adapter.py:553"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The web sends oi 0 for an equity whose HSM record carried no OI (fyers_data.get('OI', 0)); a field the stream does not carry is left out, never sent as 0 (web openalgo#2376), as the desktop does.",
+      "ref": "fyers_mapping.py:163"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"orders": {"id": "26110900001", "symbol": "NSE:SBIN-EQ", "exchange": 10, "segment": 10, "qty": 10, "qty_filled": 0, "price_limit": 801.5, "price_stop": 0, "tran_side": 1, "ord_type": 1, "product_type": "CNC", "org_ord_status": 6, "price_traded": 0, "oms_msg": ""}, "s": "ok"}

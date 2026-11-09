@@ -1,0 +1,56 @@
+{
+  "broker": "deltaexchange",
+  "summary": "A Depth subscription on a perpetual: the book before any ticker goes out as Delta sent it; a ticker after it sends the book again with the mark price, OHLC, OI and the best bid and ask (audit P-07).",
+  "scenarios": [
+    "depth-update",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "BTCUSDFUT",
+      "exchange": "CRYPTO",
+      "token": "27",
+      "brsymbol": "BTCUSD",
+      "brexchange": "CRYPTO",
+      "instrumenttype": "FUT",
+      "tick_size": 0.5
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._on_data",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_ticker",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_orderbook",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._merge_into_cache"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "ltp",
+      "kind": "desktop-decision",
+      "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the symbol's first ticker; the web's merged cache has no ltp until a ticker came.",
+      "ref": "feed::bridge::depth_update"
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "The web pads a short side of Delta's book to five zero levels Delta never sent and gives them no order count; the desktop sends the levels Delta sent (lead rule on book levels: padding a web adapter adds is a web defect).",
+      "ref": "delta_adapter.py:606-617"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Delta's ticker carries no average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
+      "ref": "delta_adapter.py:584"
+    },
+    {
+      "key": "oi_change",
+      "kind": "web-defect",
+      "reason": "The web sends a constant oi_change of 0 on every ticker (_normalise_ticker's defaults) whatever Delta sent; a value the desktop does not know is left out.",
+      "ref": "delta_adapter.py:584"
+    }
+  ]
+}

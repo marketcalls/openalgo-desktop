@@ -53,8 +53,8 @@ pub use tbt::*;
 
 use crate::brokers::common::mpp::py_round;
 use crate::brokers::common::streaming::{
-    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, BrokerField, BrokerValue, FeedEvent, FeedMode,
+    FeedSubscription, Message, NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::{AuthToken, DepthLevel};
@@ -489,7 +489,7 @@ impl HsmFeed {
             multiplier,
             precision,
         };
-        self.emit(&state, out);
+        self.emit(&state, SNAPSHOT, out);
         let first_quote = (kind == Topic::Scrip
             && !self.live.values().any(|s| s.name == state.name))
         .then(|| state.name.clone());
@@ -505,7 +505,7 @@ impl HsmFeed {
         // `depth_awaiting_quote`). A later quote, an update or another
         // snapshot of the same feed, does not send it again.
         if let Some(depth) = first_quote.and_then(|n| self.sibling(&n, "sf|", "dp|")) {
-            self.emit(depth, out);
+            self.emit(depth, SNAPSHOT, out);
         }
         true
     }
@@ -536,7 +536,7 @@ impl HsmFeed {
             }
         }
         if changed {
-            self.emit(&state, out);
+            self.emit(&state, LIVE, out);
         }
         if self.topics.contains_key(&state.name) {
             self.live.insert(id, state);
@@ -544,21 +544,33 @@ impl HsmFeed {
         true
     }
 
-    fn emit(&self, st: &TopicState, out: &mut Vec<FeedEvent>) {
+    /// `update` is the web's `update_type` for the message: `snapshot` for
+    /// a full record (83), `live` for an update (85, fyers_hsm_websocket.py
+    /// `_parse_update_data`).
+    fn emit(&self, st: &TopicState, update: &'static str, out: &mut Vec<FeedEvent>) {
         let Some(sub) = self.topics.get(&st.name) else {
             return;
         };
         let now = now_ms();
+        let typed = |mut t: NormalizedTick| {
+            t.broker_fields
+                .set(BrokerField::UpdateType, BrokerValue::Text(update));
+            FeedEvent::Tick(t)
+        };
         match st.kind {
-            Topic::Scrip => out.push(FeedEvent::Tick(scrip_tick(sub, st, now))),
+            Topic::Scrip => out.push(typed(scrip_tick(sub, st, now))),
             // An index has no order book: its tick serves every mode,
             // depth included, and no levels are made up around its value
             // (web `map_index_to_depth`, #2318).
-            Topic::Index => out.push(FeedEvent::Tick(index_tick(sub, st, now))),
+            Topic::Index => out.push(typed(index_tick(sub, st, now))),
             Topic::Depth => {
                 if sub.mode == FeedMode::Depth {
                     let quote = self.sibling(&st.name, "dp|", "sf|");
-                    out.push(FeedEvent::Depth(depth_event(sub, st, quote, now)));
+                    let mut book = depth_event(sub, st, quote, now);
+                    // fyers_adapter.py:555: a book message's own update_type.
+                    book.broker_fields
+                        .set(BrokerField::UpdateType, BrokerValue::Text(update));
+                    out.push(FeedEvent::Depth(book));
                 }
             }
         }
@@ -589,6 +601,10 @@ fn int(v: Option<i32>) -> i64 {
 fn field(st: &TopicState, i: usize) -> Option<i32> {
     st.values.get(i).copied().flatten()
 }
+
+/// web `update_type` (fyers_adapter.py:464, fyers_hsm_websocket.py:779).
+const SNAPSHOT: &str = "snapshot";
+const LIVE: &str = "live";
 
 /// Where a scrip (`sf`) record carries each quote field (`DATA_FIELDS`).
 const SCRIP_SOURCES: [(usize, QuoteField); 11] = [
@@ -666,8 +682,31 @@ fn scrip_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
         absent: absent_from(st, &SCRIP_SOURCES, AbsentFields::default()),
         ..Default::default()
     };
+    // A symbol-feed record is the whole quote whatever the subscription
+    // (the web publishes it to LTP holders too, with OI): a Quote packet
+    // that carries OI when Fyers sent it.
+    t.mode = FeedMode::Quote.code();
+    if field(st, 12).is_some() {
+        t.mark_carried(QuoteField::OpenInterest);
+    }
+    scrip_extras(&mut t, st);
     t.derive_change();
     t
+}
+
+/// The web quote's extra keys (`fyers_mapping.py` `map_to_openalgo_quote`):
+/// best bid and ask with sizes, circuit limits and the exchange feed time,
+/// each only when the record holds it.
+fn scrip_extras(t: &mut NormalizedTick, st: &TopicState) {
+    let price = |i| field(st, i).map(|_| st.price(i));
+    let qty = |i| field(st, i).map(i64::from);
+    t.extras.bid_quantity = qty(4);
+    t.extras.ask_quantity = qty(5);
+    t.extras.bid_price = price(6);
+    t.extras.ask_price = price(7);
+    t.extras.lower_circuit = price(17);
+    t.extras.upper_circuit = price(18);
+    t.extras.exchange_time_ms = field(st, 3).map(|s| i64::from(s) * 1000);
 }
 
 fn index_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
@@ -685,6 +724,9 @@ fn index_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
         absent: absent_from(st, &INDEX_SOURCES, NOT_IN_INDEX_RECORDS),
         ..Default::default()
     };
+    // web `map_to_openalgo_quote`: an index record's feed time goes out as
+    // `exchange_time` too.
+    t.extras.exchange_time_ms = field(st, 2).map(|s| i64::from(s) * 1000);
     t.derive_change();
     t
 }
@@ -723,15 +765,29 @@ fn depth_event(
             });
         }
     }
+    // A depth message has no LTP and no totals: they are the symbol feed's
+    // (left out before its first quote, as the web does).
+    let mut absent = AbsentFields::of(&[QuoteField::Ltp]);
+    let (tbq, tsq) = (
+        quote.and_then(|q| field(q, 9)),
+        quote.and_then(|q| field(q, 10)),
+    );
+    if tbq.is_none() {
+        absent = absent.with(QuoteField::TotalBuyQuantity);
+    }
+    if tsq.is_none() {
+        absent = absent.with(QuoteField::TotalSellQuantity);
+    }
     NormalizedDepth {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
         ltp: 0.0,
-        total_buy_quantity: int(quote.and_then(|q| field(q, 9))),
-        total_sell_quantity: int(quote.and_then(|q| field(q, 10))),
+        total_buy_quantity: int(tbq),
+        total_sell_quantity: int(tsq),
         buy,
         sell,
         timestamp_ms: now,
+        absent,
         ..Default::default()
     }
 }

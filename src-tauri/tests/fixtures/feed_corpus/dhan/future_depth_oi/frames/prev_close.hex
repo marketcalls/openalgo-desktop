@@ -1,0 +1,7 @@
+# Dhan binary frame: the previous-close packet for NIFTY25NOV26FUT, with the previous OI.
+06                      # response code 6 (previous close)
+1000                    # message length 16, header included
+02                      # exchange segment 2 (NSE_FNO)
+cfcb0000                # security id 52175
+00a0be46                # previous close 24400.0 (f32)
+40548900                # previous OI

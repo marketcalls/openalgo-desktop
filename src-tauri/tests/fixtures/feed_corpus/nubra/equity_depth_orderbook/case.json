@@ -1,0 +1,43 @@
+{
+  "broker": "nubra",
+  "summary": "A Depth subscription on an equity: Nubra's order-book message gives LTP, volume and the book padded to five levels; a message with no resting orders clears the book.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/nubra/api/nubrawebsocket.py::NubraWebSocket._decode_protobuf",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_index_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_ohlcv_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_orderbook_data"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "Nubra's order book carries the last traded quantity; the web drops it from the Depth frame, the desktop keeps it (lead decision: market data a web adapter drops from a mode is kept, lost data).",
+      "ref": "nubra_adapter.py:878-892"
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "The web pads a short side of Nubra's book to five zero levels (price 0, an integer) Nubra never sent; the desktop sends the levels Nubra sent (lead rule on book levels).",
+      "ref": "nubra_adapter.py:870-875"
+    }
+  ]
+}

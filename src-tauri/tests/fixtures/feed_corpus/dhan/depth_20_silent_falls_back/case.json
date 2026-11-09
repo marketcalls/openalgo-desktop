@@ -1,0 +1,37 @@
+{
+  "broker": "dhan",
+  "summary": "A 20-level book that does not come within Dhan's timeout (30 s, shortened here) falls back to the market feed's full packet and its five levels, as the web's fallback monitor does.",
+  "scenarios": [
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "deep_book_timeout_ms": 300,
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter.subscribe",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._check_depth_20_fallback",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._normalize_5depth_data"
+    ],
+    "notes": [
+      "dhan_adapter.py:409-412 (a 30 s timeout per 20-level subscription) and 972-1066 (the monitor moves it to the 5-level socket)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "desktop-decision",
+      "reason": "A 20-level Depth subscription whose 20-level socket was not made, was refused or stayed silent is served at the market feed's five levels (lead decision 2026-11-09, audit P-10); the web's adapter serves it there only after its fallback monitor's 30 s, so it publishes nothing for this packet.",
+      "ref": "decisions.md (Deep book: served on the main 5 levels); dhan_adapter.py:409-412, 972-1066"
+    }
+  ]
+}

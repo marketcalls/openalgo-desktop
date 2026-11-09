@@ -1,0 +1,84 @@
+{
+  "broker": "angel",
+  "data": {
+    "average_price": 24431.0,
+    "close": 24400.0,
+    "depth": {
+      "buy": [
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        }
+      ],
+      "sell": [
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0.0,
+          "quantity": 0
+        }
+      ]
+    },
+    "exchange": "NFO",
+    "high": 24500.0,
+    "last_quantity": 150,
+    "last_trade_quantity": 150,
+    "low": 24380.0,
+    "lower_circuit": 21960.0,
+    "ltp": 24455.0,
+    "ltt": 1794302760000,
+    "mode": 3,
+    "oi": 9510000,
+    "open": 24410.0,
+    "symbol": "NIFTY25NOV26FUT",
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 0.0,
+    "total_sell_quantity": 0.0,
+    "upper_circuit": 26840.0,
+    "volume": 1510000
+  },
+  "exchange": "NFO",
+  "mode": 3,
+  "symbol": "NIFTY25NOV26FUT",
+  "type": "market_data"
+}

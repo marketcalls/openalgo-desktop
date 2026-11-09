@@ -448,12 +448,13 @@ impl Broker for DhanBroker {
                 order_feed: true,
                 depth_levels: &[5, 20],
             },
+            // The sandbox streams simulated prices (`dhan_sandbox::feed`).
             Variant::Sandbox => Capabilities {
                 history: true,
                 multiquotes_batch: false,
                 margin: true,
                 gtt: false,
-                streaming: false,
+                streaming: true,
                 order_feed: false,
                 depth_levels: &[5],
             },
@@ -593,8 +594,10 @@ impl Broker for DhanBroker {
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         if self.is_sandbox() {
-            // web: the sandbox feed is a synthetic tick generator, not Dhan.
-            return Err(AppError::Unsupported("streaming"));
+            // web: the sandbox feed is a simulated one, not Dhan's.
+            return Ok(Box::new(
+                crate::brokers::dhan_sandbox::feed::DhanSandboxFeed::new(self.symbols.clone()),
+            ));
         }
         let s = DhanSession::parse(auth)?;
         let cid = s.require_client_id()?.to_string();
@@ -614,6 +617,15 @@ impl Broker for DhanBroker {
             return Err(AppError::Unsupported("depth_feed"));
         }
         self.create_depth20_feed(auth)
+    }
+
+    /// web `dhan_adapter.py:328-334`: an exchange Dhan's feed has no segment
+    /// for is refused after the symbol lookup, `EXCHANGE_NOT_SUPPORTED`
+    /// with these words. The sandbox's simulated feed takes any (web
+    /// `Dhan_sandboxWebSocketAdapter.subscribe`).
+    fn feed_refusal(&self, exchange: &str) -> Option<String> {
+        (!self.is_sandbox() && streaming::segment_code(exchange).is_none())
+            .then(|| format!("Exchange {} not supported", exchange))
     }
 
     /// 20-level books stream for NSE and NFO only (web Dhan 20-depth).

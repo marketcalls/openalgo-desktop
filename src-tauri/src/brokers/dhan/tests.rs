@@ -19,7 +19,9 @@ fn unread() -> crate::error::AppError {
     crate::brokers::common::book_read::unreadable("dhan", Book::Orders)
 }
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use chrono::NaiveDate;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -1111,7 +1113,9 @@ fn twenty_depth_pairs_bid_and_ask_halves() {
             assert_eq!(d.sell.len(), 20);
             assert_eq!(d.buy[0].price, 813.0);
             assert_eq!(d.sell[19].quantity, 200);
-            assert_eq!(d.total_buy_quantity, 2100);
+            // No totals in a 20-level packet: none is made up from the levels.
+            assert!(d.absent.contains(QuoteField::TotalBuyQuantity));
+            assert!(d.absent.contains(QuoteField::TotalSellQuantity));
         }
         other => panic!("unexpected {:?}", other),
     }
@@ -1243,4 +1247,46 @@ fn auxiliary_sockets_through_the_trait() {
     let sandbox = crate::brokers::dhan_sandbox::broker(master());
     assert_eq!(sandbox.feed_depth_levels("NSE"), vec![5]);
     assert!(sandbox.create_order_feed(&auth).is_err());
+}
+
+/// dhan_websocket.py:247-262: a deliberate close says goodbye first, on
+/// the market socket and the 20-level one; the order socket does not.
+#[test]
+fn a_deliberate_close_sends_the_disconnect_request_first() {
+    let b = DhanBroker::new(master());
+    let auth = AuthToken::new("1100012345:::tok");
+    let bye = vec![Message::Text(r#"{"RequestCode": 12}"#.to_string())];
+    assert_eq!(b.create_feed(&auth).unwrap().farewell_frames(), bye);
+    assert_eq!(
+        b.create_depth_feed(&auth, 20).unwrap().farewell_frames(),
+        bye
+    );
+    assert!(b.order_socket(&auth).unwrap().farewell_frames().is_empty());
+}
+
+/// dhan_adapter.py:328-334: `Exchange <x> not supported` for an exchange
+/// Dhan's feed has no segment for; the sandbox's simulated feed takes any.
+#[test]
+fn an_exchange_without_a_feed_segment_is_refused_with_the_webs_words() {
+    let b = DhanBroker::new(master());
+    for streamed in [
+        "NSE",
+        "BSE",
+        "NFO",
+        "BFO",
+        "MCX",
+        "NCO",
+        "CDS",
+        "BCD",
+        "NSE_INDEX",
+        "BSE_INDEX",
+    ] {
+        assert_eq!(b.feed_refusal(streamed), None, "{}", streamed);
+    }
+    assert_eq!(
+        b.feed_refusal("MCX_INDEX").as_deref(),
+        Some("Exchange MCX_INDEX not supported")
+    );
+    let sandbox = crate::brokers::dhan_sandbox::broker(master());
+    assert_eq!(sandbox.feed_refusal("MCX_INDEX"), None);
 }

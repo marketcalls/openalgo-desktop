@@ -1,0 +1,33 @@
+# SmartStream binary tick, SNAP_QUOTE mode (379 bytes), NIFTY25NOV26FUT (token 52175) on nse_fo, with OI and the best five.
+03                      # subscription mode 3
+02                      # exchange type 2
+35323137350000000000000000000000000000000000000000# token, NUL padded to 25 bytes
+0100000000000000        # sequence number
+e069c6c4a1010000        # exchange timestamp, epoch ms
+fa4e250000000000        # last traded price 2445050 paise
+4b00000000000000        # last traded quantity
+1147250000000000        # average traded price 2443025 paise
+60e3160000000000        # volume
+0000000040771b41        # total buy quantity (double)
+00000000006a1841        # total sell quantity (double)
+283f250000000000        # open
+5062250000000000        # high
+7033250000000000        # low
+403b250000000000        # close (previous day)
+f865c6c4a1010000        # last traded timestamp, epoch ms
+60f5900000000000        # open interest
+0000000000000000        # OI change percent
+01009600000000000000c84e2500000000000300# best five 1: flag 1 (buy), qty 150, price 2445000, orders 3
+01002c01000000000000964e2500000000000500# best five 2: flag 1 (buy), qty 300, price 2444950, orders 5
+0100c201000000000000644e2500000000000600# best five 3: flag 1 (buy), qty 450, price 2444900, orders 6
+01005802000000000000324e2500000000000800# best five 4: flag 1 (buy), qty 600, price 2444850, orders 8
+0100ee02000000000000004e2500000000000900# best five 5: flag 1 (buy), qty 750, price 2444800, orders 9
+00004b000000000000002c4f2500000000000100# best five 6: flag 0 (sell), qty 75, price 2445100, orders 1
+0000e1000000000000005e4f2500000000000200# best five 7: flag 0 (sell), qty 225, price 2445150, orders 2
+00007701000000000000904f2500000000000400# best five 8: flag 0 (sell), qty 375, price 2445200, orders 4
+00000d02000000000000c24f2500000000000500# best five 9: flag 0 (sell), qty 525, price 2445250, orders 5
+0000a302000000000000f44f2500000000000700# best five 10: flag 0 (sell), qty 675, price 2445300, orders 7
+60f4280000000000        # upper circuit
+2082210000000000        # lower circuit
+0000000000000000        # 52-week high
+0000000000000000        # 52-week low

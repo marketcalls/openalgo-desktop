@@ -1,0 +1,35 @@
+{
+  "broker": "angel",
+  "summary": "Angel's order-status socket: the AB00 acknowledgement is not relayed; an order open, partly filled and complete, one rejected with its reason and one cancelled each become an order_update frame with OpenAlgo's symbol, product and status.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "ping"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/angel/streaming/angel_order_adapter.py::AngelOrderUpdateAdapter.normalize",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Message shape from the adapter's docstring (broker-api-docs 11-websocket-order-status.md): order-status code and orderData."
+    ]
+  },
+  "deviations": []
+}

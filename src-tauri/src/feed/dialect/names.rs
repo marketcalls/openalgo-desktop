@@ -417,6 +417,8 @@ const DHAN: &[WebName] = &[
     n("depth_level", S::DepthLevels, D),
 ];
 
+const DHAN_SANDBOX: &[WebName] = &[n("last_trade_quantity", S::LastQuantity, Q)];
+
 const FIRSTOCK: &[WebName] = &[
     n("upper_circuit", S::Extra(E::UpperCircuit), Q),
     n("lower_circuit", S::Extra(E::LowerCircuit), Q),
@@ -479,10 +481,12 @@ const FYERS: &[WebName] = &[
     n("close", S::Close, L),
     n("volume", S::Volume, L),
     n("oi", S::Oi, L),
-    n("bid_price", S::Extra(E::BidPrice), L),
-    n("ask_price", S::Extra(E::AskPrice), L),
-    n("bid_size", S::Extra(E::BidQuantity), L),
-    n("ask_size", S::Extra(E::AskQuantity), L),
+    // fyers_adapter.py: a book (dp) frame carries the quote's LTP and
+    // totals, not its best bid and ask.
+    nt("bid_price", S::Extra(E::BidPrice), L, Q),
+    nt("ask_price", S::Extra(E::AskPrice), L, Q),
+    nt("bid_size", S::Extra(E::BidQuantity), L, Q),
+    nt("ask_size", S::Extra(E::AskQuantity), L, Q),
     n("upper_circuit", S::Extra(E::UpperCircuit), L),
     n("lower_circuit", S::Extra(E::LowerCircuit), L),
     n("last_traded_time", S::TradeTime(Unit::Seconds), L),
@@ -574,8 +578,10 @@ const MSTOCK: &[WebName] = &[
 
 const NUBRA: &[WebName] = &[
     n("prev_close", S::Close, Q),
-    n("bid", S::Extra(E::BidPrice), Q),
-    n("ask", S::Extra(E::AskPrice), Q),
+    // nubra_adapter.py: the index channel's quote names the best bid and
+    // ask; the order book's Depth frame does not.
+    nt("bid", S::Extra(E::BidPrice), Q, Q),
+    nt("ask", S::Extra(E::AskPrice), Q, Q),
 ];
 
 const PAYTM: &[WebName] = &[
@@ -628,10 +634,11 @@ const TRADEJINI: &[WebName] = &[
 
 const UPSTOX: &[WebName] = &[
     n("token", S::Token, L),
-    n("ltq", S::LastQuantity, L),
-    n("cp", S::Close, L),
+    // upstox_adapter.py `_build_payload`: the LTP payload's names only.
+    nt("ltq", S::LastQuantity, L, L),
+    nt("cp", S::Close, L, L),
     n("last_trade_quantity", S::LastQuantity, Q),
-    n("last_trade_time", S::TradeTime(Unit::Millis), L),
+    n("last_trade_time", S::TradeTime(Unit::Millis), Q),
 ];
 
 const ZERODHA: &[WebName] = &[n(
@@ -672,11 +679,14 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "zerodha" => d(Label, ZERODHA).open_interest().no_ltt_on_ltp_copies(),
         "sahi" => d(Label, SAHI).open_interest().index_book(),
         "iiflcapital" => d(Label, IIFLCAPITAL).open_interest(),
-        "nubra" => d(Label, NUBRA).no_ltt(),
-        // angel_adapter.py:716-736: `mode` is the token's subscription's.
+        // nubra_adapter.py `_on_index_data`: no change keys on an index.
+        "nubra" => d(Label, NUBRA).no_ltt().no_index_change(),
+        // angel_adapter.py:716-736: `mode` is the token's subscription's;
+        // `_normalize_market_data`: no change keys on an index.
         "angel" => d(Number, ANGEL)
             .richer()
             .mode_of_holder()
+            .no_index_change()
             .floats(&["total_buy_quantity", "total_sell_quantity"]),
         "arrow" => d(Absent, ARROW_HDFC).open_interest().richer(),
         "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest(),
@@ -688,8 +698,13 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .richer()
             .no_index_change(),
         "kotak" => d(Absent, KOTAK).no_index_change().index_book(),
-        "upstox" => d(Absent, UPSTOX).book_time(),
-        "fyers" => d(Absent, FYERS).no_ltt(),
+        // upstox_adapter.py `_build_payload`: no change keys, OI a float.
+        "upstox" => d(Absent, UPSTOX)
+            .book_time()
+            .no_index_change()
+            .floats(&["oi"]),
+        // fyers_mapping.py: the change only under Fyers' own names.
+        "fyers" => d(Absent, FYERS).no_ltt().no_index_change(),
         // These name `mode` after the packet's MessageCode; Jainam publishes
         // once per subscribed mode with that mode (jainamxts_adapter.py:709-725).
         "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "rmoney" | "wisdom" => {
@@ -697,9 +712,28 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         }
         "jainamxts" => d(Number, XTS).richer().mode_of_holder(),
         "definedge" => d(Number, DEFINEDGE).depth_needs_book(),
-        // delta_adapter.py:470-484: one dict per subscription, with its mode.
-        "deltaexchange" => d(Number, DELTA).no_ltt().richer().mode_of_holder(),
-        "dhan" => d(Number, DHAN).richer(),
+        // delta_adapter.py:470-484: one dict per subscription, with its
+        // mode; `_normalise_ticker`: `float(oi)`; the book's totals only as
+        // `totalbuyqty` / `totalsellqty`.
+        "deltaexchange" => d(Number, DELTA)
+            .no_ltt()
+            .richer()
+            .mode_of_holder()
+            .key(Key::TotalBuyQuantity, Modes::NEVER)
+            .key(Key::TotalSellQuantity, Modes::NEVER)
+            .floats(&["oi"]),
+        // dhan_adapter.py `_normalize_*`: no change keys on an index.
+        "dhan" => d(Number, DHAN).richer().no_index_change(),
+        // dhan_sandbox_adapter.py `_mock_streaming_loop`: one dict for any
+        // instrument, an index's included, without change keys and with
+        // the last quantity only as `last_trade_quantity`.
+        "dhan_sandbox" => d(Number, DHAN_SANDBOX)
+            .no_index_change()
+            .key(Key::LastQuantity, Modes::NEVER)
+            .index_key(Key::AveragePrice, Modes::QUOTE_UP)
+            .index_key(Key::TotalBuyQuantity, Modes::QUOTE_UP)
+            .index_key(Key::TotalSellQuantity, Modes::QUOTE_UP)
+            .index_key(Key::Depth, Modes::DEPTH),
         "firstock" => d(Number, FIRSTOCK).no_index_change(),
         "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book(),
         "shoonya" => d(Number, SHOONYA).no_ltt(),
@@ -746,6 +780,7 @@ pub(crate) const BROKERS: &[&str] = &[
     "definedge",
     "deltaexchange",
     "dhan",
+    "dhan_sandbox",
     "firstock",
     "fivepaisa",
     "fivepaisaxts",

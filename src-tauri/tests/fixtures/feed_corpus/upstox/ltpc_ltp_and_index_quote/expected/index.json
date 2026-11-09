@@ -1,0 +1,20 @@
+{
+  "broker": "upstox",
+  "data": {
+    "close": 24300.0,
+    "exchange": "NSE_INDEX",
+    "high": 24400.25,
+    "last_trade_time": 1740729561000,
+    "low": 24290.75,
+    "ltp": 24350.5,
+    "ltt": 1740729561000,
+    "open": 24310.0,
+    "symbol": "NIFTY",
+    "timestamp": 1740729566500,
+    "token": "NSE_INDEX|Nifty 50"
+  },
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "symbol": "NIFTY",
+  "type": "market_data"
+}

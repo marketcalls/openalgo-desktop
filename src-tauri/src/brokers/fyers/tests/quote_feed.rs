@@ -328,8 +328,12 @@ fn an_index_quote_leaves_out_what_an_index_record_has_no_source_for() {
         (q["ltp"].as_f64(), q["open"].as_f64()),
         (Some(24000.0), Some(23950.0))
     );
-    assert_eq!(q["price_change"], 100.0);
-    for k in ["change_percent", "percent_change"] {
-        assert_eq!(q.get(k), q.get("price_change_percent"), "{}: {}", k, q);
+    // Only under Fyers' own names: its adapter sends no canonical
+    // `price_change` (lead ruling 2026-11-09, change keys per adapter).
+    assert_eq!(q["change"], 100.0);
+    assert!(q.get("change_percent").is_some(), "{}", q);
+    assert_eq!(q.get("percent_change"), q.get("change_percent"), "{}", q);
+    for k in ["price_change", "price_change_percent"] {
+        assert!(q.get(k).is_none(), "{}: {}", k, q);
     }
 }

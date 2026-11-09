@@ -248,8 +248,9 @@ async fn accept_loop(listener: tokio::net::TcpListener, path: String, upstream: 
     }
 }
 
-/// Accept the manager's WebSocket on the secret path, within the budget.
-async fn handshake(tcp: TcpStream, path: String) -> Option<WebSocketStream<TcpStream>> {
+/// Accept the manager's WebSocket on the secret path, within the budget
+/// (also the Dhan Sandbox ticker's, `dhan_sandbox::feed::ticker`).
+pub(crate) async fn handshake(tcp: TcpStream, path: String) -> Option<WebSocketStream<TcpStream>> {
     let check = crate::websocket::handshake::check(move |req: &Request, resp: Response| {
         if req.uri().path() == path {
             Ok(resp)

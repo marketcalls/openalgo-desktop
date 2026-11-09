@@ -1,0 +1,18 @@
+{
+  "broker": "upstox",
+  "data": {
+    "exchange": "NFO",
+    "last_quantity": 150,
+    "last_trade_quantity": 150,
+    "last_trade_time": 1740729553000,
+    "ltp": 220.0,
+    "ltt": 1740729553000,
+    "symbol": "NIFTY25NOV26FUT",
+    "timestamp": 1740729570000,
+    "token": "NSE_FO|52175"
+  },
+  "exchange": "NFO",
+  "mode": 2,
+  "symbol": "NIFTY25NOV26FUT",
+  "type": "market_data"
+}

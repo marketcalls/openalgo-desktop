@@ -1,0 +1,17 @@
+{
+  "broker": "upstox",
+  "data": {
+    "cp": 1295.0,
+    "exchange": "NSE",
+    "ltp": 1301.25,
+    "ltq": 5,
+    "ltt": 1740729560000,
+    "symbol": "RELIANCE",
+    "timestamp": 1740729566400,
+    "token": "NSE_EQ|INE002A01018"
+  },
+  "exchange": "NSE",
+  "mode": 1,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}

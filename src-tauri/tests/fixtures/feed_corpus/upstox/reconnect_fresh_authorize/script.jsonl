@@ -1,0 +1,9 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"binary_json": {"guid": "<any>", "method": "sub", "data": {"instrumentKeys": ["NSE_FO|52175"], "mode": "full"}}}]}
+{"step": "push", "frame": "frames/snapshot.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "note": "A fresh signed address from the authorize call before every connect."}
+{"step": "upstream_receives", "frames": [{"binary_json": {"guid": "<any>", "method": "sub", "data": {"instrumentKeys": ["NSE_FO|52175"], "mode": "full"}}}], "connection": 2}
+{"step": "push", "frame": "frames/ltpc_only.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_after_reconnect.json", "note": "The quote merged on the last connection is not this session's: only what this packet carries."}

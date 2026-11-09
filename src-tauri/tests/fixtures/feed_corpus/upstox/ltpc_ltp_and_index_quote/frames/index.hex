@@ -1,0 +1,36 @@
+# A full-mode index packet (indexFF) for NIFTY: LTPC with the previous close and the day candle.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_INDEX|Nifty 50": {
+#      "fullFeed": {
+#       "indexFF": {
+#        "ltpc": {
+#         "ltp": 24350.5,
+#         "ltt": "1740729561000",
+#         "cp": 24300.0
+#        },
+#        "marketOHLC": {
+#         "ohlc": [
+#          {
+#           "interval": "1d",
+#           "open": 24310.0,
+#           "high": 24400.25,
+#           "low": 24290.75,
+#           "close": 24350.5,
+#           "ts": "1740681000000"
+#          }
+#         ]
+#        }
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729566500"
+#   }
+0801126a0a124e53455f494e4445587c4e6966747920353012541250124e0a19
+0900000000a0c7d74010a8dfc4dcd432210000000000bbd74012310a2f0a0231
+64110000000080bdd740190000000010d4d7402100000000b0b8d74029000000
+00a0c7d74038c0e8b0c5d432200118a48ac5dcd432

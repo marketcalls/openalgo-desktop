@@ -1,0 +1,10 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 20}}
+{"step": "upstream_receives", "socket": "depth", "frames": [{"json": {"RequestCode": 23, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}]}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 17, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "note": "The market feed's quote, for the 20-level book's price."}
+{"step": "silence", "client": "a", "ms": 600, "note": "No 20-level book: past the timeout the book moves to the market feed."}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 18, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}, {"json": {"RequestCode": 21, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "note": "The instrument moves from the quote it held for the 20-level book's price to the full packet."}
+{"step": "upstream_receives", "socket": "depth", "frames": [{"json": {"RequestCode": 24, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "note": "The 20-level book goes."}
+{"step": "push", "frame": "frames/prev_close.hex"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/full.json", "web": false}

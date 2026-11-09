@@ -174,20 +174,26 @@ fn an_instruments_change_goes_under_the_brokers_names() {
         assert_eq!(d[name], 1.25, "{}: {}", broker, d);
         assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
     }
-    for broker in [
-        "zerodha",
-        "angel",
-        "upstox",
-        "dhan",
-        "compositedge",
-        "unknown",
-    ] {
+    for broker in ["zerodha", "compositedge", "unknown"] {
         for mode in [Mode::Quote, Mode::Depth] {
             let d = data_at(equity(), mode, broker);
             for k in ["price_change", "price_change_percent", "change"] {
                 assert!(d.get(k).is_none(), "{} {:?} {}: {}", broker, mode, k, d);
             }
             assert_eq!(data_at(index(), mode, broker)["price_change"], 1.25);
+        }
+    }
+    // No change keys at all, an index's included: these adapters send none
+    // (angel_adapter.py, upstox_adapter.py, dhan_adapter.py, nubra_adapter.py,
+    // dhan_sandbox_adapter.py).
+    for broker in ["angel", "upstox", "dhan", "nubra", "dhan_sandbox"] {
+        for key in [equity(), index()] {
+            for mode in [Mode::Quote, Mode::Depth] {
+                let d = data_at(key.clone(), mode, broker);
+                for k in ["price_change", "price_change_percent", "change"] {
+                    assert!(d.get(k).is_none(), "{} {:?} {}: {}", broker, mode, k, d);
+                }
+            }
         }
     }
 }
@@ -292,11 +298,16 @@ fn the_canonical_keys_follow_each_brokers_web_adapter() {
             broker
         );
     }
-    for broker in ["angel", "dhan", "upstox", "kotak", "fyers"] {
+    for broker in ["angel", "dhan", "kotak", "fyers"] {
         let d = data(equity(), Mode::Depth, broker);
         assert_eq!(d["oi"], 5000, "{}", broker);
         assert!(d.get("open_interest").is_none(), "{}: {}", broker, d);
     }
+    // Upstox and Delta send OI as their adapters do: Upstox's double, as
+    // a float (upstox_adapter.py `float(ff["oi"])`).
+    let upstox = data(equity(), Mode::Depth, "upstox");
+    assert_eq!(upstox["oi"], 5000.0, "{}", upstox);
+    assert!(upstox.get("open_interest").is_none(), "{}", upstox);
     let shoonya = data(equity(), Mode::Depth, "shoonya");
     assert_eq!(shoonya["open_interest"], 5000, "Shoonya's own Depth key");
 

@@ -1,0 +1,66 @@
+{
+  "broker": "angel",
+  "summary": "A Quote subscription on the NIFTY index: the QUOTE packet gives an index frame with the change against the previous close; after Angel drops the socket the subscription is sent again on the new connection, with the same headers.",
+  "scenarios": [
+    "index",
+    "reconnect",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "99926000",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "AMXIDX"
+    }
+  ],
+  "upstream_ignore": [
+    "ping"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/angel/streaming/smartWebSocketV2.py::SmartWebSocketV2._parse_binary_data",
+      "broker/angel/streaming/angel_adapter.py::AngelWebSocketAdapter._on_data",
+      "broker/angel/streaming/angel_adapter.py::AngelWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "price_change 50.5 = 24350.5 - 24300.0, percent 0.21 (rounded to 2 places); after the reconnect 60.0 and 0.25."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no trades or book: the web sends the packet's zero last quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
+      "ref": "lead decision 2026-11-09 (index zeros)"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no trades or book: the web sends the packet's zero last trade quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
+      "ref": "lead decision 2026-11-09 (index zeros)"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "An index has no trades or book: the web sends the packet's zero average price for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
+      "ref": "lead decision 2026-11-09 (index zeros)"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no trades or book: the web sends the packet's zero total buy quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
+      "ref": "lead decision 2026-11-09 (index zeros)"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no trades or book: the web sends the packet's zero total sell quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
+      "ref": "lead decision 2026-11-09 (index zeros)"
+    }
+  ]
+}

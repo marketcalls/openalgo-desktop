@@ -1,0 +1,48 @@
+{
+  "broker": "deltaexchange",
+  "summary": "Quote and LTP on a perpetual: the ticker gives the mark price and the 24-hour OHLC; a ticker with only the mark price keeps the rest; Depth adds the ob_l2 channel and releasing it removes only that.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "mode-change",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "BTCUSDFUT",
+      "exchange": "CRYPTO",
+      "token": "27",
+      "brsymbol": "BTCUSD",
+      "brexchange": "CRYPTO",
+      "instrumenttype": "FUT",
+      "tick_size": 0.5
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._on_data",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_ticker",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_orderbook",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._merge_into_cache"
+    ],
+    "notes": [
+      "Ticker shape from the adapter's _on_data docstring (compact public-endpoint keys d/s/m/ohlc/oi/q)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Delta's ticker carries no average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
+      "ref": "delta_adapter.py:584"
+    },
+    {
+      "key": "oi_change",
+      "kind": "web-defect",
+      "reason": "The web sends a constant oi_change of 0 on every ticker (_normalise_ticker's defaults), although Delta's ticker carries the OI change as oi[1]; the desktop sends no invented change.",
+      "ref": "delta_adapter.py:584"
+    }
+  ]
+}

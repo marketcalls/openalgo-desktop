@@ -1,0 +1,16 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"binary_json": {"guid": "<any>", "method": "sub", "data": {"instrumentKeys": ["NSE_FO|52175"], "mode": "full"}}}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "note", "text": "Quote and Depth share Upstox's full mode: nothing more goes to Upstox."}
+{"step": "push", "frame": "frames/snapshot.hex"}
+{"step": "receive", "client": "a", "frame": "expected/snapshot_quote.json", "note": "Volume is vtt (1234575), not the day candle's 1234500; close is the previous close cp, not the candle's close."}
+{"step": "receive", "client": "b", "frame": "expected/snapshot_depth.json"}
+{"step": "push", "frame": "frames/ltpc_only.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltpc_only_quote.json", "note": "Audit P-01: an LTPC-only packet keeps every other field and the book."}
+{"step": "receive", "client": "b", "frame": "expected/ltpc_only_depth.json"}
+{"step": "push", "frame": "frames/minute_candle_only.hex"}
+{"step": "receive", "client": "a", "frame": "expected/minute_candle_only_quote.json", "note": "Audit P-02: a minute candle leaves the day's OHLC alone."}
+{"step": "receive", "client": "b", "frame": "expected/minute_candle_only_depth.json"}
+{"step": "push", "frame": "frames/book_only.hex"}
+{"step": "receive", "client": "a", "frame": "expected/book_only_quote.json"}
+{"step": "receive", "client": "b", "frame": "expected/book_only_depth.json"}

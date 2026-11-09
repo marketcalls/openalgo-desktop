@@ -1,0 +1,43 @@
+{
+  "broker": "fyers",
+  "summary": "A Depth subscription whose book comes before the scrip's first quote: the book goes out alone, and once the first symbol-feed snapshot comes it goes again with the quote (audit P-07).",
+  "scenarios": [
+    "depth-update",
+    "absent-field",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "10100000003045",
+      "brsymbol": "NSE:SBIN-EQ",
+      "brexchange": "NSE",
+      "name": "STATE BANK OF INDIA"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fyers/streaming/fyers_hsm_websocket.py::FyersHSMWebSocket._parse_depth_snapshot",
+      "broker/fyers/streaming/fyers_adapter.py::FyersAdapter._on_message",
+      "broker/fyers/streaming/fyers_mapping.py::FyersDataMapper.map_to_openalgo_depth"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
+      "ref": "fyers_mapping.py:178; fyers_adapter.py:553"
+    },
+    {
+      "key": "ltp",
+      "kind": "desktop-decision",
+      "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote; the web's Fyers depth before the first quote has no ltp (CLAUDE.md, the compatibility contract).",
+      "ref": "feed::bridge::depth_update; fyers_adapter.py:535"
+    }
+  ]
+}

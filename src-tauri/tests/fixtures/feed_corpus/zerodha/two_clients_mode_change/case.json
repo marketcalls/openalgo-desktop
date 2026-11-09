@@ -26,12 +26,5 @@
       "Worked by hand from zerodha_adapter.py:530-559 (a quote tick is published on the QUOTE topic, and an LTP copy is published when mode 1 is held)."
     ]
   },
-  "deviations": [
-    {
-      "key": "ltt",
-      "kind": "desktop-decision",
-      "reason": "The web's LTP copy of a quote tick has no ltt (zerodha_adapter.py:549); the desktop's LTP frames always carry it, as its other LTP frames and the web's own LTP-mode packets do.",
-      "ref": "tests/it/feed_conformance.rs (the ltt tolerance); zerodha_adapter.py:549"
-    }
-  ]
+  "deviations": []
 }

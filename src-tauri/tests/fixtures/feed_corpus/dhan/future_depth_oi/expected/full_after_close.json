@@ -1,0 +1,87 @@
+{
+  "broker": "dhan",
+  "data": {
+    "average_price": 24432.0,
+    "close": 24400.0,
+    "day_close": 24452.0,
+    "depth": {
+      "buy": [
+        {
+          "orders": 3,
+          "price": 24450.0,
+          "quantity": 150
+        },
+        {
+          "orders": 5,
+          "price": 24449.5,
+          "quantity": 300
+        },
+        {
+          "orders": 6,
+          "price": 24449.0,
+          "quantity": 450
+        },
+        {
+          "orders": 8,
+          "price": 24448.5,
+          "quantity": 600
+        },
+        {
+          "orders": 9,
+          "price": 24448.0,
+          "quantity": 750
+        }
+      ],
+      "sell": [
+        {
+          "orders": 1,
+          "price": 24451.0,
+          "quantity": 75
+        },
+        {
+          "orders": 2,
+          "price": 24451.5,
+          "quantity": 225
+        },
+        {
+          "orders": 4,
+          "price": 24452.0,
+          "quantity": 375
+        },
+        {
+          "orders": 5,
+          "price": 24452.5,
+          "quantity": 525
+        },
+        {
+          "orders": 7,
+          "price": 24453.0,
+          "quantity": 675
+        }
+      ]
+    },
+    "depth_level": 5,
+    "exchange": "NFO",
+    "high": 24500.0,
+    "last_quantity": 75,
+    "last_trade_time": 1794303000,
+    "low": 24380.0,
+    "ltp": 24452.0,
+    "ltt": 1794303000000,
+    "mode": 3,
+    "oi": 9520000,
+    "oi_high": 9600000,
+    "oi_low": 9000000,
+    "open": 24410.0,
+    "prev_oi": 9000000,
+    "symbol": "NIFTY25NOV26FUT",
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 450000,
+    "total_sell_quantity": 400000,
+    "volume": 1520000
+  },
+  "exchange": "NFO",
+  "mode": 3,
+  "symbol": "NIFTY25NOV26FUT",
+  "type": "market_data"
+}

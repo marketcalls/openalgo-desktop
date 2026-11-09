@@ -1,0 +1,16 @@
+{
+  "broker": "dhan",
+  "data": {
+    "exchange": "NSE_INDEX",
+    "last_trade_time": 1794302701,
+    "ltp": 24350.5,
+    "ltt": 1794302701000,
+    "mode": 1,
+    "symbol": "NIFTY",
+    "timestamp": "<receipt_ms>"
+  },
+  "exchange": "NSE_INDEX",
+  "mode": 1,
+  "symbol": "NIFTY",
+  "type": "market_data"
+}

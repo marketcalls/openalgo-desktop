@@ -1,0 +1,13 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"text": "batch_subscribe nubra-corpus-session index {\"instruments\":[],\"indexes\":[\"Nifty 50\"]} NSE"}, {"text": "batch_subscribe nubra-corpus-session index_bucket {\"instruments\":[],\"indexes\":[\"Nifty 50\"]} 1d NSE"}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "push", "frame": "frames/index.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "receive", "client": "b", "frame": "expected/ltp.json"}
+{"step": "push", "frame": "frames/bucket.hex"}
+{"step": "silence", "client": "a", "note": "The bucket gives the day's open; with index values coming it publishes nothing on its own."}
+{"step": "push", "frame": "frames/index_next.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_with_open.json"}
+{"step": "receive", "client": "b", "frame": "expected/ltp_next.json"}
+{"step": "send", "client": "c", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "partial", "message": "Subscription processing complete", "broker": "nubra", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "error", "message": "Depth mode not supported for index symbols", "broker": "nubra"}]}}
+{"step": "note", "text": "Refused as the web refuses it (nubra_adapter.py:379-381), before the symbol is looked up; nothing goes to Nubra."}

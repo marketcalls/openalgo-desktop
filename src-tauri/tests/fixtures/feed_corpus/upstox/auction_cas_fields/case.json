@@ -1,0 +1,30 @@
+{
+  "broker": "upstox",
+  "summary": "A Quote during the closing auction: the quote fields as usual; the web also publishes the indicative equilibrium price, reference price, equilibrium and imbalance quantities and the auction flag.",
+  "scenarios": [
+    "first-full-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "NSE_EQ|INE002A01018",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._process_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._merge_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._build_payload",
+      "broker/upstox/streaming/upstox_client.py::UpstoxWebSocketClient._decode_protobuf_to_dict",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._extract_cas_fields"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

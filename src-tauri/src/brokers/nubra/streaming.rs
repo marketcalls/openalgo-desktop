@@ -33,8 +33,8 @@ use super::proto::{self, MarketFrame};
 use super::DEVICE_ID;
 use crate::brokers::common::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::brokers::common::streaming::{
-    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest, WEB_ORDER_PING_INTERVAL,
+    now_ms, ping, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest, WEB_ORDER_PING_INTERVAL,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -81,6 +81,41 @@ struct State {
     has_index: bool,
     bids: Vec<DepthLevel>,
     asks: Vec<DepthLevel>,
+    /// The quote fields Nubra has sent on this connection.
+    seen: AbsentFields,
+    /// The broker's time of the last message, epoch ms (0: none sent).
+    ts: i64,
+    /// Whether an order-book message has come (its totals are the sums of
+    /// its levels, which the web publishes with the book).
+    book_seen: bool,
+}
+
+/// The quote fields Nubra's channels can send; what a tick has not been
+/// sent is left out, never 0 (average price and the book totals never
+/// come: a book's totals are the sums of its levels, sent with the book).
+const NUBRA_FIELDS: [QuoteField; 8] = [
+    QuoteField::Open,
+    QuoteField::High,
+    QuoteField::Low,
+    QuoteField::Close,
+    QuoteField::Volume,
+    QuoteField::LastQuantity,
+    QuoteField::OpenInterest,
+    QuoteField::Change,
+];
+const NEVER_SENT: AbsentFields =
+    AbsentFields::of(&[QuoteField::AveragePrice, QuoteField::LastTradeTime]);
+const BOOK_TOTALS: AbsentFields =
+    AbsentFields::of(&[QuoteField::TotalBuyQuantity, QuoteField::TotalSellQuantity]);
+
+/// The broker's message time, else the receipt time (web `obj.timestamp
+/// if obj.timestamp else time.time()`, audit P-08).
+fn message_time(ts: i64) -> i64 {
+    if ts > 0 {
+        ts
+    } else {
+        now_ms()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -126,17 +161,14 @@ pub fn subscription_name(s: &FeedSubscription) -> String {
 }
 
 fn levels(src: &[proto::OrderBookLevel]) -> Vec<DepthLevel> {
-    let mut v: Vec<DepthLevel> = src
-        .iter()
+    src.iter()
         .take(5)
         .map(|l| DepthLevel {
             price: l.price as f64 / 100.0,
             quantity: l.quantity,
             orders: l.orders,
         })
-        .collect();
-    v.resize(5, DepthLevel::default());
-    v
+        .collect()
 }
 
 impl NubraFeed {
@@ -209,40 +241,58 @@ impl NubraFeed {
         Some(inst)
     }
 
+    /// The instrument's merged quote: a Quote packet (OI carried when
+    /// Nubra sent it) at the broker's message time.
     fn tick(inst: &Inst) -> NormalizedTick {
         let st = &inst.state;
         let mut t = NormalizedTick {
             symbol: inst.sub.symbol.clone(),
             exchange: inst.sub.exchange.clone(),
-            mode: inst.sub.mode.code(),
+            mode: FeedMode::Quote.code(),
             ltp: st.ltp,
-            timestamp_ms: now_ms(),
+            open: st.open,
+            high: st.high,
+            low: st.low,
+            close: st.prev_close,
+            volume: st.volume,
+            last_quantity: st.ltq,
+            oi: st.oi,
+            total_buy_quantity: st.bids.iter().map(|l| l.quantity).sum(),
+            total_sell_quantity: st.asks.iter().map(|l| l.quantity).sum(),
+            timestamp_ms: message_time(st.ts),
+            absent: if st.book_seen {
+                NEVER_SENT
+            } else {
+                NEVER_SENT.union(BOOK_TOTALS)
+            },
             ..Default::default()
         };
-        if inst.sub.mode != FeedMode::Ltp {
-            t.open = st.open;
-            t.high = st.high;
-            t.low = st.low;
-            t.close = st.prev_close;
-            t.volume = st.volume;
-            t.last_quantity = st.ltq;
-            t.oi = st.oi;
-            t.total_buy_quantity = st.bids.iter().map(|l| l.quantity).sum();
-            t.total_sell_quantity = st.asks.iter().map(|l| l.quantity).sum();
-            t.derive_change();
-            if t.change_percent == 0.0 && st.change_percent != 0.0 {
-                t.change_percent = st.change_percent;
+        for f in NUBRA_FIELDS {
+            if !st.seen.contains(f) {
+                t.mark_absent(f);
             }
+        }
+        if st.seen.contains(QuoteField::OpenInterest) {
+            t.mark_carried(QuoteField::OpenInterest);
+        }
+        // web `_on_orderbook_data`: the Quote carries the best bid and ask.
+        t.extras.bid_price = st.bids.first().map(|l| l.price).filter(|p| *p > 0.0);
+        t.extras.ask_price = st.asks.first().map(|l| l.price).filter(|p| *p > 0.0);
+        t.derive_change();
+        if t.change_percent == 0.0 && st.change_percent != 0.0 {
+            t.change_percent = st.change_percent;
         }
         t
     }
 
+    /// The book as Nubra sent it, with the levels' sums as the totals (web
+    /// `_on_orderbook_data`). The web pads a short side to five zero levels
+    /// Nubra never sent; the desktop does not (lead rule: levels are what
+    /// the broker's packet carried).
     fn depth(inst: &Inst) -> NormalizedDepth {
         let st = &inst.state;
-        let mut buy = st.bids.clone();
-        let mut sell = st.asks.clone();
-        buy.resize(5, DepthLevel::default());
-        sell.resize(5, DepthLevel::default());
+        let buy = st.bids.clone();
+        let sell = st.asks.clone();
         NormalizedDepth {
             symbol: inst.sub.symbol.clone(),
             exchange: inst.sub.exchange.clone(),
@@ -251,7 +301,7 @@ impl NubraFeed {
             total_sell_quantity: sell.iter().map(|l| l.quantity).sum(),
             buy,
             sell,
-            timestamp_ms: now_ms(),
+            timestamp_ms: message_time(st.ts),
             ..Default::default()
         }
     }
@@ -290,6 +340,15 @@ impl NubraFeed {
             };
             let st = &mut inst.state;
             st.has_index = true;
+            st.ts = x.timestamp;
+            for f in [
+                QuoteField::High,
+                QuoteField::Low,
+                QuoteField::Close,
+                QuoteField::Volume,
+            ] {
+                st.seen = st.seen.with(f);
+            }
             st.ltp = x.index_value as f64 / 100.0;
             st.high = x.high_index_value as f64 / 100.0;
             st.low = x.low_index_value as f64 / 100.0;
@@ -298,6 +357,7 @@ impl NubraFeed {
             st.change_percent = f64::from(x.changepercent);
             if x.volume_oi != 0 {
                 st.oi = x.volume_oi;
+                st.seen = st.seen.with(QuoteField::OpenInterest);
             }
             if st.ltp > 0.0 {
                 out.push(FeedEvent::Tick(Self::tick(inst)));
@@ -317,6 +377,7 @@ impl NubraFeed {
             let st = &mut inst.state;
             if x.open != 0 {
                 st.open = x.open as f64 / 100.0;
+                st.seen = st.seen.with(QuoteField::Open);
             }
             if !st.has_index {
                 // The candle is the only source: refresh everything.
@@ -334,6 +395,10 @@ impl NubraFeed {
                 } else {
                     x.bucket_volume
                 };
+                st.ts = x.timestamp;
+                for f in [QuoteField::High, QuoteField::Low, QuoteField::Volume] {
+                    st.seen = st.seen.with(f);
+                }
                 if st.ltp > 0.0 {
                     out.push(FeedEvent::Tick(Self::tick(inst)));
                 }
@@ -360,14 +425,18 @@ impl NubraFeed {
                 continue;
             };
             let st = &mut inst.state;
+            st.ts = x.timestamp;
+            st.book_seen = true;
             if x.ltp != 0 {
                 st.ltp = x.ltp as f64 / 100.0;
             }
             if x.ltq != 0 {
                 st.ltq = x.ltq;
+                st.seen = st.seen.with(QuoteField::LastQuantity);
             }
             if x.volume != 0 {
                 st.volume = x.volume;
+                st.seen = st.seen.with(QuoteField::Volume);
             }
             st.bids = levels(&x.bids);
             st.asks = levels(&x.asks);

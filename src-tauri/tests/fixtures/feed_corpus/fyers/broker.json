@@ -1,0 +1,48 @@
+{
+  "broker": "fyers",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5,
+        50
+      ],
+      "NFO": [
+        5,
+        50
+      ],
+      "BSE": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "CDS": [
+        5
+      ],
+      "BCD": [
+        5
+      ],
+      "NSE_INDEX": [
+        5
+      ],
+      "BSE_INDEX": [
+        5
+      ]
+    },
+    "orders": "a dedicated order socket (SUB_ORD)"
+  },
+  "sources": [
+    "broker/fyers/streaming/fyers_websocket_adapter.py::FyersWebSocketAdapter.TBT_SUPPORTED_EXCHANGES",
+    "broker/fyers/streaming/fyers_order_adapter.py",
+    "websocket_proxy/__init__.py:141"
+  ],
+  "notes": [
+    "HSM streams five levels; a Depth 50 ask on NSE or NFO goes to the TBT socket (with the HSM symbol feed for the quote), elsewhere it is served as five, as on the web.",
+    "An index has no order book: Depth on an index streams the index feed with an empty book on the web, the index tick on the desktop."
+  ]
+}

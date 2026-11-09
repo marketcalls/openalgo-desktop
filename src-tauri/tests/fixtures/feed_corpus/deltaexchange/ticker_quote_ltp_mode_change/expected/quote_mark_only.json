@@ -1,0 +1,23 @@
+{
+  "broker": "deltaexchange",
+  "data": {
+    "ask_price": 63834.0,
+    "ask_qty": 718,
+    "bid_price": 63833.0,
+    "bid_qty": 4388,
+    "close": 63839.0,
+    "exchange": "CRYPTO",
+    "high": 64475.5,
+    "low": 63217.5,
+    "ltp": 63840.5,
+    "mode": 2,
+    "oi": 1407713.0,
+    "open": 64025.0,
+    "symbol": "BTCUSDFUT",
+    "timestamp": "<receipt_ms>"
+  },
+  "exchange": "CRYPTO",
+  "mode": 2,
+  "symbol": "BTCUSDFUT",
+  "type": "market_data"
+}

@@ -1,0 +1,14 @@
+{
+  "broker": "nubra",
+  "data": {
+    "exchange": "NSE_INDEX",
+    "ltp": 24360.0,
+    "mode": "ltp",
+    "symbol": "NIFTY",
+    "timestamp": 1740729567039
+  },
+  "exchange": "NSE_INDEX",
+  "mode": 1,
+  "symbol": "NIFTY",
+  "type": "market_data"
+}

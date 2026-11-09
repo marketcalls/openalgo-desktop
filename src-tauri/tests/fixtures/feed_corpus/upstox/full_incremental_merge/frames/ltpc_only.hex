@@ -1,0 +1,22 @@
+# A full packet that carries only the new LTPC: no previous close, candles, book or totals (audit P-01).
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_FO|52175": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 220.0,
+#         "ltt": "1740729553000",
+#         "ltq": "150"
+#        }
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729566100"
+#   }
+0801122b0a0c4e53455f464f7c3532313735121b12170a150a13090000000000
+806b4010e8a0c4dcd4321896012001189487c5dcd432

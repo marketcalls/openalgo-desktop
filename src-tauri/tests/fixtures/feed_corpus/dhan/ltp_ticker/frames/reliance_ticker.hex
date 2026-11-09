@@ -1,0 +1,7 @@
+# Dhan binary frame: one ticker packet (code 2) for RELIANCE.
+02                      # response code 2 (ticker)
+1000                    # message length 16, header included
+01                      # exchange segment 1 (NSE_EQ)
+450b0000                # security id 2885
+00a8a244                # ltp 1301.25
+ece2f26a                # last trade time, epoch s
