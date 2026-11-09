@@ -695,6 +695,32 @@ fn a_lower_holder_gets_the_packet_as_the_brokers_web_adapter_sends_it() {
     assert!(render(&u, Mode::Quote, "zerodha").get("depth").is_none());
 }
 
+/// No key is ever sent as `null`, for any broker, mode or instrument, with
+/// every field known or none: a value not known leaves its key out.
+#[test]
+fn no_key_is_ever_null() {
+    let mut sparse = update(equity());
+    sparse.quote = Some(QuoteFields::default());
+    sparse.ltt = None;
+    for u in [update(equity()), update(index()), sparse] {
+        for broker in BROKERS {
+            for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
+                let d = render(&u, mode, broker);
+                let nulls: Vec<_> = d
+                    .as_object()
+                    .map(|o| {
+                        o.iter()
+                            .filter(|(_, v)| v.is_null())
+                            .map(|(k, _)| k.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                assert!(nulls.is_empty(), "{} {:?}: {:?}", broker, mode, nulls);
+            }
+        }
+    }
+}
+
 /// `data.mode` of a lower holder's frame from a one-dict broker: the dict's
 /// own mode where the web adapter writes the packet's (Paytm, Dhan, the XTS
 /// adapters but Jainam), the holder's where it writes each subscription's

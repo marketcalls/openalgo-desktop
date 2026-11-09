@@ -14,9 +14,12 @@
 //! * A key the web sends from some mode up is sent in that mode and every
 //!   mode above it (the web switches some names between Quote and Depth;
 //!   a script then never meets a KeyError on the richer frame).
-//! * A web name of a time follows its adapter's unit, type and format
-//!   (Fyers and Dhan in seconds, Tradejini's IST text); `ltt` and `timestamp`
-//!   are epoch milliseconds whatever the adapter sends under those names.
+//! * A web alias follows its adapter's unit, type and format: seconds for
+//!   Fyers' and Dhan's `last_trade_time`, text for Tradejini's and for the
+//!   raw strings of the Noren family and Definedge. The docs' keys `ltt`
+//!   and `timestamp` are always epoch milliseconds, whatever the adapter
+//!   sends under those names. No key is ever sent as `null`: a value not
+//!   known leaves its key out.
 
 use super::super::source::Mode;
 use super::keys::{Key, Keys, Modes};

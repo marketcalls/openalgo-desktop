@@ -141,17 +141,20 @@ Deliberate differences, each a web defect or a desktop rule:
 - A key whose value is not known is left out, where the web sends a default
   (`.get(x, 0)`) or a placeholder (Delta Exchange's `average_price` and
   `oi_change`, always 0).
-- The docs' keys `ltt` and `timestamp` are epoch milliseconds for every
-  broker; the web's mixed or raw units under those names (Zerodha's `ltt`
-  in seconds on full packets, XTS's raw `LastTradedTime`, Paytm's and IIFL
-  Capital's seconds, Tradejini's text `ltt`) are not copied. A broker's own
-  name of a time follows its adapter's unit, type and format (since 1.0.6:
-  Fyers' and Dhan's `last_trade_time` in seconds; Tradejini's text
-  `last_trade_time`, `YYYY-MM-DD HH:MM:SS` as Python's
-  `str(datetime.fromtimestamp(seconds))` writes it, in IST,
-  `Source::TradeTimeText`, only when the broker sent a trade time). The web
-  writes the host's local time; the desktop keeps IST everywhere, so the
-  text differs only on a web host not set to IST.
+- Times: a web alias follows its adapter's unit, type and format, while
+  the docs' keys `ltt` and `timestamp` are always epoch milliseconds, and
+  no key is ever sent as `null` (a value not known leaves its key out).
+  - Aliases: seconds for Fyers' and Dhan's `last_trade_time` (since 1.0.6);
+    text for Tradejini's `last_trade_time` (`YYYY-MM-DD HH:MM:SS` as
+    Python's `str(datetime.fromtimestamp(seconds))` writes it, in IST,
+    `Source::TradeTimeText`, only when the broker sent a trade time) and
+    for the raw strings the Noren family and Definedge pass through. The
+    web writes the host's local time; the desktop keeps IST everywhere, so
+    the text differs only on a web host not set to IST.
+  - `ltt` and `timestamp`: the web's mixed or raw units under those names
+    (Zerodha's `ltt` in seconds on full packets, XTS's raw
+    `LastTradedTime`, Paytm's and IIFL Capital's seconds, Tradejini's text
+    `ltt`) are not copied.
 - A web key that holds a wrong value is not copied with that value: Pocketful
   publishes the average price as Depth's `ltp`, Zerodha web reads OI from the
   wrong offset; the desktop decoders keep the right values.
