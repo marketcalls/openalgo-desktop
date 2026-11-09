@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 84. Open gaps: 14. Deviations pending approval: 89.
+Cases: 85. Open gaps: 14. Deviations pending approval: 89.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ Cases: 84. Open gaps: 14. Deviations pending approval: 89.
 | rmoney | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | rupeezy | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | sahi | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| samco | deviation pending approval: `index_ltp_and_quote`, `ltp_mode` | deviation pending approval: `index_cold_subscribe`, `index_ltp_and_quote`, `quote_and_depth_clients`, `quote_mode` | deviation pending approval: `depth_book_first_future`, `depth_quote_then_book`, `quote_and_depth_clients`, `reconnect_forgets_state` | not offered by the web | not offered by the web | not offered by the web | deviation pending approval: `order_book_polling` |
+| samco | deviation pending approval: `index_ltp_and_quote`, `ltp_mode` | deviation pending approval: `index_cold_subscribe`, `index_ltp_and_quote`, `quote_and_depth_clients`, `quote_mode` | deviation pending approval: `depth_book_first_future`, `depth_quote_then_book`, `depth_twenty_refused`, `quote_and_depth_clients`, `reconnect_forgets_state` | not offered by the web (refusal: `depth_twenty_refused`) | not offered by the web | not offered by the web | deviation pending approval: `order_book_polling` |
 | shoonya | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | tradejini | approved deviation: `index_quote_and_ltp`, `ltp_mode` | approved deviation: `currency_quote_divisor`, `depth_to_quote_and_back`, `future_quote_oi`, `index_quote_and_ltp`, `quote_mode` | approved deviation: `depth_book_update_and_clear`, `depth_to_quote_and_back`, `depth_waits_for_the_quote`, `future_depth_oi`, `reconnect_drops_the_book` | not offered by the web (refusal: `depth_20_30_50_refused`) | not offered by the web (refusal: `depth_20_30_50_refused`) | not offered by the web (refusal: `depth_20_30_50_refused`) | not offered by the web |
 | tradesmart | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |

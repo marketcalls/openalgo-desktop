@@ -115,7 +115,7 @@ class Samco(Polling, Glue):
 
     def subscribe(self, row, mode, depth):
         reply = self.ad.subscribe(row["symbol"], row["exchange"], mode, depth)
-        if reply["status"] != "success":
+        if reply["status"] != "success" and reply.get("code") != "INVALID_DEPTH":
             raise SystemExit(f"the web refuses {row['symbol']}: {reply}")
 
     def unsubscribe(self, row, mode, depth):

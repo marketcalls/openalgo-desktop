@@ -1,0 +1,28 @@
+{
+  "broker": "samco",
+  "summary": "A Depth subscribe at 20 levels is refused in the web adapter's words, before anything reaches Samco; the same instrument at 5 levels is then subscribed on both streams.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py::handle_subscribe"
+    ],
+    "notes": [
+      "samco_adapter.py:232-236 refuses mode 3 at any depth but 5 with INVALID_DEPTH \"Invalid depth level 20. Must be 5\", before the symbol lookup; the desktop refuses it at admission (feed/refusals.rs) with the same words and sends Samco nothing."
+    ]
+  },
+  "deviations": []
+}

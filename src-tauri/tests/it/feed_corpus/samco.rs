@@ -61,6 +61,7 @@ corpus_cases!(
         quote_and_depth_clients,
         index_ltp_and_quote,
         index_cold_subscribe,
+        depth_twenty_refused,
         order_book_polling,
     ]
 );
