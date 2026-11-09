@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "indmoney",
-  "inputs_sha256": "33e0d41250341f9c27a839761038f8a884740610b27e947ccd4f079fac8c7c49",
+  "inputs_sha256": "ea6d54640683e856f4d5dd7641f7c54e6ba1b538edf03b921278ecf596cd3de1",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -12,14 +12,5 @@
       "brexchange": "NSE"
     }
   ],
-  "pushes": [
-    {
-      "line": 3,
-      "published": []
-    },
-    {
-      "line": 5,
-      "published": []
-    }
-  ]
+  "pushes": []
 }

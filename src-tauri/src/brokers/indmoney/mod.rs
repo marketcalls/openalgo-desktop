@@ -494,7 +494,8 @@ impl Broker for IndmoneyBroker {
             // Offered by `IndmoneyBroker::order_socket` through `Broker::create_order_feed`; the trait had no
             // order-feed factory yet.
             order_feed: true,
-            depth_levels: &[5],
+            // The web registry's one level; Depth itself is refused.
+            depth_levels: &[1],
         }
     }
 

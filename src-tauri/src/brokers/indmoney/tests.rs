@@ -728,7 +728,7 @@ fn subscribe_frames_split_by_mode_and_segment() {
 }
 
 #[test]
-fn ticks_resolve_retain_and_fan_out_depth() {
+fn ticks_resolve_and_keep_the_last_price() {
     let mut f = IndmoneyFeed::new("wss://x", "tok");
     f.subscribe_frames(&[
         sub("SBIN", "NSE", "3045", FeedMode::Quote),
@@ -763,21 +763,16 @@ fn ticks_resolve_retain_and_fan_out_depth() {
     // Bare token 2885 is subscribed on NSE and NFO: ambiguous, dropped.
     let amb = json!({"mode":"ltp","instrument":"2885","data":{"ltp":1}});
     assert!(f.parse(&Message::Text(amb.to_string())).is_empty());
-    // Qualified instrument resolves; a depth subscription also gets depth.
+    // Qualified instrument resolves; no book is made of the best bid and
+    // ask (audit RB-13): they go out as the quote's own fields.
     let nfo = json!({"mode":"quote","instrument":"NFO:2885","data":{"ltp":1450,"bid_price":1449.5,"bid_qty":500,"ask_price":1450.5,"ask_qty":250}});
     let ev = f.parse(&Message::Text(nfo.to_string()));
-    assert_eq!(ev.len(), 2);
-    let FeedEvent::Depth(dp) = &ev[1] else {
-        panic!()
+    let [FeedEvent::Tick(t)] = &ev[..] else {
+        panic!("{:?}", ev)
     };
     assert_eq!(
-        (
-            dp.symbol.as_str(),
-            dp.buy.len(),
-            dp.buy[0].price,
-            dp.sell[0].quantity
-        ),
-        ("RELIANCE27OCT26FUT", 5, 1449.5, 250)
+        (t.symbol.as_str(), t.extras.bid_price, t.extras.ask_quantity),
+        ("RELIANCE27OCT26FUT", Some(1449.5), Some(250))
     );
     let ltp = json!({"mode":"ltp","instrument":"NSE:2885","data":{"ltp":1427}});
     let ev = f.parse(&Message::Text(ltp.to_string()));
@@ -828,13 +823,9 @@ fn mode_changes_are_gapless_and_keep_the_last_values() {
     let partial = json!({"mode":"quote","instrument":"NSE:3045","data":{"ltp":1427}});
     let ev = f.parse(&Message::Text(partial.to_string()));
     match &ev[..] {
-        [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
+        [FeedEvent::Tick(t)] => {
             assert_eq!((t.ltp, t.mode), (1427.0, 2));
             assert!(!t.knows(QuoteField::Open));
-            assert_eq!(
-                (d.ltp, d.buy[0].price, d.sell[0].quantity),
-                (1427.0, 1425.9, 20)
-            );
         }
         other => panic!("unexpected {:?}", other),
     }

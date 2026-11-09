@@ -51,7 +51,7 @@ corpus_cases!(
         quote_mode,
         index_quote,
         future_quote_oi,
-        depth_from_best_bid_ask,
+        depth_refused,
         exchange_refused,
         reconnect_starts_afresh,
         ltp_quote_mode_change,

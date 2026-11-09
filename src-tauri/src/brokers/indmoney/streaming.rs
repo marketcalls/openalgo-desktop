@@ -16,11 +16,12 @@
 //! own mode (an `ltp` packet as LTP, a `quote` packet as Quote, with OI,
 //! the best bid and ask and the OI change) and stamped with its own
 //! millisecond time, as `ltt` and `timestamp` (web `_on_data`). The stream
-//! has no last traded quantity and no book totals. Mode 3 (depth) is served
-//! from the quote stream's best bid/ask: the broker streams level 1 only, so
-//! a Quote <-> Depth change sends nothing, and an LTP <-> Quote change
-//! subscribes the new stream before it drops the old one. Heartbeat: a
-//! `ping` every 30 s.
+//! has no last traded quantity and no book totals. INDmoney streams no
+//! book: its quote carries the best bid and ask, which is the one level the
+//! web's capability registry reports, and Depth (mode 3) is refused as the
+//! web refuses it (`feed::server::refusals`, audit RB-13). An LTP <-> Quote
+//! change subscribes the new stream before it drops the old one. Heartbeat:
+//! a `ping` every 30 s.
 //!
 //! Orders: `wss://ws-order-updates.indstocks.com/api/v1/ws/trades`, then
 //! `{"action":"subscribe","mode":"order_update"}`. Frames carry
@@ -30,10 +31,9 @@
 use super::mapping::{map_status, num_value, ws_segment};
 use super::OrderIdMap;
 use crate::brokers::common::streaming::{
-    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest,
+    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedTick,
+    OrderUpdate, QuoteField, WsRequest,
 };
-use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use crate::security::Secret;
 use parking_lot::Mutex;
@@ -84,7 +84,6 @@ struct SubInfo {
     symbol: String,
     exchange: String,
     token: String,
-    mode: FeedMode,
 }
 
 impl SubInfo {
@@ -93,14 +92,12 @@ impl SubInfo {
             symbol: s.symbol.clone(),
             exchange: s.exchange.clone(),
             token: s.token.clone(),
-            mode: s.mode,
         }
     }
 }
 
 /// Last non-zero values per instrument, for this connection: the price a
-/// packet without one is published at, and the best bid and ask of the
-/// one-level book.
+/// packet without one is published at.
 type Cache = HashMap<String, f64>;
 
 /// A field of a packet's `data` when the broker sent a value: INDstocks
@@ -314,52 +311,10 @@ impl IndmoneyFeed {
             None => t.mark_absent(QuoteField::Ltp),
         }
         stamp(msg, &mut t);
-        let mut out = Vec::new();
         if packet_mode == FeedMode::Quote {
             quote_fields(&data, &mut t);
-            // Kept for every holder, so a Quote -> Depth change has its book.
-            let best = [
-                held("bid_price"),
-                held("bid_qty"),
-                held("ask_price"),
-                held("ask_qty"),
-            ]
-            .map(|v| v.unwrap_or(0.0));
-            if sub.mode == FeedMode::Depth {
-                out.push(FeedEvent::Depth(one_level_book(&sub, &t, best)));
-            }
         }
-        out.insert(0, FeedEvent::Tick(t));
-        out
-    }
-}
-
-/// The quote's best bid and ask (`[bid, bid qty, ask, ask qty]`, last
-/// non-zero values) as level 1 of a five-level book, the other four empty
-/// (audit RB-13: the web refuses Depth on INDmoney). The stream has no book
-/// totals.
-fn one_level_book(sub: &SubInfo, t: &NormalizedTick, best: [f64; 4]) -> NormalizedDepth {
-    let mut buy = vec![DepthLevel::default(); 5];
-    let mut sell = vec![DepthLevel::default(); 5];
-    buy[0] = DepthLevel {
-        price: best[0],
-        quantity: best[1] as i64,
-        orders: 0,
-    };
-    sell[0] = DepthLevel {
-        price: best[2],
-        quantity: best[3] as i64,
-        orders: 0,
-    };
-    NormalizedDepth {
-        symbol: sub.symbol.clone(),
-        exchange: sub.exchange.clone(),
-        ltp: t.ltp,
-        buy,
-        sell,
-        timestamp_ms: t.timestamp_ms,
-        absent: AbsentFields::of(&[QuoteField::TotalBuyQuantity, QuoteField::TotalSellQuantity]),
-        ..Default::default()
+        vec![FeedEvent::Tick(t)]
     }
 }
 
@@ -403,9 +358,8 @@ impl BrokerFeed for IndmoneyFeed {
             return Vec::new();
         };
         let inst = format!("{}:{}", seg, new.token);
-        match self.subs.get_mut(&inst) {
-            Some(sub) => sub.mode = new.mode,
-            None => self.add(inst.clone(), SubInfo::of(new)),
+        if !self.subs.contains_key(&inst) {
+            self.add(inst.clone(), SubInfo::of(new));
         }
         let (from, to) = (ws_mode(old.mode), ws_mode(new.mode));
         if from == to {
@@ -444,8 +398,10 @@ impl BrokerFeed for IndmoneyFeed {
         Some((HEARTBEAT, Message::Ping(b"ping".to_vec())))
     }
 
+    /// The web registry's one level (`IndmoneyCapabilityRegistry`): the
+    /// quote's best bid and ask; no Depth subscription reaches the feed.
     fn supported_depth_levels(&self) -> &'static [u8] {
-        &[5]
+        &[1]
     }
 }
 
