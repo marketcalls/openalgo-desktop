@@ -23,8 +23,15 @@ a cleared book side) is sent.
   by testing a value for zero (`feed/bridge/snapshot.rs`). An LTPC-only,
   OI-only or circuit-only packet keeps the quote it did not repeat, as the
   web's merging adapters do (Upstox `_merge_feed`, HDFC, the Noren cache).
-  A new broker connection starts every instrument afresh, so nothing from
-  before an outage comes back as current.
+  A connection's new session (a reconnect) forgets what its earlier
+  session said, so nothing from before an outage comes back as current;
+  only that connection's state goes: a pool opening another connection
+  forgets nothing, and the deeper socket's reconnect forgets only its books
+  (each event carries its connection's session: `websocket::SessionId`,
+  `bridge::snapshot::forget_session`, audit R107-04). Market-state broker
+  fields (Dhan's `oi_high` and `oi_low`, Groww's `value`) stay like the
+  quote; per-event ones (Upstox's auction figures, Fyers' `update_type`)
+  last their packet (audit R107-12).
 - The trade time belongs to its price: a new price without a trade time
   drops the old one, and the frame then sends the receive time as `ltt`, as
   the web's adapters do, unless the stream has no trade time at all (an
@@ -249,10 +256,13 @@ shaped for its mode).
 The desktop's policy (lead decisions 2026-11-09; the golden transcripts
 fix the Zerodha shape):
 
-- **One packet, one update.** A full tick and its book right behind it on
-  the broker feed go out as one Depth update (`feed/bridge/pairing.rs`); a
-  book on its own (a deep book from its own socket) reaches Depth holders
-  only, so no holder gets a packet twice.
+- **One packet, one update.** A full tick and its book right behind it in
+  one broker message go out as one Depth update (`feed/bridge/pairing.rs`);
+  the manager publishes each message's events as one packet
+  (`websocket::Packet`), so this never depends on what happens to be queued
+  or on another connection's events in between (audit R107-17). A book in
+  a message of its own (a deep book from its own socket) reaches Depth
+  holders only, so no holder gets a packet twice.
 - **A full tick without its book** (lead decision 2026-11-09):
   - before the instrument's first book in the connection, a Depth holder
     hears what the broker's web adapter publishes: a frame without `depth`
@@ -265,8 +275,8 @@ fix the Zerodha shape):
   - once a book exists, a Depth holder gets a frame on every full tick,
     with the tick's quote and the last book (`bridge::snapshot::LastBook`,
     `render::snapshot_update`; the Samco ruling). A web adapter that
-    freezes Depth holders then is a web defect. A new broker connection
-    forgets the book. A full packet that says it has no book
+    freezes Depth holders then is a web defect. A new session of the
+    connection that sent the book forgets it. A full packet that says it has no book
     (`NormalizedTick::book_absent`: HDFC's empty depth list, which proto3
     cannot tell from a cleared book) goes out without `depth`, never with
     the old book, which stays for the next packet that carries one.
