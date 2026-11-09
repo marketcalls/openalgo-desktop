@@ -49,5 +49,7 @@ corpus_cases!(
         auction_cas_fields,
         reconnect_fresh_authorize,
         order_lifecycle,
+        book_clear,
+        auction_fields_expire,
     ]
 );

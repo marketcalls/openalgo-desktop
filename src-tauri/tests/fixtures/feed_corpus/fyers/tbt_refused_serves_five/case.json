@@ -1,0 +1,32 @@
+{
+  "broker": "fyers",
+  "summary": "Fyers refuses the 50-level (TBT) socket from the start: a 50-level Depth subscribe is taken on the HSM depth feed and served its five levels (audit P-10).",
+  "scenarios": [
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "10100000003045",
+      "brsymbol": "NSE:SBIN-EQ",
+      "brexchange": "NSE",
+      "name": "STATE BANK OF INDIA"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fyers/streaming/fyers_hsm_websocket.py::FyersHSMWebSocket._parse_snapshot_data",
+      "broker/fyers/streaming/fyers_hsm_websocket.py::FyersHSMWebSocket._parse_update_data",
+      "broker/fyers/streaming/fyers_adapter.py::FyersAdapter._on_message",
+      "broker/fyers/streaming/fyers_mapping.py::FyersDataMapper.map_to_openalgo_depth",
+      "broker/fyers/streaming/fyers_websocket_adapter.py::FyersWebSocketAdapter.subscribe"
+    ],
+    "notes": [
+      "fyers_websocket_adapter.py:373-381: TBT unavailable, falling back to 5-level depth."
+    ]
+  },
+  "deviations": []
+}

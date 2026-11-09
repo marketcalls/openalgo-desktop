@@ -1,0 +1,29 @@
+# The next full packet: no auction fields.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_EQ|INE002A01018": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 1301.5,
+#         "ltt": "1740729561000",
+#         "ltq": "4",
+#         "cp": 1295.0
+#        },
+#        "atp": 1299.6,
+#        "vtt": "50004",
+#        "tbq": 9010.0,
+#        "tsq": 8010.0
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729567600"
+#   }
+080112590a134e53455f45517c494e453030324130313031381242123e0a3c0a
+1b09000000000056944010a8dfc4dcd43218042100000000003c944029666666
+66664e944030d4860349000000000099c1405100000000004abf40200118f092
+c5dcd432

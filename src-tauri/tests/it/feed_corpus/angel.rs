@@ -38,5 +38,6 @@ corpus_cases!(
         future_snap_oi,
         quote_depth_mode_change,
         order_lifecycle,
+        depth_reconnect,
     ]
 );

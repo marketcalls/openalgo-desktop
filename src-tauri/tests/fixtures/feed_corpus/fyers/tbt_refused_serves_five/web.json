@@ -1,0 +1,30 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "fyers",
+  "inputs_sha256": "9424aac2bbca034620c416517536ab57e1076db8ca7d07e5e33cff1a503e9ecd",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "10100000003045",
+      "brsymbol": "NSE:SBIN-EQ",
+      "brexchange": "NSE",
+      "name": "STATE BANK OF INDIA"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": []
+    },
+    {
+      "line": 8,
+      "published": []
+    }
+  ]
+}

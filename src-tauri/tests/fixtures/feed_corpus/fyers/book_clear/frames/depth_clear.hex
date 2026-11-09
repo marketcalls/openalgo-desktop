@@ -1,0 +1,35 @@
+# HSM data feed: a depth update that takes every level off (all prices, sizes and orders 0).
+00000600000000  # length (unused), type 6 (data feed), padding
+0001  # scrip count
+550c00  # update record (85), topic id 12
+1e  # field count 30
+00000000  # bid_price1 0
+00000000  # bid_price2 0
+00000000  # bid_price3 0
+00000000  # bid_price4 0
+00000000  # bid_price5 0
+00000000  # ask_price1 0
+00000000  # ask_price2 0
+00000000  # ask_price3 0
+00000000  # ask_price4 0
+00000000  # ask_price5 0
+00000000  # bid_size1 0
+00000000  # bid_size2 0
+00000000  # bid_size3 0
+00000000  # bid_size4 0
+00000000  # bid_size5 0
+00000000  # ask_size1 0
+00000000  # ask_size2 0
+00000000  # ask_size3 0
+00000000  # ask_size4 0
+00000000  # ask_size5 0
+00000000  # bid_order1 0
+00000000  # bid_order2 0
+00000000  # bid_order3 0
+00000000  # bid_order4 0
+00000000  # bid_order5 0
+00000000  # ask_order1 0
+00000000  # ask_order2 0
+00000000  # ask_order3 0
+00000000  # ask_order4 0
+00000000  # ask_order5 0

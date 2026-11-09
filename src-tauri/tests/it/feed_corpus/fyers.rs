@@ -35,5 +35,8 @@ corpus_cases!(
         index_quote,
         order_lifecycle,
         tbt_50_depth,
+        hsm_reconnect,
+        book_clear,
+        tbt_refused_serves_five,
     ]
 );
