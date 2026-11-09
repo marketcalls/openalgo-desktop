@@ -696,9 +696,14 @@ fn feed_decodes_ticker_and_book_frames_and_merges_them() {
         ("ETHUSDFUT", 2451.2, 2, 2450.0)
     );
     let ev = f.parse(&Message::Text(lines[3].into()));
-    let FeedEvent::Depth(d) = &ev[0] else {
+    let [FeedEvent::Tick(totals), FeedEvent::Depth(d)] = &ev[..] else {
         panic!("{:?}", ev)
     };
+    // The first book after a ticker says the totals are known now, in a
+    // packet without a price, which the bridge keeps and does not publish.
+    assert!(!totals.knows(QuoteField::Ltp));
+    assert!(totals.knows(QuoteField::TotalBuyQuantity));
+    assert_eq!(totals.total_buy_quantity, 1775);
     assert_eq!(d.symbol, "BTCUSDFUT");
     assert_eq!(d.ltp, 59876.12);
     // The top five bids and the two asks Delta sent: no padding.

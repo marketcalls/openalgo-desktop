@@ -200,8 +200,15 @@ impl DeltaFeed {
         let (buy, sell) = (side("b"), side("a"));
         let tick = self.cache.get(br).cloned().unwrap_or_default();
         let depth = book_event(sub, &tick, &buy, &sell, now_ms());
+        let mut out = Vec::new();
+        // The tickers so far said the totals are not known, and the bridge
+        // would believe that of this book too; they are known from now on.
+        if self.cache.contains_key(br) && !self.books.contains_key(br) {
+            out.push(FeedEvent::Tick(totals_known(sub, &depth)));
+        }
         self.books.insert(br.to_string(), (buy, sell));
-        vec![FeedEvent::Depth(depth)]
+        out.push(FeedEvent::Depth(depth));
+        out
     }
 
     /// Decode one text frame.
@@ -277,6 +284,24 @@ fn merge_ticker(t: &mut NormalizedTick, e: &Value, spot: Option<&Value>, book: O
 /// The book of `sub` with the ticker's price: the levels Delta sent (no
 /// order counts, no padding) and their sums as the totals, the web's
 /// `totalbuyqty` / `totalsellqty`.
+/// A packet with the book's totals and no price: the bridge publishes
+/// nothing for it and keeps the totals.
+fn totals_known(sub: &Sub, book: &NormalizedDepth) -> NormalizedTick {
+    NormalizedTick {
+        symbol: sub.symbol.clone(),
+        exchange: sub.exchange.clone(),
+        mode: FeedMode::Quote.code(),
+        total_buy_quantity: book.total_buy_quantity,
+        total_sell_quantity: book.total_sell_quantity,
+        timestamp_ms: book.timestamp_ms,
+        absent: AbsentFields::ALL.minus(AbsentFields::of(&[
+            QuoteField::TotalBuyQuantity,
+            QuoteField::TotalSellQuantity,
+        ])),
+        ..Default::default()
+    }
+}
+
 fn book_event(
     sub: &Sub,
     tick: &NormalizedTick,
