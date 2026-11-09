@@ -78,7 +78,7 @@ def now_s() -> int:
 # Standard-library modules a web file may import and the lifted code may
 # use. Anything else it imports is left out.
 STDLIB = {
-    "base64", "binascii", "calendar", "collections", "collections.abc", "copy",
+    "asyncio", "base64", "binascii", "calendar", "collections", "collections.abc", "copy",
     "dataclasses", "datetime", "decimal", "enum", "functools", "gzip", "hashlib",
     "io", "itertools", "json", "logging", "math", "operator", "os", "random", "re",
     "struct", "sys", "threading", "time", "typing", "urllib.parse", "uuid",

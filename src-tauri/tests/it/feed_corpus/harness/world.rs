@@ -25,11 +25,14 @@ use openalgo_desktop_lib::feed::bridge::BrokerBridge;
 use openalgo_desktop_lib::feed::orders::OrderRelay;
 use openalgo_desktop_lib::feed::{start, FeedConfig, FeedDeps, FeedHandle};
 use openalgo_desktop_lib::services::broker_runtime::{self, order_event};
-use openalgo_desktop_lib::websocket::{FeedConfig as ManagerConfig, WebSocketManager};
+use openalgo_desktop_lib::websocket::{
+    FeedConfig as ManagerConfig, FeedFactory, PoolLimits, WebSocketManager,
+};
 use parking_lot::Mutex;
 use serde_json::Value;
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast::error::RecvError;
@@ -94,7 +97,13 @@ pub(crate) struct Feeds {
     keep: Vec<Box<dyn Any + Send + Sync>>,
     /// The session's broker and auth (`with_broker`).
     broker: Session,
+    /// The market feed for each further pooled connection (`with_pool`).
+    pool: Option<PoolFeed>,
 }
+
+/// Makes the market feed for a further pooled connection, given its fake
+/// socket's address.
+type PoolFeed = Arc<dyn Fn(&str) -> Box<dyn BrokerFeed> + Send + Sync>;
 
 /// The session's broker and its auth, as `broker_runtime` holds them for
 /// the feeds' hooks.
@@ -113,7 +122,21 @@ impl Feeds {
             orders: None,
             keep: Vec::new(),
             broker: None,
+            pool: None,
         }
+    }
+
+    /// The market feed of each further connection of the market data pool
+    /// (`WebSocketManager::connect_pool`, as a session opens one when the
+    /// first is full: `Broker::create_feed` again), made for the fake
+    /// socket of that connection (`main#2`, `main#3`, ...) at the address
+    /// given. Without it the pool keeps to one connection.
+    pub(crate) fn with_pool(
+        mut self,
+        feed: impl Fn(&str) -> Box<dyn BrokerFeed> + Send + Sync + 'static,
+    ) -> Feeds {
+        self.pool = Some(Arc::new(feed));
+        self
     }
 
     /// The session's broker and its `auth`, as `broker_runtime` installs
@@ -163,6 +186,71 @@ impl Feeds {
     }
 }
 
+/// The further pooled connections a case's script names (`main#2` up to
+/// the highest named), each its own fake socket.
+fn pool_sockets(case: &Case) -> Vec<Socket> {
+    let highest = case
+        .sockets
+        .iter()
+        .filter_map(|s| s.pool_slot())
+        .max()
+        .unwrap_or(1);
+    (2..=highest).map(Socket::Pool).collect()
+}
+
+/// The market data pool a session opens (`broker_runtime::start_session`):
+/// the broker's pool limits (`broker_runtime::pool_limits`), with the case's
+/// own instruments per connection where it sets one, and a further
+/// connection's feed made by the module (`Feeds::with_pool`) for the next
+/// fake pool socket, while the case has one.
+fn market_pool(
+    case: &Case,
+    feeds: &Feeds,
+    upstreams: &BTreeMap<Socket, Upstream>,
+) -> (FeedFactory, PoolLimits) {
+    let mut limits = broker_runtime::pool_limits(&case.broker);
+    if let Some(n) = case.pool_per_connection {
+        if limits.connections < 2 {
+            panic!(
+                "feed corpus {}: {}'s pool has one connection; pool_per_connection does not apply",
+                case.id, case.broker
+            );
+        }
+        limits.per_connection = n;
+    }
+    let urls: Vec<String> = pool_sockets(case)
+        .into_iter()
+        .map(|s| upstreams[&s].url().to_string())
+        .collect();
+    let opened = Arc::new(AtomicUsize::new(0));
+    let make = feeds.pool.clone();
+    let more: FeedFactory = Arc::new(move || {
+        let make = make.as_ref()?;
+        let url = urls.get(opened.fetch_add(1, Ordering::SeqCst))?;
+        Some(make(url))
+    });
+    (more, limits)
+}
+
+/// Every broker module builds its session's broker (`Feeds::with_broker`),
+/// as a session does, except those still on the ratchet list
+/// (`feed_corpus::WITHOUT_BROKER`), which may not pass one.
+fn session_required(case: &Case, feeds: &Feeds) {
+    let listed = crate::feed_corpus::WITHOUT_BROKER.contains(&case.broker.as_str());
+    match (feeds.broker.is_some(), listed) {
+        (false, false) => panic!(
+            "feed corpus {}: build the session's broker and pass it with \
+             Feeds::with_broker(broker, &auth), as broker_runtime does",
+            case.id
+        ),
+        (true, true) => panic!(
+            "feed corpus {}: {} passes its broker now: take it off WITHOUT_BROKER",
+            case.id, case.broker
+        ),
+        _ => {}
+    }
+}
+
 /// The managers' timings for a test: reconnect at once, never call a
 /// quiet socket stalled within a case.
 fn manager_config() -> ManagerConfig {
@@ -196,7 +284,7 @@ pub(crate) struct World {
 impl World {
     pub(crate) async fn start(case: &Case, feeds: fn(&Env) -> Feeds) -> World {
         let mut upstreams = BTreeMap::new();
-        for s in Socket::ALL {
+        for s in Socket::ALL.into_iter().chain(pool_sockets(case)) {
             let up = Upstream::bind(case.upstream_ignore.clone()).await;
             if case.close_sockets.contains(&s) {
                 up.expect_close();
@@ -223,6 +311,7 @@ impl World {
             orders: case.orders,
         };
         let feeds = feeds(&env);
+        session_required(case, &feeds);
 
         let market = Arc::new(WebSocketManager::with_config(manager_config()));
         let deep = Arc::new(WebSocketManager::with_config(manager_config()));
@@ -245,7 +334,7 @@ impl World {
                 bridge.set_exchange_refusal(Arc::new(move |exchange: &str| {
                     refusal.feed_refusal(exchange)
                 }));
-                market.set_presubscribe(b.feed_presubscribe(auth));
+                broker_runtime::install_market_hooks(&market, b, auth);
             }
             None => {
                 let levels = case.depth_levels.clone();
@@ -268,8 +357,9 @@ impl World {
 
         bridge.start();
         let mut connected = vec![Socket::Main];
+        let (more, limits) = market_pool(case, &feeds, &upstreams);
         market
-            .connect(feeds.market)
+            .connect_pool(feeds.market, more, limits)
             .await
             .expect("the market data feed starts");
         // A case that never names the deep-book or order socket leaves it
@@ -382,18 +472,31 @@ impl World {
     /// The manager whose feed connects to socket `s`.
     fn manager(&self, s: Socket) -> &WebSocketManager {
         match s {
-            Socket::Main => &self.market,
+            Socket::Main | Socket::Pool(_) => &self.market,
             Socket::Depth => &self.deep,
             Socket::Orders => &self.orders,
         }
     }
 
+    /// Every fake broker socket of the case: main, its further pooled
+    /// connections, depth and orders.
+    pub(crate) fn sockets(&self) -> impl Iterator<Item = Socket> + '_ {
+        self.upstreams.keys().copied()
+    }
+
     /// Close socket `s` deliberately, as a logout or a broker switch does
     /// (`WebSocketManager::disconnect`), with clients still subscribed: the
-    /// fake broker records the feed's farewell frames and its close.
+    /// fake broker records the feed's farewell frames and its close. A
+    /// pooled connection's manager is the market feed's: it closes them
+    /// all.
     pub(crate) async fn disconnect(&self, s: Socket) {
         self.upstream(s).expect_close();
-        self.disconnected.lock().insert(s);
+        let manager = if s.pool_slot().is_some() {
+            Socket::Main
+        } else {
+            s
+        };
+        self.disconnected.lock().insert(manager);
         if let Err(e) = self.manager(s).disconnect().await {
             panic!("the {} feed did not disconnect: {}", s.name(), e);
         }

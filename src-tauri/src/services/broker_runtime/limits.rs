@@ -25,7 +25,7 @@ const XTS: [&str; 7] = [
 ];
 
 /// The market data pool for `broker`.
-pub(crate) fn pool_limits(broker: &str) -> PoolLimits {
+pub fn pool_limits(broker: &str) -> PoolLimits {
     match broker {
         // One feed per token and client code: a second socket evicts the
         // first, and both then flap (web services/order_update_service.py:

@@ -15,11 +15,13 @@
   "pushes": [
     {
       "line": 4,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 6,
-      "published": []
+      "published": [],
+      "deliveries": []
     }
   ]
 }

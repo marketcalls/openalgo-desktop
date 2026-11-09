@@ -15,7 +15,8 @@
   "pushes": [
     {
       "line": 4,
-      "published": []
+      "published": [],
+      "deliveries": []
     }
   ]
 }

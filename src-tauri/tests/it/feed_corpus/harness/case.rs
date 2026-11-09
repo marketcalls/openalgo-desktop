@@ -4,6 +4,7 @@
 //! and checked here, so a mistake in a case is reported with its file and
 //! line before any socket opens.
 
+use super::approvals;
 use super::http::HttpRequestExpect;
 use super::invariants::{self, Invariant};
 use super::json_text;
@@ -58,27 +59,53 @@ const METHODS: &[&str] = &["web-test", "web-script", "by-hand"];
 /// One of the fake broker sockets a case's feeds connect to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Socket {
-    /// The market data feed (Kite's order postbacks come on it too).
+    /// The market data feed's first connection (Kite's order postbacks
+    /// come on it too).
     Main,
+    /// A further connection of the market data pool, from 2: `main#2`,
+    /// `main#3` (`WebSocketManager::connect_pool`).
+    Pool(u8),
     /// A broker's separate deep-book socket (Dhan 20, Fyers 50).
     Depth,
     /// A dedicated order-update socket.
     Orders,
 }
 
+/// The names of the pool's further connections, `main#2` up.
+const POOL_NAMES: [&str; 8] = [
+    "main#2", "main#3", "main#4", "main#5", "main#6", "main#7", "main#8", "main#9",
+];
+
 impl Socket {
+    /// The sockets every case has.
     pub(crate) const ALL: [Socket; 3] = [Socket::Main, Socket::Depth, Socket::Orders];
 
     pub(crate) fn name(self) -> &'static str {
         match self {
             Socket::Main => "main",
+            Socket::Pool(n) => POOL_NAMES[usize::from(n) - 2],
             Socket::Depth => "depth",
             Socket::Orders => "orders",
         }
     }
 
     pub(crate) fn named(name: &str) -> Option<Socket> {
-        Self::ALL.into_iter().find(|s| s.name() == name)
+        let pool = POOL_NAMES
+            .iter()
+            .position(|p| *p == name)
+            .and_then(|i| u8::try_from(i + 2).ok())
+            .map(Socket::Pool);
+        pool.or_else(|| Self::ALL.into_iter().find(|s| s.name() == name))
+    }
+
+    /// The pooled connection this socket is, from 1 (the market feed's
+    /// first is `main`); `None` for the deep-book and order sockets.
+    pub(crate) fn pool_slot(self) -> Option<u8> {
+        match self {
+            Socket::Main => Some(1),
+            Socket::Pool(n) => Some(n),
+            Socket::Depth | Socket::Orders => None,
+        }
     }
 }
 
@@ -271,7 +298,14 @@ pub(crate) struct WebFrame {
     pub(crate) symbol: String,
     pub(crate) exchange: String,
     pub(crate) mode: u8,
+    /// The deviation that declares this frame: `missing-frame`, or
+    /// `missing-frame:<label>` where a case has web-only frames of more
+    /// than one cause, each with its own reason and approval.
+    pub(crate) deviation: String,
 }
+
+/// The deviation key for a web frame the desktop does not send.
+pub(crate) const MISSING_FRAME: &str = "missing-frame";
 
 /// Which web output a received frame is compared with (`web.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -432,6 +466,11 @@ pub(crate) struct Case {
     /// so Depth subscribes at its levels are served at the market feed's
     /// levels (`BrokerBridge::set_deep_unavailable`).
     pub(crate) deep_feed_not_made: bool,
+    /// `case.json` `pool_per_connection`: the market data pool's instruments
+    /// per connection, in place of the broker's (`broker_runtime::
+    /// pool_limits`), so a case opens a further connection with a few
+    /// instruments; only for a broker whose pool has more than one.
+    pub(crate) pool_per_connection: Option<usize>,
     /// What the fake broker API answers from the start (`case.json`
     /// `http`).
     pub(crate) http: Vec<HttpAnswer>,
@@ -481,6 +520,7 @@ impl Case {
                 "invariants",
                 "deep_book_timeout_ms",
                 "deep_feed_not_made",
+                "pool_per_connection",
             ],
         );
         if o.get("broker").and_then(Value::as_str) != Some(broker) {
@@ -570,6 +610,12 @@ impl Case {
             sockets,
             close_sockets,
             refused_at_start,
+            pool_per_connection: o.get("pool_per_connection").map(|v| {
+                v.as_u64()
+                    .and_then(|n| usize::try_from(n).ok())
+                    .filter(|n| *n >= 1)
+                    .unwrap_or_else(|| bad(&at, "\"pool_per_connection\" is a number from 1"))
+            }),
             deep_feed_not_made: match o.get("deep_feed_not_made") {
                 None => false,
                 Some(v) => v
@@ -705,12 +751,16 @@ fn deviations(at: &str, v: Option<&Value>) -> Vec<(String, String)> {
 }
 
 /// The fields a deviation may have.
-const DEVIATION_FIELDS: &[&str] = &["key", "kind", "reason", "ref", "approved", "web", "desktop"];
+const DEVIATION_FIELDS: &[&str] = &[
+    "key", "kind", "reason", "ref", "approved", "approval", "web", "desktop",
+];
 
 /// Every way a `case.json`'s `deviations` fall short (none when each names
-/// its key once, a kind of `DEVIATION_KINDS`, a reason, and `approved` as
-/// true or false): what the parity matrix counts can be trusted only when
-/// every case has none.
+/// its key once, a kind of `DEVIATION_KINDS`, a reason, `approved` as true
+/// or false, and an `approval` that names a rule of `approvals.json`, never
+/// on an open gap): what the parity matrix counts can be trusted only when
+/// every case has none. A deviation with no `approval` is pending, which the
+/// release gate fails on, not this check.
 pub(crate) fn deviation_problems(v: Option<&Value>) -> Vec<String> {
     let Some(v) = v else {
         return Vec::new();
@@ -757,6 +807,14 @@ pub(crate) fn deviation_problems(v: Option<&Value>) -> Vec<String> {
         }
         if o.get("approved").is_some_and(|a| !a.is_boolean()) {
             out.push(format!("{}: approved is true or false", name));
+        }
+        if let Some(a) = o.get("approval") {
+            if let Some(p) = approvals::problem(a) {
+                out.push(format!("{}: {}", name, p));
+            }
+            if kind == "open" {
+                out.push(format!("{}: an open gap is never approved", name));
+            }
         }
         if key.is_some_and(|k| !seen.insert(k)) {
             out.push(format!("{} is listed twice", name));
@@ -901,10 +959,12 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
     };
     let socket = || match o.get("socket") {
         None => Socket::Main,
-        Some(v) => v
-            .as_str()
-            .and_then(Socket::named)
-            .unwrap_or_else(|| bad(at, "socket is \"main\", \"depth\" or \"orders\"")),
+        Some(v) => v.as_str().and_then(Socket::named).unwrap_or_else(|| {
+            bad(
+                at,
+                "socket is \"main\", a pooled \"main#2\" to \"main#9\", \"depth\" or \"orders\"",
+            )
+        }),
     };
     let number = |k: &str| {
         o.get(k).map(|v| {
@@ -1130,7 +1190,7 @@ fn web_frame(at: &str, v: &Value) -> WebFrame {
             "\"web\" names the web's frame: {\"symbol\", \"exchange\", \"mode\"}",
         )
     });
-    allow_keys(at, o, &["symbol", "exchange", "mode"]);
+    allow_keys(at, o, &["symbol", "exchange", "mode", "deviation"]);
     let text = |k: &str| {
         o.get(k)
             .and_then(Value::as_str)
@@ -1146,6 +1206,22 @@ fn web_frame(at: &str, v: &Value) -> WebFrame {
             .filter(|m| (1..=3).contains(m))
             .and_then(|m| u8::try_from(m).ok())
             .unwrap_or_else(|| bad(at, "\"web\" \"mode\" is 1, 2 or 3")),
+        deviation: match o.get("deviation") {
+            None => MISSING_FRAME.to_string(),
+            Some(d) => d
+                .as_str()
+                .filter(|d| {
+                    d.strip_prefix(MISSING_FRAME)
+                        .is_some_and(|r| r.is_empty() || r.len() > 1 && r.starts_with(':'))
+                })
+                .map(String::from)
+                .unwrap_or_else(|| {
+                    bad(
+                        at,
+                        "\"web\" \"deviation\" is \"missing-frame\" or \"missing-frame:<label>\"",
+                    )
+                }),
+        },
     }
 }
 

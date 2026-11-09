@@ -489,7 +489,7 @@ impl Runner<'_> {
                 ),
             );
         }
-        for s in Socket::ALL {
+        for s in self.world.sockets().collect::<Vec<_>>() {
             let left = self.world.upstream(s).leftover();
             if !left.is_empty() {
                 bad(
