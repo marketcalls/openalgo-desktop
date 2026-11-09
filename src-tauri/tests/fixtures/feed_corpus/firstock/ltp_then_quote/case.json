@@ -35,14 +35,31 @@
       "kind": "web-defect",
       "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
       "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          1794302700,
+          1794302700000
+        ],
+        [
+          1794302702,
+          1794302702000
+        ],
+        [
+          1794302710,
+          1794302710000
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The web's Quote sends oi 0 for an equity whose tick carries no open interest (data.get(\"i_open_interest\", 0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md, web openalgo#2376). The desktop's Quote leaves it out.",
       "ref": "firstock_adapter.py:849",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

@@ -53,63 +53,368 @@
       "kind": "web-defect",
       "reason": "XTS sent average_price in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
       "ref": "compositedge_adapter.py _normalize_market_data (mode 3)",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          2495.8
+        ]
+      ]
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web publishes each 1502 book once, and its listener sends it to every Depth client of the symbol whatever depth that client asked for, so this Depth 5 client gets the twenty levels a Depth 20 client asked for. The desktop gives each Depth holder the levels it asked for: the Depth 20 client the twenty, this one the first five (feed/protocol/market.rs book_for; audit P-10, lead ruling).",
       "ref": "websocket_proxy/server.py (a Depth publish to every Depth client of the symbol); compositedge_adapter.py _extract_depth_data",
-      "approval": "depth-own-level-only"
+      "approval": "depth-own-level-only",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 2500.1,
+                "quantity": 100,
+                "orders": 1
+              },
+              {
+                "price": 2500.05,
+                "quantity": 110,
+                "orders": 2
+              },
+              {
+                "price": 2500.0,
+                "quantity": 120,
+                "orders": 3
+              },
+              {
+                "price": 2499.95,
+                "quantity": 130,
+                "orders": 4
+              },
+              {
+                "price": 2499.9,
+                "quantity": 140,
+                "orders": 1
+              },
+              {
+                "price": 2499.85,
+                "quantity": 150,
+                "orders": 2
+              },
+              {
+                "price": 2499.8,
+                "quantity": 160,
+                "orders": 3
+              },
+              {
+                "price": 2499.75,
+                "quantity": 170,
+                "orders": 4
+              },
+              {
+                "price": 2499.7,
+                "quantity": 180,
+                "orders": 1
+              },
+              {
+                "price": 2499.65,
+                "quantity": 190,
+                "orders": 2
+              },
+              {
+                "price": 2499.6,
+                "quantity": 200,
+                "orders": 3
+              },
+              {
+                "price": 2499.55,
+                "quantity": 210,
+                "orders": 4
+              },
+              {
+                "price": 2499.5,
+                "quantity": 220,
+                "orders": 1
+              },
+              {
+                "price": 2499.45,
+                "quantity": 230,
+                "orders": 2
+              },
+              {
+                "price": 2499.4,
+                "quantity": 240,
+                "orders": 3
+              },
+              {
+                "price": 2499.35,
+                "quantity": 250,
+                "orders": 4
+              },
+              {
+                "price": 2499.3,
+                "quantity": 260,
+                "orders": 1
+              },
+              {
+                "price": 2499.25,
+                "quantity": 270,
+                "orders": 2
+              },
+              {
+                "price": 2499.2,
+                "quantity": 280,
+                "orders": 3
+              },
+              {
+                "price": 2499.15,
+                "quantity": 290,
+                "orders": 4
+              }
+            ],
+            "sell": [
+              {
+                "price": 2500.4,
+                "quantity": 90,
+                "orders": 1
+              },
+              {
+                "price": 2500.45,
+                "quantity": 100,
+                "orders": 2
+              },
+              {
+                "price": 2500.5,
+                "quantity": 110,
+                "orders": 3
+              },
+              {
+                "price": 2500.55,
+                "quantity": 120,
+                "orders": 1
+              },
+              {
+                "price": 2500.6,
+                "quantity": 130,
+                "orders": 2
+              },
+              {
+                "price": 2500.65,
+                "quantity": 140,
+                "orders": 3
+              },
+              {
+                "price": 2500.7,
+                "quantity": 150,
+                "orders": 1
+              },
+              {
+                "price": 2500.75,
+                "quantity": 160,
+                "orders": 2
+              },
+              {
+                "price": 2500.8,
+                "quantity": 170,
+                "orders": 3
+              },
+              {
+                "price": 2500.85,
+                "quantity": 180,
+                "orders": 1
+              },
+              {
+                "price": 2500.9,
+                "quantity": 190,
+                "orders": 2
+              },
+              {
+                "price": 2500.95,
+                "quantity": 200,
+                "orders": 3
+              },
+              {
+                "price": 2501.0,
+                "quantity": 210,
+                "orders": 1
+              },
+              {
+                "price": 2501.05,
+                "quantity": 220,
+                "orders": 2
+              },
+              {
+                "price": 2501.1,
+                "quantity": 230,
+                "orders": 3
+              },
+              {
+                "price": 2501.15,
+                "quantity": 240,
+                "orders": 1
+              },
+              {
+                "price": 2501.2,
+                "quantity": 250,
+                "orders": 2
+              },
+              {
+                "price": 2501.25,
+                "quantity": 260,
+                "orders": 3
+              },
+              {
+                "price": 2501.3,
+                "quantity": 270,
+                "orders": 1
+              },
+              {
+                "price": 2501.35,
+                "quantity": 280,
+                "orders": 2
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 2500.1,
+                "quantity": 100,
+                "orders": 1
+              },
+              {
+                "price": 2500.05,
+                "quantity": 110,
+                "orders": 2
+              },
+              {
+                "price": 2500.0,
+                "quantity": 120,
+                "orders": 3
+              },
+              {
+                "price": 2499.95,
+                "quantity": 130,
+                "orders": 4
+              },
+              {
+                "price": 2499.9,
+                "quantity": 140,
+                "orders": 1
+              }
+            ],
+            "sell": [
+              {
+                "price": 2500.4,
+                "quantity": 90,
+                "orders": 1
+              },
+              {
+                "price": 2500.45,
+                "quantity": 100,
+                "orders": 2
+              },
+              {
+                "price": 2500.5,
+                "quantity": 110,
+                "orders": 3
+              },
+              {
+                "price": 2500.55,
+                "quantity": 120,
+                "orders": 1
+              },
+              {
+                "price": 2500.6,
+                "quantity": 130,
+                "orders": 2
+              }
+            ]
+          }
+        ]
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "XTS sent last_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
       "ref": "compositedge_adapter.py _normalize_market_data (mode 3)",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          7
+        ]
+      ]
     },
     {
       "key": "lower_circuit",
       "kind": "web-defect",
       "reason": "The 1502 event carries no LowerCircuitLimit; the web sends lower_circuit 0 for it (message.get('LowerCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
       "ref": "compositedge_adapter.py _normalize_market_data (mode 3)",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
       "ref": "compositedge_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1478686530,
+          1794199530000
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The 1502 event carries no OpenInterest; the web sends oi 0 for it (message.get('OpenInterest', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
       "ref": "compositedge_adapter.py _normalize_market_data (mode 3)",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "XTS sent total_buy_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
       "ref": "compositedge_adapter.py _normalize_market_data (mode 3)",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          150000
+        ]
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "XTS sent total_sell_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
       "ref": "compositedge_adapter.py _normalize_market_data (mode 3)",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          160000
+        ]
+      ]
     },
     {
       "key": "upper_circuit",
       "kind": "web-defect",
       "reason": "The 1502 event carries no UpperCircuitLimit; the web sends upper_circuit 0 for it (message.get('UpperCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
       "ref": "compositedge_adapter.py _normalize_market_data (mode 3)",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

@@ -314,6 +314,14 @@ class Deliveries:
             if not d["serves"] and not self._touched(i)
         ]
 
+    def fan_out_seen(self) -> list[tuple]:
+        """The fan-out, as data (`diff`'s `seen`)."""
+        return [
+            ("fan-out", {**frame_identity(self.pub(d)), "mode": d["topic_mode"], "client": d["client"]}, ABSENT, None)
+            for i, d in enumerate(self.point["deliveries"])
+            if not d["serves"] and not self._touched(i)
+        ]
+
     def not_silent(self) -> list[str]:
         """A frame marked `"web": false` while the web does send that client
         a frame for the same instrument (or order id) that nothing paired."""
@@ -353,8 +361,24 @@ class Deliveries:
         return out
 
 
-def diff(case_dir: Path, out: dict) -> list[str]:
-    """What the harness's web check would find (harness/web.rs)."""
+# A side of a difference that has no value (harness/web.rs `ABSENT`).
+ABSENT = "<absent>"
+
+
+def side(obj: dict, key: str):
+    return obj[key] if key in obj else ABSENT
+
+
+def frame_identity(item: dict) -> dict:
+    """A frame-level difference's value: which instrument and mode it is."""
+    return {"symbol": item.get("symbol"), "exchange": item.get("exchange"), "mode": item.get("mode")}
+
+
+def diff(case_dir: Path, out: dict, seen: list | None = None) -> list[str]:
+    """What the harness's web check would find (harness/web.rs), as lines;
+    `seen`, when given, also collects each difference as data: `(key, web,
+    desktop, web data)`, what a deviation's `allows` is generated from."""
+    seen = [] if seen is None else seen
     points = {p["line"]: p for p in out["pushes"]}
     case = json.loads((case_dir / "case.json").read_text())
     random_keys = {d["key"] for d in case.get("deviations", []) if d.get("kind") == "random-values"}
@@ -368,6 +392,7 @@ def diff(case_dir: Path, out: dict) -> list[str]:
         if n in points:
             if current is not None:
                 lines += current.close()
+                seen += current.fan_out_seen()
             current = Deliveries(points[n])
             continue
         if current is None:
@@ -380,11 +405,13 @@ def diff(case_dir: Path, out: dict) -> list[str]:
             else:
                 key = w.get("deviation", "missing-frame")
                 lines.append(f"{key}: line {n}: web {json.dumps(p['data'], sort_keys=True)}, desktop nothing")
+                seen.append((key, frame_identity({**w, "mode": w["mode"]}), ABSENT, p.get("data")))
         elif step["step"] == "receive":
             frame = step["frame"]
             frame = json.loads((case_dir / frame).read_text()) if isinstance(frame, str) else frame
             if step.get("web") is False:
                 lines.append(f"frame: line {n}: the web sends nothing")
+                seen.append(("frame", ABSENT, frame_identity(frame), None))
                 current.web_false.append((n, step.get("client", ""), frame))
                 continue
             client = step.get("client", "")
@@ -399,8 +426,10 @@ def diff(case_dir: Path, out: dict) -> list[str]:
                     tag = current.last
                     if frame.get("mode") != tag["mode"]:
                         lines.append(f"envelope.mode: line {n}: web {tag['mode']}, desktop {frame.get('mode')}")
+                        seen.append(("envelope.mode", tag["mode"], frame.get("mode"), None))
                     if frame.get("broker") != tag["broker"]:
                         lines.append(f"envelope.broker: line {n}: web {tag['broker']}, desktop {frame.get('broker')}")
+                        seen.append(("envelope.broker", tag["broker"], frame.get("broker"), None))
             if theirs is None:
                 lines.append(f"(line {n}: the web delivers nothing this frame could come from)")
                 continue
@@ -409,10 +438,13 @@ def diff(case_dir: Path, out: dict) -> list[str]:
                 if k in random_keys:
                     same = k in mine and k in theirs and shape(mine[k]) == shape(theirs[k])
                     lines.append(f"{k}{'' if same else ' (type)'}: line {n}: web {w}, desktop {d}")
+                    seen.append((k if same else f"{k} (type)", side(theirs, k), side(mine, k), theirs))
                 elif w != d:
                     lines.append(f"{k}: line {n}: web {w}, desktop {d}")
+                    seen.append((k, side(theirs, k), side(mine, k), theirs))
     if current is not None:
         lines += current.close()
+        seen += current.fan_out_seen()
     return lines
 
 

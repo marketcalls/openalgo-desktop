@@ -36,28 +36,49 @@
       "kind": "web-defect",
       "reason": "The web's Tradesmart adapter keeps its scrip cache across a reconnect (only Shoonya's _resubscribe_all clears it), so the first packet of the new connection, which has no trade time (ltt), goes out with the last connection's: a value from before the outage presented as current. The desktop starts each connection afresh.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py _resubscribe_all (keeps MarketDataCache; only Shoonya's clears it)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          "10:15:42",
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "tradesmart_timestamp",
       "kind": "web-defect",
       "reason": "The web's Tradesmart adapter keeps its scrip cache across a reconnect (only Shoonya's _resubscribe_all clears it), so the first packet of the new connection, which has no feed time (ft), goes out with the last connection's: a value from before the outage presented as current. The desktop starts each connection afresh.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py _resubscribe_all (keeps MarketDataCache; only Shoonya's clears it)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1794199542,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "percent_change",
       "kind": "web-defect",
       "reason": "The web's Tradesmart adapter keeps its scrip cache across a reconnect (only Shoonya's _resubscribe_all clears it), so the first packet of the new connection, which has no change (pc), goes out with the last connection's: a value from before the outage presented as current. The desktop starts each connection afresh.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py _resubscribe_all (keeps MarketDataCache; only Shoonya's clears it)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          0.66,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

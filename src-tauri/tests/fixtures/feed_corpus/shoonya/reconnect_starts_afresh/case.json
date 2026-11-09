@@ -37,35 +37,64 @@
       "kind": "web-defect",
       "reason": "The first packet of the new connection has no trade time (ltt); the web's Shoonya adapter, whose cache was cleared, sends last_trade_time null. No key is sent as JSON null: the desktop leaves it out.",
       "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer (data.get('ltt'))",
-      "approval": "no-json-null"
+      "approval": "no-json-null",
+      "allows": [
+        "null-left-out"
+      ]
     },
     {
       "key": "shoonya_timestamp",
       "kind": "web-defect",
       "reason": "The first packet of the new connection has no feed time (ft); the web sends shoonya_timestamp 0 for it. A field the stream does not carry is left out.",
       "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "percent_change",
       "kind": "web-defect",
       "reason": "The first packet of the new connection has no change (pc); the web sends percent_change 0.0 for it (safe_float(data.get('pc'))). A field the stream does not carry is left out, and the desktop works no change out where the web only forwards Noren's.",
       "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer; lead rule no-derived-change",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Shoonya Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
       "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          345678
+        ],
+        [
+          "<absent>",
+          351200
+        ]
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Shoonya Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
       "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          298765
+        ],
+        [
+          "<absent>",
+          301455
+        ]
+      ]
     }
   ]
 }

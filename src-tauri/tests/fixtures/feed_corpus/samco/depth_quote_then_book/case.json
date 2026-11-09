@@ -40,14 +40,29 @@
       "kind": "web-defect",
       "reason": "When Samco clears the book (both sides empty) the web's Depth frame has no depth key (samcoWebSocket._normalize_market_data adds it only when a side has levels). After a book existed, an empty book is the information that it emptied; the web's missing key loses it, and a client cannot tell no book in this frame from the book is now empty. The desktop keeps depth with empty buy and sell sides. Before Samco's first book the desktop sends no Depth frame, as the web.",
       "ref": "samcoWebSocket.py _normalize_market_data (if depth_buy or depth_sell); lead ruling 2026-11-09 (book clear approved)",
-      "approval": "book-clear-kept"
+      "approval": "book-clear-kept",
+      "allows": [
+        [
+          "<absent>",
+          {
+            "buy": [],
+            "sell": []
+          }
+        ]
+      ]
     },
     {
       "kind": "web-defect",
       "reason": "Samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, Quote and Depth included (lost data); the desktop sends it, and no OI Samco did not send.",
       "ref": "samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data; decisions 2026-11-09 (data a web adapter drops is kept)",
       "key": "oi",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          361290
+        ]
+      ]
     }
   ]
 }

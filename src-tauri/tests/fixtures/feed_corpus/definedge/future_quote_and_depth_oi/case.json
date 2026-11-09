@@ -43,14 +43,35 @@
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
       "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          "1730784000",
+          1730784000000
+        ],
+        [
+          "1730784005",
+          1730784005000
+        ]
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": 3,
+            "client": "q"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

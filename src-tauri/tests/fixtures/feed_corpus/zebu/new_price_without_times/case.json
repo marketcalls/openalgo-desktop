@@ -38,21 +38,44 @@
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Zebu Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
       "ref": "broker/zebu/streaming/zebu_adapter.py QuoteNormalizer",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          345678
+        ]
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Zebu Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
       "ref": "broker/zebu/streaming/zebu_adapter.py QuoteNormalizer",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          298765
+        ]
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "client": "b"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

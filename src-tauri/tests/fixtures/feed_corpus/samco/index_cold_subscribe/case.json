@@ -59,49 +59,70 @@
       "kind": "web-defect",
       "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
       "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "best_ask_quantity",
       "kind": "web-defect",
       "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
       "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "best_bid_price",
       "kind": "web-defect",
       "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
       "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "best_bid_quantity",
       "kind": "web-defect",
       "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
       "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "An index has no trades of its own: Samco sends no ltq, or an ltq of 0, which means the field does not apply; the desktop leaves last_quantity and last_trade_quantity out; the web sends them as 0 (web sends zero; docs say leave out).",
       "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
       "reason": "An index has no trades of its own: Samco sends no ltq, or an ltq of 0, which means the field does not apply; the desktop leaves last_quantity and last_trade_quantity out; the web sends them as 0 (web sends zero; docs say leave out).",
       "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "An index has no volume of its own: Samco's index quote carries no vol (a vol of 0 would mean the same); the desktop leaves volume out; the web sends 0 (web sends zero; docs say leave out).",
       "ref": "samcoWebSocket.py _normalize_market_data; decisions 2026-11-09 (web zeros for values the stream did not send)",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

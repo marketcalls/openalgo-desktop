@@ -86,10 +86,10 @@ fn every_deviation_has_a_known_kind_and_a_reason() {
 #[test]
 fn an_unsound_deviation_is_named() {
     let devs = serde_json::json!([
-        {"key": "ltt", "kind": "web-defect", "reason": "seconds, not ms", "approved": true},
-        {"key": "oi", "kind": "guess", "reason": "?"},
-        {"key": "ltt", "kind": "open", "reason": " "},
-        {"kind": "open", "reason": "no key", "approved": "yes", "note": "x"}
+        {"key": "ltt", "kind": "web-defect", "reason": "seconds, not ms", "approved": true, "allows": ["same-shape"]},
+        {"key": "oi", "kind": "guess", "reason": "?", "allows": ["same-shape"]},
+        {"key": "ltt", "kind": "open", "reason": " ", "allows": ["same-shape"]},
+        {"kind": "open", "reason": "no key", "approved": "yes", "note": "x", "allows": ["same-shape"]}
     ]);
     let found = deviation_problems(&CaseFacts::new("zerodha", None, ""), Some(&devs));
     let want = [
@@ -111,6 +111,30 @@ fn an_unsound_deviation_is_named() {
     assert_eq!(found.len(), want.len(), "{:?}", found);
 }
 
+/// `allows` is required and well formed, and one key may be split only by
+/// distinct causes.
+#[test]
+fn a_deviation_says_what_it_allows() {
+    let facts = CaseFacts::new("zerodha", None, "");
+    let check = |devs: serde_json::Value| deviation_problems(&facts, Some(&devs));
+    let none = check(serde_json::json!([{"key": "ltt", "kind": "web-defect", "reason": "r"}]));
+    assert!(none[0].contains("no \"allows\""), "{:?}", none);
+    let odd = check(serde_json::json!([
+        {"key": "ltt", "kind": "web-defect", "reason": "r", "allows": ["any-value"]}
+    ]));
+    assert!(odd[0].contains("neither a named class"), "{:?}", odd);
+    let split = serde_json::json!([
+        {"key": "ltt", "kind": "web-defect", "reason": "r", "allows": [[1, 2]]},
+        {"key": "ltt", "cause": "unit", "kind": "web-defect", "reason": "r", "allows": [[1, 1000]]}
+    ]);
+    assert_eq!(check(split), Vec::<String>::new());
+    let twice = check(serde_json::json!([
+        {"key": "ltt", "cause": "unit", "kind": "web-defect", "reason": "r", "allows": [[1, 2]]},
+        {"key": "ltt", "cause": "unit", "kind": "web-defect", "reason": "r", "allows": [[1, 3]]}
+    ]));
+    assert!(twice[0].contains("is listed twice"), "{:?}", twice);
+}
+
 /// Every rule a deviation may name says who decided it, when, where it is
 /// written, and quotes it; an approval names one of them and never sits on
 /// an open gap.
@@ -123,9 +147,9 @@ fn approvals_name_complete_rules() {
         problems.join("\n  ")
     );
     let devs = serde_json::json!([
-        {"key": "ltt", "kind": "web-defect", "reason": "seconds", "approval": "alias-unit"},
-        {"key": "oi", "kind": "web-defect", "reason": "zero", "approval": "made-up"},
-        {"key": "ltp", "kind": "open", "reason": "to fix", "approval": "alias-unit"}
+        {"key": "ltt", "kind": "web-defect", "reason": "seconds", "approval": "alias-unit", "allows": ["same-shape"]},
+        {"key": "oi", "kind": "web-defect", "reason": "zero", "approval": "made-up", "allows": ["same-shape"]},
+        {"key": "ltp", "kind": "open", "reason": "to fix", "approval": "leave-out-unsent", "allows": ["same-shape"]}
     ]);
     let found = deviation_problems(&CaseFacts::new("zerodha", None, ""), Some(&devs));
     assert_eq!(found.len(), 2, "{:?}", found);
@@ -147,7 +171,7 @@ fn approvals_name_complete_rules() {
 #[test]
 fn only_a_synthetic_feed_may_declare_random_values() {
     let devs = serde_json::json!([
-        {"key": "ltp", "kind": "random-values", "reason": "drawn at random"}
+        {"key": "ltp", "kind": "random-values", "reason": "drawn at random", "allows": ["same-shape"]}
     ]);
     let facts = CaseFacts::new("dhan_sandbox", None, "");
     assert_eq!(

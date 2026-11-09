@@ -55,35 +55,65 @@
       "kind": "web-defect",
       "reason": "XTS sent average_price in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
       "ref": "ibulls_adapter.py _normalize_market_data (mode 3)",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          24398.15
+        ]
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "XTS sent last_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
       "ref": "ibulls_adapter.py _normalize_market_data (mode 3)",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          75
+        ]
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
       "ref": "ibulls_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1478686531,
+          1794199531000
+        ]
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "XTS sent total_buy_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
       "ref": "ibulls_adapter.py _normalize_market_data (mode 3)",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          456000
+        ]
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "XTS sent total_sell_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
       "ref": "ibulls_adapter.py _normalize_market_data (mode 3)",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          398250
+        ]
+      ]
     }
   ]
 }

@@ -33,14 +33,26 @@
       "kind": "web-defect",
       "reason": "A snapquote carries no trade price (packet_decoder.py:83-137, averageTradePrice at 126); the web publishes its average trade price as ltp (pocketful_adapter.py:676), so a client reads the day's average as the last trade. The desktop sends the average as average_price and ltp from a real trade only: the last one known, or 0 before the instrument's first (the 1.0.6 rule for a book before any price). R107-07.",
       "ref": "pocketful_adapter.py:676; packet_decoder.py:129; R107-07",
-      "approval": "pocketful-average-not-ltp"
+      "approval": "pocketful-average-not-ltp",
+      "allows": [
+        [
+          1498.76,
+          0.0
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "A snapquote carries no trade price (packet_decoder.py:83-137, averageTradePrice at 126); the web publishes its average trade price as ltp (pocketful_adapter.py:676), so a client reads the day's average as the last trade. The desktop sends the average as average_price and ltp from a real trade only: the last one known, or 0 before the instrument's first (the 1.0.6 rule for a book before any price). R107-07.",
       "ref": "pocketful_adapter.py:674-686; R107-07",
-      "approval": "pocketful-average-not-ltp"
+      "approval": "pocketful-average-not-ltp",
+      "allows": [
+        [
+          "<absent>",
+          1498.76
+        ]
+      ]
     }
   ]
 }

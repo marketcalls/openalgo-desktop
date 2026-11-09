@@ -29,6 +29,8 @@ what `web_expected.diff` (the harness's web check, mirrored) finds:
 
 - inline_body_hashed, pin_checked (O2): a case's inline answer joins its
   hash, and `--check` refuses a web tree or tool code other than the pin's.
+- value_outside_what_was_seen, named_classes_exact (O3): a deviation covers
+  the values it saw, not its key at any value.
 - uncompared_ceiling (O10): the ratchet per kind of step not replayed.
 - rule_scope (O5): a deviation outside the words of its rule is named.
 - registries_read, offers_not_broker_json, a_refused_level_covers_nothing
@@ -52,6 +54,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import parity_matrix as pm  # noqa: E402
+import predicates  # noqa: E402
 import release_gate as gate  # noqa: E402
 import web_expected as we  # noqa: E402
 import web_offers  # noqa: E402
@@ -313,6 +316,51 @@ def probe_refused_level_covers_nothing() -> list[str]:
     return problems
 
 
+def probe_value_outside_seen() -> list[str]:
+    """The web's trade time moves by nine seconds: the deviation on `ltt` no
+    longer covers it, and what it did allow is shown by no frame."""
+    with tempfile.TemporaryDirectory() as tmp:
+        case = Path(tmp) / "hdfcsky" / "no_trade_yet"
+        shutil.copytree(we.CORPUS / "hdfcsky" / "no_trade_yet", case)
+        before = predicates.violations(case)
+        text = (case / "web.json").read_text()
+        (case / "web.json").write_text(text.replace('"ltt": 1700000000', '"ltt": 1700000009'))
+        after = predicates.violations(case)
+    problems = [f"value_outside_what_was_seen: not clean before the change: {before}"] if before else []
+    for wanted in ("is outside what it allows", "which no frame shows"):
+        if not any(wanted in line for line in after):
+            problems.append(f"value_outside_what_was_seen: {wanted!r} not found: {after}")
+    return problems
+
+
+def probe_named_classes_exact() -> list[str]:
+    """A class leaves no freedom: 1 is no zero, a real change is not one from an invented zero."""
+    absent = predicates.ABSENT
+    frame = {"ltp": 0, "close": 1495.0}
+    real = {"ltp": 1500.0, "close": 1495.0}
+    cases = (
+        ("zero-left-out", "oi", 0, absent, None, True),
+        ("zero-left-out", "oi", 1, absent, None, False),
+        ("zero-left-out", "oi", 0, 5, None, False),
+        ("null-left-out", "ltt", None, absent, None, True),
+        ("null-left-out", "ltt", "", absent, None, False),
+        ("change-from-zero-ltp", "change", -1495.0, absent, frame, True),
+        ("change-from-zero-ltp", "change", -1495.0, absent, real, False),
+        ("change-from-zero-ltp", "change", -1495.0, -1495.0, frame, False),
+        ("change-from-zero-ltp", "change_percent", -100.0, absent, frame, True),
+        ("change-from-zero-ltp", "change_percent", -1495.0, absent, frame, False),
+    )
+    problems = []
+    for item, key, web, desktop, data, want in cases:
+        if predicates.matches(item, key, web, desktop, data) != want:
+            problems.append(f"named_classes_exact: {item} {key} web {web} desktop {desktop} data {data}: not {want}")
+    if predicates.classify("oi", 0, absent, None) != "zero-left-out":
+        problems.append("named_classes_exact: a zero left out is not classified")
+    if predicates.classify("oi", 7, absent, None) != [7, absent]:
+        problems.append("named_classes_exact: any other value must be its exact pair")
+    return problems
+
+
 def probe_uncompared_ceiling() -> list[str]:
     """Above a ceiling, a ceiling left high, and a rise without a rule each
     fail; a rise naming a rule in force does not."""
@@ -386,6 +434,8 @@ def main() -> int:
         + probe_random_values_scope()
         + probe_gate_web_output()
         + probe_gate_catalog()
+        + probe_value_outside_seen()
+        + probe_named_classes_exact()
         + probe_uncompared_ceiling()
         + probe_rule_scope()
         + probe_registries_read(args.web)

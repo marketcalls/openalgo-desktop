@@ -46,21 +46,33 @@
       "kind": "web-defect",
       "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
       "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1700000000,
+          1700000000000
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

@@ -37,63 +37,129 @@
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
       "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          "1730784000",
+          1730784000000
+        ],
+        [
+          "1730784099",
+          1730784099000
+        ],
+        [
+          "1730784100",
+          1730784100000
+        ],
+        [
+          "1730784101",
+          1730784101000
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "The web keeps the snapshot of the connection that dropped (_on_close and _resubscribe_all clear nothing) and publishes its average price as current with the first update after a reconnect; the desktop starts each connection's snapshot afresh (a cached market field belongs to the session that sent it). Lead decision 2026-11-09: restarting the merge after a reconnect is a desktop improvement, a web defect.",
       "ref": "definedge_adapter.py:679-760 (_on_open, _resubscribe_all, _on_close)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1391.24,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "change_percent",
       "kind": "web-defect",
       "reason": "The web keeps the snapshot of the connection that dropped (_on_close and _resubscribe_all clear nothing) and publishes its percent change as current with the first update after a reconnect; the desktop starts each connection's snapshot afresh (a cached market field belongs to the session that sent it). Lead decision 2026-11-09: restarting the merge after a reconnect is a desktop improvement, a web defect.",
       "ref": "definedge_adapter.py:679-760 (_on_open, _resubscribe_all, _on_close)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          0.32,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "The web keeps the snapshot of the connection that dropped (_on_close and _resubscribe_all clear nothing) and publishes its close as current with the first update after a reconnect; the desktop starts each connection's snapshot afresh (a cached market field belongs to the session that sent it). Lead decision 2026-11-09: restarting the merge after a reconnect is a desktop improvement, a web defect.",
       "ref": "definedge_adapter.py:679-760 (_on_open, _resubscribe_all, _on_close)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1391.0,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "The web keeps the snapshot of the connection that dropped (_on_close and _resubscribe_all clear nothing) and publishes its high as current with the first update after a reconnect; the desktop starts each connection's snapshot afresh (a cached market field belongs to the session that sent it). Lead decision 2026-11-09: restarting the merge after a reconnect is a desktop improvement, a web defect.",
       "ref": "definedge_adapter.py:679-760 (_on_open, _resubscribe_all, _on_close)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1398.0,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "The web keeps the snapshot of the connection that dropped (_on_close and _resubscribe_all clear nothing) and publishes its low as current with the first update after a reconnect; the desktop starts each connection's snapshot afresh (a cached market field belongs to the session that sent it). Lead decision 2026-11-09: restarting the merge after a reconnect is a desktop improvement, a web defect.",
       "ref": "definedge_adapter.py:679-760 (_on_open, _resubscribe_all, _on_close)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1378.5,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "The web keeps the snapshot of the connection that dropped (_on_close and _resubscribe_all clear nothing) and publishes its open as current with the first update after a reconnect; the desktop starts each connection's snapshot afresh (a cached market field belongs to the session that sent it). Lead decision 2026-11-09: restarting the merge after a reconnect is a desktop improvement, a web defect.",
       "ref": "definedge_adapter.py:679-760 (_on_open, _resubscribe_all, _on_close)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1382.6,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "percent_change",
       "kind": "web-defect",
       "reason": "The web keeps the snapshot of the connection that dropped (_on_close and _resubscribe_all clear nothing) and publishes its percent change as current with the first update after a reconnect; the desktop starts each connection's snapshot afresh (a cached market field belongs to the session that sent it). Lead decision 2026-11-09: restarting the merge after a reconnect is a desktop improvement, a web defect.",
       "ref": "definedge_adapter.py:679-760 (_on_open, _resubscribe_all, _on_close)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          0.32,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "The web keeps the snapshot of the connection that dropped (_on_close and _resubscribe_all clear nothing) and publishes its volume as current with the first update after a reconnect; the desktop starts each connection's snapshot afresh (a cached market field belongs to the session that sent it). Lead decision 2026-11-09: restarting the merge after a reconnect is a desktop improvement, a web defect.",
       "ref": "definedge_adapter.py:679-760 (_on_open, _resubscribe_all, _on_close)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          11238602,
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

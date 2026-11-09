@@ -31,14 +31,184 @@
       "kind": "web-defect",
       "reason": "The web pads each side of an SFeed book to five rows of price 0, quantity 0 (sfeed_websocket.py::_depth_rows): levels the exchange does not have, with zero prices. The desktop sends the book's real levels only (lead decision 9 Nov: zero-padded levels -> the real ones, web defect).",
       "ref": "sfeed_websocket.py:649-660; decisions.md (night of 9 Nov, empty book)",
-      "approval": "book-levels-as-sent"
+      "approval": "book-levels-as-sent",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 1301.4,
+                "quantity": 90,
+                "orders": 2
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 1301.6,
+                "quantity": 80,
+                "orders": 1
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 1301.4,
+                "quantity": 90,
+                "orders": 2
+              }
+            ],
+            "sell": [
+              {
+                "price": 1301.6,
+                "quantity": 80,
+                "orders": 1
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "buy": [
+              {
+                "price": 1300.45,
+                "quantity": 100,
+                "orders": 3
+              },
+              {
+                "price": 1300.4,
+                "quantity": 200,
+                "orders": 5
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 1300.6,
+                "quantity": 150,
+                "orders": 4
+              },
+              {
+                "price": 1300.65,
+                "quantity": 250,
+                "orders": 6
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 1300.45,
+                "quantity": 100,
+                "orders": 3
+              },
+              {
+                "price": 1300.4,
+                "quantity": 200,
+                "orders": 5
+              }
+            ],
+            "sell": [
+              {
+                "price": 1300.6,
+                "quantity": 150,
+                "orders": 4
+              },
+              {
+                "price": 1300.65,
+                "quantity": 250,
+                "orders": 6
+              }
+            ]
+          }
+        ]
+      ]
     },
     {
       "key": "missing-frame",
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps _depth_cache (only _symbol_state is cleared), so the first touch line republishes the previous connection's book as current. The desktop starts every instrument afresh on a new connection and sends the Depth holder nothing until this connection's first book (lead decision 9 Nov: a stale pre-outage snapshot promoted as current is a web defect).",
       "ref": "kotak_adapter.py:997 _attempt_reconnection; feed::bridge::snapshot",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

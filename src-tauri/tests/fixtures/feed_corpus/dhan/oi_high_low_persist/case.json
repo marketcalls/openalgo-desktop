@@ -33,119 +33,243 @@
       "kind": "web-defect",
       "reason": "The web sends every Depth holder of an instrument both books, the 5-level one and the 20-level one in turn; the desktop sends a 5-level holder only the 5-level book.",
       "ref": "server.py publication routing; dhan_adapter.py _on_data_5depth, _on_data_20depth",
-      "approval": "depth-own-level-only"
+      "approval": "depth-own-level-only",
+      "allows": [
+        [
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3
+          },
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The 20-level frame's ltt is that same value, from the instrument's latest quote (the web's 20-level frame has none).",
+      "reason": "The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md).",
       "ref": "dhan_adapter.py:900",
-      "approval": "zerodha-dhan-web-defects"
+      "approval": "zerodha-dhan-web-defects",
+      "allows": [
+        [
+          1761700000,
+          1761700000000
+        ]
+      ]
+    },
+    {
+      "key": "ltt",
+      "cause": "latest-quote-on-deep-frame",
+      "allows": [
+        [
+          "<absent>",
+          1761700002000
+        ]
+      ],
+      "kind": "desktop-decision",
+      "reason": "The web's 20-level frame has no ltt; the desktop's Depth frame keeps the instrument's latest quote, its ltt included (1.0.6).",
+      "ref": "dhan_adapter.py:900",
+      "approval": "per-broker-wire-shape"
     },
     {
       "key": "ltp",
       "kind": "desktop-decision",
       "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote, its last traded price after; the web's 20-level frame has no ltp.",
       "ref": "CLAUDE.md, the absent-field rule; feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          0.0
+        ],
+        [
+          "<absent>",
+          1300.75
+        ]
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "desktop-decision",
       "reason": "A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web.",
       "ref": "decisions.md (Kept: depth frame keeps ltp + timestamp + latest quote); feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          9000
+        ]
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "desktop-decision",
       "reason": "A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web.",
       "ref": "decisions.md (Kept: depth frame keeps ltp + timestamp + latest quote); feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          7000
+        ]
+      ]
     },
     {
       "key": "volume",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          40000
+        ]
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          25
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          1298.25
+        ]
+      ]
     },
     {
       "key": "open",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          1290.0
+        ]
+      ]
     },
     {
       "key": "high",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          1310.0
+        ]
+      ]
     },
     {
       "key": "low",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          1285.0
+        ]
+      ]
     },
     {
       "key": "last_trade_time",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          1761700002
+        ]
+      ]
     },
     {
       "key": "close",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          1280.5
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          150
+        ]
+      ]
     },
     {
       "key": "prev_oi",
       "kind": "desktop-decision",
       "reason": "The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          120
+        ]
+      ]
     },
     {
       "key": "oi_high",
       "kind": "desktop-decision",
       "reason": "The day's OI high and low came with the last full packet. They are market state: later packets that do not carry them leave them standing on the depth frame, and a new market connection starts them afresh. The web sends them only in a full packet's own dict, and its 20-level frame has neither.",
       "ref": "dhan_websocket.py::_parse_regular_message; dhan_adapter.py::_on_data_20depth",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          "<absent>",
+          160
+        ]
+      ]
     },
     {
       "key": "oi_low",
       "kind": "desktop-decision",
       "reason": "The day's OI high and low came with the last full packet. They are market state: later packets that do not carry them leave them standing on the depth frame, and a new market connection starts them afresh. The web sends them only in a full packet's own dict, and its 20-level frame has neither.",
       "ref": "dhan_websocket.py::_parse_regular_message; dhan_adapter.py::_on_data_20depth",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          "<absent>",
+          140
+        ]
+      ]
     }
   ]
 }

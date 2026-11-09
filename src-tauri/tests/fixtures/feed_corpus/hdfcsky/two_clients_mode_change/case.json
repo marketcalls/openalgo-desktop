@@ -38,56 +38,107 @@
       "kind": "web-defect",
       "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
       "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          "<absent>",
+          6.0
+        ]
+      ]
     },
     {
       "key": "change_percent",
       "kind": "web-defect",
       "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
       "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          "<absent>",
+          0.4
+        ]
+      ]
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
       "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0.0,
+          1495.0
+        ]
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "HDFC Sky sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
       "ref": "hdfcsky_websocket.py:764-765; hdfcsky_adapter.py:421",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1700000000,
+          1700000000000
+        ],
+        [
+          1700000003,
+          1700000003000
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "prev_close",
       "kind": "web-defect",
       "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
       "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0.0,
+          1495.0
+        ]
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "client": "a"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

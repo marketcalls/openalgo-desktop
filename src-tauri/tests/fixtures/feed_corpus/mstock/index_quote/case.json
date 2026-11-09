@@ -31,42 +31,60 @@
       "kind": "web-defect",
       "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) over the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one, and then sends the last OI the instrument's full packet carried on this connection (feed/bridge/snapshot.rs merges by presence), never a 0 it was not sent.",
       "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
       "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
       "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
       "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
       "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
       "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "mStock's index Quote packet fills the last quantity, average price and book totals with 0 (its fixed 123-byte layout; an index has no trades of its own), and this web adapter sends those zeros for an index (mstock_adapter.py:362-375). The docs say a value the stream does not carry is left out; the desktop leaves them out (lead rule 2026-11-09, approved: a 0-filled index field stays left out, a non-zero one is sent).",
       "ref": "decisions 2026-11-09 (index, frame by frame); docs/api/websocket-streaming/quote.md",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

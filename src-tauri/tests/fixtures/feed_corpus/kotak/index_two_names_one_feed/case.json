@@ -43,7 +43,10 @@
       "kind": "web-defect",
       "reason": "An SFeed index packet carries no volume; the web's index normaliser writes volume 0 (sfeed_websocket.py::_to_index) and publishes it, a zero the exchange never sent. The desktop leaves it out (web openalgo#2376).",
       "ref": "sfeed_websocket.py:670",
-      "approval": "index-depth"
+      "approval": "index-depth",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

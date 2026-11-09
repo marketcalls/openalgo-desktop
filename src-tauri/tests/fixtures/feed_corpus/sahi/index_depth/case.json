@@ -31,35 +31,111 @@
       "kind": "web-defect",
       "reason": "web sends zero rows; docs: indices lack tradable depth, never invent zero prices. The web pads the index's empty book to five rows of price 0.0 a side (sahi_mapping.py::_depth_side); the desktop sends the empty book {buy: [], sell: []} (lead ruling R1, the Sahi dialect's index_book).",
       "ref": "sahi_mapping.py:94-102; feed/dialect/names.rs (sahi: index_book); decisions.md (Index Depth per broker)",
-      "approval": "index-depth"
+      "approval": "index-depth",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [],
+            "sell": []
+          }
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "Sahi sent no open interest for this instrument (open_interest, a proto3 optional, is off its ticks); the web publishes oi 0 for it (sahi_mapping.py build_quote_payload), a number the exchange never sent. The desktop leaves it out (docs: a field the stream does not carry is left out; decisions.md).",
       "ref": "sahi_mapping.py:129",
-      "approval": "index-depth"
+      "approval": "index-depth",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "The web's alias of oi, sent as 0 with it for an instrument whose ticks carry no open interest; left out with oi (see oi).",
       "ref": "sahi_mapping.py:130",
-      "approval": "index-depth"
+      "approval": "index-depth",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "upper_circuit",
       "kind": "web-defect",
       "reason": "The tick left the price band off (dpr_upper, a proto3 scalar, reads as 0); the web publishes upper_circuit 0.0 (sahi_mapping.py build_quote_payload), a band nobody sent. The desktop sends none for an instrument whose ticks never carried one, and keeps the band an earlier tick of the connection carried.",
       "ref": "sahi_mapping.py:131",
-      "approval": "index-depth"
+      "approval": "index-depth",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "lower_circuit",
       "kind": "web-defect",
       "reason": "The tick left the price band off (dpr_lower); the web publishes lower_circuit 0.0, as upper_circuit.",
       "ref": "sahi_mapping.py:132",
-      "approval": "index-depth"
+      "approval": "index-depth",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

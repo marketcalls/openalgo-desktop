@@ -39,49 +39,85 @@
       "kind": "web-defect",
       "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
       "ref": "hdfcsecurities_websocket.py:666; hdfcsecurities_adapter.py:381-385",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
       "ref": "hdfcsecurities_websocket.py:666; hdfcsecurities_adapter.py:381-385",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "An index packet carries no trade time; the web falls back to the packet's own time (tick.get('ltt', tick.get('timestamp'))) and sends it as ltt, a time no trade happened at. The desktop leaves ltt out (investright::set_trade_time). Lead decision (bk-b phase B, item 4): the trade-time fallback is absent, never a packet or receipt time.",
       "ref": "hdfcsecurities_adapter.py:367",
-      "approval": "no-packet-time-as-trade-time"
+      "approval": "no-packet-time-as-trade-time",
+      "allows": [
+        [
+          1700000000500,
+          "<absent>"
+        ],
+        [
+          1700000001500,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
       "ref": "hdfcsecurities_websocket.py:666; hdfcsecurities_adapter.py:381-385",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
       "ref": "hdfcsecurities_websocket.py:666; hdfcsecurities_adapter.py:381-385",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
       "ref": "hdfcsecurities_websocket.py:666; hdfcsecurities_adapter.py:381-385",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 3,
+            "client": "a"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

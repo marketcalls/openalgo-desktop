@@ -32,14 +32,20 @@
       "kind": "web-defect",
       "reason": "Delta's ticker never carries average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
       "ref": "delta_adapter.py:584",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "oi_change",
       "kind": "web-defect",
       "reason": "Delta's ticker never carries an OI change; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
       "ref": "delta_adapter.py:584",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

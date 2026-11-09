@@ -40,42 +40,193 @@
       "kind": "web-defect",
       "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
       "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          1794302700,
+          1794302700000
+        ],
+        [
+          1794302703,
+          1794302703000
+        ],
+        [
+          1794302705,
+          1794302705000
+        ],
+        [
+          1794302706,
+          1794302706000
+        ],
+        [
+          1794302710,
+          1794302710000
+        ]
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "Firstock's tick carries last_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
       "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          150
+        ],
+        [
+          "<absent>",
+          75
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "Firstock's tick carries average_price and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
       "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          24435.15
+        ]
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "Firstock's tick carries total_buy_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
       "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          456000
+        ]
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "Firstock's tick carries total_sell_quantity and the web's Depth dict leaves it out (firstock_adapter.py:854-865): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, with the rest of the instrument's latest quote, as docs/api/websocket-streaming/depth.md shows the trade quantity and book totals.",
       "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          398250
+        ]
+      ]
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web pads a side with fewer than five valid levels to five with zero levels Firstock did not send (_extract_depth_data); a book carries the levels the broker sent (lead rule 2026-11-09). The desktop sends the two valid bids alone.",
       "ref": "firstock_adapter.py:875-915",
-      "approval": "book-levels-as-sent"
+      "approval": "book-levels-as-sent",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 24450.5,
+                "quantity": 150,
+                "orders": 2
+              },
+              {
+                "price": 24449.5,
+                "quantity": 300,
+                "orders": 5
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 24451.0,
+                "quantity": 150,
+                "orders": 2
+              },
+              {
+                "price": 24451.5,
+                "quantity": 375,
+                "orders": 4
+              },
+              {
+                "price": 24452.0,
+                "quantity": 525,
+                "orders": 5
+              },
+              {
+                "price": 24452.5,
+                "quantity": 675,
+                "orders": 7
+              },
+              {
+                "price": 24453.0,
+                "quantity": 900,
+                "orders": 9
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 24450.5,
+                "quantity": 150,
+                "orders": 2
+              },
+              {
+                "price": 24449.5,
+                "quantity": 300,
+                "orders": 5
+              }
+            ],
+            "sell": [
+              {
+                "price": 24451.0,
+                "quantity": 150,
+                "orders": 2
+              },
+              {
+                "price": 24451.5,
+                "quantity": 375,
+                "orders": 4
+              },
+              {
+                "price": 24452.0,
+                "quantity": 525,
+                "orders": 5
+              },
+              {
+                "price": 24452.5,
+                "quantity": 675,
+                "orders": 7
+              },
+              {
+                "price": 24453.0,
+                "quantity": 900,
+                "orders": 9
+              }
+            ]
+          }
+        ]
+      ]
     }
   ]
 }

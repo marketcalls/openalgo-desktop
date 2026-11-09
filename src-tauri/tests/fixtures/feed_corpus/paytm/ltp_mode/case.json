@@ -40,14 +40,34 @@
       "kind": "web-defect",
       "reason": "The web passes Paytm's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
       "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time)",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1791000300,
+          1791000300000
+        ],
+        [
+          1791000305,
+          1791000305000
+        ]
+      ]
     },
     {
       "key": "frame",
       "kind": "web-defect",
       "reason": "The web's client decodes only the first packet of a binary frame (paytm_websocket.py:101-108, _parse_binary_data reads byte 0's packet), so a second packet in the same frame is lost; the desktop cuts every packet by its code's size (whether Paytm sends packets back to back is not verified live, audit RB-14).",
       "ref": "paytm_websocket.py:289-326; audit RB-14",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 1
+          }
+        ]
+      ]
     }
   ]
 }

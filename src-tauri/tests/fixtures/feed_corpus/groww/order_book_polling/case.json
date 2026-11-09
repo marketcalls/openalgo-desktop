@@ -75,35 +75,77 @@
       "kind": "web-defect",
       "reason": "The web relays average_price 0.0 for a filled order: its Groww order book has no average fill price. The desktop sends Groww's average_fill_price.",
       "ref": "order_data.py:58-86; order_adapter.py:513",
-      "approval": "adapter-keys-carried"
+      "approval": "adapter-keys-carried",
+      "allows": [
+        [
+          0.0,
+          1490.5
+        ],
+        [
+          0.0,
+          811.98
+        ]
+      ]
     },
     {
       "key": "filled_quantity",
       "kind": "web-defect",
       "reason": "The web relays filled_quantity 0 for a filled order: its Groww order book has no filled quantity. The desktop sends Groww's filled_quantity.",
       "ref": "order_data.py:58-86; order_adapter.py:511",
-      "approval": "adapter-keys-carried"
+      "approval": "adapter-keys-carried",
+      "allows": [
+        [
+          0,
+          10
+        ],
+        [
+          0,
+          1
+        ]
+      ]
     },
     {
       "key": "frame",
       "kind": "web-defect",
       "reason": "A partial fill leaves the status open, and the web's poller compares (status, filled quantity) with a filled quantity its Groww book never has, so it relays nothing until the order completes. The desktop relays the partial fill.",
       "ref": "order_adapter.py:463-475",
-      "approval": "adapter-keys-carried"
+      "approval": "adapter-keys-carried",
+      "allows": [
+        [
+          "<absent>",
+          {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": "live"
+          }
+        ]
+      ]
     },
     {
       "key": "pending_quantity",
       "kind": "web-defect",
       "reason": "The web relays pending_quantity 0 for a working order: its Groww order book has no pending quantity. The desktop sends Groww's remaining_quantity.",
       "ref": "order_data.py:58-86; order_adapter.py:512",
-      "approval": "adapter-keys-carried"
+      "approval": "adapter-keys-carried",
+      "allows": [
+        [
+          0,
+          10
+        ]
+      ]
     },
     {
       "key": "rejection_reason",
       "kind": "web-defect",
       "reason": "The web relays an empty rejection_reason: its Groww order book drops Groww's remark. The desktop sends the remark, the reason RMS gave.",
       "ref": "order_data.py:58-86; order_adapter.py:514-516",
-      "approval": "adapter-keys-carried"
+      "approval": "adapter-keys-carried",
+      "allows": [
+        [
+          "",
+          "RMS:Margin Exceeds,Required:4065.25, Available:1500.00 for entity account across exchange across segment across product. Add funds or reduce the quantity."
+        ]
+      ]
     }
   ]
 }

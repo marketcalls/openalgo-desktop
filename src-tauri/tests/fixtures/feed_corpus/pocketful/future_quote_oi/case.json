@@ -35,7 +35,13 @@
       "kind": "web-defect",
       "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
       "ref": "pocketful_adapter.py:583, 631",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1762656910,
+          1762656910000
+        ]
+      ]
     }
   ]
 }

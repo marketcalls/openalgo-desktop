@@ -35,14 +35,23 @@
       "kind": "web-defect",
       "reason": "Nubra's index channel carries the contract's open interest in volume_oi; the web's adapter does not publish it, the desktop does (lost data).",
       "ref": "nubra_adapter.py _on_index_data; WebSocketMsgIndex.volume_oi",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          2450000
+        ]
+      ]
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "Before the day bucket the web sends open 0 (ohlcv.get('open', 0)); a field the stream has not sent is left out.",
       "ref": "nubra_adapter.py:700-715",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

@@ -35,63 +35,93 @@
       "kind": "web-defect",
       "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
       "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          1794302700,
+          1794302700000
+        ]
+      ]
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends volume 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "firstock_adapter.py:838-852",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends last_quantity 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "firstock_adapter.py:838-852",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends average_price 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "firstock_adapter.py:838-852",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends total_buy_quantity 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "firstock_adapter.py:838-852",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends total_sell_quantity 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "firstock_adapter.py:838-852",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "An index frame carries no trade quantity or book totals (the recorded Zerodha index transcript); the web's Firstock Quote sends oi 0 for an index tick that carries none, and a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "firstock_adapter.py:849",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "upper_circuit",
       "kind": "web-defect",
       "reason": "The web sends circuit limits of 0.0 for an index tick that carries none (data.get(..., 0) / 100); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "firstock_adapter.py:850-851",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "lower_circuit",
       "kind": "web-defect",
       "reason": "The web sends circuit limits of 0.0 for an index tick that carries none (data.get(..., 0) / 100); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "firstock_adapter.py:850-851",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

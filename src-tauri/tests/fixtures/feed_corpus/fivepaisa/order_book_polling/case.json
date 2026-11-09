@@ -40,35 +40,89 @@
       "kind": "web-defect",
       "reason": "The web's 5paisa book (transform_order_data) has no filled_quantity, so the poller's (order_status, filled_quantity) never changes on a partial fill and the web publishes nothing for it; the desktop reads TradedQty and publishes the fill.",
       "ref": "broker/fivepaisa/mapping/order_data.py:transform_order_data; websocket_proxy/order_adapter.py:465",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          {
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": "live"
+          }
+        ]
+      ]
     },
     {
       "key": "filled_quantity",
       "kind": "web-defect",
       "reason": "The web sends 0 for every 5paisa order (its book has no filled_quantity), a completed one included; the desktop sends TradedQty.",
       "ref": "order_adapter.py:511",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          0,
+          100
+        ],
+        [
+          0,
+          25
+        ]
+      ]
     },
     {
       "key": "pending_quantity",
       "kind": "web-defect",
       "reason": "The web sends 0 for every 5paisa order (its book has no pending_quantity); the desktop sends PendingQty.",
       "ref": "order_adapter.py:512",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          0,
+          100
+        ],
+        [
+          0,
+          10
+        ],
+        [
+          0,
+          25
+        ],
+        [
+          0,
+          5000
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "The web sends 0.0 for every 5paisa order (its book has no average_price); the desktop sends AveragePrice.",
       "ref": "order_adapter.py:513",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          0.0,
+          440.08
+        ],
+        [
+          0.0,
+          440.2
+        ]
+      ]
     },
     {
       "key": "rejection_reason",
       "kind": "web-defect",
       "reason": "The web's 5paisa book carries 5paisa's Reason as reason, and the poller reads rejection_reason, so a rejected order goes out with an empty reason; the desktop sends 5paisa's RMS text. Lost data on the web.",
       "ref": "broker/fivepaisa/mapping/order_data.py:243; websocket_proxy/order_adapter.py:514-516",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "",
+          "RMS:Margin Exceeds,Required:2200500.00, Available:15000.00 for entity account-<USER_ID> across exchange across segment across product"
+        ]
+      ]
     }
   ]
 }

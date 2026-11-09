@@ -38,63 +38,97 @@
       "reason": "Before Samco's first quote the web sends change and change_percentage as 0.0, values the book stream never carried (samcoWebSocket._normalize_market_data defaults ch and chPer to 0); the desktop leaves them out.",
       "ref": "samcoWebSocket.py _normalize_market_data; decisions 2026-11-09 (web zeros for values the stream did not send)",
       "key": "change",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "kind": "web-defect",
       "reason": "Before Samco's first quote the web sends change and change_percentage as 0.0, values the book stream never carried (samcoWebSocket._normalize_market_data defaults ch and chPer to 0); the desktop leaves them out.",
       "ref": "samcoWebSocket.py _normalize_market_data; decisions 2026-11-09 (web zeros for values the stream did not send)",
       "key": "change_percentage",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "frame",
       "kind": "web-defect",
       "reason": "The web sends Depth clients nothing on a quote packet (samco_adapter.py _on_data routes quote frames to LTP and Quote subscriptions only), so a Depth-only client's price, volume and OI stand still until Samco's next book; the desktop refreshes Depth from the cached book on every quote packet, under its one frame per held mode policy (audit C08).",
       "ref": "samco_adapter.py _on_data (target_modes [3] for quote2, [1, 2] for quote); audit C08; lead ruling 2026-11-09",
-      "approval": "empty-book-invents-nothing"
+      "approval": "empty-book-invents-nothing",
+      "allows": [
+        [
+          "<absent>",
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3
+          }
+        ]
+      ]
     },
     {
       "kind": "web-defect",
       "reason": "Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision).",
       "ref": "samcoWebSocket.py _normalize_market_data (.get(x, 0)); decisions 2026-11-09",
       "key": "open",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "kind": "web-defect",
       "reason": "Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision).",
       "ref": "samcoWebSocket.py _normalize_market_data (.get(x, 0)); decisions 2026-11-09",
       "key": "high",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "kind": "web-defect",
       "reason": "Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision).",
       "ref": "samcoWebSocket.py _normalize_market_data (.get(x, 0)); decisions 2026-11-09",
       "key": "low",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "kind": "web-defect",
       "reason": "Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision).",
       "ref": "samcoWebSocket.py _normalize_market_data (.get(x, 0)); decisions 2026-11-09",
       "key": "close",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "kind": "web-defect",
       "reason": "Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision).",
       "ref": "samcoWebSocket.py _normalize_market_data (.get(x, 0)); decisions 2026-11-09",
       "key": "volume",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "kind": "web-defect",
       "reason": "Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision).",
       "ref": "samcoWebSocket.py _normalize_market_data (.get(x, 0)); decisions 2026-11-09",
       "key": "last_quantity",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

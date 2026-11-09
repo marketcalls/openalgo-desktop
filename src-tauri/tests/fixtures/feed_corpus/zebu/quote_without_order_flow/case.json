@@ -40,14 +40,20 @@
       "kind": "web-defect",
       "reason": "This snapshot carries no average price; the web's Zebu adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/zebu/streaming/zebu_adapter.py normalisers",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "This snapshot carries no last quantity; the web's Zebu adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/zebu/streaming/zebu_adapter.py normalisers",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

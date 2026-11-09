@@ -31,28 +31,280 @@
       "kind": "web-defect",
       "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
       "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1791000300,
+          1791000300000
+        ],
+        [
+          1791000310,
+          1791000310000
+        ]
+      ]
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
       "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          1485.1000000000001,
+          1485.1
+        ]
+      ]
     },
     {
       "key": "ask",
       "kind": "web-defect",
       "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
       "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          1500.1000000000001,
+          1500.1
+        ]
+      ]
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
       "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "quantity": 150,
+                "price": 1500.05,
+                "orders": 2
+              },
+              {
+                "quantity": 100,
+                "price": 1500.0,
+                "orders": 3
+              },
+              {
+                "quantity": 101,
+                "price": 1499.95,
+                "orders": 4
+              },
+              {
+                "quantity": 102,
+                "price": 1499.9,
+                "orders": 5
+              },
+              {
+                "quantity": 103,
+                "price": 1499.8500000000001,
+                "orders": 6
+              }
+            ],
+            "sell": [
+              {
+                "quantity": 200,
+                "price": 1500.1000000000001,
+                "orders": 4
+              },
+              {
+                "quantity": 201,
+                "price": 1500.15,
+                "orders": 5
+              },
+              {
+                "quantity": 202,
+                "price": 1500.2,
+                "orders": 6
+              },
+              {
+                "quantity": 203,
+                "price": 1500.25,
+                "orders": 7
+              },
+              {
+                "quantity": 204,
+                "price": 1500.3,
+                "orders": 8
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 1500.05,
+                "quantity": 150,
+                "orders": 2
+              },
+              {
+                "price": 1500.0,
+                "quantity": 100,
+                "orders": 3
+              },
+              {
+                "price": 1499.95,
+                "quantity": 101,
+                "orders": 4
+              },
+              {
+                "price": 1499.9,
+                "quantity": 102,
+                "orders": 5
+              },
+              {
+                "price": 1499.85,
+                "quantity": 103,
+                "orders": 6
+              }
+            ],
+            "sell": [
+              {
+                "price": 1500.1,
+                "quantity": 200,
+                "orders": 4
+              },
+              {
+                "price": 1500.15,
+                "quantity": 201,
+                "orders": 5
+              },
+              {
+                "price": 1500.2,
+                "quantity": 202,
+                "orders": 6
+              },
+              {
+                "price": 1500.25,
+                "quantity": 203,
+                "orders": 7
+              },
+              {
+                "price": 1500.3,
+                "quantity": 204,
+                "orders": 8
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "buy": [
+              {
+                "quantity": 100,
+                "price": 1500.0,
+                "orders": 3
+              },
+              {
+                "quantity": 101,
+                "price": 1499.95,
+                "orders": 4
+              },
+              {
+                "quantity": 102,
+                "price": 1499.9,
+                "orders": 5
+              },
+              {
+                "quantity": 103,
+                "price": 1499.8500000000001,
+                "orders": 6
+              },
+              {
+                "quantity": 104,
+                "price": 1499.8,
+                "orders": 7
+              }
+            ],
+            "sell": [
+              {
+                "quantity": 200,
+                "price": 1500.1000000000001,
+                "orders": 4
+              },
+              {
+                "quantity": 201,
+                "price": 1500.15,
+                "orders": 5
+              },
+              {
+                "quantity": 202,
+                "price": 1500.2,
+                "orders": 6
+              },
+              {
+                "quantity": 203,
+                "price": 1500.25,
+                "orders": 7
+              },
+              {
+                "quantity": 204,
+                "price": 1500.3,
+                "orders": 8
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 1500.0,
+                "quantity": 100,
+                "orders": 3
+              },
+              {
+                "price": 1499.95,
+                "quantity": 101,
+                "orders": 4
+              },
+              {
+                "price": 1499.9,
+                "quantity": 102,
+                "orders": 5
+              },
+              {
+                "price": 1499.85,
+                "quantity": 103,
+                "orders": 6
+              },
+              {
+                "price": 1499.8,
+                "quantity": 104,
+                "orders": 7
+              }
+            ],
+            "sell": [
+              {
+                "price": 1500.1,
+                "quantity": 200,
+                "orders": 4
+              },
+              {
+                "price": 1500.15,
+                "quantity": 201,
+                "orders": 5
+              },
+              {
+                "price": 1500.2,
+                "quantity": 202,
+                "orders": 6
+              },
+              {
+                "price": 1500.25,
+                "quantity": 203,
+                "orders": 7
+              },
+              {
+                "price": 1500.3,
+                "quantity": 204,
+                "orders": 8
+              }
+            ]
+          }
+        ]
+      ]
     }
   ]
 }

@@ -32,21 +32,40 @@
       "kind": "web-defect",
       "reason": "The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
       "ref": "fyers_adapter.py:553",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          "<receipt_s>",
+          "<receipt_ms>"
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The record carries no OI for this equity; the web sends oi 0 (fyers_data.get('OI', 0)), the desktop leaves it out.",
       "ref": "fyers_mapping.py:150",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "missing-frame",
       "kind": "web-defect",
       "reason": "The web keeps its topic state across a reconnect (scrips_data is cleared only on a deliberate disconnect), so an update for a topic id of the old connection goes out on the state from before the outage; the desktop forgets the topic ids and waits for the new snapshot.",
       "ref": "fyers_hsm_websocket.py:747, 1124",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 2
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

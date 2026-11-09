@@ -41,21 +41,48 @@
       "kind": "desktop-decision",
       "reason": "A book before the first price: the web's merged entry has no ltp yet and leaves it out; the desktop's Depth frame keeps ltp (0) and timestamp, which the SDK's Depth callback reads (1.0.6 decision).",
       "ref": "CLAUDE.md (depth frame before its instrument's first tick); groww_adapter.py:64-73",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          0.0
+        ]
+      ]
     },
     {
       "key": "missing-frame",
       "kind": "desktop-decision",
       "reason": "A book packet carries no trade price. The web's listener sends the Depth publication to every client up to that mode, so the Quote client gets a book frame with no new trade; the desktop sends a Quote holder nothing for a packet with no price.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "no-price-packet"
+      "approval": "no-price-packet",
+      "allows": [
+        [
+          {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 2
+          },
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 3,
+            "client": "a"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

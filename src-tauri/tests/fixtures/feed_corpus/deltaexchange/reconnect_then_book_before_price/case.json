@@ -34,91 +34,251 @@
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps its merged Delta cache (_merge_into_cache is never emptied), so the first ticker or book on the new connection goes out with the OHLC, OI, best bid and ask and book totals of the old one, as if current; the desktop starts the merge afresh (R107-05).",
       "ref": "delta_adapter.py:462-468 (_merge_into_cache)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          63834.0,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "ask_qty",
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps its merged Delta cache (_merge_into_cache is never emptied), so the first ticker or book on the new connection goes out with the OHLC, OI, best bid and ask and book totals of the old one, as if current; the desktop starts the merge afresh (R107-05).",
       "ref": "delta_adapter.py:462-468 (_merge_into_cache)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          718,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "bid_price",
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps its merged Delta cache (_merge_into_cache is never emptied), so the first ticker or book on the new connection goes out with the OHLC, OI, best bid and ask and book totals of the old one, as if current; the desktop starts the merge afresh (R107-05).",
       "ref": "delta_adapter.py:462-468 (_merge_into_cache)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          63833.0,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "bid_qty",
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps its merged Delta cache (_merge_into_cache is never emptied), so the first ticker or book on the new connection goes out with the OHLC, OI, best bid and ask and book totals of the old one, as if current; the desktop starts the merge afresh (R107-05).",
       "ref": "delta_adapter.py:462-468 (_merge_into_cache)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          4388,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps its merged Delta cache (_merge_into_cache is never emptied), so the first ticker or book on the new connection goes out with the OHLC, OI, best bid and ask and book totals of the old one, as if current; the desktop starts the merge afresh (R107-05).",
       "ref": "delta_adapter.py:462-468 (_merge_into_cache)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          63839.0,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps its merged Delta cache (_merge_into_cache is never emptied), so the first ticker or book on the new connection goes out with the OHLC, OI, best bid and ask and book totals of the old one, as if current; the desktop starts the merge afresh (R107-05).",
       "ref": "delta_adapter.py:462-468 (_merge_into_cache)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          64475.5,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps its merged Delta cache (_merge_into_cache is never emptied), so the first ticker or book on the new connection goes out with the OHLC, OI, best bid and ask and book totals of the old one, as if current; the desktop starts the merge afresh (R107-05).",
       "ref": "delta_adapter.py:462-468 (_merge_into_cache)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          63217.5,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps its merged Delta cache (_merge_into_cache is never emptied), so the first ticker or book on the new connection goes out with the OHLC, OI, best bid and ask and book totals of the old one, as if current; the desktop starts the merge afresh (R107-05).",
       "ref": "delta_adapter.py:462-468 (_merge_into_cache)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1407713.0,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "After a reconnect the web keeps its merged Delta cache (_merge_into_cache is never emptied), so the first ticker or book on the new connection goes out with the OHLC, OI, best bid and ask and book totals of the old one, as if current; the desktop starts the merge afresh (R107-05).",
       "ref": "delta_adapter.py:462-468 (_merge_into_cache)",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          64025.0,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "Delta's ticker never carries average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
       "ref": "delta_adapter.py:584",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "oi_change",
       "kind": "web-defect",
       "reason": "Delta's ticker never carries oi change; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
       "ref": "delta_adapter.py:584",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web pads a short side of Delta's book to five zero levels Delta never sent; the desktop sends the levels Delta sent.",
       "ref": "delta_adapter.py:606-617",
-      "approval": "book-levels-as-sent"
+      "approval": "book-levels-as-sent",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 63833.0,
+                "quantity": 4388
+              },
+              {
+                "price": 63832.5,
+                "quantity": 200
+              },
+              {
+                "price": 63831.0,
+                "quantity": 75
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 63834.5,
+                "quantity": 718
+              },
+              {
+                "price": 63835.0,
+                "quantity": 120
+              },
+              {
+                "price": 63836.5,
+                "quantity": 40
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 63833.0,
+                "quantity": 4388
+              },
+              {
+                "price": 63832.5,
+                "quantity": 200
+              },
+              {
+                "price": 63831.0,
+                "quantity": 75
+              }
+            ],
+            "sell": [
+              {
+                "price": 63834.5,
+                "quantity": 718
+              },
+              {
+                "price": 63835.0,
+                "quantity": 120
+              },
+              {
+                "price": 63836.5,
+                "quantity": 40
+              }
+            ]
+          }
+        ]
+      ]
     },
     {
       "key": "ltp",
       "kind": "desktop-decision",
       "reason": "A depth frame keeps ltp (0 before the instrument's first price on this connection), which the SDK's Depth callback reads; the web's Delta book before a ticker has no ltp.",
       "ref": "feed::bridge::depth_update",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          0.0
+        ]
+      ]
+    },
+    {
+      "key": "ltp",
+      "cause": "stale-after-reconnect",
+      "allows": [
+        [
+          63838.06,
+          0.0
+        ]
+      ],
+      "kind": "web-defect",
+      "reason": "After the reconnect the web's Delta snapshot still holds the last connection's price and its book-only frame carries it; the desktop starts the connection afresh, so the Depth frame keeps ltp 0 until a price arrives on this connection.",
+      "ref": "feed::bridge::depth_update",
+      "approval": "merge-restart-on-reconnect"
     }
   ]
 }

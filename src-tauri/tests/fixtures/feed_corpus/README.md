@@ -382,7 +382,20 @@ A deviation names a rule of `approvals.json` (`"approval"`), and the rule's
 script has, or `any_of` several; `{}` covers everything) is written from the
 words of the decision and checked: a deviation the words do not cover is
 reported with the rule's scope. Fix the deviation or take it to whoever
-decided, never widen a scope to fit it. A
+decided, never widen a scope to fit it.
+
+A deviation also says which differences it covers (`allows`, written by
+`scripts/feed_corpus/predicates.py`, never by hand): a named class with no
+freedom in it (`zero-left-out`, `null-left-out`, `change-from-zero-ltp`,
+`same-shape`), or the exact `[web, desktop]` pair seen, a side with no value
+written `"<absent>"`. A value outside what was seen fails the case, and so
+does something allowed that no frame shows. When a key has more than one
+cause, it gets one deviation per cause, each with a `cause` label, its own
+reason and approval and its own `allows`; `predicates.py` regenerates only keys
+with a single deviation and checks split ones. After adding a case or changing
+a frame, run `web_expected.py`, then `predicates.py`.
+
+A
 key of a `random-values` deviation (allowed only for a synthetic feed,
 `dhan_sandbox`) is compared by presence and JSON type at every level (an object's keys, a list's length), not by value. Every
 key on which the desktop differs from the web must be declared:

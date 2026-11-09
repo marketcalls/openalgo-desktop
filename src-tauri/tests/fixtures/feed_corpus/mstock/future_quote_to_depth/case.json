@@ -34,9 +34,26 @@
     {
       "key": "oi",
       "kind": "web-defect",
-      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) over the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one, and then sends the last OI the instrument's full packet carried on this connection (feed/bridge/snapshot.rs merges by presence), never a 0 it was not sent.",
+      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one.",
       "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
+    },
+    {
+      "key": "oi",
+      "cause": "last-oi-kept",
+      "allows": [
+        [
+          0,
+          12500000
+        ]
+      ],
+      "kind": "web-defect",
+      "reason": "Once a full packet has carried open interest, the web's Quote packet still sends oi 0 over it; the desktop keeps the last OI the instrument's full packet carried on this connection.",
+      "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376",
+      "approval": "market-state-overlay"
     }
   ]
 }

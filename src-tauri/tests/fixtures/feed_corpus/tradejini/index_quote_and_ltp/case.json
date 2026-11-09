@@ -36,44 +36,84 @@
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",
+      "reason": "Where Tradejini sent no trade time the web sends ltt as \"\" in the LTP frame, text in a docs key that is epoch milliseconds; the desktop leaves the key out.",
       "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:815, :820, :845",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          "",
+          "<absent>"
+        ]
+      ]
+    },
+    {
+      "key": "ltt",
+      "cause": "null",
+      "allows": [
+        "null-left-out"
+      ],
+      "kind": "web-defect",
+      "reason": "Where Tradejini sent no trade time the web sends ltt as null (Quote, Depth); the desktop leaves the key out.",
+      "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:815, :820, :845",
+      "approval": "no-json-null"
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "An index has no trades: its L1 carries no ltq, and the web sends last_quantity 0 (message.get(\"ltq\", 0)), an invented zero; the desktop's index frame leaves it out (rules.md: no invented data).",
       "ref": "tradejini_adapter.py:826; lead ruling 2026-11-09",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "As last_quantity: an index L1 carries no atp, and the web sends average_price 0.",
       "ref": "tradejini_adapter.py:827",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "An index's L1 carries no OI; the web sends oi 0. The desktop's index frame carries no OI.",
       "ref": "tradejini_adapter.py:828",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "An index's L1 carries no volume; the web sends volume 0 (message.get(\"vol\", 0)), an invented zero. The desktop leaves it out.",
       "ref": "tradejini_adapter.py:821",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 2,
+            "client": "b"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

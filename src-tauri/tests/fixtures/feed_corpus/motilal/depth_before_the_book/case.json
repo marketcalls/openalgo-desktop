@@ -34,28 +34,119 @@
       "kind": "web-defect",
       "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
       "ref": "motilal_adapter.py _normalize_depth_data",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          25
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
       "ref": "motilal_adapter.py _normalize_depth_data",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          1298.25
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "Motilal sent no open interest for this cash scrip (no m packet; a cash scrip has none and its last-trade packet's OI slot is 0); the web's Depth dict sends oi 0 from a default (_normalize_depth_data: result['oi'] = 0 without an m packet); the desktop leaves it out.",
       "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs quote_tick",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "Motilal has sent book level 1 only; the web pads the four levels that never arrived with integer zeros ({\"price\": 0, \"quantity\": 0, \"orders\": 0}, _normalize_depth_data), invented levels; the desktop sends the level received (lead decision 2026-11-09: no invented level).",
       "ref": "motilal_adapter.py _normalize_depth_data",
-      "approval": "book-levels-as-sent"
+      "approval": "book-levels-as-sent",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 1300.0,
+                "quantity": 10,
+                "orders": 1
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 1301.0,
+                "quantity": 20,
+                "orders": 2
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 1300.0,
+                "quantity": 10,
+                "orders": 1
+              }
+            ],
+            "sell": [
+              {
+                "price": 1301.0,
+                "quantity": 20,
+                "orders": 2
+              }
+            ]
+          }
+        ]
+      ]
     }
   ]
 }

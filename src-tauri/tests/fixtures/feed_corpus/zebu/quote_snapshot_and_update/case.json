@@ -37,14 +37,30 @@
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Zebu Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
       "ref": "broker/zebu/streaming/zebu_adapter.py QuoteNormalizer",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          345678
+        ],
+        [
+          "<absent>",
+          346000
+        ]
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Zebu Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
       "ref": "broker/zebu/streaming/zebu_adapter.py QuoteNormalizer",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          298765
+        ]
+      ]
     }
   ]
 }

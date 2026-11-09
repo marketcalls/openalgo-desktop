@@ -33,21 +33,258 @@
       "kind": "web-defect",
       "reason": "Sahi sent no open interest for this instrument (open_interest, a proto3 optional, is off its ticks); the web publishes oi 0 for it (sahi_mapping.py build_quote_payload), a number the exchange never sent. The desktop leaves it out (docs: a field the stream does not carry is left out; decisions.md).",
       "ref": "sahi_mapping.py:129",
-      "approval": "index-depth"
+      "approval": "index-depth",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "The web's alias of oi, sent as 0 with it for an instrument whose ticks carry no open interest; left out with oi (see oi).",
       "ref": "sahi_mapping.py:130",
-      "approval": "index-depth"
+      "approval": "index-depth",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "web pads each side to five rows of price 0.0 (sahi_mapping.py::_depth_side); docs: buy/sell are the broker's levels; never invent zero prices (decisions.md). The padding is the adapter's own: Sahi's DepthTick carries only the levels holding orders, as repeated best_buys (field 11) and best_sells (field 12) entries with no fixed empty slots (sahi_proto.py:228-231; sahi_mapping.py:99). The desktop keeps every level Sahi sent, up to five.",
       "ref": "sahi_proto.py:228-231; sahi_mapping.py:94-102; docs/api/websocket-streaming/depth.md:166-179",
-      "approval": "book-levels-as-sent"
+      "approval": "book-levels-as-sent",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [],
+            "sell": []
+          }
+        ],
+        [
+          {
+            "buy": [
+              {
+                "price": 1290.5,
+                "quantity": 20,
+                "orders": 2
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 1291.0,
+                "quantity": 10,
+                "orders": 1
+              },
+              {
+                "price": 1291.05,
+                "quantity": 20,
+                "orders": 2
+              },
+              {
+                "price": 1291.1,
+                "quantity": 30,
+                "orders": 3
+              },
+              {
+                "price": 1291.15,
+                "quantity": 40,
+                "orders": 4
+              },
+              {
+                "price": 1291.2,
+                "quantity": 50,
+                "orders": 5
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 1290.5,
+                "quantity": 20,
+                "orders": 2
+              }
+            ],
+            "sell": [
+              {
+                "price": 1291.0,
+                "quantity": 10,
+                "orders": 1
+              },
+              {
+                "price": 1291.05,
+                "quantity": 20,
+                "orders": 2
+              },
+              {
+                "price": 1291.1,
+                "quantity": 30,
+                "orders": 3
+              },
+              {
+                "price": 1291.15,
+                "quantity": 40,
+                "orders": 4
+              },
+              {
+                "price": 1291.2,
+                "quantity": 50,
+                "orders": 5
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "buy": [
+              {
+                "price": 1290.0,
+                "quantity": 50,
+                "orders": 3
+              },
+              {
+                "price": 1289.95,
+                "quantity": 10,
+                "orders": 1
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 1290.0,
+                "quantity": 50,
+                "orders": 3
+              },
+              {
+                "price": 1289.95,
+                "quantity": 10,
+                "orders": 1
+              }
+            ],
+            "sell": []
+          }
+        ]
+      ]
     }
   ]
 }

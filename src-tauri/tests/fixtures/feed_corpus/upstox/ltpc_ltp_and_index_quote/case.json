@@ -42,7 +42,13 @@
       "kind": "desktop-decision",
       "reason": "The web's Upstox LTP payload carries no timestamp; the docs' LTP frame does (docs/prompt/websockets-format.md, LTP: ltp and timestamp), and the docs rank above the adapter, so the desktop keeps it.",
       "ref": "docs/prompt/websockets-format.md; upstox_adapter.py:887-892",
-      "approval": "bk-a-final-approvals"
+      "approval": "bk-a-final-approvals",
+      "allows": [
+        [
+          "<absent>",
+          1740729566400
+        ]
+      ]
     }
   ]
 }

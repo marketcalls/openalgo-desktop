@@ -31,28 +31,221 @@
       "kind": "web-defect",
       "reason": "The web pads a short side of Nubra's book to five zero levels (price 0, an integer) Nubra never sent; the desktop sends the levels Nubra sent.",
       "ref": "nubra_adapter.py:870-875",
-      "approval": "book-levels-as-sent"
+      "approval": "book-levels-as-sent",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 1301.0,
+                "quantity": 10,
+                "orders": 1
+              },
+              {
+                "price": 1300.5,
+                "quantity": 20,
+                "orders": 2
+              },
+              {
+                "price": 1300.0,
+                "quantity": 30,
+                "orders": 3
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 1301.5,
+                "quantity": 15,
+                "orders": 1
+              },
+              {
+                "price": 1302.0,
+                "quantity": 25,
+                "orders": 2
+              },
+              {
+                "price": 1302.5,
+                "quantity": 35,
+                "orders": 4
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "orders": 1,
+                "price": 1301.0,
+                "quantity": 10
+              },
+              {
+                "orders": 2,
+                "price": 1300.5,
+                "quantity": 20
+              },
+              {
+                "orders": 3,
+                "price": 1300.0,
+                "quantity": 30
+              }
+            ],
+            "sell": [
+              {
+                "orders": 1,
+                "price": 1301.5,
+                "quantity": 15
+              },
+              {
+                "orders": 2,
+                "price": 1302.0,
+                "quantity": 25
+              },
+              {
+                "orders": 4,
+                "price": 1302.5,
+                "quantity": 35
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "buy": [
+              {
+                "price": 1301.1,
+                "quantity": 12,
+                "orders": 1
+              },
+              {
+                "price": 1300.6,
+                "quantity": 22,
+                "orders": 2
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "orders": 1,
+                "price": 1301.1,
+                "quantity": 12
+              },
+              {
+                "orders": 2,
+                "price": 1300.6,
+                "quantity": 22
+              }
+            ],
+            "sell": []
+          }
+        ]
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "Nubra's order book carries the last traded quantity; the web drops it from the frames it builds on the book, the desktop keeps it (lost data).",
       "ref": "nubra_adapter.py:878-892",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          3
+        ],
+        [
+          "<absent>",
+          5
+        ]
+      ]
     },
     {
       "key": "ask",
       "kind": "web-defect",
       "reason": "The book has no asks after this message; the web sends ask 0, the desktop leaves the key out (a side the book does not have is not a price; R107-06, the review: omission is the authorized alternative to the zero).",
       "ref": "nubra_adapter.py:878-892",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "client": "a"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

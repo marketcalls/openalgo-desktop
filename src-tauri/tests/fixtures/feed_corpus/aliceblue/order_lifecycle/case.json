@@ -14,7 +14,17 @@
       "kind": "web-defect",
       "reason": "The web's order stream sends AliceBlue's product code raw (INTRADAY, LONGTERM), not OpenAlgo's MIS, CNC, NRML (docs/prompt/order-constants.md), although its own REST order book maps the same codes (transform_data.py reverse_map_product_type). The desktop maps them as that book does; a code AliceBlue has not documented passes as it came.",
       "ref": "aliceblue_order_adapter.py:200; audit appendix item 9",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "INTRADAY",
+          "MIS"
+        ],
+        [
+          "LONGTERM",
+          "CNC"
+        ]
+      ]
     }
   ],
   "instruments": [

@@ -37,14 +37,26 @@
       "kind": "web-defect",
       "reason": "The web stamps the 50-level frame with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
       "ref": "fyers_mapping.py:307",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          "<receipt_s>",
+          "<receipt_ms>"
+        ]
+      ]
     },
     {
       "key": "update_type",
       "kind": "desktop-decision",
       "reason": "The 50-level book frame carries the instrument's latest quote, the quote's update_type with it (1.0.6 decision, kept: the depth frame keeps ltp, timestamp and the latest quote); the web's TBT frame has the book's keys alone.",
       "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS",
-      "approval": "per-broker-wire-shape"
+      "approval": "per-broker-wire-shape",
+      "allows": [
+        [
+          "<absent>",
+          "snapshot"
+        ]
+      ]
     }
   ]
 }

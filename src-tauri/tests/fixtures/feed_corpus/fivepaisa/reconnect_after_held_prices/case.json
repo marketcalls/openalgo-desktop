@@ -34,56 +34,108 @@
       "kind": "web-defect",
       "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
       "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          445.5,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
       "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          447.2,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
       "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          439.5,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
       "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          442.9,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
       "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          441.3,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "bid_price",
       "kind": "web-defect",
       "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
       "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          440.0,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "ask_price",
       "kind": "web-defect",
       "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
       "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          440.2,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "missing-frame",
       "kind": "web-defect",
       "reason": "After the reconnect 5paisa's first frame reports 0 for every price: the web publishes a quote with its pre-outage prices as current (its last_snapshot survives the reconnect); the desktop starts the new connection afresh and publishes nothing without a traded price (lead decision: restarting the merge after a reconnect is a desktop improvement).",
       "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          {
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 2
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

@@ -39,7 +39,17 @@
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
       "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          "1730784000",
+          1730784000000
+        ],
+        [
+          "1730784002",
+          1730784002000
+        ]
+      ]
     }
   ]
 }

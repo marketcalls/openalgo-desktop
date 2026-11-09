@@ -34,7 +34,10 @@
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). A trade time of 0 is no trade yet; the web passes the 0 on as ltt, the desktop leaves ltt out and never puts the receipt time in its place (lead decision 2026-11-09, review round).",
       "ref": "pocketful_adapter.py:583",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

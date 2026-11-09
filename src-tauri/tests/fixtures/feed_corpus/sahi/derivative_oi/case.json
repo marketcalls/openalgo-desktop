@@ -42,14 +42,101 @@
       "kind": "web-defect",
       "reason": "web pads each side to five rows of price 0.0 (sahi_mapping.py::_depth_side); docs: buy/sell are the broker's levels; never invent zero prices (decisions.md). The padding is the adapter's own: Sahi's DepthTick carries only the levels holding orders, as repeated best_buys (field 11) and best_sells (field 12) entries with no fixed empty slots (sahi_proto.py:228-231; sahi_mapping.py:99). The desktop keeps every level Sahi sent, up to five.",
       "ref": "sahi_proto.py:228-231; sahi_mapping.py:94-102; docs/api/websocket-streaming/depth.md:166-179",
-      "approval": "book-levels-as-sent"
+      "approval": "book-levels-as-sent",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 24704.5,
+                "quantity": 75,
+                "orders": 3
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 24705.5,
+                "quantity": 150,
+                "orders": 2
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 24704.5,
+                "quantity": 75,
+                "orders": 3
+              }
+            ],
+            "sell": [
+              {
+                "price": 24705.5,
+                "quantity": 150,
+                "orders": 2
+              }
+            ]
+          }
+        ]
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": 3,
+            "client": "a"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

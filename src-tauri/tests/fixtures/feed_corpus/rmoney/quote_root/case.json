@@ -50,7 +50,13 @@
       "kind": "web-defect",
       "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
       "ref": "rmoney_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1478686562,
+          1794199562000
+        ]
+      ]
     }
   ]
 }

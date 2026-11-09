@@ -38,91 +38,162 @@
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsky_adapter.py:435-439",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "change",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no last traded price (proto3 0); the web publishes ltp 0 and a change of ltp - close from it (-1495.0, -100.0%), a price and a change no trade made. The desktop marks the price absent: no LTP or Quote frame, and the Depth frame keeps ltp 0 with no change. Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
       "ref": "hdfcsky_adapter.py:425-432; investright::finish",
-      "approval": "do-not-invent-data"
+      "approval": "do-not-invent-data",
+      "allows": [
+        "change-from-zero-ltp"
+      ]
     },
     {
       "key": "change_percent",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no last traded price (proto3 0); the web publishes ltp 0 and a change of ltp - close from it (-1495.0, -100.0%), a price and a change no trade made. The desktop marks the price absent: no LTP or Quote frame, and the Depth frame keeps ltp 0 with no change. Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
       "ref": "hdfcsky_adapter.py:425-432; investright::finish",
-      "approval": "do-not-invent-data"
+      "approval": "do-not-invent-data",
+      "allows": [
+        "change-from-zero-ltp"
+      ]
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsky_adapter.py:435-439",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsky_adapter.py:435-439",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsky_adapter.py:435-439",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "Two causes, one key. Before the first trade the packet has no lastTradeTime and the web sends its packet time as ltt (a time no trade happened at), where the desktop leaves ltt out; on the traded packets the web sends lastTradeTime in epoch seconds unconverted, where the desktop sends ms. Lead decisions: the trade-time fallback is absent; ltt in seconds -> ms (wrong unit).",
+      "reason": "Before the first trade the packet has no lastTradeTime and the web sends its packet time as ltt, a time no trade happened at; the desktop leaves ltt out.",
       "ref": "hdfcsky_adapter.py:421; investright::set_trade_time",
-      "approval": "do-not-invent-data"
+      "approval": "do-not-invent-data",
+      "allows": [
+        [
+          1699999990000,
+          "<absent>"
+        ]
+      ]
+    },
+    {
+      "key": "ltt",
+      "cause": "seconds-as-ms",
+      "allows": [
+        [
+          1700000000,
+          1700000000000
+        ]
+      ],
+      "kind": "web-defect",
+      "reason": "On the traded packets the web sends the broker's trade time in epoch seconds as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); the desktop sends ms.",
+      "ref": "hdfcsky_adapter.py:421; investright::set_trade_time",
+      "approval": "alias-unit"
     },
     {
       "key": "missing-frame",
       "kind": "web-defect",
       "reason": "Before the first trade the web publishes a Quote frame with ltp 0 and a change from it; the desktop sends a Quote holder no frame with a zero price (the book goes to the Depth holder). Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
       "ref": "hdfcsky_adapter.py:425-432; investright::finish",
-      "approval": "no-price-packet"
+      "approval": "no-price-packet",
+      "allows": [
+        [
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2
+          },
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsky_adapter.py:435-439",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no open, high, low, volume, last quantity or average price (proto3 0); the web publishes them as 0 in the Depth frame; the desktop leaves them out (feed/bridge/snapshot.rs sent_without_price). Lead decision: web zeros for values the stream did not send, web defect.",
       "ref": "hdfcsky_adapter.py:435-439",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "client": "a"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

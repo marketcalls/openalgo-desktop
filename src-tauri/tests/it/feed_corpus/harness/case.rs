@@ -445,7 +445,7 @@ pub(crate) struct Case {
     pub(crate) by_hand: bool,
     /// The `data` keys (or `frame`, `missing-frame`) on which the desktop
     /// may differ from the web.
-    pub(crate) deviations: Vec<String>,
+    pub(crate) deviations: Vec<Deviation>,
     /// The deviations of kind `random-values`.
     pub(crate) random: BTreeSet<String>,
     /// What must hold of the random values (`invariants.rs`).
@@ -603,11 +603,11 @@ impl Case {
             upstream_ignore: strings(&at, "upstream_ignore", o.get("upstream_ignore")),
             web_sha,
             by_hand,
-            deviations: deviations.iter().map(|(k, _)| k.clone()).collect(),
+            deviations: deviations.iter().map(|(d, _)| d.clone()).collect(),
             random: deviations
                 .iter()
                 .filter(|(_, kind)| kind == RANDOM_VALUES)
-                .map(|(k, _)| k.clone())
+                .map(|(d, _)| d.key.clone())
                 .collect(),
             invariants: invariants::parse(&at, o.get("invariants")),
             id,
@@ -744,7 +744,7 @@ fn refusals_at_start(steps: &mut Vec<Step>) -> BTreeMap<Socket, (u16, usize)> {
 
 /// The keys the deviations cover, with their kinds, after checking each
 /// is complete (`deviation_problems`).
-fn deviations(at: &str, facts: &CaseFacts, v: Option<&Value>) -> Vec<(String, String)> {
+fn deviations(at: &str, facts: &CaseFacts, v: Option<&Value>) -> Vec<(Deviation, String)> {
     let problems = deviation_problems(facts, v);
     if !problems.is_empty() {
         bad(at, problems.join("\n  "));
@@ -754,15 +754,57 @@ fn deviations(at: &str, facts: &CaseFacts, v: Option<&Value>) -> Vec<(String, St
         .flatten()
         .map(|d| {
             let text = |k: &str| d[k].as_str().unwrap_or_default().to_string();
-            (text("key"), text("kind"))
+            let deviation = Deviation {
+                key: text("key"),
+                allows: d["allows"].as_array().cloned().unwrap_or_default(),
+            };
+            (deviation, text("kind"))
         })
         .collect()
 }
 
+/// A difference from the web a case declares: its key, and which values it
+/// covers (`scripts/feed_corpus/predicates.py`).
+#[derive(Debug, Clone)]
+pub(crate) struct Deviation {
+    pub(crate) key: String,
+    pub(crate) allows: Vec<Value>,
+}
+
 /// The fields a deviation may have.
 const DEVIATION_FIELDS: &[&str] = &[
-    "key", "kind", "reason", "ref", "approved", "approval", "web", "desktop",
+    "key", "cause", "allows", "kind", "reason", "ref", "approved", "approval", "web", "desktop",
 ];
+
+/// The named classes a deviation's `allows` may list (`harness/web.rs`).
+const ALLOW_CLASSES: &[&str] = &[
+    "same-shape",
+    "zero-left-out",
+    "null-left-out",
+    "change-from-zero-ltp",
+];
+
+/// What is wrong with a deviation's `allows`, if anything.
+fn allows_problem(name: &str, allows: Option<&Value>) -> Option<String> {
+    let list = allows.and_then(Value::as_array).filter(|l| !l.is_empty());
+    let Some(list) = list else {
+        return Some(format!(
+            "{} has no \"allows\" (run scripts/feed_corpus/predicates.py)",
+            name
+        ));
+    };
+    let well_formed = |a: &Value| match a {
+        Value::String(class) => ALLOW_CLASSES.contains(&class.as_str()),
+        Value::Array(pair) => pair.len() == 2,
+        _ => false,
+    };
+    list.iter().find(|a| !well_formed(a)).map(|a| {
+        format!(
+            "{}: \"allows\" lists {}, neither a named class nor a [web, desktop] pair",
+            name, a
+        )
+    })
+}
 
 /// What a rule's scope is checked against: the case's broker, whether it
 /// has an index instrument and a non-index one, and its kinds of step.
@@ -858,15 +900,21 @@ pub(crate) fn deviation_problems(facts: &CaseFacts, v: Option<&Value>) -> Vec<St
         if o.get("approved").is_some_and(|a| !a.is_boolean()) {
             out.push(format!("{}: approved is true or false", name));
         }
+        out.extend(allows_problem(&name, o.get("allows")));
         if let Some(a) = o.get("approval") {
-            if let Some(p) = approvals::problem(a, facts, key.unwrap_or_default(), kind) {
+            let allows = o
+                .get("allows")
+                .and_then(Value::as_array)
+                .map_or(&[][..], Vec::as_slice);
+            if let Some(p) = approvals::problem(a, facts, key.unwrap_or_default(), kind, allows) {
                 out.push(format!("{}: {}", name, p));
             }
             if kind == "open" {
                 out.push(format!("{}: an open gap is never approved", name));
             }
         }
-        if key.is_some_and(|k| !seen.insert(k)) {
+        let cause = o.get("cause").and_then(Value::as_str).unwrap_or_default();
+        if key.is_some_and(|k| !seen.insert((k, cause))) {
             out.push(format!("{} is listed twice", name));
         }
     }

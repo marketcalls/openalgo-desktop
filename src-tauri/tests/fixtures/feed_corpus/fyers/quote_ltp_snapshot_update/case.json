@@ -34,21 +34,41 @@
       "kind": "web-defect",
       "reason": "The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
       "ref": "fyers_mapping.py:178; fyers_adapter.py:553",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          "<receipt_s>",
+          "<receipt_ms>"
+        ]
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The web sends oi 0 for an equity whose HSM record carried no OI (fyers_data.get('OI', 0)); a field the stream does not carry is left out, never sent as 0 (web openalgo#2376), as the desktop does.",
       "ref": "fyers_mapping.py:163",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 2,
+            "client": "b"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

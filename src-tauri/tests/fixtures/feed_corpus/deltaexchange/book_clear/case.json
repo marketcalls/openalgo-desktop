@@ -32,21 +32,159 @@
       "kind": "web-defect",
       "reason": "Delta's ticker never carries average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
       "ref": "delta_adapter.py:584",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "oi_change",
       "kind": "web-defect",
       "reason": "Delta's ticker never carries an OI change; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
       "ref": "delta_adapter.py:584",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web pads a short or empty side of Delta's book to five zero levels Delta never sent; the desktop sends the levels Delta sent (an emptied side is an empty list).",
       "ref": "delta_adapter.py:606-617",
-      "approval": "book-levels-as-sent"
+      "approval": "book-levels-as-sent",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              }
+            ]
+          },
+          {
+            "buy": [],
+            "sell": []
+          }
+        ],
+        [
+          {
+            "buy": [
+              {
+                "price": 63833.0,
+                "quantity": 4388
+              },
+              {
+                "price": 63832.5,
+                "quantity": 200
+              },
+              {
+                "price": 63831.0,
+                "quantity": 75
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 63834.5,
+                "quantity": 718
+              },
+              {
+                "price": 63835.0,
+                "quantity": 120
+              },
+              {
+                "price": 63836.5,
+                "quantity": 40
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 63833.0,
+                "quantity": 4388
+              },
+              {
+                "price": 63832.5,
+                "quantity": 200
+              },
+              {
+                "price": 63831.0,
+                "quantity": 75
+              }
+            ],
+            "sell": [
+              {
+                "price": 63834.5,
+                "quantity": 718
+              },
+              {
+                "price": 63835.0,
+                "quantity": 120
+              },
+              {
+                "price": 63836.5,
+                "quantity": 40
+              }
+            ]
+          }
+        ]
+      ]
     }
   ]
 }

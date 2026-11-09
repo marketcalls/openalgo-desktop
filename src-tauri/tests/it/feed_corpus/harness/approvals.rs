@@ -20,7 +20,14 @@ const SUPERSEDED_BY: &str = "superseded_by";
 /// What a decision applies to, in its own words.
 const SCOPE: &str = "scope";
 /// The fields of a scope's clause, and `any_of` of several clauses.
-const SCOPE_FIELDS: &[&str] = &["brokers", "keys", "kinds", "instrument", "after_step"];
+const SCOPE_FIELDS: &[&str] = &[
+    "brokers",
+    "keys",
+    "kinds",
+    "allows",
+    "instrument",
+    "after_step",
+];
 const ANY_OF: &str = "any_of";
 /// Who may approve.
 const DECIDERS: &[&str] = &["lead", "maintainer"];
@@ -54,7 +61,7 @@ fn pattern_matches(pattern: &str, value: &str) -> bool {
 }
 
 /// Is this deviation within one clause of a rule's scope?
-fn clause_fits(clause: &Value, facts: &CaseFacts, key: &str, kind: &str) -> bool {
+fn clause_fits(clause: &Value, facts: &CaseFacts, key: &str, kind: &str, allows: &[Value]) -> bool {
     let named = |field: &str, value: &str| {
         clause.get(field).and_then(Value::as_array).is_none_or(|l| {
             l.iter()
@@ -71,18 +78,25 @@ fn clause_fits(clause: &Value, facts: &CaseFacts, key: &str, kind: &str) -> bool
         .get("after_step")
         .and_then(Value::as_str)
         .is_none_or(|s| facts.steps.contains(s));
+    let only_these = clause
+        .get("allows")
+        .and_then(Value::as_array)
+        .is_none_or(|l| allows.iter().all(|a| l.contains(a)));
     named("brokers", &facts.broker)
         && named("keys", key)
         && named("kinds", kind)
+        && only_these
         && instrument
         && after_step
 }
 
 /// Is this deviation within the words of its rule?
-fn in_scope(scope: &Value, facts: &CaseFacts, key: &str, kind: &str) -> bool {
+fn in_scope(scope: &Value, facts: &CaseFacts, key: &str, kind: &str, allows: &[Value]) -> bool {
     match scope.get(ANY_OF).and_then(Value::as_array) {
-        Some(clauses) => clauses.iter().any(|c| clause_fits(c, facts, key, kind)),
-        None => clause_fits(scope, facts, key, kind),
+        Some(clauses) => clauses
+            .iter()
+            .any(|c| clause_fits(c, facts, key, kind, allows)),
+        None => clause_fits(scope, facts, key, kind, allows),
     }
 }
 
@@ -94,6 +108,7 @@ pub(crate) fn problem(
     facts: &CaseFacts,
     key: &str,
     kind: &str,
+    allows: &[Value],
 ) -> Option<String> {
     let Some(r) = approval.as_str() else {
         return Some("\"approval\" is the name of a rule in approvals.json".into());
@@ -108,7 +123,7 @@ pub(crate) fn problem(
         ));
     }
     let scope = rule.get(SCOPE).unwrap_or(&Value::Null);
-    (!in_scope(scope, facts, key, kind)).then(|| {
+    (!in_scope(scope, facts, key, kind, allows)).then(|| {
         format!(
             "rule \"{}\" does not cover this deviation (its scope: {})",
             r, scope
@@ -126,7 +141,7 @@ fn clause_problems(id: &str, clause: &Value) -> Vec<String> {
         .filter(|k| !SCOPE_FIELDS.contains(&k.as_str()))
         .map(|k| format!("rule {}: \"{}\" is not a field of a scope", id, k))
         .collect();
-    for field in ["brokers", "keys", "kinds"] {
+    for field in ["brokers", "keys", "kinds", "allows"] {
         let bad_list = o.get(field).is_some_and(|v| {
             !v.as_array()
                 .is_some_and(|l| !l.is_empty() && l.iter().all(Value::is_string))
@@ -233,7 +248,7 @@ mod tests {
     #[test]
     fn an_approval_names_a_rule_in_force() {
         let facts = CaseFacts::new("zerodha", None, "");
-        let check = |rule: Value| problem(&rule, &facts, "ltp", "web-defect");
+        let check = |rule: Value| problem(&rule, &facts, "ltp", "web-defect", &[]);
         assert_eq!(check(json!("leave-out-unsent")), None);
         assert!(check(json!("my-own-idea")).is_some_and(|p| p.contains("no rule")));
         assert!(check(json!(true)).is_some());
@@ -263,8 +278,8 @@ mod tests {
             "",
         );
         let rule = json!("no-packet-time-as-trade-time");
-        assert_eq!(problem(&rule, &index, "ltt", "web-defect"), None);
-        let out_of_words = problem(&rule, &equity, "ltt", "web-defect");
+        assert_eq!(problem(&rule, &index, "ltt", "web-defect", &[]), None);
+        let out_of_words = problem(&rule, &equity, "ltt", "web-defect", &[]);
         assert!(
             out_of_words
                 .as_deref()
@@ -272,9 +287,24 @@ mod tests {
             "{:?}",
             out_of_words
         );
-        assert!(problem(&rule, &index, "ltp", "web-defect").is_some());
-        assert!(problem(&rule, &index, "ltt", "desktop-decision").is_some());
+        assert!(problem(&rule, &index, "ltp", "web-defect", &[]).is_some());
+        assert!(problem(&rule, &index, "ltt", "desktop-decision", &[]).is_some());
         let dhan = json!("dhan-f32-shortest-decimal");
-        assert!(problem(&dhan, &equity, "ltp", "web-defect").is_some());
+        assert!(problem(&dhan, &equity, "ltp", "web-defect", &[]).is_some());
+    }
+
+    /// The lead's ruling on `do-not-invent-data`: under it a `change` must be
+    /// the one computed from the invented zero, never a real change value.
+    #[test]
+    fn a_rule_can_fix_what_a_deviation_allows() {
+        let facts = CaseFacts::new("hdfcsky", None, "");
+        let rule = json!("do-not-invent-data");
+        let derived = [json!("change-from-zero-ltp")];
+        assert_eq!(
+            problem(&rule, &facts, "change", "web-defect", &derived),
+            None
+        );
+        let a_real_value = [json!([-5.0, "<absent>"])];
+        assert!(problem(&rule, &facts, "change", "web-defect", &a_real_value).is_some());
     }
 }

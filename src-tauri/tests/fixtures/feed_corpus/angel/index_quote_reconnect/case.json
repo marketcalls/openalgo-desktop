@@ -37,35 +37,50 @@
       "kind": "web-defect",
       "reason": "An index has no trades or book: the web sends the packet's zero last quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
       "ref": "lead decision 2026-11-09 (index zeros)",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
       "reason": "An index has no trades or book: the web sends the packet's zero last trade quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
       "ref": "lead decision 2026-11-09 (index zeros)",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "An index has no trades or book: the web sends the packet's zero average price for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
       "ref": "lead decision 2026-11-09 (index zeros)",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "An index has no trades or book: the web sends the packet's zero total buy quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
       "ref": "lead decision 2026-11-09 (index zeros)",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "An index has no trades or book: the web sends the packet's zero total sell quantity for it, the desktop leaves it out, as the lead decided for values the stream does not carry (Kotak index volume and totals; docs: leave out).",
       "ref": "lead decision 2026-11-09 (index zeros)",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

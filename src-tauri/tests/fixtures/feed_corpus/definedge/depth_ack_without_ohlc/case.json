@@ -36,56 +36,218 @@
       "kind": "web-defect",
       "reason": "The web drops a depth acknowledgement without OHLC before caching it, so a Depth subscriber gets nothing for the book Definedge sent; the desktop frames it.",
       "ref": "definedge_adapter.py:809-821",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3
+          }
+        ]
+      ]
     },
     {
       "key": "ask",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best ask price; the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          1391.5
+        ]
+      ]
     },
     {
       "key": "ask_qty",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best ask quantity; the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          90
+        ]
+      ]
     },
     {
       "key": "bid",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best bid price; the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          1390.0
+        ]
+      ]
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821), so it builds the next Depth frame from the update alone: every level but the one updated quantity reads 0 (price 0.0 at level one), zeros Definedge never sent. The desktop keeps the acknowledged book and applies the update to it.",
       "ref": "definedge_adapter.py:809-821, :1148-1193",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 0.0,
+                "quantity": 150,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0.0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "price": 1390.0,
+                "quantity": 150,
+                "orders": 4
+              },
+              {
+                "price": 1389.95,
+                "quantity": 80,
+                "orders": 3
+              },
+              {
+                "price": 1389.9,
+                "quantity": 60,
+                "orders": 2
+              },
+              {
+                "price": 1389.85,
+                "quantity": 40,
+                "orders": 2
+              },
+              {
+                "price": 1389.8,
+                "quantity": 20,
+                "orders": 1
+              }
+            ],
+            "sell": [
+              {
+                "price": 1391.5,
+                "quantity": 90,
+                "orders": 3
+              },
+              {
+                "price": 1391.55,
+                "quantity": 70,
+                "orders": 3
+              },
+              {
+                "price": 1391.6,
+                "quantity": 50,
+                "orders": 2
+              },
+              {
+                "price": 1391.65,
+                "quantity": 30,
+                "orders": 1
+              },
+              {
+                "price": 1391.7,
+                "quantity": 10,
+                "orders": 1
+              }
+            ]
+          }
+        ]
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
       "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          "1730776510",
+          1730776510000
+        ]
+      ]
     },
     {
       "key": "total_sell_qty",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the sell total (its Depth name); the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          4200
+        ]
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the sell total; the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          4200
+        ]
+      ]
     }
   ]
 }

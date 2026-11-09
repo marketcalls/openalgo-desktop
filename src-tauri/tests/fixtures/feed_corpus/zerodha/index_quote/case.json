@@ -34,7 +34,13 @@
       "kind": "web-defect",
       "reason": "Kite's index packet carries the change but not the percent; the web sends 0 (zerodha_adapter.py:626, tick.get('price_change_percent', 0)), the desktop works it out from the change and the previous close (200.10 / 24300 = 0.82%).",
       "ref": "zerodha_adapter.py:626",
-      "approval": "zerodha-dhan-web-defects"
+      "approval": "zerodha-dhan-web-defects",
+      "allows": [
+        [
+          0,
+          0.82
+        ]
+      ]
     }
   ]
 }

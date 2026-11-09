@@ -39,56 +39,88 @@
       "kind": "web-defect",
       "reason": "Noren's index touchline carries no average price; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "Noren's index touchline carries no last quantity; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_trade_time",
       "kind": "web-defect",
       "reason": "The frame carries no ltt: the web's TradeSmart adapter sends last_trade_time as null (data.get(ltt)); the desktop sends no null keys and leaves it out (lead ruling 2026-11-09).",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers (last_trade_time = data.get(ltt))",
-      "approval": "no-json-null"
+      "approval": "no-json-null",
+      "allows": [
+        "null-left-out"
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "Noren's index touchline carries no book totals; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py _normalize_market_data",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "Noren's index touchline carries no book totals; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py _normalize_market_data",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "Noren's index touchline carries no volume; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
-      "approval": "index-quote-zero-left-out"
+      "approval": "index-quote-zero-left-out",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 2,
+            "client": "a"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

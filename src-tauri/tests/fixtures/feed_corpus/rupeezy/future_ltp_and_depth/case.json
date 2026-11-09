@@ -42,49 +42,93 @@
       "kind": "desktop-decision",
       "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
       "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          "<absent>",
+          24520.0
+        ]
+      ]
     },
     {
       "key": "prev_close",
       "kind": "desktop-decision",
       "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
       "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          "<absent>",
+          24520.0
+        ]
+      ]
     },
     {
       "key": "change",
       "kind": "desktop-decision",
       "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
       "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          "<absent>",
+          87.25
+        ]
+      ]
     },
     {
       "key": "change_percent",
       "kind": "desktop-decision",
       "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
       "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          "<absent>",
+          0.36
+        ]
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends null; the docs say leave it out (lead decision 2026-11-09, 4(c)): an ltp packet, or an ohlcv packet before the first trade, carries no trade time, so the desktop's frame has no ltt, where the web sends ltt null.",
       "ref": "rupeezy_adapter.py:222",
-      "approval": "no-json-null"
+      "approval": "no-json-null",
+      "allows": [
+        "null-left-out"
+      ]
     },
     {
       "key": "timestamp",
       "kind": "web-defect",
       "reason": "Without a trade time or update time the web sends timestamp null, a market data frame with no time (the SDK reads data.timestamp); the desktop stamps the time the packet was received.",
       "ref": "rupeezy_adapter.py:223 ((last_update_time or ltt or 0) * 1000 or None)",
-      "approval": "no-json-null"
+      "approval": "no-json-null",
+      "allows": [
+        [
+          null,
+          "<receipt_ms>"
+        ]
+      ]
     },
     {
       "key": "fan-out",
       "kind": "desktop-decision",
       "reason": "The web's server also sends this client a richer mode's publication of the instrument, beyond the modes it holds; the desktop sends one frame per held mode.",
       "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
-      "approval": "one-frame-per-held-mode"
+      "approval": "one-frame-per-held-mode",
+      "allows": [
+        [
+          {
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "mode": 3,
+            "client": "a"
+          },
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

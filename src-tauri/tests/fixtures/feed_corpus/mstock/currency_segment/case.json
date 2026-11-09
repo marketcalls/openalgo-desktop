@@ -36,7 +36,17 @@
       "kind": "web-defect",
       "reason": "The web takes the exchange type from the master row's broker exchange (mstock_adapter.py:252-253), which mStock's master keeps as NSE for currency rows (master_contract_db.py:323), so it subscribes a currency contract on the cash segment (type 1) and the currency packet (type 13) reaches no subscription: the trader gets no data. The desktop takes it from the OpenAlgo exchange (brokers/mstock/streaming.rs:294-297).",
       "ref": "mstock_mapping.py EXCHANGE_TYPES; brokers/mstock/streaming.rs exchange_type",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          {
+            "symbol": "USDINR25NOV26FUT",
+            "exchange": "CDS",
+            "mode": 2
+          }
+        ]
+      ]
     }
   ]
 }

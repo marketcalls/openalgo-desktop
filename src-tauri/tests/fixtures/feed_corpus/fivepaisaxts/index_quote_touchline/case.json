@@ -53,70 +53,118 @@
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends average_price as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends close as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        [
+          0,
+          24280.1
+        ]
+      ]
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends high as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        [
+          0,
+          24390.0
+        ]
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends last_quantity as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends low as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        [
+          0,
+          24275.35
+        ]
+      ]
     },
     {
       "key": "ltp",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends ltp as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        [
+          0,
+          24350.65
+        ]
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends ltt as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        [
+          0,
+          1794199530000
+        ]
+      ]
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends open as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        [
+          0,
+          24301.2
+        ]
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends total_buy_quantity as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends total_sell_quantity as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",
       "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901",
-      "approval": "per-packet-number-type"
+      "approval": "per-packet-number-type",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

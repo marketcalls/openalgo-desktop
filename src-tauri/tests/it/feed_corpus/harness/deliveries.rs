@@ -42,6 +42,14 @@ pub(crate) struct Paired<'a> {
     pub(crate) delivery: &'a Delivery,
 }
 
+/// The web's fan-out beyond a client's held modes.
+#[derive(Debug, Clone)]
+pub(crate) struct FanOut {
+    pub(crate) text: String,
+    /// Which frame it is, as a deviation's `allows` records it.
+    pub(crate) identity: Value,
+}
+
 /// A frame the case says the web sends nothing for.
 #[derive(Debug, Clone)]
 struct WebFalse {
@@ -176,17 +184,26 @@ impl<'a> Consumer<'a> {
     /// The web's fan-out to a lower-mode holder that answers none of its
     /// held modes and that no frame paired with. The desktop sends one
     /// frame per held mode, so a case declares these (`fan-out`).
-    pub(crate) fn fan_out(&self) -> Vec<String> {
+    pub(crate) fn fan_out(&self) -> Vec<FanOut> {
         self.point
             .deliveries
             .iter()
             .enumerate()
             .filter(|(i, d)| d.serves.is_empty() && !self.touched(*i))
             .map(|(_, d)| {
-                format!(
-                    "after line {} the web also sends client {} publication {} (topic mode {:?})",
-                    self.line, d.client, d.publication, d.topic_mode
-                )
+                let p = self.publication(d);
+                FanOut {
+                    text: format!(
+                        "after line {} the web also sends client {} publication {} (topic mode {:?})",
+                        self.line, d.client, d.publication, d.topic_mode
+                    ),
+                    identity: serde_json::json!({
+                        "symbol": p["symbol"],
+                        "exchange": p["exchange"],
+                        "mode": d.topic_mode,
+                        "client": d.client,
+                    }),
+                }
             })
             .collect()
     }
@@ -398,7 +415,7 @@ mod tests {
         // The richer fan-out nothing paired with has to be declared.
         let fan = c.fan_out();
         assert_eq!(fan.len(), 1, "{:?}", fan);
-        assert!(fan[0].contains("publication 0"), "{:?}", fan);
+        assert!(fan[0].text.contains("publication 0"), "{:?}", fan);
     }
 
     /// `"web": false` is checked against what the web sends: a frame for

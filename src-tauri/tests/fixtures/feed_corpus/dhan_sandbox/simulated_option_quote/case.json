@@ -75,77 +75,110 @@
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "open",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "high",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "low",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "close",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "average_price",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "volume",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "oi",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "last_trade_quantity",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "random-values",
       "reason": "A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead.",
       "ref": "dhan_sandbox_adapter.py:_mock_streaming_loop; dhan_sandbox::feed::model",
-      "approval": "random-values"
+      "approval": "random-values",
+      "allows": [
+        "same-shape"
+      ]
     }
   ],
   "invariants": [

@@ -43,7 +43,13 @@
       "kind": "web-defect",
       "reason": "Noren's toi is the total open interest (Shoonya's adapter names it open_interest); the web's Zebu adapter sends it only as total_traded_value, a turnover name, so a client reading oi loses it. The desktop sends total_traded_value as the web does and keeps oi (lead ruling 2026-11-09).",
       "ref": "broker/zebu/streaming/zebu_adapter.py DepthNormalizer (total_traded_value = toi); audit FB-07",
-      "approval": "noren-keys"
+      "approval": "noren-keys",
+      "allows": [
+        [
+          "<absent>",
+          12850050
+        ]
+      ]
     }
   ]
 }

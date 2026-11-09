@@ -32,14 +32,182 @@
       "kind": "web-defect",
       "reason": "Nubra's order book carries the last traded quantity; the web drops it from the Depth frame, the desktop keeps it (lead decision: market data a web adapter drops from a mode is kept, lost data).",
       "ref": "nubra_adapter.py:878-892",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          2
+        ],
+        [
+          "<absent>",
+          5
+        ]
+      ]
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web pads a short side of Nubra's book to five zero levels (price 0, an integer) Nubra never sent; the desktop sends the levels Nubra sent (lead rule on book levels).",
       "ref": "nubra_adapter.py:870-875",
-      "approval": "book-levels-as-sent"
+      "approval": "book-levels-as-sent",
+      "allows": [
+        [
+          {
+            "buy": [
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [],
+            "sell": []
+          }
+        ],
+        [
+          {
+            "buy": [
+              {
+                "price": 1301.0,
+                "quantity": 10,
+                "orders": 1
+              },
+              {
+                "price": 1300.5,
+                "quantity": 20,
+                "orders": 2
+              },
+              {
+                "price": 1300.0,
+                "quantity": 30,
+                "orders": 3
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ],
+            "sell": [
+              {
+                "price": 1301.5,
+                "quantity": 15,
+                "orders": 1
+              },
+              {
+                "price": 1302.0,
+                "quantity": 25,
+                "orders": 2
+              },
+              {
+                "price": 1302.5,
+                "quantity": 35,
+                "orders": 4
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              },
+              {
+                "price": 0,
+                "quantity": 0,
+                "orders": 0
+              }
+            ]
+          },
+          {
+            "buy": [
+              {
+                "orders": 1,
+                "price": 1301.0,
+                "quantity": 10
+              },
+              {
+                "orders": 2,
+                "price": 1300.5,
+                "quantity": 20
+              },
+              {
+                "orders": 3,
+                "price": 1300.0,
+                "quantity": 30
+              }
+            ],
+            "sell": [
+              {
+                "orders": 1,
+                "price": 1301.5,
+                "quantity": 15
+              },
+              {
+                "orders": 2,
+                "price": 1302.0,
+                "quantity": 25
+              },
+              {
+                "orders": 4,
+                "price": 1302.5,
+                "quantity": 35
+              }
+            ]
+          }
+        ]
+      ]
     }
   ]
 }

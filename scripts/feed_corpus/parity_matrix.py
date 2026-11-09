@@ -97,8 +97,12 @@ def pattern_matches(pattern: str, value: str) -> bool:
     return value.startswith(pattern[:-1]) if pattern.endswith("*") else value == pattern
 
 
-def clause_fits(clause: dict, broker: str, key: str, kind: str, instruments: list[dict], steps: set[str]) -> bool:
+def clause_fits(
+    clause: dict, broker: str, key: str, kind: str, instruments: list[dict], steps: set[str], allows: list
+) -> bool:
     """Is this deviation within this clause of a rule's scope?"""
+    if "allows" in clause and not all(a in clause["allows"] for a in allows):
+        return False
     for field, value in (("brokers", broker), ("keys", key), ("kinds", kind)):
         if field in clause and not any(pattern_matches(p, value) for p in clause[field]):
             return False
@@ -111,11 +115,13 @@ def clause_fits(clause: dict, broker: str, key: str, kind: str, instruments: lis
     return not ("after_step" in clause and clause["after_step"] not in steps)
 
 
-def in_scope(scope: dict, broker: str, key: str, kind: str, instruments: list[dict], steps: set[str]) -> bool:
+def in_scope(
+    scope: dict, broker: str, key: str, kind: str, instruments: list[dict], steps: set[str], allows: list
+) -> bool:
     """Is this deviation within the words of its rule (`scope`, any of its
     `any_of` clauses when it has them)?"""
     clauses = scope.get("any_of", [scope])
-    return any(clause_fits(c, broker, key, kind, instruments, steps) for c in clauses)
+    return any(clause_fits(c, broker, key, kind, instruments, steps, allows) for c in clauses)
 
 
 def script_steps(case_dir: Path) -> set[str]:
@@ -142,6 +148,8 @@ def deviation_problems(
             out.append(f"{label}: random-values is only for a synthetic feed ({', '.join(SYNTHETIC_FEEDS)})")
         if not str(dv.get("reason", "")).strip():
             out.append(f"{label} gives no reason")
+        if not dv.get("allows"):
+            out.append(f'{label} has no "allows" (run scripts/feed_corpus/predicates.py)')
         if "approved" in dv and not isinstance(dv["approved"], bool):
             out.append(f"{label}: approved is true or false")
         if "approval" in dv:
@@ -151,7 +159,7 @@ def deviation_problems(
                 scope = rules[dv["approval"]].get("scope", {})
                 fits = in_scope(
                     scope, str(case.get("broker", "")), str(dv.get("key", "")), str(dv.get("kind", "")),
-                    case.get("instruments", []), steps or set(),
+                    case.get("instruments", []), steps or set(), dv.get("allows", []),
                 )
                 if not fits:
                     out.append(f"{label}: rule {dv['approval']!r} does not cover this deviation (its scope: "

@@ -39,35 +39,63 @@
       "kind": "web-defect",
       "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, and a string (\"1794302700\"); the protocol's WebSocket timestamps are epoch milliseconds (docs/prompt/websockets-format.md), so the unit is wrong, as for Dhan. The desktop sends the trade time in ms, as a number.",
       "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "1794302700",
+          1794302700000
+        ],
+        [
+          "1794302712",
+          1794302712000
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "The web's Quote sends average_price 0.0, then 0, for a tick whose snapshot never carried ap (parsed_data.get(\"average_price\", 0.0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "aliceblue_adapter.py:1266",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_oi",
       "kind": "web-defect",
       "reason": "The web's Quote sends total_oi 0 for an equity whose ticks carry no toi; a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
       "ref": "aliceblue_mapping.py:147; aliceblue_adapter.py:1268",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "AliceBlue's tick carries last_quantity (ltq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
       "ref": "aliceblue_mapping.py:111-217",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          4
+        ]
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "AliceBlue's tick carries total_buy_quantity (tbq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
       "ref": "aliceblue_mapping.py:111-217",
-      "approval": "lost-data-kept"
+      "approval": "lost-data-kept",
+      "allows": [
+        [
+          "<absent>",
+          1200
+        ]
+      ]
     }
   ]
 }

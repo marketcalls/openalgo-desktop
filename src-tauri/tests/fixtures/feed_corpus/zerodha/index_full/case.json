@@ -32,14 +32,26 @@
       "kind": "web-defect",
       "reason": "Kite's index packet carries the change but not the percent; the web sends 0 (zerodha_adapter.py:626, tick.get('price_change_percent', 0)), the desktop works it out from the change and the previous close (200.10 / 24300 = 0.82%).",
       "ref": "zerodha_adapter.py:626",
-      "approval": "zerodha-dhan-web-defects"
+      "approval": "zerodha-dhan-web-defects",
+      "allows": [
+        [
+          0,
+          0.82
+        ]
+      ]
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends the exchange time in epoch seconds as ltt (zerodha_adapter.py:620); feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends it.",
       "ref": "zerodha_adapter.py:620",
-      "approval": "alias-unit"
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1762156800,
+          1762156800000
+        ]
+      ]
     }
   ]
 }

@@ -676,15 +676,29 @@
       "source": ".lane/107/rules.md",
       "rule": "Do not invent data. No zero LTP from a packet without a trade, no padded book, no receipt time passed off as a trade time.",
       "scope": {
-        "keys": [
-          "ltp",
-          "ltt",
-          "change",
-          "change_percent",
-          "depth"
-        ],
-        "kinds": [
-          "web-defect"
+        "any_of": [
+          {
+            "keys": [
+              "change",
+              "change_percent"
+            ],
+            "kinds": [
+              "web-defect"
+            ],
+            "allows": [
+              "change-from-zero-ltp"
+            ]
+          },
+          {
+            "keys": [
+              "ltp",
+              "ltt",
+              "depth"
+            ],
+            "kinds": [
+              "web-defect"
+            ]
+          }
         ]
       }
     }

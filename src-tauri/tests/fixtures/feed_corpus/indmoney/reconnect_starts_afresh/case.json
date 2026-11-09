@@ -35,56 +35,98 @@
       "kind": "web-defect",
       "reason": "INDstocks sends OI as 0 when it has none (an equity's OI); the web's own get_value reads a 0 as 'nothing new' and keeps the last value, but with none to keep it sends the 0 (indmoney_adapter.py:651-665). The desktop leaves out a field with no value: a field the stream did not give a value is left out, never sent as 0 (docs; openalgo#2376; lead approval 2026-11-09).",
       "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
-      "approval": "indmoney-equity-oi-zero"
+      "approval": "indmoney-equity-oi-zero",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "oi_change",
       "kind": "web-defect",
       "reason": "INDstocks sends the OI change as 0 when it has none (an equity's OI); the web's own get_value reads a 0 as 'nothing new' and keeps the last value, but with none to keep it sends the 0 (indmoney_adapter.py:651-665). The desktop leaves out a field with no value: a field the stream did not give a value is left out, never sent as 0 (docs; openalgo#2376; lead approval 2026-11-09).",
       "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
-      "approval": "indmoney-equity-oi-zero"
+      "approval": "indmoney-equity-oi-zero",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "The web keeps last_values across a reconnect (_on_open never clears them) and sends the pre-outage value as current; the desktop starts the instrument afresh on a new connection and sends only what the new socket carried (lead decision 2026-11-09: a stale pre-outage snapshot promoted as current is a web defect).",
       "ref": "indmoney_adapter.py:466-511, :646-699; feed/bridge/snapshot.rs",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1410.5,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "The web keeps last_values across a reconnect (_on_open never clears them) and sends the pre-outage value as current; the desktop starts the instrument afresh on a new connection and sends only what the new socket carried (lead decision 2026-11-09: a stale pre-outage snapshot promoted as current is a web defect).",
       "ref": "indmoney_adapter.py:466-511, :646-699; feed/bridge/snapshot.rs",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1400.75,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "The web keeps last_values across a reconnect (_on_open never clears them) and sends the pre-outage value as current; the desktop starts the instrument afresh on a new connection and sends only what the new socket carried (lead decision 2026-11-09: a stale pre-outage snapshot promoted as current is a web defect).",
       "ref": "indmoney_adapter.py:466-511, :646-699; feed/bridge/snapshot.rs",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1418.5,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "The web keeps last_values across a reconnect (_on_open never clears them) and sends the pre-outage value as current; the desktop starts the instrument afresh on a new connection and sends only what the new socket carried (lead decision 2026-11-09: a stale pre-outage snapshot promoted as current is a web defect).",
       "ref": "indmoney_adapter.py:466-511, :646-699; feed/bridge/snapshot.rs",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          5000,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "The web keeps last_values across a reconnect (_on_open never clears them) and sends the pre-outage value as current; the desktop starts the instrument afresh on a new connection and sends only what the new socket carried (lead decision 2026-11-09: a stale pre-outage snapshot promoted as current is a web defect).",
       "ref": "indmoney_adapter.py:466-511, :646-699; feed/bridge/snapshot.rs",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          1420.5,
+          "<absent>"
+        ]
+      ]
     },
     {
       "key": "ask_qty",
       "kind": "web-defect",
       "reason": "The web keeps last_values across a reconnect (_on_open never clears them) and sends the pre-outage value as current; the desktop starts the instrument afresh on a new connection and sends only what the new socket carried (lead decision 2026-11-09: a stale pre-outage snapshot promoted as current is a web defect).",
       "ref": "indmoney_adapter.py:466-511, :646-699; feed/bridge/snapshot.rs",
-      "approval": "merge-restart-on-reconnect"
+      "approval": "merge-restart-on-reconnect",
+      "allows": [
+        [
+          20,
+          "<absent>"
+        ]
+      ]
     }
   ]
 }

@@ -52,70 +52,127 @@
       "kind": "web-defect",
       "reason": "The event carries no trade time; the web sends ltt 0 (.get('LastTradedTime', 0)), the desktop leaves ltt out (docs: a field the stream does not carry is left out; never a receipt time passed off as a trade time).",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs trade",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "The partial does not repeat average_price; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0,
+          2495.8
+        ]
+      ]
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "The partial does not repeat close; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0,
+          2487.6
+        ]
+      ]
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "The partial does not repeat high; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0,
+          2510.5
+        ]
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "The partial does not repeat last_quantity; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0,
+          7
+        ]
+      ]
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "The partial does not repeat low; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0,
+          2485.0
+        ]
+      ]
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "The partial does not repeat open; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0,
+          2490.0
+        ]
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "The partial does not repeat total_buy_quantity; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0,
+          150000
+        ]
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "The partial does not repeat total_sell_quantity; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0,
+          160000
+        ]
+      ]
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "The partial does not repeat volume; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
       "ref": "jainamxts_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
-      "approval": "market-state-overlay"
+      "approval": "market-state-overlay",
+      "allows": [
+        [
+          0,
+          4500123
+        ]
+      ]
     }
   ]
 }

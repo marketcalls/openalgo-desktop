@@ -39,35 +39,50 @@
       "kind": "web-defect",
       "reason": "This snapshot carries no average price; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "This snapshot carries no last quantity; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "This snapshot carries no OI; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "This snapshot carries no book totals; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "This snapshot carries no book totals; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
-      "approval": "leave-out-unsent"
+      "approval": "leave-out-unsent",
+      "allows": [
+        "zero-left-out"
+      ]
     }
   ]
 }

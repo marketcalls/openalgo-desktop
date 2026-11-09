@@ -40,7 +40,17 @@
       "kind": "web-defect",
       "reason": "Pocketful sends order and trade updates on the market data socket (modes 50 and 51, which the web's own packet_decoder.py decodes) and the web drops them, so a web client never hears an order change; the desktop relays them as order_update frames (audit RB-14; lead ruling 2026-11-09).",
       "ref": "pocketful_adapter.py:546-551 (_on_message dispatches modes 1, 2, 4 only)",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": "live"
+          }
+        ]
+      ]
     }
   ]
 }

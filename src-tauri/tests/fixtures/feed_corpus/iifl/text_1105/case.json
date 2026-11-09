@@ -53,7 +53,25 @@
       "kind": "web-defect",
       "reason": "The web drops a 1105 text event: its client compares the stored string instrument id with an int, so no 1105 event passes its subscription filter, and its adapter drops a message without MessageCode as an unknown code. The desktop decodes the touchline its codes 110-119 carry (audit appendix, inherited item 4).",
       "ref": "iifl_websocket.py _process_1105_data; iifl_adapter.py _process_json_data",
-      "approval": "never-copy-web-defect"
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "<absent>",
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 1
+          }
+        ],
+        [
+          "<absent>",
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2
+          }
+        ]
+      ]
     }
   ]
 }
