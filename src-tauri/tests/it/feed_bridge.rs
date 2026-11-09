@@ -445,3 +445,199 @@ async fn a_subscribe_the_broker_refuses_after_sending_is_the_items_error() {
     manager.disconnect().await.unwrap();
     broker_task.abort();
 }
+
+/// A broker that keeps the answer to a RELIANCE subscribe until the test
+/// lets it go, as XTS does while it works through a refused batch; every
+/// other subscribe is answered at once.
+struct HoldingFeed {
+    feed: MockFeed,
+    held: Arc<
+        Mutex<
+            Option<
+                tokio::sync::oneshot::Sender<
+                    openalgo_desktop_lib::brokers::common::streaming::ReleaseRefusals,
+                >,
+            >,
+        >,
+    >,
+}
+
+impl openalgo_desktop_lib::websocket::BrokerFeed for HoldingFeed {
+    fn broker(&self) -> &'static str {
+        "mock"
+    }
+    fn ws_request(
+        &self,
+    ) -> openalgo_desktop_lib::error::Result<
+        openalgo_desktop_lib::brokers::common::streaming::WsRequest,
+    > {
+        self.feed.ws_request()
+    }
+    fn subscribe_frames(
+        &mut self,
+        subs: &[openalgo_desktop_lib::websocket::FeedSubscription],
+    ) -> Vec<Message> {
+        self.feed.subscribe_frames(subs)
+    }
+    fn unsubscribe_frames(
+        &mut self,
+        subs: &[openalgo_desktop_lib::websocket::FeedSubscription],
+    ) -> Vec<Message> {
+        self.feed.unsubscribe_frames(subs)
+    }
+    fn parse(&mut self, msg: &Message) -> Vec<openalgo_desktop_lib::websocket::FeedEvent> {
+        self.feed.parse(msg)
+    }
+    fn admission_frames(
+        &mut self,
+        subs: &[openalgo_desktop_lib::websocket::FeedSubscription],
+    ) -> (
+        Vec<Message>,
+        Option<openalgo_desktop_lib::brokers::common::streaming::ReleaseAnswer>,
+    ) {
+        let (to, answer) = tokio::sync::oneshot::channel();
+        if subs.iter().any(|s| s.symbol == "RELIANCE") {
+            *self.held.lock() = Some(to);
+        } else {
+            let _ = to.send(Vec::new());
+        }
+        (self.feed.subscribe_frames(subs), Some(answer))
+    }
+}
+
+/// A running feed server over a bridge whose broker is `feed`.
+async fn holding_server(
+    feed: HoldingFeed,
+    config: FeedConfig,
+) -> (openalgo_desktop_lib::feed::FeedHandle, Arc<BrokerBridge>) {
+    let manager = Arc::new(WebSocketManager::new());
+    manager.connect(Box::new(feed)).await.unwrap();
+    let symbols = SymbolResolver::new();
+    symbols.load(vec![
+        row("RELIANCE", "NSE", "738561"),
+        row("SBIN", "NSE", "779521"),
+    ]);
+    let bridge = BrokerBridge::new(manager.clone(), symbols);
+    bridge.start();
+    let h = start(
+        config,
+        FeedDeps {
+            source: bridge.clone(),
+            auth: Arc::new(StaticAuth {
+                api_key: API_KEY.into(),
+                user_id: USER_ID.into(),
+                broker: Some(BROKER.into()),
+            }),
+            orders: None,
+            supported_brokers: brokers(),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(eventually(Duration::from_secs(5), || manager.is_connected()).await);
+    (h, bridge)
+}
+
+/// Review X4: while one instrument's admission waits for the broker, other
+/// clients' subscribes and unsubscribes go on: they queued behind it, one
+/// slow answer holding up every client's.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_slow_admission_holds_up_nobody_else() {
+    let (broker_url, _seen, _push, broker_task) = fake_broker().await;
+    let held = Arc::new(Mutex::new(None));
+    let feed = HoldingFeed {
+        feed: MockFeed::new(broker_url),
+        held: held.clone(),
+    };
+    let config = FeedConfig {
+        port: 0,
+        ..FeedConfig::default()
+    };
+    let (h, bridge) = holding_server(feed, config).await;
+    let url = format!("ws://{}", h.local_addr());
+    let mut a = Client::connect(&url).await;
+    a.auth().await;
+    let mut b = Client::connect(&url).await;
+    b.auth().await;
+
+    a.send(&json!({"action": "subscribe", "mode": 2,
+        "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}))
+        .await;
+    assert!(
+        eventually(Duration::from_secs(5), || held.lock().is_some()).await,
+        "the broker has the slow admission"
+    );
+
+    let sbin = json!({"action": "subscribe", "mode": 2,
+        "symbols": [{"symbol": "SBIN", "exchange": "NSE"}]});
+    let ack = tokio::time::timeout(Duration::from_secs(5), b.request(sbin))
+        .await
+        .expect("another client's subscribe goes on");
+    assert_eq!(ack["status"], "success", "{}", ack);
+    let gone = json!({"action": "unsubscribe", "mode": 2,
+        "symbols": [{"symbol": "SBIN", "exchange": "NSE"}]});
+    let ack = tokio::time::timeout(Duration::from_secs(5), b.request(gone))
+        .await
+        .expect("and its unsubscribe");
+    assert_eq!(ack["status"], "success", "{}", ack);
+    assert!(
+        a.recv_within(Duration::from_millis(100)).await.is_none(),
+        "the slow one is still waiting"
+    );
+
+    let answer = held.lock().take().expect("the answer it holds");
+    let _ = answer.send(Vec::new());
+    let ack = a.recv().await;
+    assert_eq!(ack["status"], "success", "{}", ack);
+    h.stop().await;
+    bridge.stop().await;
+    broker_task.abort();
+}
+
+/// Review X4: while a client's own subscribe waits for the broker its pongs
+/// are not read; the wait is not the client's silence, and the ping check
+/// does not close it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_client_is_not_closed_for_a_subscribe_it_is_waiting_on() {
+    let (broker_url, _seen, _push, broker_task) = fake_broker().await;
+    let held = Arc::new(Mutex::new(None));
+    let feed = HoldingFeed {
+        feed: MockFeed::new(broker_url),
+        held: held.clone(),
+    };
+    let config = FeedConfig {
+        port: 0,
+        ping_interval: Duration::from_millis(200),
+        ping_timeout: Duration::from_millis(100),
+        ..FeedConfig::default()
+    };
+    let (h, bridge) = holding_server(feed, config).await;
+    let mut c = Client::connect(&format!("ws://{}", h.local_addr())).await;
+    c.auth().await;
+    let releasing = {
+        let held = held.clone();
+        tokio::spawn(async move {
+            while held.lock().is_none() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            tokio::time::sleep(Duration::from_millis(700)).await;
+            if let Some(answer) = held.lock().take() {
+                let _ = answer.send(Vec::new());
+            }
+        })
+    };
+    let ack = c
+        .request(json!({"action": "subscribe", "mode": 2,
+            "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}))
+        .await;
+    assert_eq!(ack["status"], "success", "{}", ack);
+    releasing.await.unwrap();
+    let ack = c
+        .request(json!({"action": "subscribe", "mode": 2,
+            "symbols": [{"symbol": "SBIN", "exchange": "NSE"}]}))
+        .await;
+    assert_eq!(ack["status"], "success", "still connected: {}", ack);
+    h.stop().await;
+    bridge.stop().await;
+    broker_task.abort();
+}

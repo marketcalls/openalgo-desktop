@@ -9,12 +9,18 @@
 //! client that disconnected) is tried again with a doubling pause; a key
 //! refused with nobody waiting (re-applied after a new broker session) is
 //! tried again at the next pass and stays listed as refused until then.
+//!
+//! A pass only plans. What the managers answer can take as long as the
+//! broker does (XTS over REST), so it is waited for beside the pass, and a
+//! slow or refused admission holds up only its own keys (review X4).
 
 use super::{deep, mode_of, BrokerBridge, DesiredKey, State};
 use crate::brokers::common::streaming::{FeedMode, FeedSubscription};
 use crate::feed::source::{Mode, SourceOutcome, DEFAULT_DEPTH};
 use crate::websocket::WebSocketManager;
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::time::Instant;
@@ -60,6 +66,8 @@ pub(super) struct Ops {
     releasing: HashMap<DesiredKey, Waiters>,
     /// Keys whose release is with the managers now.
     in_flight: HashSet<DesiredKey>,
+    /// Keys whose admission is with the managers now.
+    taking: HashSet<DesiredKey>,
     /// Keys the managers refused while no client waited, with why.
     pub(super) refused: HashMap<DesiredKey, String>,
     /// Releases the broker refused while no client waited: when to try
@@ -267,17 +275,35 @@ impl BrokerBridge {
     }
 
     /// Bring the managers in line with the desired set: take what is
-    /// wanted, release what is not, and answer whoever waits.
-    pub(super) async fn reconcile(&self) {
+    /// wanted, release what is not, and answer whoever waits. Both wait
+    /// beside this pass, for as long as the broker takes to answer.
+    pub(super) async fn reconcile(self: &Arc<Self>) {
         self.fall_back_silent().await;
         let (generation, add, remove) = self.plan();
         if !add.is_empty() {
-            self.admit(generation, add).await;
+            let me = self.clone();
+            self.beside_the_pass(async move {
+                me.admit(generation, add).await;
+                me.answer_held();
+            });
         }
         if !remove.is_empty() {
-            self.release_waited(generation, remove).await;
+            let me = self.clone();
+            self.beside_the_pass(async move {
+                me.release_waited(generation, remove).await;
+                me.answer_held();
+            });
         }
         self.answer_held();
+    }
+
+    /// Run `wait` as one of the bridge's owned tasks (gone with `stop`).
+    fn beside_the_pass(&self, wait: impl Future<Output = ()> + Send + 'static) {
+        let mut tasks = self.tasks.lock();
+        if let Some(set) = tasks.as_mut() {
+            while set.try_join_next().is_some() {}
+            set.spawn(wait);
+        }
     }
 
     /// What this pass takes and releases (the releases leave `applied`
@@ -296,10 +322,13 @@ impl BrokerBridge {
         } = &mut *st;
         let mut add: Vec<DesiredKey> = desired
             .iter()
-            .filter(|k| !applied.contains_key(*k) && !ops.in_flight.contains(*k))
+            .filter(|k| {
+                !applied.contains_key(*k) && !ops.in_flight.contains(*k) && !ops.taking.contains(*k)
+            })
             .cloned()
             .collect();
         desired.in_order(&mut add);
+        ops.taking.extend(add.iter().cloned());
         let gone: Vec<DesiredKey> = applied
             .keys()
             .filter(|k| !desired.contains(k))
@@ -390,6 +419,9 @@ impl BrokerBridge {
         let current = st.generation == generation;
         let mut again = false;
         for (k, outcome, taken) in answers {
+            st.ops.taking.remove(&k);
+            // A new broker session came meanwhile: it takes the key afresh.
+            again |= !current && st.desired.contains(&k);
             let waiters = st.ops.admitting.remove(&k).unwrap_or_default();
             match (&outcome, taken) {
                 (Ok(()), Some(a)) if current => {

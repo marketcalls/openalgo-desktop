@@ -370,9 +370,8 @@ pub(super) async fn serve_conn(
     let mut writer_done = false;
     // Whether we sent a close frame and should wait for the peer's reply.
     let mut closing = false;
-    // Moves when what the API key reaches changes (sign-out, the broker
-    // session ending or changing, a regenerated key): an authenticated
-    // client is then closed and must connect and authenticate again.
+    // Moves when what the API key reaches changes: an authenticated client
+    // is then closed and must connect and authenticate again.
     let mut credentials = shared.auth.credentials_changed();
 
     loop {
@@ -429,12 +428,13 @@ pub(super) async fn serve_conn(
                         break;
                     }
                 };
-                last_seen = Instant::now();
                 let max = shared.cfg.max_message_bytes;
                 if on_frame(&mut session, msg, &mut credentials, &outbox, max).await {
                     closing = true;
                     break;
                 }
+                // Heard from it now: a slow subscribe was not its silence.
+                last_seen = Instant::now();
             }
         }
     }
