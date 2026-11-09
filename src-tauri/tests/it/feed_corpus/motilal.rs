@@ -46,5 +46,6 @@ corpus_cases!(
         mode_change,
         wire_key_collision,
         release_during_outage,
+        colliding_subscribe_during_outage,
     ]
 );

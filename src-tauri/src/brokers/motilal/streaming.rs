@@ -604,17 +604,6 @@ impl MotilalFeed {
         out
     }
 
-    /// Let go of everything this feed registered and of those wire keys.
-    /// Only instruments it registered: a reservation of one it has not
-    /// registered yet stays with the subscribe step that made it.
-    fn forget_registrations(&mut self) {
-        for ((ex, scrip), sub) in self.subs.drain() {
-            self.wire_keys
-                .released((exchange_char(&ex), scrip), &sub.symbol, &sub.exchange);
-        }
-        self.state.forget_registrations();
-    }
-
     /// Decode one binary frame into events.
     pub fn parse_binary(&mut self, frame: &[u8]) -> Vec<FeedEvent> {
         let mut out = Vec::new();
@@ -633,7 +622,10 @@ impl MotilalFeed {
 /// held, so the next session's subscribe step does not refuse against it.
 impl Drop for MotilalFeed {
     fn drop(&mut self) {
-        self.forget_registrations();
+        for ((ex, scrip), sub) in &self.subs {
+            self.wire_keys
+                .released((exchange_char(ex), *scrip), &sub.symbol, &sub.exchange);
+        }
     }
 }
 
@@ -659,14 +651,16 @@ impl BrokerFeed for MotilalFeed {
         vec![Message::Binary(login_packet(&self.client_code))]
     }
 
-    /// The manager's replay follows at once, and it is the whole truth: a
-    /// release made while the feed was not connected reached only its
-    /// registry, so an instrument no client holds would otherwise keep its
-    /// wire key, and refuse the next contract on that code, until the
-    /// session ends. Done here and not on connect so an instrument still
-    /// held keeps its key through the login round trip.
+    /// The manager's replay follows at once and is the whole truth, so the
+    /// feed's routes start again from it: an instrument let go of while the
+    /// feed was not connected must not shadow the next contract on its wire
+    /// key. The wire keys are not touched, so an instrument still held
+    /// keeps its key throughout: they follow who holds the instrument
+    /// (`WireKeys::let_go`). Kept until the session is accepted, not reset
+    /// on connect, so a feed dropped in between still frees what it holds.
     fn on_authenticated(&mut self) -> Vec<Message> {
-        self.forget_registrations();
+        self.subs.clear();
+        self.state.forget_registrations();
         Vec::new()
     }
 

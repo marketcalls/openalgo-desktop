@@ -405,6 +405,14 @@ pub type Presubscribe = Arc<
         + Sync,
 >;
 
+/// What the broker session hears when no consumer holds these instruments
+/// any more (`Broker::feed_let_go`), whether or not a socket carried the
+/// release: a feed that is not connected never hears of one. Motilal's wire
+/// keys follow who holds an instrument through it. Called with the
+/// manager's registry locked, so that an instrument placed again keeps what
+/// it holds: it must be quick and must not call back into the manager.
+pub type FeedLetGo = Arc<dyn Fn(&[FeedSubscription]) + Send + Sync>;
+
 /// Why the broker session's feed refuses a subscription outright (a mode,
 /// depth or exchange its web adapter refuses), in the web's words; `None`
 /// takes it. Every consumer of the feed hears it, not only feed clients.

@@ -6,7 +6,7 @@
 use super::presubscribe::{PRESUBSCRIBE_DEADLINE, PRESUBSCRIBE_LATE};
 use super::tests::fast;
 use super::*;
-use crate::brokers::common::streaming::{FeedMode, Presubscribe};
+use crate::brokers::common::streaming::{FeedLetGo, FeedMode, Presubscribe};
 use futures_util::FutureExt;
 
 fn sub(symbol: &str, mode: FeedMode) -> FeedSubscription {
@@ -172,4 +172,82 @@ async fn a_full_feed_refuses_in_the_brokers_words_where_it_has_its_own() {
             "Maximum 50 subscriptions allowed for 20-depth".to_string()
         )]
     );
+}
+
+/// Records each batch the broker's session is told no consumer holds.
+fn recorder(told: Arc<Mutex<Vec<Vec<String>>>>) -> FeedLetGo {
+    Arc::new(move |subs: &[FeedSubscription]| {
+        told.lock()
+            .push(subs.iter().map(|s| s.symbol.clone()).collect());
+    })
+}
+
+/// With no socket up nothing carries a release: the session hears it at
+/// once, for the instruments no consumer holds any more, from a waited
+/// release and from a plain one.
+#[tokio::test]
+async fn a_release_no_socket_carries_tells_the_session_what_nobody_holds() {
+    let m = WebSocketManager::with_config(fast());
+    let told: Arc<Mutex<Vec<Vec<String>>>> = Arc::default();
+    m.set_let_go(Some(recorder(told.clone())));
+    m.admit(vec![
+        sub("A", FeedMode::Ltp),
+        sub("A", FeedMode::Quote),
+        sub("B", FeedMode::Ltp),
+    ])
+    .await;
+
+    let answers = m
+        .release(vec![sub("A", FeedMode::Ltp), sub("B", FeedMode::Ltp)])
+        .await;
+    assert!(answers.iter().all(|a| a.is_ok()));
+    // A is still held in Quote.
+    assert_eq!(*told.lock(), vec![vec!["B".to_string()]]);
+
+    m.unsubscribe(vec![sub("A", FeedMode::Quote)])
+        .await
+        .unwrap();
+    assert_eq!(
+        *told.lock(),
+        vec![vec!["B".to_string()], vec!["A".to_string()]]
+    );
+}
+
+#[tokio::test]
+async fn unsubscribing_everything_tells_the_session_of_every_instrument() {
+    let m = WebSocketManager::with_config(fast());
+    let told: Arc<Mutex<Vec<Vec<String>>>> = Arc::default();
+    m.set_let_go(Some(recorder(told.clone())));
+    m.admit(vec![sub("A", FeedMode::Ltp)]).await;
+    m.unsubscribe_all().await.unwrap();
+    assert_eq!(*told.lock(), vec![vec!["A".to_string()]]);
+}
+
+/// What a waited release did not let go of (the socket did not take it,
+/// or the broker refused) stays held, so its key stays too.
+#[tokio::test]
+async fn a_refused_release_is_not_told_as_let_go() {
+    let m = WebSocketManager::with_config(fast());
+    let told: Arc<Mutex<Vec<Vec<String>>>> = Arc::default();
+    m.set_let_go(Some(recorder(told.clone())));
+    m.tell_let_go_answered(
+        &[sub("A", FeedMode::Ltp), sub("B", FeedMode::Ltp)],
+        &[Err("still subscribed".to_string()), Ok(())],
+    );
+    assert_eq!(*told.lock(), vec![vec!["B".to_string()]]);
+}
+
+/// An instrument placed again before the session is told keeps what it
+/// holds, and a disconnect ends the telling.
+#[tokio::test]
+async fn an_instrument_held_again_is_not_told_and_a_disconnect_clears_the_hook() {
+    let m = WebSocketManager::with_config(fast());
+    let told: Arc<Mutex<Vec<Vec<String>>>> = Arc::default();
+    m.set_let_go(Some(recorder(told.clone())));
+    m.admit(vec![sub("A", FeedMode::Ltp)]).await;
+    m.tell_let_go(&[sub("A", FeedMode::Ltp)]);
+    assert!(told.lock().is_empty());
+
+    m.disconnect().await.unwrap();
+    assert!(m.let_go.lock().is_none());
 }

@@ -15,17 +15,17 @@
 //! same lock that checks), so two colliding subscribes arriving together,
 //! in one request or from two clients, cannot both pass. The feed marks a
 //! reservation registered when it registers the instrument and frees it
-//! when it lets go (or hands it to the instrument still sharing it). A new
-//! session frees what the feed registered on the old one and registers
-//! what clients still hold, so a release made during an outage, which
-//! never reaches the feed, frees its key too. The map is bounded by the
-//! registered instruments plus reservations younger than
-//! [`RESERVATION_TTL`]: a reservation that never became a registration
-//! (its subscribe was refused for room afterwards) is dropped by the next
-//! claim once it is older than that, and claiming an instrument again
-//! replaces its own reservation.
+//! when it lets go (or hands it to the instrument still sharing it). A key
+//! follows who holds its instrument: a release no socket carries (the feed
+//! is not connected) never reaches the feed, so the manager says so
+//! ([`WireKeys::let_go`], `Broker::feed_let_go`) and the key is free at
+//! once. The map is bounded by the registered instruments plus
+//! reservations younger than [`RESERVATION_TTL`]: a reservation that never
+//! became a registration (its subscribe was refused for room afterwards)
+//! is dropped by the next claim once it is older than that, and claiming
+//! an instrument again replaces its own reservation.
 
-use crate::brokers::common::streaming::{FeedSubscription, Presubscribe};
+use crate::brokers::common::streaming::{FeedLetGo, FeedSubscription, Presubscribe};
 use futures_util::FutureExt;
 use parking_lot::Mutex;
 use std::collections::HashMap;
@@ -74,6 +74,24 @@ impl WireKeys {
         Arc::new(move |subs: Vec<FeedSubscription>| {
             futures_util::future::ready(keys.claim(subs)).boxed()
         })
+    }
+
+    /// What the manager calls once no consumer holds an instrument
+    /// (`Broker::feed_let_go`).
+    pub(crate) fn let_go_step(&self) -> FeedLetGo {
+        let keys = self.clone();
+        Arc::new(move |subs: &[FeedSubscription]| keys.let_go(subs))
+    }
+
+    /// No consumer holds these any more: each one's key is free at once,
+    /// its reservation too. A key another instrument holds or reserved
+    /// stays with it.
+    pub(crate) fn let_go(&self, subs: &[FeedSubscription]) {
+        for s in subs {
+            if let Some(key) = wire_key(s) {
+                self.released(key, &s.symbol, &s.exchange);
+            }
+        }
     }
 
     /// The subscribe step: each new instrument's wire key checked and

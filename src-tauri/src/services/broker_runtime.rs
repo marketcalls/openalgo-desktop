@@ -406,6 +406,7 @@ pub fn install_market_hooks(
 ) {
     websocket.set_refusal(Some(feed_refusal(broker)));
     websocket.set_presubscribe(broker.feed_presubscribe(auth));
+    websocket.set_let_go(broker.feed_let_go());
 }
 
 /// What the session's broker refuses on its feed, for every consumer of it

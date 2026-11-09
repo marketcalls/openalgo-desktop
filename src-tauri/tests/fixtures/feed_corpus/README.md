@@ -492,8 +492,9 @@ takes its depth levels (`Broker::feed_depth_levels`, in place of
 (`Broker::feed_refusal`), so a refusal case (an exchange or mode the
 broker's feed does not stream) answers as it would in the app; the market
 feed takes its step before a new instrument (`Broker::feed_presubscribe`,
-Samco's index lookup over REST, answered by the fake broker API); and the
-order relay completes each order socket's update with it
+Samco's index lookup over REST, answered by the fake broker API) and tells
+the broker what no consumer holds any more (`Broker::feed_let_go`, Motilal's
+wire keys); and the order relay completes each order socket's update with it
 (`Broker::complete_order_update`, IndMoney's order-book lookup for an
 order it did not see placed), waiting at most 5 s as the runtime does; and
 a deep-book socket from `.with_depth(levels, ..)` starts as a session starts

@@ -25,7 +25,7 @@
 //! is a bounded broadcast whose slow receivers see `Lagged` and skip ahead.
 
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedRefusal, FeedSubscription, MarketEvent, Presubscribe, StopKind,
+    BrokerFeed, FeedLetGo, FeedRefusal, FeedSubscription, MarketEvent, Presubscribe, StopKind,
 };
 use crate::error::{AppError, Result};
 use parking_lot::Mutex;
@@ -201,10 +201,11 @@ pub struct WebSocketManager {
     /// Moves when `disconnect` forgets every reference, so a release
     /// answered after it puts nothing back.
     epoch: AtomicU64,
-    /// The broker session's refusals and its step before a new instrument
-    /// is subscribed (`presubscribe`).
+    /// The broker session's refusals, its step before a new instrument is
+    /// subscribed and what it hears when one is let go of (`presubscribe`).
     refusal: Mutex<Option<FeedRefusal>>,
     presubscribe: Mutex<Option<Presubscribe>>,
+    let_go: Mutex<Option<FeedLetGo>>,
     /// The broker's own words for a subscribe past the room, where its web
     /// adapter refuses before the pool does (`set_room_refusal`).
     room_refusal: Mutex<Option<&'static str>>,
@@ -239,6 +240,7 @@ impl WebSocketManager {
             epoch: AtomicU64::new(0),
             refusal: Mutex::new(None),
             presubscribe: Mutex::new(None),
+            let_go: Mutex::new(None),
             room_refusal: Mutex::new(None),
         }
     }
@@ -422,6 +424,7 @@ impl WebSocketManager {
         *self.factory.lock() = None;
         *self.refusal.lock() = None;
         *self.presubscribe.lock() = None;
+        *self.let_go.lock() = None;
         *self.room_refusal.lock() = None;
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
@@ -573,22 +576,25 @@ impl WebSocketManager {
             (removed, reg.changes)
         };
         self.apply(deltas).await;
+        self.tell_let_go(&subs);
         Ok(())
     }
 
     /// Drop every subscription (the feed stays connected).
     pub async fn unsubscribe_all(&self) -> Result<()> {
-        let deltas = {
+        let (deltas, gone) = {
             let mut reg = self.registry.lock();
+            let gone = reg.effective_all();
             let all = reg
                 .entries
                 .values()
                 .filter_map(|e| Some((e.conn, Delta::Unsubscribe(e.effective()?))))
                 .collect();
             reg.clear();
-            (all, reg.changes)
+            ((all, reg.changes), gone)
         };
         self.apply(deltas).await;
+        self.tell_let_go(&gone);
         Ok(())
     }
 

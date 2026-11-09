@@ -603,6 +603,13 @@ pub trait Broker: Send + Sync {
         None
     }
 
+    /// What the session hears when no consumer holds an instrument any
+    /// more (`common::streaming::FeedLetGo`). Default: nothing; a feed
+    /// hears of the releases its socket carries.
+    fn feed_let_go(&self) -> Option<common::streaming::FeedLetGo> {
+        None
+    }
+
     /// An update from the broker's order socket, completed before it is
     /// published: IndMoney's stream names an order it did not see placed
     /// by its id alone, and the web looks it up in the order book (bk-b

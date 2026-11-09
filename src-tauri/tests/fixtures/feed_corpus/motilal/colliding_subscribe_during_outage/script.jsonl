@@ -1,0 +1,13 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "connection": 1, "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "The first binary frame authenticates the session."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": ["frames/register.hex"], "connection": 1}
+{"step": "drop_upstream", "note": "The socket drops with RELIANCE registered on it."}
+{"step": "upstream_connected", "connection": 2}
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "connection": 2, "note": "The socket is back and its login unanswered: the feed is not connected yet, as in the backoff, so nothing a client changes now reaches this socket or the feed."}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "note": "RELIANCE goes while the feed is not connected: no frame carries the release."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28OCT26FUT", "exchange": "NFO"}], "mode": 2}, "note": "Nobody holds ('N', 2885) any more, so the NFO contract with that code is accepted at once, before the session is back."}
+{"step": "push", "frame": "frames/hello.hex", "note": "The new session is accepted."}
+{"step": "upstream_receives", "frames": ["frames/register_fo.hex"], "connection": 2, "note": "The replay is what clients hold now: the NFO contract alone."}
+{"step": "push", "frame": "frames/ltp_fo.hex", "note": "The scrip's packets are the NFO contract's."}
+{"step": "receive", "client": "a", "frame": "expected/quote_fo.json"}
