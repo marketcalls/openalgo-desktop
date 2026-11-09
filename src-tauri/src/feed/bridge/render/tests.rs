@@ -414,7 +414,7 @@ fn a_book_names_its_own_broker_fields() {
 #[test]
 fn a_full_tick_after_a_book_carries_that_book() {
     use crate::brokers::types::DepthLevel as Level;
-    use crate::feed::bridge::snapshot::{keep_book, merge, LastBook};
+    use crate::feed::bridge::snapshot::{forget_session, keep_book, merge, LastBook};
     use std::collections::HashMap;
     let key = InstrumentKey::new("SBIN", "NSE");
     let level = |price| Level {
@@ -432,7 +432,10 @@ fn a_full_tick_after_a_book_carries_that_book() {
         ..Default::default()
     };
     let mut map = HashMap::new();
-    map.insert(key.clone(), merge(None, &full_tick("SBIN", "NSE"), 1));
+    map.insert(
+        key.clone(),
+        merge(None, &full_tick("SBIN", "NSE"), session(1)),
+    );
     let first = snapshot_update(key.clone(), &map[&key]).expect("a price");
     assert!(first.depth.is_none(), "no book yet");
     assert!(!crate::feed::protocol::reaches(
@@ -450,14 +453,13 @@ fn a_full_tick_after_a_book_carries_that_book() {
     keep_book(
         &mut map,
         &key,
-        LastBook::of(&book).expect("a book"),
-        1,
+        LastBook::of(&book, session(1)).expect("a book"),
         false,
     );
 
     let mut next = full_tick("SBIN", "NSE");
     next.ltp = 1168.0;
-    let s = merge(map.get(&key), &next, 1);
+    let s = merge(map.get(&key), &next, session(1));
     let u = snapshot_update(key.clone(), &s).expect("a price");
     assert_eq!(u.ltp, 1168.0, "the tick's price, not the book's");
     assert_eq!(u.depth.as_ref().map(|b| b.buy[0].price), Some(1167.6));
@@ -469,9 +471,11 @@ fn a_full_tick_after_a_book_carries_that_book() {
     ));
     let mut quote = next.clone();
     quote.mode = 2;
-    let q = snapshot_update(key.clone(), &merge(Some(&s), &quote, 1)).expect("a price");
+    let q = snapshot_update(key.clone(), &merge(Some(&s), &quote, session(1))).expect("a price");
     assert!(q.depth.is_none(), "a Quote packet reaches no Depth holder");
-    let fresh = merge(Some(&s), &next, 2);
+    let mut replaced = HashMap::from([(key.clone(), s.clone())]);
+    forget_session(&mut replaced, false, session(2));
+    let fresh = merge(replaced.get(&key), &next, session(2));
     assert!(
         snapshot_update(key.clone(), &fresh)
             .and_then(|u| u.depth)
@@ -483,13 +487,14 @@ fn a_full_tick_after_a_book_carries_that_book() {
     // book in its frame, and the last book back with the next packet.
     let mut bookless = next.clone();
     bookless.book_absent = true;
-    let s_none = merge(Some(&s), &bookless, 1);
+    let s_none = merge(Some(&s), &bookless, session(1));
     let none = snapshot_update(key.clone(), &s_none).expect("a price");
     assert!(
         none.depth.is_none() && none.deep_book.is_none(),
         "never the old book"
     );
-    let again = snapshot_update(key.clone(), &merge(Some(&s_none), &next, 1)).expect("a price");
+    let again =
+        snapshot_update(key.clone(), &merge(Some(&s_none), &next, session(1))).expect("a price");
     assert_eq!(
         again.depth.as_ref().map(|b| b.buy[0].price),
         Some(1167.6),
@@ -500,13 +505,20 @@ fn a_full_tick_after_a_book_carries_that_book() {
     keep_book(
         &mut early,
         &key,
-        LastBook::of(&book).expect("a book"),
-        1,
+        LastBook::of(&book, session(1)).expect("a book"),
         false,
     );
-    let s = merge(early.get(&key), &next, 1);
+    let s = merge(early.get(&key), &next, session(1));
     assert!(
         snapshot_update(key, &s).and_then(|u| u.depth).is_some(),
         "a book before the first tick"
     );
+}
+
+/// Session `n` of the first connection.
+fn session(n: u64) -> crate::websocket::SessionId {
+    crate::websocket::SessionId {
+        conn: 0,
+        session: n,
+    }
 }

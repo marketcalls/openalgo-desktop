@@ -145,14 +145,13 @@ impl Feed {
         self.outboxes.insert(id, o);
     }
 
-    /// Emit one packet's `events` on the broker feed (back to back, as the
-    /// manager sends them) and fan out the `updates` the bridge makes of
-    /// them, as the feed server's loop does.
+    /// Emit one broker message's `events` on the broker feed (one packet,
+    /// as the manager sends them) and fan out the `updates` the bridge makes
+    /// of them, as the feed server's loop does.
     async fn tick(&self, events: Vec<FeedEvent>, updates: usize) {
         let mut rx = self.bridge.updates();
-        for e in events {
-            self.manager.emit(Arc::new(e));
-        }
+        self.manager
+            .emit_packet(events.into_iter().map(Arc::new).collect());
         for _ in 0..updates {
             match tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv()).await {
                 Ok(Ok(u)) => self.registry.dispatch(&u),

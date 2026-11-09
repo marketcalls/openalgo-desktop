@@ -8,25 +8,15 @@
 //! recorded) or carrying the whole packet (`Fold::Richer`: Arrow, Paytm, the
 //! XTS family, ...).
 //!
-//! A book not found waiting goes out on its own, to Depth holders only, as
-//! before, so a packet is never sent twice to the same holder.
+//! A book in a packet of its own goes out on its own, to Depth holders
+//! only, so a packet is never sent twice to the same holder. The manager
+//! sends a broker message's events as one packet (`websocket::Packet`), so
+//! which events pair never depends on what happens to be queued when the
+//! bridge looks, nor on another connection's events in between (audit
+//! R107-17).
 
-use crate::brokers::common::streaming::{FeedEvent, MarketEvent, NormalizedTick, QuoteField};
+use crate::brokers::common::streaming::{FeedEvent, NormalizedTick, QuoteField};
 use crate::feed::source::InstrumentKey;
-use tokio::sync::broadcast::error::TryRecvError;
-use tokio::sync::broadcast::Receiver;
-
-/// What waits behind a full tick on the broker feed.
-pub(in crate::feed) enum Next {
-    /// The tick's own book.
-    Book(MarketEvent),
-    /// Another event, to be handled after the tick.
-    Other(MarketEvent),
-    Nothing,
-    /// The relay fell this far behind.
-    Lagged(u64),
-    Closed,
-}
 
 /// Whether `ev` is a full tick of an instrument with a book (an index has
 /// none), whose book may follow it. A tick without a traded price is not
@@ -42,17 +32,38 @@ pub(in crate::feed) fn awaits_book(ev: &FeedEvent) -> Option<&NormalizedTick> {
     }
 }
 
-/// The event already waiting behind `tick`, without waiting for one.
-pub(in crate::feed) fn next_event(tick: &NormalizedTick, rx: &mut Receiver<MarketEvent>) -> Next {
-    match rx.try_recv() {
-        Ok(ev) => match &*ev {
-            FeedEvent::Depth(d) if d.symbol == tick.symbol && d.exchange == tick.exchange => {
-                Next::Book(ev)
-            }
-            _ => Next::Other(ev),
-        },
-        Err(TryRecvError::Empty) => Next::Nothing,
-        Err(TryRecvError::Lagged(n)) => Next::Lagged(n),
-        Err(TryRecvError::Closed) => Next::Closed,
-    }
+/// One step of a broker packet: an event on its own, or a full tick and
+/// its book.
+pub(in crate::feed) enum Step<'a> {
+    One(&'a FeedEvent),
+    Pair(&'a FeedEvent, &'a FeedEvent),
 }
+
+/// A packet's events in order, each full tick paired with the book of its
+/// instrument right behind it in the same packet.
+pub(in crate::feed) fn steps<'a>(events: &[&'a FeedEvent]) -> Vec<Step<'a>> {
+    let mut out = Vec::with_capacity(events.len());
+    let mut i = 0;
+    while i < events.len() {
+        let ev = events[i];
+        let book = awaits_book(ev).and_then(|t| {
+            events.get(i + 1).copied().filter(|next| {
+                matches!(next, FeedEvent::Depth(d) if d.symbol == t.symbol && d.exchange == t.exchange)
+            })
+        });
+        match book {
+            Some(book) => {
+                out.push(Step::Pair(ev, book));
+                i += 2;
+            }
+            None => {
+                out.push(Step::One(ev));
+                i += 1;
+            }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests;

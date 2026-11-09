@@ -74,8 +74,8 @@ fn oi_packet(oi: i64) -> NormalizedTick {
 #[test]
 fn a_partial_packet_keeps_the_quote_it_did_not_repeat() {
     let full = quote_packet();
-    let s = merge(None, &full, 1);
-    let s = merge(Some(&s), &ltpc_packet(220.0), 1);
+    let s = merge(None, &full, session(1));
+    let s = merge(Some(&s), &ltpc_packet(220.0), session(1));
     let t = s.tick();
     assert_eq!((t.ltp, t.last_quantity), (220.0, 150));
     assert_eq!((t.open, t.close, t.volume), (480.0, 494.05, 1_234_575));
@@ -90,7 +90,7 @@ fn a_partial_packet_keeps_the_quote_it_did_not_repeat() {
         "a Quote packet has none"
     );
 
-    let s = merge(Some(&s), &oi_packet(98_765), 1);
+    let s = merge(Some(&s), &oi_packet(98_765), session(1));
     let t = s.tick();
     assert_eq!((t.ltp, t.oi, t.volume), (220.0, 98_765, 1_234_575));
     assert!(t.knows(QuoteField::OpenInterest) && t.knows(QuoteField::Ltp));
@@ -99,7 +99,7 @@ fn a_partial_packet_keeps_the_quote_it_did_not_repeat() {
         "no trade, same time"
     );
 
-    let s = merge(Some(&s), &full, 1);
+    let s = merge(Some(&s), &full, session(1));
     assert_eq!((s.tick().ltp, s.tick().oi), (219.3, 98_765));
 }
 
@@ -107,10 +107,10 @@ fn a_partial_packet_keeps_the_quote_it_did_not_repeat() {
 /// (the bridge publishes nothing for it) and its OI waits for the price.
 #[test]
 fn a_packet_without_a_price_first_keeps_its_fields_for_the_price() {
-    let s = merge(None, &oi_packet(0), 1);
+    let s = merge(None, &oi_packet(0), session(1));
     assert!(!s.tick().knows(QuoteField::Ltp));
     assert!(s.tick().knows(QuoteField::OpenInterest), "a genuine 0 OI");
-    let s = merge(Some(&s), &quote_packet(), 1);
+    let s = merge(Some(&s), &quote_packet(), session(1));
     assert_eq!(s.tick().oi, 0);
     assert!(s.tick().knows(QuoteField::OpenInterest));
 }
@@ -134,7 +134,7 @@ fn a_packet_without_a_trade_brings_only_what_it_carries() {
     t.mark_absent(QuoteField::Ltp);
     t.mark_absent(QuoteField::LastTradeTime);
     t.mark_carried(QuoteField::Close);
-    let s = merge(None, &t, 1);
+    let s = merge(None, &t, session(1));
     let k = s.tick().known();
     for f in [
         QuoteField::Open,
@@ -148,7 +148,9 @@ fn a_packet_without_a_trade_brings_only_what_it_carries() {
     let mut valued = t.clone();
     valued.volume = 5;
     assert!(
-        merge(None, &valued, 1).tick().knows(QuoteField::Volume),
+        merge(None, &valued, session(1))
+            .tick()
+            .knows(QuoteField::Volume),
         "a value it sent"
     );
     let book = NormalizedDepth {
@@ -164,7 +166,11 @@ fn a_packet_without_a_trade_brings_only_what_it_carries() {
     assert_eq!((q.open, q.high, q.volume), (None, None, None));
     assert_eq!(q.close, Some(494.05));
 
-    let s = merge(Some(&merge(None, &quote_packet(), 1)), &t, 1);
+    let s = merge(
+        Some(&merge(None, &quote_packet(), session(1))),
+        &t,
+        session(1),
+    );
     assert!(!s.tick().absent.contains(QuoteField::LastTradeTime));
     assert_eq!(
         s.tick().last_trade_time_ms,
@@ -177,26 +183,46 @@ fn a_packet_without_a_trade_brings_only_what_it_carries() {
 /// packet, a total that went to 0.
 #[test]
 fn a_genuine_zero_replaces_the_old_value() {
-    let s = merge(None, &quote_packet(), 1);
+    let s = merge(None, &quote_packet(), session(1));
     let mut next = quote_packet();
     next.total_buy_quantity = 0;
     next.volume = 0;
-    let s = merge(Some(&s), &next, 1);
+    let s = merge(Some(&s), &next, session(1));
     assert_eq!((s.tick().total_buy_quantity, s.tick().volume), (0, 0));
     assert!(s.tick().knows(QuoteField::TotalBuyQuantity));
 }
 
 /// Audit regression matrix row "Reconnect with first packet partial": a
-/// packet of a new connection never merges the old connection's quote.
+/// packet of a connection's new session never merges what its earlier
+/// session said; a pool's other connection opening, or the deeper socket
+/// reconnecting, forgets nothing of the quote (audit R107-04).
 #[test]
-fn a_new_connection_starts_afresh() {
-    let s = merge(None, &quote_packet(), 1);
-    let s = merge(Some(&s), &ltpc_packet(220.0), 2);
+fn a_new_session_of_the_connection_starts_afresh() {
+    let key = InstrumentKey::new("NIFTY28NOV26FUT", "NFO");
+    let quoted = || HashMap::from([(key.clone(), merge(None, &quote_packet(), session(1)))]);
+    let mut map = quoted();
+    forget_session(&mut map, false, session(2));
+    let s = merge(map.get(&key), &ltpc_packet(220.0), session(2));
     let t = s.tick();
     assert!(!t.knows(QuoteField::Open) && !t.knows(QuoteField::Close));
     assert!(!t.knows(QuoteField::Change), "no close of this connection");
     assert_eq!(t.open, 0.0);
-    assert!(s.of_epoch(2) && !s.of_epoch(1));
+
+    let mut map = quoted();
+    let other = crate::websocket::SessionId {
+        conn: 1,
+        session: 3,
+    };
+    forget_session(&mut map, false, other);
+    assert!(
+        map[&key].tick().knows(QuoteField::Open),
+        "a pool's new connection"
+    );
+    forget_session(&mut map, true, session(4));
+    assert!(
+        map[&key].tick().knows(QuoteField::Open),
+        "the deeper socket's"
+    );
 }
 
 /// A new price without a trade time does not keep the old trade time (it
@@ -204,14 +230,14 @@ fn a_new_connection_starts_afresh() {
 /// mark keeps that mark.
 #[test]
 fn the_trade_time_goes_with_its_price() {
-    let s = merge(None, &quote_packet(), 1);
+    let s = merge(None, &quote_packet(), session(1));
     let mut next = ltpc_packet(221.0);
     next.last_trade_time_ms = 0;
-    let s = merge(Some(&s), &next, 1);
+    let s = merge(Some(&s), &next, session(1));
     assert!(!s.tick().knows(QuoteField::LastTradeTime));
     assert!(!s.tick().absent.contains(QuoteField::LastTradeTime));
     next.mark_absent(QuoteField::LastTradeTime);
-    let s = merge(Some(&s), &next, 1);
+    let s = merge(Some(&s), &next, session(1));
     assert!(s.tick().absent.contains(QuoteField::LastTradeTime));
 }
 
@@ -228,7 +254,7 @@ fn extras_stay_and_broker_fields_last_one_packet() {
         BrokerField::IndicativeEquilibriumPrice,
         BrokerValue::Float(0.0),
     );
-    let s = merge(None, &first, 1);
+    let s = merge(None, &first, session(1));
     assert_eq!(
         s.tick()
             .broker_fields
@@ -238,7 +264,7 @@ fn extras_stay_and_broker_fields_last_one_packet() {
     );
     let mut next = ltpc_packet(220.0);
     next.extras.lower_circuit = Some(440.0);
-    let s = merge(Some(&s), &next, 1);
+    let s = merge(Some(&s), &next, session(1));
     let x = s.tick().extras;
     assert_eq!(
         (x.upper_circuit, x.lower_circuit),
@@ -257,18 +283,18 @@ fn a_cleared_extra_is_gone_where_a_missing_one_stays() {
     first.extras.bid_price = Some(219.25);
     first.extras.ask_price = Some(219.35);
     first.extras.upper_circuit = Some(540.0);
-    let s = merge(None, &first, 1);
-    let s = merge(Some(&s), &ltpc_packet(220.0), 1);
+    let s = merge(None, &first, session(1));
+    let s = merge(Some(&s), &ltpc_packet(220.0), session(1));
     assert_eq!(s.tick().extras.bid_price, Some(219.25), "not sent: kept");
     let mut emptied = ltpc_packet(220.5);
     emptied.extras.clear_best_bid_ask();
-    let s = merge(Some(&s), &emptied, 1);
+    let s = merge(Some(&s), &emptied, session(1));
     let x = s.tick().extras;
     assert_eq!((x.bid_price, x.ask_price), (None, None));
     assert_eq!(x.upper_circuit, Some(540.0));
     let mut circuit = ltpc_packet(221.0);
     circuit.extras.clear(ExtraField::UpperCircuit);
-    let s = merge(Some(&s), &circuit, 1);
+    let s = merge(Some(&s), &circuit, session(1));
     assert_eq!(s.tick().extras.upper_circuit, None);
     assert!(
         s.tick().extras.cleared == Default::default(),
@@ -281,17 +307,17 @@ fn a_cleared_extra_is_gone_where_a_missing_one_stays() {
 /// the Depth holder leaves); one it only lacks is kept.
 #[test]
 fn a_cleared_field_is_gone_where_an_absent_one_stays() {
-    let s = merge(None, &quote_packet(), 1);
+    let s = merge(None, &quote_packet(), session(1));
     let mut gone = quote_packet();
     gone.mark_cleared(QuoteField::TotalBuyQuantity);
     gone.mark_absent(QuoteField::TotalSellQuantity);
-    let s = merge(Some(&s), &gone, 1);
+    let s = merge(Some(&s), &gone, session(1));
     assert!(!s.tick().knows(QuoteField::TotalBuyQuantity));
     assert!(s.tick().knows(QuoteField::TotalSellQuantity));
     assert_eq!(s.tick().total_sell_quantity, 800);
-    let s = merge(Some(&s), &ltpc_packet(221.0), 1);
+    let s = merge(Some(&s), &ltpc_packet(221.0), session(1));
     assert!(!s.tick().knows(QuoteField::TotalBuyQuantity), "stays gone");
-    let s = merge(Some(&s), &quote_packet(), 1);
+    let s = merge(Some(&s), &quote_packet(), session(1));
     assert!(
         s.tick().knows(QuoteField::TotalBuyQuantity),
         "back when sent"
@@ -303,10 +329,18 @@ fn a_cleared_field_is_gone_where_an_absent_one_stays() {
 /// otherwise leave out.
 #[test]
 fn a_change_marked_absent_is_not_worked_out() {
-    let s = merge(None, &quote_packet(), 1);
+    let s = merge(None, &quote_packet(), session(1));
     assert!(s.tick().knows(QuoteField::Change));
     let mut next = ltpc_packet(221.0);
     next.mark_absent(QuoteField::Change);
-    let s = merge(Some(&s), &next, 1);
+    let s = merge(Some(&s), &next, session(1));
     assert!(!s.tick().knows(QuoteField::Change));
+}
+
+/// Session `n` of the first connection.
+fn session(n: u64) -> crate::websocket::SessionId {
+    crate::websocket::SessionId {
+        conn: 0,
+        session: n,
+    }
 }
