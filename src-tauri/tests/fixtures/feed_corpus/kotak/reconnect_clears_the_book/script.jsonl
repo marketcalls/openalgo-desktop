@@ -12,6 +12,6 @@
 {"step": "upstream_receives", "frames": [{"json": {"event": "subscribeDepth", "inputtoken": "nse_cm|2885", "ack_symbol": true}}, {"json": {"event": "subscribeScrips", "inputtoken": "nse_cm|2885", "ack_symbol": true}}], "connection": 2}
 {"step": "push", "frame": {"json": {"message_code": 1109, "trading_symbols": {"nse_cm|2885": "RELIANCE-EQ"}}}, "note": "The subscribe acknowledgement maps the key to Kotak's trading symbol."}
 {"step": "push", "frame": "frames/touch_line.hex", "note": "No book on this connection yet: the Depth holder gets no frame. The web republishes the old connection's book here."}
-{"step": "silence", "client": "a"}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}}
 {"step": "push", "frame": "frames/depth_after.hex"}
 {"step": "receive", "client": "a", "frame": "expected/depth_after.json"}

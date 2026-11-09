@@ -12,8 +12,6 @@
     "timestamp": "<receipt_ms>",
     "last_quantity": 10,
     "close": 1280.5,
-    "price_change": 20.5,
-    "price_change_percent": 1.6,
     "percent_change": 1.6,
     "last_trade_time": 1762666205000
   }

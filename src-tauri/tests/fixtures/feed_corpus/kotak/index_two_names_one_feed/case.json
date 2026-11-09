@@ -44,18 +44,6 @@
       "reason": "An SFeed index packet carries no volume; the web's index normaliser writes volume 0 (sfeed_websocket.py::_to_index) and publishes it, a zero the exchange never sent. The desktop leaves it out (web openalgo#2376).",
       "ref": "sfeed_websocket.py:670",
       "approved": true
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
-      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
-      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
     }
   ]
 }

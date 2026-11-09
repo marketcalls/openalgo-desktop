@@ -23,29 +23,22 @@
       "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
       "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._attempt_reconnection"
     ],
-    "notes": [
-      "Web defect not expressible as a deviation (the desktop sends nothing): after a reconnect the web keeps _depth_cache (only _symbol_state is cleared, kotak_adapter.py:997), so the touch line at script line 14 republishes the previous connection's book as current."
-    ]
+    "notes": []
   },
   "deviations": [
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
-      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
-      "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
-    },
     {
       "key": "depth",
       "kind": "web-defect",
       "approved": true,
       "reason": "The web pads each side of an SFeed book to five rows of price 0, quantity 0 (sfeed_websocket.py::_depth_rows): levels the exchange does not have, with zero prices. The desktop sends the book's real levels only (lead decision 9 Nov: zero-padded levels -> the real ones, web defect).",
       "ref": "sfeed_websocket.py:649-660; decisions.md (night of 9 Nov, empty book)"
+    },
+    {
+      "key": "missing-frame",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "After a reconnect the web keeps _depth_cache (only _symbol_state is cleared), so the first touch line republishes the previous connection's book as current. The desktop starts every instrument afresh on a new connection and sends the Depth holder nothing until this connection's first book (lead decision 9 Nov: a stale pre-outage snapshot promoted as current is a web defect).",
+      "ref": "kotak_adapter.py:997 _attempt_reconnection; feed::bridge::snapshot"
     }
   ]
 }
