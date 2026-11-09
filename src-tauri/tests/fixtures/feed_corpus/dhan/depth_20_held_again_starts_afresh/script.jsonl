@@ -1,0 +1,24 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 21, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 20}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 23, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "socket": "depth"}
+{"step": "push", "frame": "frames/prev_close.hex"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/five.json"}
+{"step": "receive", "client": "b", "frame": "expected/five.json"}
+{"step": "push", "frame": "frames/bids.hex", "socket": "depth"}
+{"step": "push", "frame": "frames/asks.hex", "socket": "depth"}
+{"step": "receive", "client": "b", "frame": "expected/twenty.json", "note": "Its own book."}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "A 5-level holder gets no 20-level book."}
+{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 24, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "socket": "depth"}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 20}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 23, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "socket": "depth"}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/five.json"}
+{"step": "receive", "client": "b", "frame": "expected/five.json", "note": "Not the 20-level book from before it left, under this packet's price and time."}
+{"step": "push", "frame": "frames/bids.hex", "socket": "depth"}
+{"step": "push", "frame": "frames/asks.hex", "socket": "depth"}
+{"step": "receive", "client": "b", "frame": "expected/twenty.json", "note": "The socket's next book."}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "A 5-level holder gets no 20-level book."}

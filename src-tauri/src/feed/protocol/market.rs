@@ -311,12 +311,13 @@ fn as_integer(v: Value) -> Value {
 /// the packet's whole main-feed book (a deep book never reaches it), so it
 /// names that book's levels: the main feed's unless the book says (web
 /// Dhan sends the full packet's `depth_level` 5 to its Quote client too).
-fn served(fr: &Frame<'_>) -> u8 {
-    let levels = book_for(fr.update, fr.depth).and_then(|b| b.levels);
+/// A frame with no book names no levels.
+fn served(fr: &Frame<'_>) -> Option<u8> {
+    let levels = book_for(fr.update, fr.depth)?.levels;
     if fr.mode < Mode::Depth {
-        return levels.unwrap_or(DEFAULT_DEPTH);
+        return Some(levels.unwrap_or(DEFAULT_DEPTH));
     }
-    levels.map_or(fr.depth, |l| l.min(fr.depth))
+    Some(levels.map_or(fr.depth, |l| l.min(fr.depth)))
 }
 
 /// The value of `source` in this frame, if known.
@@ -351,10 +352,8 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         }
         Source::Extra(e) => extra(e, q),
         Source::DepthLevels => {
-            // A lower holder names levels only of a book its frame shows.
-            let shown = fr.mode == Mode::Depth || fr.update.depth.is_some();
-            let book = fr.content == Mode::Depth && !fr.update.key.is_index() && shown;
-            book.then(|| Value::from(served(fr)))
+            let book = fr.content == Mode::Depth && !fr.update.key.is_index();
+            book.then(|| served(fr)).flatten().map(Value::from)
         }
         Source::BookLevels => {
             let b = book_for(fr.update, fr.depth).filter(|_| fr.content == Mode::Depth)?;
@@ -374,7 +373,7 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         }
         Source::BrokerSymbol => fr.update.broker_symbol.as_deref().map(Value::from),
         Source::FiftyOr(fifty, other) => {
-            let at_fifty = fr.content == Mode::Depth && served(fr) == 50;
+            let at_fifty = fr.content == Mode::Depth && served(fr) == Some(50);
             value(if at_fifty { *fifty } else { *other }, fr)
         }
         Source::SubscriptionMode => Some(Value::from(fr.mode.as_u8())),
@@ -389,7 +388,7 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::Token => fr.update.token.as_deref().map(Value::from),
         Source::True => Some(Value::Bool(true)),
         Source::FiftyLevels(inner) => {
-            let fifty = fr.content == Mode::Depth && served(fr) == 50;
+            let fifty = fr.content == Mode::Depth && served(fr) == Some(50);
             fifty.then(|| value(*inner, fr)).flatten()
         }
     }

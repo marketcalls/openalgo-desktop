@@ -1,0 +1,19 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 21, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 20}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 23, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "socket": "depth"}
+{"step": "push", "frame": "frames/prev_close.hex"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/five.json"}
+{"step": "receive", "client": "b", "frame": "expected/five.json"}
+{"step": "push", "frame": "frames/bids.hex", "socket": "depth"}
+{"step": "push", "frame": "frames/asks.hex", "socket": "depth"}
+{"step": "receive", "client": "b", "frame": "expected/twenty.json", "note": "Its own book."}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "A 5-level holder gets no 20-level book."}
+{"step": "refuse_upgrades", "socket": "depth", "status": 401, "times": 1}
+{"step": "drop_upstream", "socket": "depth"}
+{"step": "upstream_connections", "socket": "depth", "count": 1, "refused": 1, "ms": 300, "note": "Refused once, so it stays down."}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/five.json"}
+{"step": "receive", "client": "b", "frame": "expected/five.json", "note": "Not the last 20-level book, under this packet's price and time."}
