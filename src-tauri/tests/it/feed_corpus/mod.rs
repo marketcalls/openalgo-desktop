@@ -121,8 +121,6 @@ const WITHOUT_BROKER: &[&str] = &[
     "fivepaisaxts",
     "flattrade",
     "fyers",
-    "hdfcsecurities",
-    "hdfcsky",
     "ibulls",
     "iifl",
     "iiflcapital",
