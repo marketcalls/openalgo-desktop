@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "724ee756097ea3d71654eb927ac53216008048807f1ec9092d8e8a8fb3240fae",
+  "inputs_sha256": "76543a56abebd351fa42a828a1a2277c1f256dd5bbeb8ae31676b850d10f68f9",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -21,6 +21,75 @@
       "instrumenttype": "FUT",
       "expiry": "28-OCT-26",
       "tick_size": 0.1
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "motilal"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "motilal"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 8,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "motilal"
+            }
+          ],
+          "failed": [],
+          "broker": "motilal"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 9,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY28OCT26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "motilal"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "motilal"
+        }
+      ],
+      "from_adapter": true
     }
   ],
   "pushes": [
@@ -65,6 +134,7 @@
           "publication": 0,
           "mode": 2,
           "topic_mode": 2,
+          "broker": "motilal",
           "serves": [
             2
           ]
