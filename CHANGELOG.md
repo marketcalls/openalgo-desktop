@@ -57,12 +57,16 @@ choose Update when no live strategy or active workflow is running.
 - Unsubscribing answers success only once your broker has stopped streaming
   the symbol. If the broker refused, or the connection dropped first, the
   symbol stays subscribed, the answer says so, and unsubscribing again
-  retries.
+  retries. A symbol listed twice in one unsubscribe keeps its subscription
+  if the broker refused, and an answer that comes after the wait is still
+  honoured.
 - Live prices are spread over several connections to your broker, as
   OpenAlgo web does: up to 1,000 symbols per connection and 3 connections.
   Brokers with tighter limits keep to them: HDFC Sky 300 per connection,
   Upstox and HDFC Securities two connections, and one session for 5paisa,
-  Flattrade and the XTS brokers.
+  Flattrade and the XTS brokers. A connection opening or reconnecting
+  affects only that connection's symbols, and a deep book's own connection
+  reconnecting clears only those books.
 - A symbol watched at 5 levels in one app and 20 in another streams 20
   levels, and goes back to 5 when the 20-level app lets go. A 20- or 50-level
   book that does not start, is refused or stays silent (Dhan: 30 seconds) is
@@ -73,7 +77,8 @@ choose Update when no live strategy or active workflow is running.
   broker's feed the way OpenAlgo web does (Dhan, Motilal, Groww, IIFL
   Capital).
 - Health shows where your order updates come from, which subscriptions are
-  still being set up or released, and each feed connection with its symbols.
+  still being set up or released, and each feed connection with its symbols,
+  and warns when any one connection has stopped streaming.
   When a broker ends the feed because too many apps stream on your login,
   Health says so in the broker's words, and prices return as soon as an app
   reconnects, without logging out.
@@ -88,17 +93,20 @@ choose Update when no live strategy or active workflow is running.
 - Dhan: the previous close and the day's close are told apart; previous OI
   and the day's OI range are carried; a 20-level book no longer shows the
   sum of its visible levels as the day's totals; an exchange Dhan does not
-  stream is refused with Dhan's words; the 51st 20-level book is refused.
+  stream is refused with Dhan's words; the 51st 20-level book is refused;
+  the day's OI range stays between updates; prices arrive as the tick Dhan
+  sent (954.1, not 954.0999755859375).
 - Dhan (Sandbox): streams simulated prices every second, as OpenAlgo web
-  does. They are not market prices; the Broker Configuration page and the
-  user guide say so.
+  does. They are not market prices; the Select Broker card, the Broker
+  Configuration page and the user guide say so.
 - Fyers: best bid and ask, circuit limits, the exchange time and
   `update_type`; the token is the exchange's; 50-level depth carries the
   levels it holds and its own feed time.
 - Delta Exchange: ticker updates refresh market depth and carry the best bid
-  and ask.
+  and ask; nothing from before a reconnect is shown as current.
 - Nubra: frames carry Nubra's own time; Depth on an index is refused as on
-  OpenAlgo web.
+  OpenAlgo web; an emptied book clears the best bid and ask, and a book that
+  arrives before the first price still reaches Depth.
 - Kotak: market depth shows only the levels Kotak sent; quotes carry OI and
   the exchange's percent change; order updates retry the other login format
   after 10 seconds, and market data retries an unanswered login after 15.
@@ -118,21 +126,32 @@ choose Update when no live strategy or active workflow is running.
   stops prices and asks you to log in when HDFC ends the session, and a
   mode change no longer drops and re-adds the symbol at HDFC.
 - 5paisa: best bid and ask in Quote, whole prices as 5paisa sends them, and
-  market depth with only the levels 5paisa sent.
+  market depth with only the levels 5paisa sent; a partial update no longer
+  turns volume, last quantity or the buy and sell totals into 0.
 - Samco: indices stream from the first subscribe; best bid and ask in Quote;
   market depth waits for Samco's first book.
 - Tradejini: circuit limits in market depth, a future's OI in Quote, and the
   change as Tradejini sends it.
 - mStock: the exchange time and circuit limits; an index's order flow where
   mStock sends it.
-- Motilal: market depth waits for a trade and a book, with circuit limits;
-  LTP carries the day's volume.
+- Motilal: market depth starts with the first real book level, with circuit
+  limits; LTP carries the day's volume. Where a cash share and an F&O
+  contract share Motilal's code, the second is refused with the reason,
+  because Motilal's packets cannot tell the two apart; OpenAlgo web shows one
+  instrument's prices as the other's.
 - Definedge: best bid and ask and previous and total OI in Quote; circuit
   limits and the 52-week range in depth; order updates start only after
   Definedge accepts the session.
 - Arrow, Rupeezy, Paytm Money, Pocketful and IIFL Capital: circuit limits,
   the 52-week range, best bid and ask, change and OI where each sends them;
   Arrow's order updates find the symbol from the instrument token.
+- Pocketful: Depth shows the real last price and carries the average price
+  as `average_price`, instead of showing the average as the LTP. A Depth
+  subscription now streams Pocketful's quote data beside the book, and
+  `/api/v1/depth` returns the last price too.
+- Paytm Money, IIFL Capital and Pocketful: before an instrument's first
+  trade, frames leave out `ltt` instead of showing the time the update
+  arrived.
 - Shoonya, Flattrade, Zebu and TradeSmart: a feed that keeps answering but
   stops sending prices is reconnected after three minutes, once prices have
   been flowing; frames carry Noren's own percent change, the feed time, the
@@ -142,7 +161,9 @@ choose Update when no live strategy or active workflow is running.
   price-only update no longer blanks the rest of the quote; Depth 20 on NSE
   and NFO streams twenty levels; a session the server ends while the
   connection stays open is reconnected; RMoney's other message layouts
-  stream; Jainam and RMoney depth arrives without a message code.
+  stream; Jainam and RMoney depth arrives without a message code; RMoney's
+  emptied book clears wherever its message carries it; a subscribe the
+  broker refuses is answered as refused, with the broker's reason.
 - Firstock: prices start reliably after login, and invalid book levels no
   longer replace a good book.
 - AliceBlue: market depth shows each level's order count; order updates show
@@ -152,6 +173,11 @@ choose Update when no live strategy or active workflow is running.
   market order's price as 0.0 and a rejection reason only for a rejected
   order.
 
+### Security
+
+- The database engine is upgraded to SQLite 3.54.1 (RUSTSEC-2026-0459), and
+  the MCP library to 3.9.0 (RUSTSEC-2026-0462).
+
 ### Known limitations
 
 - Sound alerts and native notifications (issue #222) and the Sahi sign-in
@@ -159,13 +185,17 @@ choose Update when no live strategy or active workflow is running.
 - Some broker behaviour can only be confirmed during market hours with a
   real login (for example what an empty HDFC book list means, or how XTS
   shapes a nested quote); OpenAlgo follows OpenAlgo web there, and the
-  remaining checks are listed in docs/port/feed-live-checks.md.
+  remaining checks are listed in docs/port/feed-live-checks.md. Pocketful's
+  documentation does not say whether its two streams can run on one
+  instrument; Depth on Pocketful depends on that and is among those checks.
 
 ### Maintenance
 
 - Live market data is now tested broker by broker against OpenAlgo web's own
   handling of the same broker messages, and every difference is recorded
-  with its reason (docs/port/feed-parity-matrix.md).
+  with its reason and the decision that allows it
+  (docs/port/feed-parity-matrix.md). A release is refused while any
+  difference has no decision behind it.
 
 ## 1.0.6
 

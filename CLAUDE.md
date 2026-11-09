@@ -1256,6 +1256,18 @@ differences with their reasons):
 - **Market-state values overlay** in the snapshot and go only on an
   explicit clear; per-packet values (exchange time) never carry over. A
   reconnect starts the merge afresh.
+- **On a partial-update feed an omitted field is unchanged, not unknown**
+  (the Noren four, Firstock, AliceBlue: their `tf` packets carry only what
+  changed). `ft`, `ltt` and `pc` overlay within a connection as on the web;
+  dropping them made `ltt` come and go on same-second ticks where every web
+  client sees it. Where no value is known yet, the key is left out; a change
+  is never worked out from the close when the broker's feed forwards its own.
+- **A broker message is one packet.** Its Tick and Depth reach the bridge
+  together, tagged with the connection session that sent them
+  (`websocket/manager/packet.rs`): pair only inside a packet, never by
+  peeking at a channel, and forget only what a replaced session said, so a
+  pooled connection opening or a deep socket reconnecting leaves the others'
+  quotes alone.
 - **Acknowledgements tell the truth**: a subscribe is answered from the
   broker side, per item, before any of its data; an unsubscribe the broker
   refused keeps the owner. The web's refusal words are matched per broker
