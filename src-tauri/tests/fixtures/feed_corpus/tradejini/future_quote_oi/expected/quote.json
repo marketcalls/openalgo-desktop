@@ -19,10 +19,9 @@
     "low": 24350.0,
     "close": 24380.0,
     "oi": 12000000,
-    "price_change": 170.0,
-    "price_change_percent": 0.7,
     "change": 170.0,
     "change_percent": 0.7,
-    "percent_change": 0.7
+    "percent_change": 0.7,
+    "last_trade_time": "2025-11-05 14:26:05"
   }
 }

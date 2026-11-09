@@ -20,10 +20,9 @@
     "high": 815.0,
     "low": 798.0,
     "close": 805.0,
-    "price_change": 6.0,
-    "price_change_percent": 0.75,
     "change": 6.0,
     "change_percent": 0.75,
-    "percent_change": 0.75
+    "percent_change": 0.75,
+    "last_trade_time": "2025-11-05 14:25:32"
   }
 }

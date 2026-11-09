@@ -62,18 +62,6 @@
       "kind": "web-defect",
       "reason": "An index's L1 carries no volume; the web sends volume 0 (message.get(\"vol\", 0)), an invented zero. The desktop leaves it out.",
       "ref": "tradejini_adapter.py:821"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The web's Tradejini adapter sends an index's change only under its own names (change, change_percent, percent_change); the desktop adds price_change, the canonical name of the recorded Zerodha transcript. Phase B: follows the web adapter through wire's per-broker switch in the dialect table (Tradejini: no price_change).",
-      "ref": "tradejini_adapter.py:829-830, :883-884; feed::dialect (WS-05); lead ruling 2026-11-09"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "As price_change, for price_change_percent (Tradejini: none).",
-      "ref": "tradejini_adapter.py:830, :883-884; feed::dialect (WS-05); lead ruling 2026-11-09"
     }
   ]
 }

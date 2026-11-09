@@ -76,18 +76,6 @@
       "kind": "desktop-decision",
       "reason": "As change_percent, under the web's second name for it.",
       "ref": "tradejini_adapter.py:883-884; NormalizedTick::derive_change"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "Two causes: the change is the desktop's own, from the previous close (as change, a desktop decision, audit C04), and it goes out under the canonical price_change too, which the web's Tradejini adapter never sends (as price_change in the other cases: follows the web adapter once wire's switch covers instruments).",
-      "ref": "NormalizedTick::derive_change; feed::protocol::market canonical()"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "As price_change, for price_change_percent.",
-      "ref": "NormalizedTick::derive_change; feed::protocol::market canonical()"
     }
   ]
 }
