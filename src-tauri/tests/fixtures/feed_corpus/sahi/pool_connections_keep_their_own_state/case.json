@@ -40,7 +40,6 @@
       "kind": "web-defect",
       "reason": "Sahi sent no open interest for this instrument (open_interest, a proto3 optional, is off its ticks); the web publishes oi 0 for it (sahi_mapping.py build_quote_payload), a number the exchange never sent. The desktop leaves it out (docs: a field the stream does not carry is left out; decisions.md).",
       "ref": "sahi_mapping.py:129",
-      "approved": true,
       "approval": "leave-out-unsent"
     },
     {
@@ -48,7 +47,6 @@
       "kind": "web-defect",
       "reason": "The web's alias of oi, sent as 0 with it for an instrument whose ticks carry no open interest; left out with oi (see oi).",
       "ref": "sahi_mapping.py:130",
-      "approved": true,
       "approval": "leave-out-unsent"
     },
     {
@@ -56,7 +54,6 @@
       "kind": "web-defect",
       "reason": "The tick left the price band off (dpr_upper, a proto3 scalar, reads as 0); the web publishes upper_circuit 0.0 (sahi_mapping.py build_quote_payload), a band nobody sent. The desktop sends none for an instrument whose ticks never carried one, and keeps the band an earlier tick of the connection carried.",
       "ref": "sahi_mapping.py:131",
-      "approved": true,
       "approval": "leave-out-unsent"
     },
     {
@@ -64,7 +61,6 @@
       "kind": "web-defect",
       "reason": "The tick left the price band off (dpr_lower); the web publishes lower_circuit 0.0, as upper_circuit.",
       "ref": "sahi_mapping.py:132",
-      "approved": true,
       "approval": "leave-out-unsent"
     }
   ],
