@@ -619,6 +619,15 @@ impl Broker for DhanBroker {
         self.create_depth20_feed(auth)
     }
 
+    /// web `dhan_adapter.py:328-334`: an exchange Dhan's feed has no segment
+    /// for is refused after the symbol lookup, `EXCHANGE_NOT_SUPPORTED`
+    /// with these words. The sandbox's simulated feed takes any (web
+    /// `Dhan_sandboxWebSocketAdapter.subscribe`).
+    fn feed_refusal(&self, exchange: &str) -> Option<String> {
+        (!self.is_sandbox() && streaming::segment_code(exchange).is_none())
+            .then(|| format!("Exchange {} not supported", exchange))
+    }
+
     /// 20-level books stream for NSE and NFO only (web Dhan 20-depth).
     fn feed_depth_levels(&self, exchange: &str) -> Vec<u8> {
         if !self.is_sandbox() && matches!(exchange, "NSE" | "NFO") {

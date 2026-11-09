@@ -27,6 +27,8 @@
 //!     openalgo#2377).
 //!   - 50 disconnect: `u16 reason @0` (805: too many connections); 0 is a
 //!     heartbeat.
+//! * A deliberate close (a logout, a broker switch) first sends
+//!   `{"RequestCode": 12}`, on this socket and the 20-level one.
 //!
 //! 20-level depth (`wss://depth-api-feed.dhan.co/twentydepth?...`, NSE and
 //! NFO only): 12-byte header `u16 length @0, u8 code @2, u8 segment @3,
@@ -528,6 +530,18 @@ impl BrokerFeed for DhanFeed {
     fn supported_depth_levels(&self) -> &'static [u8] {
         &[5]
     }
+
+    fn farewell_frames(&self) -> Vec<Message> {
+        vec![farewell()]
+    }
+}
+
+/// What the web's `DhanWebSocket.disconnect` sends on a socket still
+/// connected before it closes it, on the market and the 20-level sockets
+/// alike (dhan_websocket.py:247-262, `REQUEST_CODES["DISCONNECT"]`, written
+/// by `json.dumps`).
+fn farewell() -> Message {
+    Message::Text(r#"{"RequestCode": 12}"#.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -708,6 +722,10 @@ impl BrokerFeed for Dhan20DepthFeed {
 
     fn supported_depth_levels(&self) -> &'static [u8] {
         &[20]
+    }
+
+    fn farewell_frames(&self) -> Vec<Message> {
+        vec![farewell()]
     }
 }
 
