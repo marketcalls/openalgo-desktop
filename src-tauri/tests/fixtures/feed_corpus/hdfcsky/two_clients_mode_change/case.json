@@ -1,0 +1,86 @@
+{
+  "broker": "hdfcsky",
+  "summary": "Client a at LTP, client b at Quote on the same instrument: the feed type follows the highest mode; one full packet serves both; when b leaves the feed goes back to LTP.",
+  "scenarios": [
+    "mode-change",
+    "subscription-lifecycle",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsky/streaming/hdfcsky_websocket.py::HDFCSkyWebSocket._parse_packet",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._on_ticks",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._normalize",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter.subscribe",
+      "test/test_hdfcsky_quote_feed.py::test_modes_tracked_and_highest_kept_at_broker"
+    ],
+    "notes": [
+      "The feed type follows the highest mode held: LTP to ALL and back are each one subscribe at the new type, with no unSubscribe, as the web's adapter moves a held scrip (subscribe_scrips at max(modes); test_hdfcsky_quote_feed.py::test_modes_tracked_and_highest_kept_at_broker)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "change",
+      "kind": "web-defect",
+      "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
+      "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
+      "approved": true
+    },
+    {
+      "key": "change_percent",
+      "kind": "web-defect",
+      "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
+      "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
+      "approved": true
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
+      "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
+      "approved": true
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Sky sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsky_websocket.py:764-765; hdfcsky_adapter.py:421",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
+      "approved": true
+    },
+    {
+      "key": "prev_close",
+      "kind": "web-defect",
+      "reason": "Back at the LTP type, the LTP packet carries no close (proto3 0). The web publishes close and prev_close 0.0 from it and so no change; the desktop keeps the close the same connection's full packet carried (the bridge keeps each field's last known value, feed/bridge/snapshot.rs) and the change from it. Lead decision: web zeros for values the stream did not send are a web defect.",
+      "ref": "hdfcsky_adapter.py:425-432; feed/bridge/snapshot.rs",
+      "approved": true
+    }
+  ]
+}

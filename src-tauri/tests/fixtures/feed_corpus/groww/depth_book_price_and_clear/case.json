@@ -1,0 +1,47 @@
+{
+  "broker": "groww",
+  "summary": "A Depth subscription takes Groww's price and book subjects and joins them: a book before any price (a padded empty level is no level), the price merged in, a new book, then an empty book that clears both sides; the unsubscribe releases both subjects.",
+  "scenarios": [
+    "depth-update",
+    "book-clear",
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_binary_nats_message",
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_market_data_msg",
+      "broker/groww/streaming/groww_protobuf.py::MiniProtobufParser.parse_market_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._on_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._normalize_market_data",
+      "broker/groww/streaming/groww_adapter.py::_GrowwMarketCache"
+    ],
+    "notes": [
+      "The fake socket does not echo the nats subprotocol, so each connect is two connections: the first asks for it and is dropped by the feed, the second goes without it (GrowwFeed::on_connect_failed, web nats_websocket.py subprotocol fallback). Connection 2 is the session.",
+      "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature.",
+      "The feed sends Groww what the web sends: its CONNECT text, one frame per SUB and UNSUB, a Depth's book before its price, and one PING after a batch of SUBs. Text PING frames are not recorded (upstream_ignore: the 10 s heartbeat is the same frame), so the batch's PING is pinned by brokers::groww's unit tests."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltp",
+      "kind": "desktop-decision",
+      "reason": "A book before the first price: the web's merged entry has no ltp yet and leaves it out; the desktop's Depth frame keeps ltp (0) and timestamp, which the SDK's Depth callback reads (1.0.6 decision).",
+      "ref": "CLAUDE.md (depth frame before its instrument's first tick); groww_adapter.py:64-73",
+      "approved": true
+    }
+  ]
+}

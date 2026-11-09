@@ -1,0 +1,26 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "indmoney",
+  "inputs_sha256": "0c0a4e46e5444c4a4ebc1f2b19668496669ff67b0989628f38e353321321f6da",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "CRUDEOIL19NOV26FUT",
+      "exchange": "MCX",
+      "token": "472790",
+      "brsymbol": "CRUDEOIL19NOV26FUT",
+      "brexchange": "MCX",
+      "instrumenttype": "FUT",
+      "expiry": "19-NOV-26",
+      "name": "CRUDEOIL"
+    }
+  ],
+  "pushes": []
+}

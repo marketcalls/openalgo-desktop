@@ -1,0 +1,46 @@
+{
+  "broker": "groww",
+  "summary": "A Quote subscription over the NATS price subject: the first full tick, then a tick carrying only what changed keeps the earlier OHLC and traded value, and a tick without an LTP keeps the last LTP; the trade quantity, average price, book totals and OI Groww never sends are left out.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_binary_nats_message",
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_market_data_msg",
+      "broker/groww/streaming/groww_protobuf.py::MiniProtobufParser.parse_market_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._on_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._normalize_market_data",
+      "broker/groww/streaming/groww_adapter.py::_GrowwMarketCache"
+    ],
+    "notes": [
+      "The fake socket does not echo the nats subprotocol, so each connect is two connections: the first asks for it and is dropped by the feed, the second goes without it (GrowwFeed::on_connect_failed, web nats_websocket.py subprotocol fallback). Connection 2 is the session.",
+      "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature.",
+      "The feed sends Groww what the web sends: its CONNECT text, one frame per SUB and UNSUB, a Depth's book before its price, and one PING after a batch of SUBs. Text PING frames are not recorded (upstream_ignore: the 10 s heartbeat is the same frame), so the batch's PING is pinned by brokers::groww's unit tests."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltp",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "A Groww tick that leaves the LTP out (it did not change) is normalised by the web with ltp_data.get('ltp', 0), and the 0 replaces the cached LTP: the web publishes ltp 0 for a packet without a trade. The desktop keeps the last LTP (GrowwFeed merge).",
+      "ref": "groww_adapter.py:1099 (mode 2 default 0), :53-62 (update_from_ltp keeps a 0)"
+    }
+  ]
+}

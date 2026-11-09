@@ -1,0 +1,28 @@
+{
+  "type": "market_data",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "mode": 3,
+  "data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "ltp": 812.5,
+    "ltt": 1730790003000.0,
+    "timestamp": "<receipt_ms>",
+    "volume": 1200000.0,
+    "open": 805.0,
+    "high": 815.0,
+    "low": 801.0,
+    "close": 803.2,
+    "depth": {
+      "buy": [],
+      "sell": []
+    },
+    "mode": 3,
+    "broker": "groww",
+    "topic": "NSE_SBIN_DEPTH",
+    "subscription_mode": 3,
+    "value": 974250000.0
+  },
+  "broker": "groww"
+}

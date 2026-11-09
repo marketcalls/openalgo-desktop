@@ -1,0 +1,41 @@
+# RELIANCE depth (level 8) before the drop.
+# SFeed market picture (web sfeed_protocol._decode_market_picture).
+d000                    # packet length 208
+281c                    # message code 7208
+01                      # exchange 1 (nse_cm)
+08                      # level 8
+00                      # auction flag
+00                      # sequence
+00                      # bitmask length
+450b0000                # token 2885
+2823000000000000        # total buy quantity 9000
+581b000000000000        # total sell quantity 7000
+409c000000000000        # volume 40000
+d826106900000000        # last trade time 1762666200 (epoch s)
+d826106900000000        # last update time
+e8f70100                # open 129000 -> 1290.0
+32f40100                # previous close 128050 -> 1280.5
+b8ff0100                # high 131000 -> 1310.0
+f4f50100                # low 128500 -> 1285.0
+02fc0100                # ltp 130050 -> 1300.5
+1900000000000000        # last traded quantity 25
+21fb0100                # average price 129825 -> 1298.25
+00000000                # indicative close
+02000000                # buy rows 2
+02000000                # sell rows 2
+0000                    # trading status
+9c000000                # change % 156 -> 1.56
+00000000                # open interest 0
+0000000000000000        # turnover
+d0070000                # change 2000 -> 20.0
+32260200                # upper circuit 140850 -> 1408.5
+32c20100                # lower circuit 115250 -> 1152.5
+00000000                # 52-week high
+00000000                # 52-week low
+01000000                # lot
+02                      # precision
+01000000                # multiplier
+6400000000000000fdfb010003000000        # bid: qty 100, price 130045 -> 1300.45, orders 3
+c800000000000000f8fb010005000000        # bid: qty 200, price 130040 -> 1300.4, orders 5
+96000000000000000cfc010004000000        # ask: qty 150, price 130060 -> 1300.6, orders 4
+fa0000000000000011fc010006000000        # ask: qty 250, price 130065 -> 1300.65, orders 6

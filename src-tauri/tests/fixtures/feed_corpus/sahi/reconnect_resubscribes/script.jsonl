@@ -1,0 +1,14 @@
+{"step": "upstream_connected", "connection": 1, "path": "/", "headers": {"authorization": "Bearer t", "user-agent": "openalgo-sahi/1.0"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"hex": "0a0608021202c516"}], "connection": 1}
+{"step": "push", "frame": "frames/ack.hex"}
+{"step": "silence", "client": "a", "note": "an Ack publishes nothing (web sahi_adapter.py _on_message)"}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "push", "frame": "frames/error.hex"}
+{"step": "silence", "client": "a", "note": "a stream error is logged, the connection stays open"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "path": "/", "headers": {"authorization": "Bearer t", "user-agent": "openalgo-sahi/1.0"}}
+{"step": "upstream_receives", "frames": [{"hex": "0a0608021202c516"}], "connection": 2, "note": "web sahi_adapter.py _on_open resends every Subscribe"}
+{"step": "push", "frame": "frames/quote_after.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_after.json"}

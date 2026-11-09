@@ -1,0 +1,47 @@
+{
+  "broker": "groww",
+  "summary": "A Quote client and a Depth client on one instrument: the Depth subscribe moves Groww's subscription to the price and book subjects; a book before any price reaches only the Depth client (a book is no trade, so the Quote client gets nothing); then the first price reaches both.",
+  "scenarios": [
+    "mode-change",
+    "partial-packet",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_binary_nats_message",
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_market_data_msg",
+      "broker/groww/streaming/groww_protobuf.py::MiniProtobufParser.parse_market_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._on_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._normalize_market_data",
+      "broker/groww/streaming/groww_adapter.py::_GrowwMarketCache"
+    ],
+    "notes": [
+      "The fake socket does not echo the nats subprotocol, so each connect is two connections: the first asks for it and is dropped by the feed, the second goes without it (GrowwFeed::on_connect_failed, web nats_websocket.py subprotocol fallback). Connection 2 is the session.",
+      "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature.",
+      "The feed sends Groww what the web sends: its CONNECT text, one frame per SUB and UNSUB, a Depth's book before its price, and one PING after a batch of SUBs. Text PING frames are not recorded (upstream_ignore: the 10 s heartbeat is the same frame), so the batch's PING is pinned by brokers::groww's unit tests.",
+      "web-defect (approved, lead 2026-11-09): on the Depth subscribe the web keeps the Quote subscription's sid 1 on the price subject and sends SUB /ld/eq/nse/book.3045 2, SUB /ld/eq/nse/price.3045 3 and PING (groww_adapter.py:478-538, nats_websocket.py:774-897): the price subject is subscribed twice, so Groww delivers every price on sid 1 and on sid 3 and the web publishes it twice to its clients. The desktop moves the subscription: UNSUB 1, SUB book 2, SUB price 3, PING, one sid per subject. The case pushes what Groww sends the desktop (one price message, sid 3), so the doubled publish does not show as a frame."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltp",
+      "kind": "desktop-decision",
+      "reason": "A book before the first price: the web's merged entry has no ltp yet and leaves it out; the desktop's Depth frame keeps ltp (0) and timestamp, which the SDK's Depth callback reads (1.0.6 decision).",
+      "ref": "CLAUDE.md (depth frame before its instrument's first tick); groww_adapter.py:64-73",
+      "approved": true
+    }
+  ]
+}

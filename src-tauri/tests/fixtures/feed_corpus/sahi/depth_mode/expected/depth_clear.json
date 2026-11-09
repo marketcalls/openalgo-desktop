@@ -1,0 +1,23 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 3,
+  "broker": "sahi",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": "full",
+    "ltp": 1291.0,
+    "ltt": 1761700002123,
+    "timestamp": "<receipt_ms>",
+    "last_trade_time": 1761700002123,
+    "volume": 4600,
+    "upper_circuit": 1419.5,
+    "lower_circuit": 1161.5,
+    "depth": {
+      "buy": [],
+      "sell": []
+    }
+  }
+}

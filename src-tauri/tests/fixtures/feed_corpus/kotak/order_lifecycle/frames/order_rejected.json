@@ -1,0 +1,19 @@
+{
+  "type": "order",
+  "data": {
+    "nOrdNo": "251109000000102",
+    "ordSt": "rejected",
+    "exSeg": "nse_fo",
+    "trdSym": "NIFTY25NOVFUT",
+    "tok": "53001",
+    "qty": "75",
+    "fldQty": "0",
+    "prcTp": "SL",
+    "trnsTp": "S",
+    "prc": "24400.00",
+    "trgPrc": "24410.00",
+    "avgPrc": "0.00",
+    "prod": "NRML",
+    "rejRsn": "RMS:Margin Exceeds"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 3,
+  "data": {
+    "close": 1495.0,
+    "depth": {
+      "buy": [
+        {
+          "orders": 2,
+          "price": 1494.5,
+          "quantity": 40
+        },
+        {
+          "orders": 3,
+          "price": 1494.0,
+          "quantity": 75
+        }
+      ],
+      "sell": [
+        {
+          "orders": 1,
+          "price": 1496.0,
+          "quantity": 60
+        },
+        {
+          "orders": 1,
+          "price": 1496.5,
+          "quantity": 25
+        }
+      ]
+    },
+    "exchange": "NSE",
+    "last_price": 0.0,
+    "lower_circuit": 1345.95,
+    "ltp": 0.0,
+    "prev_close": 1495.0,
+    "symbol": "RELIANCE",
+    "timestamp": 1699999990000,
+    "token": "2885",
+    "total_buy_quantity": 115,
+    "total_sell_quantity": 85,
+    "upper_circuit": 1645.05
+  },
+  "broker": "hdfcsky"
+}

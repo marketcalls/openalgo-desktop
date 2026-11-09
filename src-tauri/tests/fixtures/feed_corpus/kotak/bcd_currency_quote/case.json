@@ -1,0 +1,34 @@
+{
+  "broker": "kotak",
+  "summary": "A BSE currency future: BCD subscribes as bse_cd and its packets, scaled by that exchange's own divider, come out as the Quote frame with OI.",
+  "scenarios": [
+    "first-full-packet",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "USDINR25NOV26FUT",
+      "exchange": "BCD",
+      "token": "1101",
+      "brsymbol": "USDINR25NOVFUT",
+      "brexchange": "bcs_fo",
+      "lotsize": 1000,
+      "instrumenttype": "FUTCUR",
+      "expiry": "25-NOV-26",
+      "tick_size": 0.0025
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "broker/kotak/streaming/kotak_mapping.py::get_kotak_exchange",
+      "test/test_kotak_quote_feed.py::test_bcd_maps_to_the_segment_the_feed_reports"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

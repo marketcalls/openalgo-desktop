@@ -1,0 +1,21 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY25NOV25FUT",
+  "exchange": "NFO",
+  "mode": 2,
+  "broker": "sahi",
+  "data": {
+    "symbol": "NIFTY25NOV25FUT",
+    "exchange": "NFO",
+    "mode": "quote",
+    "ltp": 24710.0,
+    "ltt": 1761700004000,
+    "timestamp": "<receipt_ms>",
+    "last_trade_time": 1761700004000,
+    "volume": 127000,
+    "oi": 1550,
+    "open_interest": 1550,
+    "upper_circuit": 27170.0,
+    "lower_circuit": 22230.0
+  }
+}

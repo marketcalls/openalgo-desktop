@@ -1,0 +1,47 @@
+{
+  "broker": "hdfcsky",
+  "summary": "The broker drops the socket: the manager connects again with the same query and headers and subscribes again; an OI packet before the new socket's first full packet publishes nothing.",
+  "scenarios": [
+    "reconnect",
+    "partial-packet",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY25NOV26FUT",
+      "brexchange": "NFO",
+      "instrumenttype": "FUTIDX",
+      "lotsize": 75,
+      "expiry": "25-NOV-26"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsky/streaming/hdfcsky_websocket.py::HDFCSkyWebSocket._parse_packet",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._on_ticks",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._merge_partial",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._normalize",
+      "test/test_hdfcsky_quote_feed.py::test_reconnect_drops_snapshots_before_partial_packets"
+    ],
+    "notes": [
+      "HdfcSkyFeed::on_connected clears the merge baselines, as the web's _on_ws_connect does."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Sky sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsky_websocket.py:764-765; hdfcsky_adapter.py:421",
+      "approved": true
+    }
+  ]
+}

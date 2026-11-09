@@ -1,0 +1,8 @@
+# Groww NATS MSG, BSE index subject of SENSEX (numeric token 14; sid 2).
+# exchange 0 (BSE) is the protobuf default, so it is not on the wire.
+4d5347202f6c642f696e64696365732f6273652f70726963652e313420322032300d0a  # "MSG /ld/indices/bse/price.14 2 20" CRLF
+                                                                        # protobuf LiveData, 20 bytes
+32 12                                                                   # live index (6), 18 bytes
+09 00 00 58 f8 b1 2f 79 42                                              #   ts_in_millis (1, double) = 1730790000000.0
+11 00 00 00 00 c4 68 f3 40                                              #   value (2, double) = 79500.25
+0d0a                                                                    # CRLF ending the message

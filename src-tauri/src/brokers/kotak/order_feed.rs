@@ -1,5 +1,12 @@
 //! Kotak order updates (web `streaming/kotak_order_adapter.py`): the
 //! realtime socket at the session's `baseUrl` host.
+//!
+//! The login is the `cn` frame sent on connect. Kotak answers a bad one
+//! either by dropping the socket or by holding it open and sending nothing,
+//! which looks like a quiet market; so, as the web's watchdog does, an
+//! attempt with no acknowledgement within 10 s is dropped, and the next
+//! connect sends the other encoding (`connect_frame`). Live order or
+//! position data proves the login as well as the `cn` answer does.
 
 use super::KotakSession;
 use crate::brokers::common::streaming::{
@@ -11,6 +18,10 @@ use crate::error::{AppError, Result};
 use serde_json::{json, Value};
 use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+
+/// How long a connect waits for the `cn` acknowledgement (web
+/// `KOTAK_CONNECT_ACK_TIMEOUT_SECONDS`).
+pub const CONNECT_ACK_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// `wss://<baseUrl host>/realtime` (web `_realtime_ws_url`).
 pub fn realtime_url(base_url: &str) -> String {
@@ -79,8 +90,11 @@ impl KotakOrderFeed {
             return Vec::new();
         };
         let ty = v.get("type").and_then(Value::as_str).unwrap_or("");
-        if ty == "order" || ty == "position" {
+        let mut out = Vec::new();
+        if (ty == "order" || ty == "position") && !self.acked {
+            // Live data proves the login, whatever its answer looked like.
             self.acked = true;
+            out.push(FeedEvent::AuthOk);
         }
         if ty != "order" {
             if ty == "cn" || v.get("ak").is_some() {
@@ -90,17 +104,17 @@ impl KotakOrderFeed {
                     .is_some_and(|a| a.eq_ignore_ascii_case("ok"));
                 self.acked = ok;
                 if ok {
-                    return vec![FeedEvent::AuthOk];
+                    out.push(FeedEvent::AuthOk);
                 }
             }
-            return Vec::new();
+            return out;
         }
         let d = v.get("data").cloned().unwrap_or(Value::Null);
         let s = |k: &str| super::mapping::s(&d, k);
         let n = |k: &str| super::mapping::n(&d, k);
         let order_id = s("nOrdNo");
         if order_id.is_empty() {
-            return Vec::new();
+            return out;
         }
         let raw_status = s("ordSt").to_ascii_lowercase();
         // The order feed keeps `trigger pending` (web `_STATUS_MAP`); only
@@ -119,7 +133,7 @@ impl KotakOrderFeed {
             Some(x) if !x.is_null() && !s("unFldSz").is_empty() => n("unFldSz") as i64,
             _ => (quantity - filled).max(0),
         };
-        vec![FeedEvent::OrderUpdate(OrderUpdate {
+        out.push(FeedEvent::OrderUpdate(OrderUpdate {
             orderid: order_id,
             symbol,
             exchange,
@@ -138,7 +152,8 @@ impl KotakOrderFeed {
             filled_quantity: filled,
             pending_quantity: pending,
             average_price: n("avgPrc"),
-        })]
+        }));
+        out
     }
 }
 
@@ -156,6 +171,17 @@ impl BrokerFeed for KotakOrderFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         vec![self.connect_frame()]
+    }
+
+    /// Kotak may hold an unaccepted login open in silence: wait for the
+    /// acknowledgement, and drop the attempt after 10 s so the next one
+    /// tries the other encoding (web `_start_ack_watchdog`).
+    fn awaits_auth_ack(&self) -> bool {
+        true
+    }
+
+    fn auth_ack_deadline(&self) -> Option<Duration> {
+        Some(CONNECT_ACK_TIMEOUT)
     }
 
     fn subscribe_frames(&mut self, _subs: &[FeedSubscription]) -> Vec<Message> {

@@ -162,6 +162,7 @@ fn decode_quote_stock_absent_oi() {
     assert_eq!(kind, TickKind::Quote);
     assert_eq!(t.last_trade_time, Some(1761700000123));
     assert_eq!(t.volume_today, 987654);
+    assert_eq!((t.dpr_upper, t.dpr_lower), (141950, 116150));
     assert_eq!(t.open_interest, None);
 }
 
@@ -278,8 +279,12 @@ fn depth_frame() -> Vec<u8> {
     lfield(4, &body)
 }
 
+/// Web test/test_sahi_streaming_codec.py::test_depth_tick_fans_out_to_every_mode
+/// (the book): two bids and no asks stay two bids and no asks; the web
+/// pads both sides to five rows of 0.0 (an approved web defect,
+/// decisions.md: never invent zero prices).
 #[test]
-fn depth_tick_publishes_tick_and_padded_depth_in_rupees() {
+fn depth_tick_publishes_tick_and_the_levels_sahi_sent_in_rupees() {
     let mut f = feed();
     f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
     let events = f.parse(&Message::Binary(depth_frame()));
@@ -299,11 +304,12 @@ fn depth_tick_publishes_tick_and_padded_depth_in_rupees() {
     // leave it out.
     assert_eq!((t.open, t.high, t.low, t.close), (0.0, 0.0, 0.0, 0.0));
     assert_eq!((t.change, t.change_percent), (0.0, 0.0));
-    assert_eq!(t.absent, NOT_ON_THE_STREAM);
+    // An equity's tick carries no open interest either.
+    assert_eq!(t.absent, NOT_ON_THE_STREAM.with(QuoteField::OpenInterest));
     let FeedEvent::Depth(d) = &events[1] else {
         panic!("second event is not depth")
     };
-    assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
+    assert_eq!((d.buy.len(), d.sell.len()), (2, 0));
     assert_eq!(
         d.buy[0],
         DepthLevel {
@@ -313,8 +319,6 @@ fn depth_tick_publishes_tick_and_padded_depth_in_rupees() {
         }
     );
     assert_eq!(d.buy[1].price, 1289.95);
-    assert!(d.buy[2..].iter().all(|l| *l == DepthLevel::default()));
-    assert!(d.sell.iter().all(|l| *l == DepthLevel::default()));
 }
 
 #[test]
@@ -396,6 +400,34 @@ fn index_tick_and_derivative_oi() {
         panic!("not a tick")
     };
     assert_eq!((t.oi, t.ltp), (1500, 24700.0));
+    assert!(t.knows(QuoteField::OpenInterest), "{:?}", t);
+}
+
+/// Web test/test_sahi_streaming_codec.py::test_index_ltp_without_time_and_derivative_oi
+/// (its derivative): a Quote tick with open interest frames `oi` and
+/// `open_interest` (1500, audit C05); a Quote tick without it frames
+/// neither, where the web sends 0.
+#[test]
+fn a_quote_tick_frames_the_open_interest_it_carries() {
+    use crate::feed::Mode;
+    let mut f = feed();
+    f.subscribe_frames(&[
+        sub("NIFTYFUT", "NFO", "5", FeedMode::Quote),
+        sub("RELIANCE", "NSE", "2885", FeedMode::Quote),
+    ]);
+    let fut = [vfield(1, 5), vfield(4, 1), vfield(10, 1500)].concat();
+    let quote = &frames(&f.parse(&Message::Binary(lfield(3, &fut))), Mode::Quote)[0];
+    assert_eq!(
+        (quote["oi"].as_i64(), quote["open_interest"].as_i64()),
+        (Some(1500), Some(1500))
+    );
+    let stock = [vfield(1, 2885), vfield(4, 129050)].concat();
+    let quote = &frames(&f.parse(&Message::Binary(lfield(3, &stock))), Mode::Quote)[0];
+    assert!(
+        quote.get("oi").is_none() && quote.get("open_interest").is_none(),
+        "{}",
+        quote
+    );
 }
 
 /// The `data` of the 8765 frames Sahi's `events` make at `mode`.
@@ -405,9 +437,11 @@ fn frames(events: &[FeedEvent], mode: crate::feed::Mode) -> Vec<serde_json::Valu
 
 /// Web test/test_sahi_streaming_codec.py::test_depth_tick_fans_out_to_every_mode:
 /// a depth tick serves every mode; `last_trade_time` goes beside `ltt`,
-/// and what the stream does not carry (open, high, low, close, last
-/// quantity, average price, the book totals) is left out, never sent as 0.
-/// The desktop's frames carry no circuit limits, and LTP data no OI.
+/// the Quote and Depth frames carry the price band in rupees (1419.5 and
+/// 1161.5, audit P-11), and what the stream does not carry (open, high,
+/// low, close, last quantity, average price, the book totals, and for this
+/// equity open interest) is left out, never sent as 0. The web sends this
+/// equity `oi` 0, a number Sahi never sent (an approved web defect).
 #[test]
 fn a_depth_tick_frames_only_what_the_stream_carries() {
     use crate::feed::Mode;
@@ -435,20 +469,24 @@ fn a_depth_tick_frames_only_what_the_stream_carries() {
     let quote_keys = [
         "exchange",
         "last_trade_time",
+        "lower_circuit",
         "ltp",
         "ltt",
         "mode",
-        "oi",
-        "open_interest",
         "symbol",
         "timestamp",
+        "upper_circuit",
         "volume",
     ];
     let quote = &frames(&events, Mode::Quote)[0];
     assert_eq!(keys(quote), quote_keys);
+    assert_eq!(quote["volume"].as_i64(), Some(4000));
     assert_eq!(
-        (quote["volume"].as_i64(), quote["oi"].as_i64()),
-        (Some(4000), Some(0))
+        (
+            quote["upper_circuit"].as_f64(),
+            quote["lower_circuit"].as_f64()
+        ),
+        (Some(1419.5), Some(1161.5))
     );
     let depth = frames(&events, Mode::Depth);
     let [book] = &depth[..] else {
@@ -459,6 +497,27 @@ fn a_depth_tick_frames_only_what_the_stream_carries() {
     with_book.sort();
     assert_eq!(keys(book), with_book);
     assert_eq!(book["depth"]["buy"][0]["price"], 1290.0);
+    assert_eq!(book["depth"]["buy"].as_array().map(Vec::len), Some(2));
+    assert_eq!(book["depth"]["sell"], serde_json::json!([]));
+}
+
+/// A tick that leaves the price band off (proto3 omits a 0) has none: its
+/// frame carries no circuit key, where the web sends 0.0 (an approved web
+/// defect: a band nobody sent).
+#[test]
+fn a_tick_without_a_band_frames_no_circuits() {
+    use crate::feed::Mode;
+    let mut f = feed();
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Quote)]);
+    let body = [vfield(1, 2885), vfield(4, 129100)].concat();
+    let events = f.parse(&Message::Binary(lfield(3, &body)));
+    let quote = &frames(&events, Mode::Quote)[0];
+    assert_eq!(quote["ltp"], 1291.0);
+    assert!(
+        quote.get("upper_circuit").is_none() && quote.get("lower_circuit").is_none(),
+        "{}",
+        quote
+    );
 }
 
 /// Web test/test_sahi_streaming_codec.py::test_index_ltp_without_time_and_derivative_oi:
@@ -486,6 +545,23 @@ fn an_index_tick_frames_no_trade_time() {
             }
         }
     }
+}
+
+/// An index's DepthTick (a price and no levels) makes one tick event and no
+/// book event, so a Depth holder gets one frame for it, as the web sends
+/// one (lead ruling R1).
+#[test]
+fn an_index_depth_tick_makes_no_book_event() {
+    let mut f = feed();
+    f.subscribe_frames(&[sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Depth)]);
+    let idx = [vfield(1, 26000), vfield(4, 2456735)].concat();
+    let events = f.parse(&Message::Binary(lfield(4, &idx)));
+    assert!(
+        matches!(&events[..], [FeedEvent::Tick(t)] if t.mode == 3),
+        "{:?}",
+        events
+    );
+    assert_eq!(frames(&events, crate::feed::Mode::Depth).len(), 1);
 }
 
 #[test]
@@ -610,4 +686,24 @@ fn paise_to_rupees() {
     assert_eq!(rupees(249955), 2499.55);
     assert_eq!(rupees(5), 0.05);
     assert_eq!(rupees(0), 0.0);
+}
+
+/// Web test/test_sahi_streaming_codec.py::test_adapter_rejects_unknown_symbol_and_exchange
+/// (the exchange): MCX is refused, in the words of the web's
+/// UNSUPPORTED_EXCHANGE, by the broker's feed refusal; the six exchanges
+/// Sahi streams are not.
+#[test]
+fn an_exchange_sahi_does_not_stream_is_refused_in_the_webs_words() {
+    use crate::brokers::sahi::SahiBroker;
+    use crate::brokers::Broker;
+    let broker = SahiBroker::new(SymbolResolver::new());
+    for ex in ["NSE", "BSE", "NFO", "BFO", "NSE_INDEX", "BSE_INDEX"] {
+        assert_eq!(broker.feed_refusal(ex), None, "{}", ex);
+    }
+    for ex in ["MCX", "CDS", "BCD", "NCDEX"] {
+        assert_eq!(
+            broker.feed_refusal(ex),
+            Some(format!("Exchange {} is not streamed by Sahi", ex))
+        );
+    }
 }

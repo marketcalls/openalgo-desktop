@@ -1,0 +1,1 @@
+{"mode": "order_update", "timestamp": 1794302700300, "data": {"order_id": "96057848", "entity_name": "Reliance Industries Ltd", "order_type": "BUY", "order_status": "S", "lot": 1, "executed_price": 1426.45, "elapsed_time": 23, "error_message": " ", "req_quantity": 10, "requested_lot": 10}}

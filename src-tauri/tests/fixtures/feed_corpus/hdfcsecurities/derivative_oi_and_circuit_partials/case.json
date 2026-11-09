@@ -1,0 +1,49 @@
+{
+  "broker": "hdfcsecurities",
+  "summary": "A future at Depth (client a) and Quote (client b): an OI packet before the first full packet publishes nothing; after it, a circuit packet and an OI packet each republish the last full packet with only their own fields changed, never a zero price.",
+  "scenarios": [
+    "partial-packet",
+    "derivative-oi",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY25NOV26FUT",
+      "brexchange": "NFO",
+      "instrumenttype": "FUTIDX",
+      "lotsize": 75,
+      "expiry": "25-NOV-26"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._parse_packet",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._on_ticks",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._merge_partial",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize",
+      "test/test_hdfcsky_quote_feed.py::test_partial_packets_merge_into_snapshot_instead_of_blanking",
+      "test/test_hdfcsky_quote_feed.py::test_partial_packet_without_snapshot_is_not_published"
+    ],
+    "notes": [
+      "Prices, the band 1350/1650 and OI 777 from the web tests; the book and OI 700 on the full packet are added, and each partial has its own packet time.",
+      "desktop-decision (lead 2026-11-09): client b's Quote subscribe beside a's Depth leaves the instrument's highest mode at Depth, so the desktop sends the broker nothing; the web's adapter calls subscribe_scrips on every subscribe and unsubscribe while a mode remains, and its client sends a second subscribe at ALL here. The desktop coalesces holder changes and never sends again a subscription whose effective mode is unchanged, which is safer under brokers' subscription rate limits; the only effect is that a new client gets its first frame at the next tick rather than at once. Live check: how long a new client waits for its first frame on a quiet instrument."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
+      "approved": true
+    }
+  ]
+}

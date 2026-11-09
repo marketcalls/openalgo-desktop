@@ -1,0 +1,54 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "kotak",
+  "inputs_sha256": "cecb6134d681a9424c8a0c60eabd456779d2f55dfd0c28daa2098cd2b70745a8",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_DEPTH",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 3,
+          "data": {
+            "ltp": 21350.0,
+            "volume": 0,
+            "open": 21000.0,
+            "high": 21500.0,
+            "low": 20900.0,
+            "close": 21100.0,
+            "percent_change": 1.18,
+            "depth": {
+              "buy": [],
+              "sell": []
+            },
+            "totalbuyqty": 0,
+            "totalsellqty": 0,
+            "ltt": 1762666200000,
+            "last_trade_time": 1762666200000,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

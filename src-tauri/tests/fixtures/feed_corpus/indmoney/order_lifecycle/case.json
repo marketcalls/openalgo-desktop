@@ -1,0 +1,37 @@
+{
+  "broker": "indmoney",
+  "summary": "The order-update socket: the order_update subscribe on connect, then an order received, partly filled and executed, one rejected with its reason and one cancelled, each with the canonical EQ- order id of an order the desktop placed.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/indmoney/streaming/indmoney_order_adapter.py::IndmoneyOrderUpdateAdapter.normalize",
+      "broker/indmoney/streaming/indmoney_order_adapter.py::_canonical_order_id",
+      "broker/indmoney/mapping/order_data.py::normalize_order_status",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "The live frame shape (indmoney_order_adapter.py:10-22, observed 2026-08-06): data nested, order_status a letter (R/P/S confirmed; C and J inferred, :190-197), order_type the side, req_quantity only, error_message a space when empty, the frame double-encoded.",
+      "The partial fill uses the REST status name and the tolerant filled/remaining keys the adapter reads (:164-171, :229-234), since the stream has no confirmed partial-fill letter.",
+      "Symbol and exchange are not on the stream; both adapters leave them empty (:24-25).",
+      "_canonical_order_id reads the REST order book on a miss; offline the glue serves it the book in scripts/feed_corpus/web_adapters/indmoney.py (ORDER_BOOK)."
+    ]
+  },
+  "deviations": []
+}

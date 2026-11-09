@@ -1,0 +1,261 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "groww",
+  "inputs_sha256": "79bca2f907c9de8761c165d288e7613d4c5fb278fe3397350046d4d8bb668150",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": []
+    },
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 3,
+          "data": {
+            "depth": {
+              "buy": [
+                {
+                  "price": 812.45,
+                  "quantity": 150,
+                  "orders": 3
+                },
+                {
+                  "price": 812.4,
+                  "quantity": 75,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 812.55,
+                  "quantity": 200,
+                  "orders": 2
+                },
+                {
+                  "price": 812.6,
+                  "quantity": 300,
+                  "orders": 4
+                }
+              ]
+            },
+            "ltt": 1730789999500.0,
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>",
+            "broker": "groww",
+            "topic": "NSE_SBIN_DEPTH",
+            "subscription_mode": 3,
+            "bid": 812.45,
+            "bid_price": 812.45,
+            "bid_qty": 150,
+            "bid_size": 150,
+            "bid_quantity": 150,
+            "ask": 812.55,
+            "ask_price": 812.55,
+            "offer_price": 812.55,
+            "ask_qty": 200,
+            "ask_size": 200,
+            "ask_quantity": 200,
+            "offer_quantity": 200
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 3,
+          "data": {
+            "depth": {
+              "buy": [
+                {
+                  "price": 812.45,
+                  "quantity": 150,
+                  "orders": 3
+                },
+                {
+                  "price": 812.4,
+                  "quantity": 75,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 812.55,
+                  "quantity": 200,
+                  "orders": 2
+                },
+                {
+                  "price": 812.6,
+                  "quantity": 300,
+                  "orders": 4
+                }
+              ]
+            },
+            "ltt": 1730790000000.0,
+            "ltp": 812.5,
+            "open": 805.0,
+            "high": 815.0,
+            "low": 801.0,
+            "close": 803.2,
+            "volume": 1200000.0,
+            "value": 974250000.0,
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>",
+            "broker": "groww",
+            "topic": "NSE_SBIN_DEPTH",
+            "subscription_mode": 3,
+            "bid": 812.45,
+            "bid_price": 812.45,
+            "bid_qty": 150,
+            "bid_size": 150,
+            "bid_quantity": 150,
+            "ask": 812.55,
+            "ask_price": 812.55,
+            "offer_price": 812.55,
+            "ask_qty": 200,
+            "ask_size": 200,
+            "ask_quantity": 200,
+            "offer_quantity": 200
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 3,
+          "data": {
+            "depth": {
+              "buy": [
+                {
+                  "price": 812.5,
+                  "quantity": 100,
+                  "orders": 2
+                },
+                {
+                  "price": 812.45,
+                  "quantity": 250,
+                  "orders": 5
+                },
+                {
+                  "price": 812.4,
+                  "quantity": 80,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 812.6,
+                  "quantity": 120,
+                  "orders": 3
+                },
+                {
+                  "price": 812.65,
+                  "quantity": 400,
+                  "orders": 6
+                },
+                {
+                  "price": 812.7,
+                  "quantity": 90,
+                  "orders": 2
+                }
+              ]
+            },
+            "ltt": 1730790002000.0,
+            "ltp": 812.5,
+            "open": 805.0,
+            "high": 815.0,
+            "low": 801.0,
+            "close": 803.2,
+            "volume": 1200000.0,
+            "value": 974250000.0,
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>",
+            "broker": "groww",
+            "topic": "NSE_SBIN_DEPTH",
+            "subscription_mode": 3,
+            "bid": 812.5,
+            "bid_price": 812.5,
+            "bid_qty": 100,
+            "bid_size": 100,
+            "bid_quantity": 100,
+            "ask": 812.6,
+            "ask_price": 812.6,
+            "offer_price": 812.6,
+            "ask_qty": 120,
+            "ask_size": 120,
+            "ask_quantity": 120,
+            "offer_quantity": 120
+          }
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 3,
+          "data": {
+            "depth": {
+              "buy": [],
+              "sell": []
+            },
+            "ltt": 1730790003000.0,
+            "ltp": 812.5,
+            "open": 805.0,
+            "high": 815.0,
+            "low": 801.0,
+            "close": 803.2,
+            "volume": 1200000.0,
+            "value": 974250000.0,
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>",
+            "broker": "groww",
+            "topic": "NSE_SBIN_DEPTH",
+            "subscription_mode": 3
+          }
+        }
+      ]
+    }
+  ]
+}

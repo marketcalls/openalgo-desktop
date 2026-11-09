@@ -1,0 +1,47 @@
+# NIFTY future depth (level 8), five levels a side, with OI.
+# SFeed market picture (web sfeed_protocol._decode_market_picture).
+3001                    # packet length 304
+281c                    # message code 7208
+02                      # exchange 2 (nse_fo)
+08                      # level 8
+00                      # auction flag
+00                      # sequence
+00                      # bitmask length
+09cf0000                # token 53001
+40f5060000000000        # total buy quantity 456000
+aa13060000000000        # total sell quantity 398250
+44d6120000000000        # volume 1234500
+d826106900000000        # last trade time 1762666200 (epoch s)
+d826106900000000        # last update time
+403b2500                # open 2440000 -> 24400.0
+70332500                # previous close 2438000 -> 24380.0
+206a2500                # high 2452000 -> 24520.0
+d22b2500                # low 2436050 -> 24360.5
+e64e2500                # ltp 2445030 -> 24450.3
+4b00000000000000        # last traded quantity 75
+fb482500                # average price 2443515 -> 24435.15
+00000000                # indicative close
+05000000                # buy rows 5
+05000000                # sell rows 5
+0000                    # trading status
+1d000000                # change % 29 -> 0.29
+5555cd00                # open interest 13456725
+0000000000000000        # turnover
+761b0000                # change 7030 -> 70.3
+c8eb2800                # upper circuit 2681800 -> 26818.0
+187b2100                # lower circuit 2194200 -> 21942.0
+00000000                # 52-week high
+00000000                # 52-week low
+01000000                # lot
+02                      # precision
+01000000                # multiplier
+9600000000000000c84e250003000000        # bid: qty 150, price 2445000 -> 24450.0, orders 3
+2c01000000000000964e250005000000        # bid: qty 300, price 2444950 -> 24449.5, orders 5
+c201000000000000644e250006000000        # bid: qty 450, price 2444900 -> 24449.0, orders 6
+5802000000000000324e250008000000        # bid: qty 600, price 2444850 -> 24448.5, orders 8
+ee02000000000000004e250009000000        # bid: qty 750, price 2444800 -> 24448.0, orders 9
+4b00000000000000fa4e250001000000        # ask: qty 75, price 2445050 -> 24450.5, orders 1
+e1000000000000002c4f250002000000        # ask: qty 225, price 2445100 -> 24451.0, orders 2
+77010000000000005e4f250004000000        # ask: qty 375, price 2445150 -> 24451.5, orders 4
+0d02000000000000904f250005000000        # ask: qty 525, price 2445200 -> 24452.0, orders 5
+a302000000000000c24f250007000000        # ask: qty 675, price 2445250 -> 24452.5, orders 7

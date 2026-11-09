@@ -1,0 +1,87 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "hdfcsecurities",
+  "inputs_sha256": "36f246bcb1247714561c2db3d2db607f9b7a237a694b63276ebf1c4f8eeabd57",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000000,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.5,
+            "change_percent": 0.37,
+            "volume": 12345,
+            "last_quantity": 3,
+            "average_price": 1499.0,
+            "total_buy_quantity": 5400,
+            "total_sell_quantity": 6100,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.6,
+            "last_price": 1500.6,
+            "ltt": 1700000001,
+            "timestamp": 1700000001000,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.6,
+            "change_percent": 0.37,
+            "volume": 12400,
+            "last_quantity": 5,
+            "average_price": 1499.1,
+            "total_buy_quantity": 5000,
+            "total_sell_quantity": 6300,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ]
+    }
+  ]
+}

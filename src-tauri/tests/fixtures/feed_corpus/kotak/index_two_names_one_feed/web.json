@@ -1,0 +1,89 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "kotak",
+  "inputs_sha256": "38a33a3c9488ee5b53f959947dd9065e344e0ed85f5a04efd421c26a6b69f1e7",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    },
+    {
+      "symbol": "NIFTY50",
+      "exchange": "NSE_INDEX",
+      "token": "26999",
+      "brsymbol": "NIFTY50",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 2,
+          "data": {
+            "ltp": 21350.0,
+            "volume": 0,
+            "open": 21000.0,
+            "high": 21500.0,
+            "low": 20900.0,
+            "close": 21100.0,
+            "percent_change": 1.18,
+            "ltt": 1762666200000,
+            "last_trade_time": 1762666200000,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "timestamp": "<receipt_ms>"
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY50_LTP",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY50",
+          "mode": 1,
+          "data": {
+            "ltp": 21350.0,
+            "ltt": 1762666200000,
+            "symbol": "NIFTY50",
+            "exchange": "NSE_INDEX",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY50_LTP",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY50",
+          "mode": 1,
+          "data": {
+            "ltp": 21360.0,
+            "ltt": 1762666201000,
+            "symbol": "NIFTY50",
+            "exchange": "NSE_INDEX",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

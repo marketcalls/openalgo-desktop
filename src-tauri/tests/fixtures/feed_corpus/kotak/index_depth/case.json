@@ -1,0 +1,51 @@
+{
+  "broker": "kotak",
+  "summary": "A Depth subscription to an index: the index feed's tick comes out as a full frame with the price and the day's range.",
+  "scenarios": [
+    "index"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "test/test_kotak_index_depth_tick.py::test_an_index_reaches_a_depth_subscriber"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "An SFeed index packet carries no volume; the web's index normaliser writes volume 0 (sfeed_websocket.py::_to_index) and publishes it, a zero the exchange never sent. The desktop leaves it out (web openalgo#2376).",
+      "ref": "sfeed_websocket.py:670",
+      "approved": true
+    },
+    {
+      "key": "totalbuyqty",
+      "kind": "web-defect",
+      "reason": "An index has no book; the web sends its book totals as 0 under the Kotak name (extras.get(..., 0)), numbers the exchange never sent. The desktop leaves them out.",
+      "ref": "kotak_adapter.py:668",
+      "approved": true
+    },
+    {
+      "key": "totalsellqty",
+      "kind": "web-defect",
+      "reason": "An index has no book; the web sends its book totals as 0 under the Kotak name (extras.get(..., 0)), numbers the exchange never sent. The desktop leaves them out.",
+      "ref": "kotak_adapter.py:668",
+      "approved": true
+    }
+  ]
+}

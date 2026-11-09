@@ -1,0 +1,40 @@
+{
+  "broker": "kotak",
+  "summary": "A Depth subscription: a depth packet replaces the whole book, so bids the exchange removed are gone, only the one ask left shows and the total buy quantity is 0 (audit P-04); a touch line after it moves the price over the same book.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._to_depth",
+      "test/test_kotak_quote_feed.py::test_a_depth_packet_replaces_the_whole_book",
+      "test/test_kotak_quote_feed.py::test_depth_publishes_its_book_totals_and_every_quote_field"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "The web pads each side of an SFeed book to five rows of price 0, quantity 0 (sfeed_websocket.py::_depth_rows): levels the exchange does not have, with zero prices. The desktop sends the book's real levels only (lead decision 9 Nov: zero-padded levels -> the real ones, web defect).",
+      "ref": "sfeed_websocket.py:649-660; decisions.md (night of 9 Nov, empty book)"
+    }
+  ]
+}

@@ -10,7 +10,9 @@ use super::proto::*;
 use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use prost::Message as _;
 use serde_json::{json, Value};
 
@@ -812,6 +814,10 @@ fn feed_ticks_depth_and_partial_merge() {
     assert_eq!(t.symbol, "NIFTY25AUG2624500CE");
     assert_eq!(t.exchange, "NFO");
     assert_eq!((t.mode, t.ltp, t.oi, t.volume), (3, 100.5, 900, 12345));
+    assert!(
+        t.knows(QuoteField::OpenInterest),
+        "a future's Quote packet has OI"
+    );
     assert_eq!(t.change, -9.5);
     assert_eq!(t.last_trade_time_ms, 1_790_000_000_000);
     let FeedEvent::Depth(d) = &ev[1] else {
@@ -828,7 +834,11 @@ fn feed_ticks_depth_and_partial_merge() {
     ));
     assert_eq!(ev.len(), 1);
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
-    assert_eq!((t.symbol.as_str(), t.mode, t.volume), ("ABC", 1, 0));
+    assert_eq!((t.symbol.as_str(), t.mode), ("ABC", 1));
+    assert!(
+        !t.knows(QuoteField::Volume),
+        "an LTP scrip's packet is its price"
+    );
     // Unsubscribed instruments are forgotten, snapshots included.
     assert_eq!(f.tracked(), (2, 2));
     f.unsubscribe_frames(&[
@@ -842,6 +852,220 @@ fn feed_ticks_depth_and_partial_merge() {
         ))
         .is_empty());
     assert!(f.parse(&Message::Text("{}".into())).is_empty());
+}
+
+/// Web test/test_hdfcsky_quote_feed.py::test_reconnect_drops_snapshots_before_partial_packets,
+/// on HDFC Sky's sibling feed: a new socket waits for its own first full
+/// quote, so an OI packet before it republishes nothing from the old socket.
+/// The web's InvestRight adapter keeps the old snapshot (a web defect).
+#[test]
+fn a_reconnect_drops_the_snapshot_before_partial_packets() {
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    f.subscribe_frames(&[sub("NIFTY25AUG2624500CE", "NFO", "45001", FeedMode::Quote)]);
+    let full = mbp_packet(packet_type::NSE_FO_ALL, 45001, 100.5, 900).encode_to_vec();
+    let oi = GenericDto {
+        instrument_id: 45001,
+        packet_type: packet_type::NSE_FO_OI,
+        mbp_data: Some(MbpData {
+            oi: 1500,
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+    .encode_to_vec();
+    assert_eq!(f.parse(&Message::Binary(full.clone())).len(), 1);
+    assert!(f.on_connected().is_empty());
+    assert_eq!(
+        f.tracked(),
+        (1, 0),
+        "the subscription stays, its packet goes"
+    );
+    let ev = f.parse(&Message::Binary(oi));
+    assert!(ev.is_empty(), "{:?}", ev);
+    let ev = f.parse(&Message::Binary(full));
+    assert_eq!(ev.len(), 1, "the next full quote is published");
+}
+
+/// Audit RB-10, web `hdfcsecurities_websocket.py:507-544`: an error or
+/// failure text frame naming a token or auth problem ends the session
+/// (`_is_fatal_auth_error`); another error, an acknowledgement and a frame
+/// that is not JSON publish nothing and keep the feed going.
+#[test]
+fn an_auth_error_text_frame_stops_the_feed() {
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    let ended = FeedEvent::AuthFailed(
+        "HDFC Securities ended the live data session. Log in to HDFC Securities again.".into(),
+    );
+    for text in [
+        r#"{"status": "error", "message": "token expired"}"#,
+        r#"{"status": "FAILURE", "message": "401 Unauthorized"}"#,
+        r#"{"status": "error", "message": "Invalid api_key"}"#,
+    ] {
+        let ev = f.parse(&Message::Text(text.into()));
+        assert_eq!(ev, vec![ended.clone()], "{}", text);
+    }
+    for text in [
+        r#"{"status": "error", "message": "scrip not found"}"#,
+        r#"{"status": "success", "message": "session expired soon"}"#,
+        r#"{"message": "subscribed"}"#,
+        "token expired",
+    ] {
+        assert!(f.parse(&Message::Text(text.into())).is_empty(), "{}", text);
+    }
+}
+
+/// Audit C03-C06, as on HDFC Sky: a future's `ALL` packet carries its OI
+/// and the band as the circuits, a cash equity's has no OI, a packet
+/// without a band sends no circuit, and an index reaches its Depth holders
+/// without volume, order flow, OI or a trade time.
+#[test]
+fn ticks_say_what_their_packet_carries() {
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    f.subscribe_frames(&[
+        sub("NIFTY25AUG2624500CE", "NFO", "45001", FeedMode::Quote),
+        sub("SBIN", "NSE", "3045", FeedMode::Quote),
+        sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Depth),
+    ]);
+    let mut cash = mbp_packet(packet_type::NSE_CM_ALL, 3045, 800.0, 0);
+    if let Some(m) = cash.mbp_data.as_mut() {
+        m.lower_circuit_limit = 0.0;
+        m.upper_circuit_limit = 0.0;
+    }
+    let index = GenericDto {
+        instrument_id: 26000,
+        packet_type: packet_type::NSE_INDEX,
+        index_data: Some(IndexData {
+            index_value: 24510.5,
+            opening_index: 24400.0,
+            high_index_value: 24600.0,
+            low_index_value: 24390.0,
+            closing_index: 24500.0,
+            packet_time_stamp: 1_790_000_000_999,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let frame = GenericDtoList {
+        generic_dto_list: vec![
+            mbp_packet(packet_type::NSE_FO_ALL, 45001, 100.5, 900),
+            cash,
+            index,
+        ],
+    };
+    let ev = f.parse(&Message::Binary(frame.encode_to_vec()));
+    let [FeedEvent::Tick(fut), FeedEvent::Tick(eq), FeedEvent::Tick(idx)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!((fut.mode, fut.oi), (3, 900));
+    assert!(fut.knows(QuoteField::OpenInterest));
+    assert_eq!(
+        (fut.extras.lower_circuit, fut.extras.upper_circuit),
+        (Some(5.0), Some(300.0))
+    );
+    assert!(
+        !eq.knows(QuoteField::OpenInterest),
+        "a cash equity has no OI"
+    );
+    assert_eq!(
+        (eq.extras.lower_circuit, eq.extras.upper_circuit),
+        (None, None)
+    );
+    assert_eq!(idx.mode, 3, "an index reaches its Depth holders");
+    for field in [
+        QuoteField::Volume,
+        QuoteField::LastQuantity,
+        QuoteField::AveragePrice,
+        QuoteField::TotalBuyQuantity,
+        QuoteField::TotalSellQuantity,
+        QuoteField::OpenInterest,
+        QuoteField::LastTradeTime,
+    ] {
+        assert!(!idx.knows(field), "an index has no {:?}", field);
+    }
+    assert!(idx.knows(QuoteField::Open) && idx.knows(QuoteField::Close));
+    assert_eq!((idx.timestamp_ms, idx.change), (1_790_000_000_999, 10.5));
+}
+
+/// Web test/test_hdfcsky_quote_feed.py::test_modes_tracked_and_highest_kept_at_broker
+/// on HDFC Sky's sibling feed (the InvestRight adapter's subscribe and
+/// unsubscribe are the same code): a tier change subscribes the scrip again
+/// at the new type with no unSubscribe, Quote and Depth (both `ALL`) send
+/// nothing, and the instrument keeps its snapshot, so the next OI packet
+/// merges into it; the last unsubscribe sends one unSubscribe.
+#[test]
+fn a_mode_change_moves_the_tier_and_keeps_the_snapshot() {
+    let fut = |mode: FeedMode| sub("NIFTY25AUG2624500CE", "NFO", "45001", mode);
+    let frames_of = |m: Vec<Message>| m.iter().map(text).collect::<Vec<Value>>();
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    f.subscribe_frames(&[fut(FeedMode::Depth)]);
+    let full = mbp_packet(packet_type::NSE_FO_ALL, 45001, 100.5, 900);
+    f.parse(&Message::Binary(full.encode_to_vec()));
+    let down = f.mode_change_frames(&fut(FeedMode::Depth), &fut(FeedMode::Ltp));
+    assert_eq!(
+        frames_of(down),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_45001", "type": "LTP"}]})]
+    );
+    assert_eq!(f.tracked(), (1, 1), "the snapshot stays");
+    let oi = GenericDto {
+        instrument_id: 45001,
+        packet_type: packet_type::NSE_FO_OI,
+        mbp_data: Some(MbpData {
+            oi: 1500,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let ev = f.parse(&Message::Binary(oi.encode_to_vec()));
+    let [FeedEvent::Tick(t)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!((t.mode, t.ltp), (1, 100.5));
+    let up = f.mode_change_frames(&fut(FeedMode::Ltp), &fut(FeedMode::Quote));
+    assert_eq!(
+        frames_of(up),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_45001", "type": "ALL"}]})]
+    );
+    let same = f.mode_change_frames(&fut(FeedMode::Quote), &fut(FeedMode::Depth));
+    assert_eq!(
+        frames_of(same),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_45001", "type": "ALL"}]})],
+        "Quote and Depth are both ALL, and the web subscribes again at it"
+    );
+    let gone = f.unsubscribe_frames(&[fut(FeedMode::Depth)]);
+    assert_eq!(
+        frames_of(gone),
+        [json!({"heart_beat": false, "unSubscribe": [{"scripId": "NFO_45001", "type": "ALL"}]})]
+    );
+    assert_eq!(f.tracked(), (0, 0));
+}
+
+/// The feed's book holds the levels the broker sent, at most five a side,
+/// never zero rows padding it to five (web `_parse_packet`: `buy[:5]`,
+/// `sell[:5]`).
+#[test]
+fn a_depth_frame_carries_only_the_levels_sent() {
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
+    let mut p = mbp_packet(packet_type::NSE_CM_ALL, 3045, 800.0, 0);
+    if let Some(list) = p
+        .mbp_data
+        .as_mut()
+        .and_then(|m| m.market_depth_dto_list.as_mut())
+    {
+        let (bids, asks): (Vec<_>, Vec<_>) =
+            list.market_depth_dto.drain(..).partition(|l| l.buy_flag);
+        list.market_depth_dto = bids
+            .into_iter()
+            .take(3)
+            .chain(asks.into_iter().take(2))
+            .collect();
+    }
+    let ev = f.parse(&Message::Binary(p.encode_to_vec()));
+    let Some(FeedEvent::Depth(d)) = ev.iter().find(|e| matches!(e, FeedEvent::Depth(_))) else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!((d.buy.len(), d.sell.len()), (3, 2));
+    assert_eq!((d.buy[2].price, d.sell[1].price), (98.0, 102.0));
 }
 
 #[test]

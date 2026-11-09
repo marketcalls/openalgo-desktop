@@ -9,7 +9,9 @@ use super::proto::{self, packet_type as pt};
 use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, NormalizedTick, QuoteField,
+};
 use chrono::{Datelike, NaiveDate, TimeZone, Utc};
 use prost::Message as _;
 use serde_json::{json, Value};
@@ -797,15 +799,14 @@ fn subscribe_frames_and_heartbeat() {
     let frames = f.subscribe_frames(&many);
     assert_eq!(frames.len(), 3);
     assert_eq!(text(&frames[2])["subscribe"].as_array().unwrap().len(), 50);
-    // Quote <-> Depth needs no frames; LTP -> Quote re-subscribes.
+    // Every mode change, Quote to Depth included, is a subscribe at the new
+    // mode's type with no unSubscribe first, as the web sends it.
     let q = sub("RELIANCE", "NSE", "2885", FeedMode::Quote);
-    assert!(f
-        .mode_change_frames(&q, &q.with_mode(FeedMode::Depth))
-        .is_empty());
-    assert_eq!(
-        f.mode_change_frames(&q.with_mode(FeedMode::Ltp), &q).len(),
-        2
-    );
+    let all = [json!({"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]})];
+    let deeper = f.mode_change_frames(&q, &q.with_mode(FeedMode::Depth));
+    assert_eq!(deeper.iter().map(text).collect::<Vec<_>>(), all);
+    let up = f.mode_change_frames(&q.with_mode(FeedMode::Ltp), &q);
+    assert_eq!(up.iter().map(text).collect::<Vec<_>>(), all);
 }
 
 #[test]
@@ -820,8 +821,12 @@ fn request_carries_query_auth_and_user_agent() {
     assert_eq!(req.headers()["Authorization"], "T/2");
 }
 
+/// Audit C03-C05: a tick says what its packet carries. The subscription
+/// type decides the packet (an `LTP` scrip gets the price, with the close
+/// only when sent), a cash equity's full packet has no OI, an index has no
+/// volume, order flow or OI; the band goes out as the circuits.
 #[test]
-fn ticks_follow_the_subscribed_mode() {
+fn ticks_say_what_their_packet_carries() {
     let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
     f.subscribe_frames(&[
         sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Ltp),
@@ -841,24 +846,189 @@ fn ticks_follow_the_subscribed_mode() {
         (i.symbol.as_str(), i.exchange.as_str(), i.mode),
         ("NIFTY", "NSE_INDEX", 1)
     );
-    assert_eq!((i.ltp, i.close, i.open), (25100.5, 25000.0, 0.0));
+    assert_eq!((i.ltp, i.close), (25100.5, 25000.0));
+    assert!(i.knows(QuoteField::Close) && i.knows(QuoteField::Change));
+    assert!(
+        !i.knows(QuoteField::Open),
+        "an LTP scrip's packet has no open"
+    );
     assert_eq!(i.change, 100.5);
     let FeedEvent::Tick(n) = &ev[1] else { panic!() };
     assert_eq!((n.exchange.as_str(), n.mode), ("NSE", 3));
+    assert!(
+        !n.knows(QuoteField::OpenInterest),
+        "a cash equity has no OI"
+    );
     assert_eq!(
         (n.volume, n.average_price, n.last_quantity),
         (123_456, 1407.25, 7)
     );
-    assert_eq!(n.last_trade_time_ms, 1_759_649_999);
+    assert_eq!(
+        (n.extras.lower_circuit, n.extras.upper_circuit),
+        (Some(1260.0), Some(1540.0))
+    );
+    assert_eq!(
+        (n.last_trade_time_ms, n.timestamp_ms),
+        (1_759_649_999_000, 1_759_650_000_000),
+        "the trade time in ms, the packet's own time"
+    );
+    assert_eq!(i.timestamp_ms, 1_759_650_001_000, "the index packet's time");
+    assert!(
+        !i.knows(QuoteField::LastTradeTime) && i.absent.contains(QuoteField::LastTradeTime),
+        "an index packet has no trade time"
+    );
     let FeedEvent::Depth(d) = &ev[2] else {
         panic!()
     };
     assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
     assert_eq!(d.total_sell_quantity, 6000);
+    assert_eq!(d.timestamp_ms, 1_759_650_000_000);
     let FeedEvent::Tick(bse) = &ev[3] else {
         panic!()
     };
-    assert_eq!((bse.exchange.as_str(), bse.mode), ("BSE", 2));
+    assert_eq!((bse.exchange.as_str(), bse.mode), ("BSE", 3));
+}
+
+/// HDFC's `lastTradeTime` is epoch seconds and the frames carry epoch ms;
+/// a value already in ms is kept. A packet without one has no trade time,
+/// never the packet's or the receipt time.
+#[test]
+fn trade_time_is_epoch_ms_or_absent() {
+    use super::investright::{set_trade_time, trade_time_ms};
+    assert_eq!(trade_time_ms(1_700_000_000), 1_700_000_000_000);
+    assert_eq!(trade_time_ms(1_700_000_000_123), 1_700_000_000_123);
+    let mut t = NormalizedTick {
+        mode: 2,
+        ltp: 1500.5,
+        timestamp_ms: 1_700_000_000_000,
+        ..Default::default()
+    };
+    set_trade_time(&mut t, 1_700_000_000);
+    assert!(t.knows(QuoteField::LastTradeTime));
+    assert_eq!(t.last_trade_time_ms, 1_700_000_000_000);
+    let mut t = NormalizedTick {
+        mode: 2,
+        ltp: 1500.5,
+        timestamp_ms: 1_700_000_000_000,
+        ..Default::default()
+    };
+    set_trade_time(&mut t, 0);
+    assert!(t.absent.contains(QuoteField::LastTradeTime));
+}
+
+/// A full packet with lastTradedPrice 0 (proto3: none sent, no trade yet)
+/// makes no LTP or Quote frame, never a zero price, while its book still
+/// reaches a Depth holder with ltp 0, as a book before the first quote.
+#[test]
+fn a_packet_without_a_trade_sends_only_its_book() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
+    let mut p = mbp_packet(2885, pt::NSE_CM_ALL);
+    if let Some(m) = p.mbp_data.as_mut() {
+        m.last_traded_price = 0.0;
+        m.last_trade_time = 0;
+    }
+    let ev = f.parse(&Message::Binary(frame(vec![p])));
+    let [FeedEvent::Tick(t), FeedEvent::Depth(d)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert!(!t.knows(QuoteField::Ltp), "no trade, no price");
+    assert_eq!(t.mode, 2, "no full tick: its book goes on its own");
+    assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
+    for mode in [Mode::Ltp, Mode::Quote] {
+        let frames = Frames::new("hdfcsky").at(&ev, mode);
+        assert!(frames.is_empty(), "{:?}: {:?}", mode, frames);
+    }
+    let book = Frames::new("hdfcsky").at(&ev, Mode::Depth);
+    let [b] = book.as_slice() else {
+        panic!("{:?}", book)
+    };
+    assert_eq!(b["ltp"], 0.0, "{}", b);
+    assert_eq!(b["depth"]["buy"].as_array().map(Vec::len), Some(5), "{}", b);
+    assert!(b.get("ltt").is_none(), "no trade, no trade time: {}", b);
+    assert_eq!(b["open"], 1400.0, "what the packet did send is kept: {}", b);
+}
+
+/// A full packet with no book levels says so (`book_absent`): its Depth
+/// frame goes out with no `depth` key, as the web sends it, never with the
+/// connection's last book (lead ruling 2026-11-09). A packet with a book,
+/// and an index (which has none), do not set it.
+#[test]
+fn a_full_packet_without_a_book_says_it_has_none() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
+    f.subscribe_frames(&[
+        sub("RELIANCE", "NSE", "2885", FeedMode::Depth),
+        sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Depth),
+    ]);
+    let with_book = f.parse(&Message::Binary(frame(vec![mbp_packet(
+        2885,
+        pt::NSE_CM_ALL,
+    )])));
+    let mut p = mbp_packet(2885, pt::NSE_CM_ALL);
+    if let Some(m) = p.mbp_data.as_mut() {
+        m.market_depth_dto_list = None;
+    }
+    let without = f.parse(&Message::Binary(frame(vec![p, index_packet()])));
+    let [FeedEvent::Tick(t), FeedEvent::Tick(i)] = without.as_slice() else {
+        panic!("{:?}", without)
+    };
+    assert_eq!((t.mode, t.book_absent), (3, true));
+    assert!(!i.book_absent, "an index has no book to lack");
+    let FeedEvent::Tick(first) = &with_book[0] else {
+        panic!("{:?}", with_book)
+    };
+    assert!(!first.book_absent);
+    let mut frames = Frames::new("hdfcsky");
+    frames.at(&with_book, Mode::Depth);
+    let next = frames.at(&without[..1], Mode::Depth);
+    let [d] = next.as_slice() else {
+        panic!("{:?}", next)
+    };
+    assert!(d.get("depth").is_none(), "no last book: {}", d);
+    assert_eq!(d["ltp"], 1410.5, "{}", d);
+}
+
+/// An `ALL` future carries its OI (even a zero one: a derivative's packet
+/// has the field), an `ALL` index is a full packet at every mode with no
+/// volume, order flow or OI, and a packet without a band sends no circuit.
+#[test]
+fn derivatives_carry_oi_and_indices_no_order_flow() {
+    let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
+    f.subscribe_frames(&[
+        sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Quote),
+        sub("NIFTY27OCT26FUT", "NFO", "35001", FeedMode::Quote),
+    ]);
+    let mut fut = mbp_packet(35001, pt::NSE_FO_ALL);
+    if let Some(m) = fut.mbp_data.as_mut() {
+        m.lower_circuit_limit = 0.0;
+        m.upper_circuit_limit = 0.0;
+    }
+    let ev = f.parse(&Message::Binary(frame(vec![index_packet(), fut])));
+    let [FeedEvent::Tick(i), FeedEvent::Tick(n)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!(i.mode, 3, "an index reaches its Depth holders too");
+    for field in [
+        QuoteField::Volume,
+        QuoteField::LastQuantity,
+        QuoteField::AveragePrice,
+        QuoteField::TotalBuyQuantity,
+        QuoteField::TotalSellQuantity,
+        QuoteField::OpenInterest,
+    ] {
+        assert!(!i.knows(field), "an index has no {:?}", field);
+    }
+    assert!(i.knows(QuoteField::Open) && i.knows(QuoteField::Close));
+    assert_eq!(n.mode, 3, "an ALL packet is a full tick");
+    assert!(n.knows(QuoteField::OpenInterest), "a future's OI 0 is sent");
+    assert_eq!(
+        (n.extras.lower_circuit, n.extras.upper_circuit),
+        (None, None)
+    );
 }
 
 /// BF-04: a packet is published only under the subscription of its own

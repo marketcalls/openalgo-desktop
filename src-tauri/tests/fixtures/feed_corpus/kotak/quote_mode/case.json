@@ -1,0 +1,30 @@
+{
+  "broker": "kotak",
+  "summary": "A Quote subscription: the SFeed login and its divider answer, then a touch-line market picture gives every quote field with OI, and a mini touch line after it moves only the price, the last trade and the change.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "test/test_kotak_quote_feed.py::test_a_quote_carries_every_field_the_packet_decoded",
+      "test/test_kotak_quote_feed.py::test_a_mini_tick_keeps_the_last_known_ohlc_and_volume"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

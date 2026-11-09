@@ -1,0 +1,45 @@
+{
+  "broker": "groww",
+  "summary": "A Depth subscription on an index: Groww has no index book, so the price subject is taken and the Depth client is sent the index value with no book.",
+  "scenarios": [
+    "index"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "99926000",
+      "brsymbol": "NIFTY",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_binary_nats_message",
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket._process_market_data_msg",
+      "broker/groww/streaming/groww_protobuf.py::MiniProtobufParser.parse_market_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._on_data",
+      "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter._normalize_market_data",
+      "broker/groww/streaming/groww_adapter.py::_GrowwMarketCache"
+    ],
+    "notes": [
+      "The fake socket does not echo the nats subprotocol, so each connect is two connections: the first asks for it and is dropped by the feed, the second goes without it (GrowwFeed::on_connect_failed, web nats_websocket.py subprotocol fallback). Connection 2 is the session.",
+      "The socket token comes from the fake broker API (env.serve_json in tests/it/feed_corpus/groww.rs, GrowwBroker::with_feed_endpoints). INFO carries no nonce, so CONNECT is the jwt-only form; the signed form is pinned by tests/it/broker_groww_feed.rs, which checks the nonce signature.",
+      "The feed sends Groww what the web sends: its CONNECT text, one frame per SUB and UNSUB, a Depth's book before its price, and one PING after a batch of SUBs. Text PING frames are not recorded (upstream_ignore: the 10 s heartbeat is the same frame), so the batch's PING is pinned by brokers::groww's unit tests."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "The web's Groww adapter matches a Depth subscription on an index as LTP and publishes the tick on the LTP topic, which the proxy delivers only to LTP subscribers (server.py fans a topic out to its own mode and lower ones): the Depth client was acknowledged and never receives a price. The desktop sends it the index value at Depth, without a book.",
+      "ref": "groww_adapter.py:464-469, :975; websocket_proxy/server.py:2103-2105"
+    }
+  ]
+}

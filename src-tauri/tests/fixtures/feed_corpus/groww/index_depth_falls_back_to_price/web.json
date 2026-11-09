@@ -1,0 +1,48 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "groww",
+  "inputs_sha256": "86a19ca3dffda1487be1536609c38dab2827118b973a7b9df4e9d53ff3f165da",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "99926000",
+      "brsymbol": "NIFTY",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": []
+    },
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_LTP",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 1,
+          "data": {
+            "ltp": 24350.75,
+            "ltt": 1730790000000.0,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 1,
+            "timestamp": "<receipt_ms>",
+            "broker": "groww",
+            "topic": "NSE_INDEX_NIFTY_LTP",
+            "subscription_mode": 1
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "broker": "hdfcsky",
+  "summary": "An LTP subscription: the LTP-type packet (last traded price and trade time) streams as an LTP frame.",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsky/streaming/hdfcsky_websocket.py::HDFCSkyWebSocket._parse_packet",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._on_ticks",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "The LTP subscription type carries the last traded price only (hdfcsky_mapping.py docstring); the packet's other MBP fields are proto3 defaults."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "The LTP-type packet carries no close (proto3 writes closingPrice 0); the web sends close and prev_close as 0.0 instead of leaving them out (web openalgo#2376). Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsky_adapter.py:425-432",
+      "approved": true
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Sky sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsky_websocket.py:764-765; hdfcsky_adapter.py:421",
+      "approved": true
+    },
+    {
+      "key": "prev_close",
+      "kind": "web-defect",
+      "reason": "The LTP-type packet carries no close (proto3 writes closingPrice 0); the web sends close and prev_close as 0.0 instead of leaving them out (web openalgo#2376). Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsky_adapter.py:425-432",
+      "approved": true
+    }
+  ]
+}

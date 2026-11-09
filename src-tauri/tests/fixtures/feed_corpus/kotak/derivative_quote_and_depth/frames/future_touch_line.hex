@@ -1,0 +1,39 @@
+# NIFTY future touch line (level 4) after the Depth holder left.
+# SFeed market picture (web sfeed_protocol._decode_market_picture).
+b000                    # packet length 176
+281c                    # message code 7208
+02                      # exchange 2 (nse_fo)
+04                      # level 4
+00                      # auction flag
+00                      # sequence
+00                      # bitmask length
+09cf0000                # token 53001
+58f1060000000000        # total buy quantity 455000
+9816060000000000        # total sell quantity 399000
+32d9120000000000        # volume 1235250
+da26106900000000        # last trade time 1762666202 (epoch s)
+da26106900000000        # last update time
+403b2500                # open 2440000 -> 24400.0
+70332500                # previous close 2438000 -> 24380.0
+206a2500                # high 2452000 -> 24520.0
+d22b2500                # low 2436050 -> 24360.5
+2c4f2500                # ltp 2445100 -> 24451.0
+4b00000000000000        # last traded quantity 75
+00492500                # average price 2443520 -> 24435.2
+00000000                # indicative close
+01000000                # buy rows 1
+01000000                # sell rows 1
+0000                    # trading status
+1d000000                # change % 29 -> 0.29
+2062cd00                # open interest 13460000
+0000000000000000        # turnover
+bc1b0000                # change 7100 -> 71.0
+c8eb2800                # upper circuit 2681800 -> 26818.0
+187b2100                # lower circuit 2194200 -> 21942.0
+00000000                # 52-week high
+00000000                # 52-week low
+01000000                # lot
+02                      # precision
+01000000                # multiplier
+9600000000000000fa4e250003000000        # bid: qty 150, price 2445050 -> 24450.5, orders 3
+4b000000000000002c4f250001000000        # ask: qty 75, price 2445100 -> 24451.0, orders 1

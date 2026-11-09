@@ -1,0 +1,50 @@
+{
+  "broker": "indmoney",
+  "summary": "One instrument held at LTP by client a and at Quote by client b: the broker gets the quote stream before the ltp stream is dropped, nothing when a leaves and comes back while b holds Quote, and the ltp stream before the quote stream is dropped when b leaves.",
+  "scenarios": [
+    "mode-change",
+    "subscription-lifecycle",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/indmoney/streaming/indWebSocket.py::IndWebSocket._on_message",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter.subscribe",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._on_data",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._normalize_market_data",
+      "broker/indmoney/streaming/indmoney_mapping.py::IndmoneyExchangeMapper"
+    ],
+    "notes": [
+      "Frames follow the INDstocks price socket's documented shape (indmoney_adapter.py:575-583: mode, instrument, timestamp in ms, data) with fractional prices so a price's JSON type is not what differs.",
+      "The web subscribes each mode on its own and sends no unsubscribe while another mode holds the instrument (indmoney_adapter.py:294-459); the frames the desktop sends the broker are the desktop's own (IndmoneyFeed::mode_change_frames, a gapless change on the manager's one effective mode).",
+      "desktop-decision (lead 2026-11-09): one effective stream per instrument, not one per held mode. The web subscribes each held mode on its own: b adds Quote -> subscribe quote; a leaves LTP -> unsubscribe ltp; a takes LTP again -> subscribe ltp; b leaves Quote -> unsubscribe quote. The desktop sends subscribe quote then unsubscribe ltp when Quote becomes the effective mode, nothing while it stays, and subscribe ltp then unsubscribe quote when it falls back. The client frames are the same, and the desktop holds fewer broker subscriptions, which is safer near INDstocks' per-connection limit."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "INDstocks sends OI as 0 when it has none (an equity's OI); the web's own get_value reads a 0 as 'nothing new' and keeps the last value, but with none to keep it sends the 0 (indmoney_adapter.py:651-665). The desktop leaves out a field with no value: a field the stream did not give a value is left out, never sent as 0 (docs; openalgo#2376; lead approval 2026-11-09).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    },
+    {
+      "key": "oi_change",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "INDstocks sends the OI change as 0 when it has none (an equity's OI); the web's own get_value reads a 0 as 'nothing new' and keeps the last value, but with none to keep it sends the 0 (indmoney_adapter.py:651-665). The desktop leaves out a field with no value: a field the stream did not give a value is left out, never sent as 0 (docs; openalgo#2376; lead approval 2026-11-09).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    }
+  ]
+}

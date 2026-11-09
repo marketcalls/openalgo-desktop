@@ -1,0 +1,64 @@
+{
+  "broker": "hdfcsky",
+  "summary": "RELIANCE on NSE and a currency future on CDS share token 2885: each packet goes to the instrument of its packet type's segment only.",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "USDINR25NOV26FUT",
+      "exchange": "CDS",
+      "token": "2885",
+      "brsymbol": "USDINR25NOV26FUT",
+      "brexchange": "CDS",
+      "instrumenttype": "FUTCUR",
+      "lotsize": 1000,
+      "expiry": "25-NOV-26",
+      "tick_size": 0.0025
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsky/streaming/hdfcsky_websocket.py::HDFCSkyWebSocket._parse_packet",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._on_ticks",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._normalize",
+      "test/test_hdfcsky_quote_feed.py::test_same_token_on_two_exchanges_routes_by_packet_type"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Sky sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsky_websocket.py:764-765; hdfcsky_adapter.py:421",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
+      "approved": true
+    }
+  ]
+}

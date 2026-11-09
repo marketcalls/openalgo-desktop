@@ -1,0 +1,6 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"hex": "0a0608021202c516"}], "note": "Subscribe{mode QUOTE, ids [2885]}"}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "push", "frame": "frames/quote_sparse.hex", "note": "proto3 leaves out zero fields; trade time is an optional field Sahi did not send"}
+{"step": "receive", "client": "a", "frame": "expected/quote_sparse.json"}

@@ -134,7 +134,8 @@ as the web's `server.py` sends them):
   (`NormalizedTick::numbers`: an integer for a whole value, as 5paisa's
   JSON sends 445 and 445.5; a double, as Jainam's and RMoney's 1105 text
   event parses with `float()`). A value kept from an earlier packet goes
-  out in the broker's usual form.
+  out in the broker's usual form. Groww's `ltt` and `volume` are doubles,
+  as the web's protobuf reader gives them.
 - A broker not in the table gets the master frame of 1.0.6 (both OI keys,
   `ltt` everywhere, a numeric `data.mode`); a broker lane changes its
   broker's entry when its corpus cases show otherwise.
@@ -215,17 +216,17 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 | flattrade, shoonya, tradesmart, zebu (Noren) | L `<broker>_timestamp` (s); Q `percent_change`; D `depth_level`, circuits, `52_week_high`, `52_week_low`, OI as `open_interest` (Shoonya), `oi` (TradeSmart, also in Quote) or `total_traded_value` (Flattrade, Zebu) | number | `extras.exchange_time_ms` from `ft`, circuits, 52-week range; TradeSmart `carried(OpenInterest)` on Quote |
 | fyers | L the whole symbol-feed dict: OHLC, `volume`, `oi`, `bid_price`, `ask_price`, `bid_size`, `ask_size` (up to Quote), circuits, `last_traded_time`, `last_trade_time`, `exchange_time` (s), `avg_trade_price`, `average_price`, `last_trade_quantity`, `last_quantity`, book totals, `change`, `change_percent`, `percent_change`, `data_type`, `subscription_mode` | none | best bid and ask, circuits, exchange time, `update_type`; LTP-mode packets carry the quote (`carried`) |
 | groww | L OHLC, `volume`, `value`, `broker`, `topic`, `subscription_mode`; D `bid`, `bid_price`, `bid_qty`, `bid_size`, `bid_quantity`, `ask`, `ask_price`, `offer_price`, `ask_qty`, `ask_size`, `ask_quantity`, `offer_quantity` | number | `BrokerField::TradedValue`, best bid and ask from the book |
-| hdfcsecurities, hdfcsky | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; Q `oi` (quote packets); D circuits | none | circuits from CIRC packets (`extras`), `carried(OpenInterest)` on quote packets |
+| hdfcsecurities, hdfcsky | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; Q `oi` (quote packets); D circuits | none | the packet's mode (`investright::finish`): circuits from full and CIRC packets (`extras`), `carried(OpenInterest)` on derivative quote packets, `absent` volume, order flow and OI on an index, `absent(LastTradeTime)` for a packet without a trade time |
 | iiflcapital | Q `bid`, `ask`, `bid_quantity`, `ask_quantity` | label | best bid and ask |
 | indmoney | Q `bid_price`, `bid_qty`, `ask_price`, `ask_qty`, `oi_change`, `oi`; no Depth on the web | number | best bid and ask, OI change, `carried(OpenInterest)` |
-| kotak | L `last_trade_time`; Q `percent_change`; D `totalbuyqty`, `totalsellqty` | none | nothing new |
+| kotak | Q `percent_change` (the packet's `nc`), `last_trade_time`; D `totalbuyqty`, `totalsellqty` | none | `carried(OpenInterest)` in Quote (market pictures), the packet's change (`carried`) |
 | motilal | L `volume`; Q `ltq` (no `last_quantity`); D circuits; no `ltt`, no change on an index | number | the scrip's quote so far at Quote level (each field group absent until its packet), OI from m (or A for a derivative), circuits from W |
 | mstock | L `last_trade_time`, `exchange_timestamp`; Q `prev_close`, `last_trade_quantity`; D circuits; no change on an index; an index's `last_quantity`, `average_price` and book totals from Q when the packet fills them; a lower holder gets the whole packet | number (the holder's) | `extras.exchange_time_ms`, circuits, `mark_cleared` on an index's 0-filled order flow (audit RB: true trade time) |
 | nubra | Q `prev_close`; Quote only `bid`, `ask`; no change keys on an index; Depth refused on an index | label | best bid and ask, the message time |
 | paytm | L `close`, `change_absolute`, `change_percent`; Q `last_trade_quantity`, `52_week_high`, `52_week_low`; D `oi_change` | number | 52-week range, OI change |
 | pocketful | L `change`, `oi`, `bid_price`, `ask_price`; Q `last_trade_quantity` | number | `carried(Change, OpenInterest)` on compact packets, best bid and ask |
 | rupeezy | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; D circuits | none | circuits (parsed, not yet carried) |
-| sahi | L `last_trade_time`; Q `oi`, circuits | label | circuits (decoded past the price bands), `carried(OpenInterest)` on Quote |
+| sahi | L `last_trade_time`; Q `oi`, circuits | label | circuits from the price band (none when a tick has none), `carried(OpenInterest)` on Quote ticks with OI, `absent(OpenInterest)` on ticks without; book sides as streamed, no padding; no book event for an index |
 | samco | L `last_trade_time`; Q `change`, `change_percentage`; Q only `last_trade_quantity`, `best_bid_price`, `best_bid_quantity`, `best_ask_price`, `best_ask_quantity` | number | best bid and ask; an index's `last_quantity` from Q (no canonical change) |
 | tradejini | Q `last_trade_time` (text, IST), `change`, `change_percent`, `percent_change` (only when Tradejini sent `chng`), `oi`; D circuits; no canonical `price_change*` | number | circuits, `carried(OpenInterest)` on Quote, `absent` for every L1 field never sent, `chng` included, `cleared` book totals on the first tick after Depth goes |
 | upstox | L only: `ltq`, `cp`; L `indicative_equilibrium_price`; Q `last_trade_quantity`, `last_trade_time`, `reference_price`, `indicative_equilibrium_quantity`, `indicative_imbalance_quantity_total`, `indicative_imbalance_quantity_market`, `cas_eligible`; `oi` a double; depth levels without `orders`; no change keys on an index | none | `carried(LastQuantity, Close)` on LTPC, the auction `BrokerField`s of the tick that carried them (audit P-11), `absent(Orders)` on the book |

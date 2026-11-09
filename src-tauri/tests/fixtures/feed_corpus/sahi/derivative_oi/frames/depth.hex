@@ -1,0 +1,20 @@
+# Sahi ServerMessage: a depth tick for the future, one level a side.
+223f            # ServerMessage.depth_tick (field 4), 63 bytes
+08d18603        #   instrument_id = 50001 (field 1)
+1003            #   exchange_segment = 3 (field 2)
+1804            #   instrument_type = 4 (field 3)
+20e4e49601      #   last_trade_price, paise = 2470500 (field 4)
+28b8f982eca233  #   last_trade_time, epoch ms = 1761700003000 (field 5)
+30b0d807        #   volume_today = 126000 (field 6)
+38c8eaa501      #   dpr_upper (upper circuit), paise = 2717000 (field 7)
+4098d78701      #   dpr_lower (lower circuit), paise = 2223000 (field 8)
+48f80a          #   prev_open_interest = 1400 (field 9)
+50f50b          #   open_interest = 1525 (field 10)
+5a09            #   best_buys level (field 11), 9 bytes
+08b2e49601      #     price, paise = 2470450 (field 1)
+104b            #     quantity = 75 (field 2)
+1803            #     orders = 3 (field 3)
+620a            #   best_sells level (field 12), 10 bytes
+0896e59601      #     price, paise = 2470550 (field 1)
+109601          #     quantity = 150 (field 2)
+1802            #     orders = 2 (field 3)

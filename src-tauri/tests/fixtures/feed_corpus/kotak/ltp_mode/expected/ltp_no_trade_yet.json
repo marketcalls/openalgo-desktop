@@ -1,0 +1,13 @@
+{
+  "type": "market_data",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "kotak",
+  "data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "ltp": 800.0,
+    "timestamp": "<receipt_ms>"
+  }
+}

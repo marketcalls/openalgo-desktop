@@ -1,0 +1,6 @@
+# Sahi ServerMessage: the next index depth tick.
+220d        # ServerMessage.depth_tick (field 4), 13 bytes
+0890cb01    #   instrument_id = 26000 (field 1)
+1001        #   exchange_segment = 1 (field 2)
+1801        #   instrument_type = 1 (field 3)
+20eaf99501  #   last_trade_price, paise = 2456810 (field 4)

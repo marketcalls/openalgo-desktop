@@ -1,0 +1,28 @@
+{
+  "broker": "indmoney",
+  "summary": "A Depth subscription is refused as the web refuses it (INDmoney streams LTP and Quote only, and the best bid and ask in Quote): the web's words, nothing subscribed at the broker (audit RB-13).",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py::WebSocketProxy.subscribe_client"
+    ],
+    "notes": [
+      "The adapter refuses mode 3 before it looks the symbol up (indmoney_adapter.py:311-315, code INVALID_MODE); the web proxy forwards its message alone (server.py:1318-1329)."
+    ]
+  },
+  "deviations": []
+}

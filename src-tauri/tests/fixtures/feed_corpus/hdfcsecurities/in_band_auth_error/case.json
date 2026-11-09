@@ -1,0 +1,66 @@
+{
+  "broker": "hdfcsecurities",
+  "summary": "The broker keeps the socket open and sends an error text frame naming an expired token: the feed stops publishing and does not connect again until the trader logs in (audit RB-10).",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._on_ws_message",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._is_fatal_auth_error",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._parse_packet",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._on_ticks",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "The web marks the session fatal on this frame (_on_ws_message, _is_fatal_auth_error, _mark_fatal_error) and, when the socket closes, retries with the token in its database a bounded number of times and stops when that token is unchanged (_run_websocket). The desktop's token changes only with a new login, so HdfcSecuritiesFeed::parse answers the frame with AuthFailed (investright::text_events, shared with HDFC Sky) and the manager stops until the next login.",
+      "web.json has no frame for the error push: text frames publish nothing on the web.",
+      "After the error frame the case subscribes SBIN: the desktop answers it with the session-ended message (the bridge reports the feed's AuthFailed status) and sends nothing upstream. The web keeps its socket until the broker closes it and would still queue the subscribe (subscribe_scrips). The step is what pins RB-10: with the error frame ignored the subscribe succeeds and reaches the broker.",
+      "After the error frame the feed closes the socket itself ({\"close\": null}) and opens no other connection; a feed that ignored the frame would keep the socket open."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approved": true
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 3,
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "ltp": 24350.75,
+    "ltt": 1730790000000.0,
+    "timestamp": "<receipt_ms>",
+    "mode": 3,
+    "broker": "groww",
+    "topic": "NSE_INDEX_NIFTY_DEPTH",
+    "subscription_mode": 3
+  },
+  "broker": "groww"
+}

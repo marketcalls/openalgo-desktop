@@ -457,4 +457,8 @@ impl Broker for SahiBroker {
             self.ws_url.clone(),
         )))
     }
+
+    fn feed_refusal(&self, exchange: &str) -> Option<String> {
+        streaming::refusal(exchange)
+    }
 }

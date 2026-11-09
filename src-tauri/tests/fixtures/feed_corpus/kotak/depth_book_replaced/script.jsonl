@@ -1,0 +1,11 @@
+{"step": "upstream_receives", "frames": [{"json": {"user": "U", "auth": "s", "format": "native_batch", "source": "NEOTRADEAPI", "platform": "Web", "version": "1.2.3", "sdk_version": 2, "sdk_date": "2026-08-07T09:41:17.667Z", "conn_req_time": "<now_ms>", "sessionValidation": false}}], "note": "The native_batch login, on connect."}
+{"step": "push", "frame": {"json": {"message_code": 1119, "format": "native_batch", "exchanges": {"nse_cm": {"value": 1, "divider": 100}, "nse_fo": {"value": 2, "divider": 100}, "bse_cm": {"value": 5, "divider": 100}, "bse_cd": {"value": 7, "divider": 10000000}}}}, "note": "The login answer with each exchange's price divider, before any client subscribes: a subscription made while the login is unanswered can reach Kotak twice (the post-login replay and its own queued change; websocket::manager, lane life)."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeDepth", "inputtoken": "nse_cm|2885", "ack_symbol": true}}, {"json": {"event": "subscribeScrips", "inputtoken": "nse_cm|2885", "ack_symbol": true}}], "note": "Depth needs the depth stream for the book and the scrip stream for the price, asked for in that order (web kotak_adapter.py subscribe)."}
+{"step": "push", "frame": {"json": {"message_code": 1109, "trading_symbols": {"nse_cm|2885": "RELIANCE-EQ"}}}, "note": "The subscribe acknowledgement maps the key to Kotak's trading symbol."}
+{"step": "push", "frame": "frames/depth_two_levels.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}
+{"step": "push", "frame": "frames/depth_no_bids.hex", "note": "A depth packet is the whole book: removed levels stay removed (audit P-04), and a total of 0 is 0."}
+{"step": "receive", "client": "a", "frame": "expected/depth_bids_cleared.json"}
+{"step": "push", "frame": "frames/touch_line.hex", "note": "The price moves between book packets; the book stays."}
+{"step": "receive", "client": "a", "frame": "expected/depth_price_moves.json"}

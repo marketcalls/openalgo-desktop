@@ -1,0 +1,9 @@
+# Sahi ServerMessage: a depth tick with no levels: the book is empty.
+221b            # ServerMessage.depth_tick (field 4), 27 bytes
+08c516          #   instrument_id = 2885 (field 1)
+1001            #   exchange_segment = 1 (field 2)
+20ccf007        #   last_trade_price, paise = 129100 (field 4)
+28cbf282eca233  #   last_trade_time, epoch ms = 1761700002123 (field 5)
+30f823          #   volume_today = 4600 (field 6)
+38fed408        #   dpr_upper (upper circuit), paise = 141950 (field 7)
+40b68b07        #   dpr_lower (lower circuit), paise = 116150 (field 8)

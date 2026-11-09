@@ -96,6 +96,22 @@ pub fn ws_segment(exchange: &str) -> Option<&'static str> {
     })
 }
 
+/// The exchanges `ws_segment` streams, as the web's refusal lists them
+/// (`IndmoneyExchangeMapper.EXCHANGE_SEGMENTS`, in its order).
+const STREAMED: &str = "NSE, NFO, BSE, BFO, NSE_INDEX, BSE_INDEX";
+
+/// Why the price socket does not stream `exchange`, in the web adapter's
+/// words (its `UNSUPPORTED_EXCHANGE` answer, indmoney_adapter.py:328-333;
+/// the web proxy passes the message alone).
+pub fn feed_refusal(exchange: &str) -> Option<String> {
+    ws_segment(exchange).is_none().then(|| {
+        format!(
+            "INDmoney does not provide a market data feed for {}. Supported: {}",
+            exchange, STREAMED
+        )
+    })
+}
+
 // ---------------------------------------------------------------------------
 // INDstocks -> OpenAlgo
 // ---------------------------------------------------------------------------

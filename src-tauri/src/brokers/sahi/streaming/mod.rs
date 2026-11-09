@@ -11,26 +11,30 @@
 //!   last quantity, average price or total buy and sell quantity, and an
 //!   index tick no trade time: those are left out of the frames, never sent
 //!   as 0 or derived (web openalgo#2376).
+//! * Quote and Depth frames carry the daily price band as `upper_circuit`
+//!   and `lower_circuit` (web `sahi_mapping.py` `build_quote_payload`,
+//!   audit P-11). A tick without a band leaves it out; the web sends 0.0.
+//! * Open interest goes out in Quote and Depth when the tick carries it
+//!   (audit C05), and not at all for an instrument whose ticks carry none
+//!   (an equity, an index), where the web sends 0.
 //! * The server pings every 30 s and closes with 4408 when no pong comes;
 //!   tungstenite answers its pings, so the feed sends no heartbeat. The
 //!   pings also keep the manager's stall watchdog quiet.
 //! * A token Sahi no longer accepts (expired, or its key revoked) is
 //!   refused at the upgrade with HTTP 401 or 403 (docs.sahi.com), which
-//!   stops the feed until the trader logs in again. A socket Sahi closes
-//!   (4401 or 4403 for a token revoked mid-session, 4408 ping timeout,
-//!   4429 too many connections) is reconnected with the manager's capped
-//!   backoff, since the manager does not read close codes; after a
-//!   revocation that next upgrade is the 401 or 403 that stops it. The web
-//!   (`sahi_websocket.py`) stops on the close code itself and waits 60 to
-//!   300 s after a 4429.
+//!   stops the feed until the trader logs in again. A socket Sahi closes is
+//!   answered by its close code, as the web's `sahi_websocket.py` does
+//!   (`close.rs`, audit P-12): 4401 and 4403 stop for a new login, 4429
+//!   waits 60 to 300 s and then stops with what the trader has to close.
 
+mod close;
 mod proto;
 #[cfg(test)]
 mod tests;
 
 use crate::brokers::common::streaming::{
-    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, Ended, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, QuoteField, Reconnect, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -86,6 +90,8 @@ pub struct SahiFeed {
     /// Sahi instrument id -> the OpenAlgo instrument it was subscribed for.
     /// Removed on unsubscribe; never larger than `MAX_INSTRUMENTS`.
     subs: HashMap<i64, SubInfo>,
+    /// How Sahi closing a connection is answered (the 4429 count).
+    close: close::ClosePolicy,
 }
 
 impl std::fmt::Debug for SahiFeed {
@@ -119,21 +125,58 @@ fn segment_of(exchange: &str) -> Option<u64> {
     }
 }
 
+/// Why Sahi's feed refuses `exchange`, when it does: it streams the cash
+/// and F&O segments of NSE and BSE and their indices only. The web's
+/// adapter refuses any other before it looks the symbol up, in these words
+/// (`sahi_adapter.py` subscribe, `UNSUPPORTED_EXCHANGE`).
+pub(crate) fn refusal(exchange: &str) -> Option<String> {
+    segment_of(exchange)
+        .is_none()
+        .then(|| format!("Exchange {} is not streamed by Sahi", exchange))
+}
+
 /// Integer paise to rupees.
 pub(crate) fn rupees(paise: i64) -> f64 {
     paise as f64 / 100.0
 }
 
-/// Whether a handshake status (or, should the manager pass one, a close
-/// code) means the token is dead.
+/// Open interest as the tick carries it. `open_interest` is a proto3
+/// optional, so a tick without it (an equity, an index) has none, never a
+/// 0 (the web sends 0: an approved web defect), and a Quote tick that has
+/// it carries it beyond its mode (audit C05), as the web's Quote payload
+/// does.
+fn carry_oi(tick: &mut NormalizedTick, oi: Option<i64>) {
+    match oi {
+        Some(v) => {
+            tick.oi = v;
+            tick.mark_carried(QuoteField::OpenInterest);
+        }
+        None => tick.mark_absent(QuoteField::OpenInterest),
+    }
+}
+
+/// One side of the daily price band in rupees, or none when the tick left
+/// it off: the band is a proto3 scalar, so an absent one reads as 0, and
+/// no instrument trades in a band of 0 (the web publishes 0.0 then).
+fn band(paise: i64) -> Option<f64> {
+    (paise != 0).then(|| rupees(paise))
+}
+
+/// Whether a handshake status or a close code means the token is dead
+/// (web `_AUTH_CODES`).
 pub(crate) fn is_auth_close(code: u16) -> bool {
     matches!(code, 401 | 403 | CLOSE_TOKEN_EXPIRED | CLOSE_FORBIDDEN)
 }
 
-/// A depth side in rupees, truncated and padded to 5 levels: Sahi sends
-/// only levels holding orders, OpenAlgo depth is always 5 rows.
+/// A depth side in rupees, at most 5 levels. Sahi sends only the levels
+/// that hold orders, as repeated `best_buys` / `best_sells` entries (fields
+/// 11 and 12, no fixed slots), and the side carries every one it sent, a
+/// zero one included, and no more: the web pads
+/// each side to five rows of price 0.0 (`sahi_mapping.py` `_depth_side`),
+/// prices nobody quoted (decisions.md: never invent zero prices; the docs
+/// define a side as the broker's levels, best first).
 fn depth_side(levels: &[proto::Level]) -> Vec<DepthLevel> {
-    let mut side: Vec<DepthLevel> = levels
+    levels
         .iter()
         .take(DEPTH_LEVELS)
         .map(|l| DepthLevel {
@@ -141,9 +184,7 @@ fn depth_side(levels: &[proto::Level]) -> Vec<DepthLevel> {
             quantity: l.qty,
             orders: l.orders,
         })
-        .collect();
-    side.resize(DEPTH_LEVELS, DepthLevel::default());
-    side
+        .collect()
 }
 
 fn ack_name(action: u64) -> &'static str {
@@ -178,6 +219,7 @@ impl SahiFeed {
             symbols,
             url,
             subs: HashMap::new(),
+            close: close::ClosePolicy::default(),
         }
     }
 
@@ -285,11 +327,17 @@ impl SahiFeed {
         };
         if served >= FeedMode::Quote {
             tick.volume = t.volume_today;
-            tick.oi = t.open_interest.unwrap_or(0);
+            carry_oi(&mut tick, t.open_interest);
+            tick.extras.upper_circuit = band(t.dpr_upper);
+            tick.extras.lower_circuit = band(t.dpr_lower);
         }
         let mut out = Vec::with_capacity(2);
         out.push(FeedEvent::Tick(tick));
-        if served == FeedMode::Depth {
+        // An index has no book: its DepthTick carries a price and no levels,
+        // and its tick already reaches the Depth holders, so a book event
+        // would only send them the same frame twice (the web sends one).
+        let index = sub.exchange.ends_with("_INDEX");
+        if served == FeedMode::Depth && !index {
             out.push(FeedEvent::Depth(NormalizedDepth {
                 symbol: sub.symbol.clone(),
                 exchange: sub.exchange.clone(),
@@ -350,6 +398,11 @@ impl BrokerFeed for SahiFeed {
         feed_request(&self.url, &self.access_token)
     }
 
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.close.opened();
+        Vec::new()
+    }
+
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         self.register(subs)
             .into_iter()
@@ -403,5 +456,13 @@ impl BrokerFeed for SahiFeed {
 
     fn is_auth_failure(&self, http_status: Option<u16>) -> bool {
         http_status.is_some_and(is_auth_close)
+    }
+
+    fn on_ended(&mut self, ended: Ended<'_>) -> Reconnect {
+        self.close.ended(ended)
+    }
+
+    fn on_resume(&mut self) {
+        self.close.resume();
     }
 }

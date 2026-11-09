@@ -1,0 +1,39 @@
+# RELIANCE depth (level 8) after the reconnect.
+# SFeed market picture (web sfeed_protocol._decode_market_picture).
+b000                    # packet length 176
+281c                    # message code 7208
+01                      # exchange 1 (nse_cm)
+08                      # level 8
+00                      # auction flag
+00                      # sequence
+00                      # bitmask length
+450b0000                # token 2885
+401f000000000000        # total buy quantity 8000
+7017000000000000        # total sell quantity 6000
+409c000000000000        # volume 40000
+1527106900000000        # last trade time 1762666261 (epoch s)
+1527106900000000        # last update time
+e8f70100                # open 129000 -> 1290.0
+32f40100                # previous close 128050 -> 1280.5
+b8ff0100                # high 131000 -> 1310.0
+f4f50100                # low 128500 -> 1285.0
+66fc0100                # ltp 130150 -> 1301.5
+0500000000000000        # last traded quantity 5
+21fb0100                # average price 129825 -> 1298.25
+00000000                # indicative close
+01000000                # buy rows 1
+01000000                # sell rows 1
+0000                    # trading status
+9c000000                # change % 156 -> 1.56
+00000000                # open interest 0
+0000000000000000        # turnover
+d0070000                # change 2000 -> 20.0
+32260200                # upper circuit 140850 -> 1408.5
+32c20100                # lower circuit 115250 -> 1152.5
+00000000                # 52-week high
+00000000                # 52-week low
+01000000                # lot
+02                      # precision
+01000000                # multiplier
+5a000000000000005cfc010002000000        # bid: qty 90, price 130140 -> 1301.4, orders 2
+500000000000000070fc010001000000        # ask: qty 80, price 130160 -> 1301.6, orders 1

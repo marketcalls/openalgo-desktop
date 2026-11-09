@@ -553,9 +553,12 @@ const INDMONEY: &[WebName] = &[
     n("oi_change", S::Extra(E::OiChange), Q),
 ];
 
+/// kotak_adapter.py `_on_data_received`: mode 1 publishes `ltp` and `ltt`
+/// only; Quote and Depth add `last_trade_time` and the packet's `nc` as
+/// `percent_change`.
 const KOTAK: &[WebName] = &[
     n("percent_change", S::ChangePercent, Q),
-    n("last_trade_time", S::TradeTime(Unit::Millis), L),
+    n("last_trade_time", S::TradeTime(Unit::Millis), Q),
     n("totalbuyqty", S::TotalBuyQuantity, D),
     n("totalsellqty", S::TotalSellQuantity, D),
 ];
@@ -695,7 +698,7 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .no_index_change()
             .floats(&["total_buy_quantity", "total_sell_quantity"]),
         "arrow" => d(Absent, ARROW_HDFC).open_interest().richer(),
-        "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest(),
+        "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest().no_index_change(),
         "rupeezy" => d(Absent, RUPEEZY).open_interest(),
         // aliceblue_adapter.py:1243-1305: no symbol, exchange or mode in
         // `data`, and `timestamp` in the Depth dict only.
@@ -750,8 +753,9 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "flattrade" => d(Number, FLATTRADE).no_ltt(),
         "zebu" => d(Number, ZEBU).no_ltt(),
         "tradesmart" => d(Number, TRADESMART).no_ltt(),
-        "groww" => d(Number, GROWW).floats(&["volume"]),
-        "indmoney" => d(Number, INDMONEY).richer(),
+        // groww_protobuf.py reads tsInMillis and volume as doubles.
+        "groww" => d(Number, GROWW).floats(&["ltt", "volume"]),
+        "indmoney" => d(Number, INDMONEY).richer().no_index_change(),
         // motilal_adapter.py: the last quantity as `ltq` only, no change.
         "motilal" => d(Number, MOTILAL)
             .no_ltt()

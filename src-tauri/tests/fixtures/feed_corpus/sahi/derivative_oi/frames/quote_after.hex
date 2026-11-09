@@ -1,0 +1,12 @@
+# Sahi ServerMessage: the next quote tick, after the Depth client left.
+1a28            # ServerMessage.quote_tick (field 3), 40 bytes
+08d18603        #   instrument_id = 50001 (field 1)
+1003            #   exchange_segment = 3 (field 2)
+1804            #   instrument_type = 4 (field 3)
+20d8e89601      #   last_trade_price, paise = 2471000 (field 4)
+28a08183eca233  #   last_trade_time, epoch ms = 1761700004000 (field 5)
+3098e007        #   volume_today = 127000 (field 6)
+38c8eaa501      #   dpr_upper (upper circuit), paise = 2717000 (field 7)
+4098d78701      #   dpr_lower (lower circuit), paise = 2223000 (field 8)
+48f80a          #   prev_open_interest = 1400 (field 9)
+508e0c          #   open_interest = 1550 (field 10)

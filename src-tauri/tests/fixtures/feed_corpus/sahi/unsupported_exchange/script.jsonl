@@ -1,0 +1,2 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "CRUDEOIL25NOVFUT", "exchange": "MCX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "partial", "subscriptions": [{"symbol": "CRUDEOIL25NOVFUT", "exchange": "MCX", "status": "error", "message": "Exchange MCX is not streamed by Sahi", "broker": "sahi"}], "message": "Subscription processing complete", "broker": "sahi"}, "note": "the web's reply (websocket_proxy/server.py:1318-1338)"}
+{"step": "silence", "client": "a"}

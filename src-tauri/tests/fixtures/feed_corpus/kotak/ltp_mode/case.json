@@ -1,0 +1,36 @@
+{
+  "broker": "kotak",
+  "summary": "LTP subscriptions: a touch line gives the price and the exchange's trade time in ms; an instrument with no trade yet has no ltt at all.",
+  "scenarios": [
+    "first-full-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "test/test_kotak_quote_feed.py::test_no_trade_yet_publishes_no_trade_time_rather_than_now"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "kotak",
+  "orderid": "251109000000102",
+  "symbol": "NIFTY25NOV26FUT",
+  "exchange": "NFO",
+  "action": "SELL",
+  "quantity": 75,
+  "price": 24400.0,
+  "trigger_price": 24410.0,
+  "pricetype": "SL",
+  "product": "NRML",
+  "order_status": "trigger pending",
+  "filled_quantity": 0,
+  "pending_quantity": 75,
+  "average_price": 0.0,
+  "rejection_reason": ""
+}

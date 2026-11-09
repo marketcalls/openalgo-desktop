@@ -1,0 +1,23 @@
+# Index packet for Nifty 50 at 21350.00.
+# SFeed index packet, code 7207 (web sfeed_protocol._decode_index).
+5700                    # packet length 87
+271c                    # message code 7207
+01                      # exchange 1 (nse_cm)
+00                      # level 0
+00                      # auction flag
+00                      # sequence
+00                      # bitmask length
+484231fd                # token 4247863880 (Kotak's own, not the master's)
+200b2000                # open 2100000 -> 21000.0
+30322000                # previous close 2110000 -> 21100.0
+70ce2000                # high 2150000 -> 21500.0
+10e41f00                # low 2090000 -> 20900.0
+d8932000                # value 2135000 -> 21350.0
+d826106900000000        # last trade time 1762666200 (epoch s)
+00000000                # 52-week high
+00000000                # 52-week low
+76000000                # change % 118 -> 1.18
+0000000000000000        # market cap
+02                      # precision
+64000000                # multiplier
+4e6966747920353000000000000000000000000000  # name 'Nifty 50', NUL-padded to 21

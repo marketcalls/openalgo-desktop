@@ -1,0 +1,9 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "mode": "quote", "instruments": ["NSE:2885"]}}], "connection": 1}
+{"step": "push", "frame": "frames/quote_full.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote_full.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "headers": {"authorization": "t"}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "mode": "quote", "instruments": ["NSE:2885"]}}], "connection": 2}
+{"step": "push", "frame": "frames/quote_partial.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote_partial.json"}

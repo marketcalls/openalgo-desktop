@@ -26,9 +26,15 @@ mod dhan;
 mod dhan_sandbox;
 mod fivepaisa;
 mod fyers;
+mod groww;
+mod hdfcsecurities;
+mod hdfcsky;
+mod indmoney;
+mod kotak;
 mod motilal;
 mod mstock;
 mod nubra;
+mod sahi;
 mod samco;
 mod tradejini;
 mod upstox;
@@ -43,9 +49,15 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("dhan_sandbox", dhan_sandbox::CASES),
     ("fivepaisa", fivepaisa::CASES),
     ("fyers", fyers::CASES),
+    ("groww", groww::CASES),
+    ("hdfcsecurities", hdfcsecurities::CASES),
+    ("hdfcsky", hdfcsky::CASES),
+    ("indmoney", indmoney::CASES),
+    ("kotak", kotak::CASES),
     ("motilal", motilal::CASES),
     ("mstock", mstock::CASES),
     ("nubra", nubra::CASES),
+    ("sahi", sahi::CASES),
     ("samco", samco::CASES),
     ("tradejini", tradejini::CASES),
     ("upstox", upstox::CASES),

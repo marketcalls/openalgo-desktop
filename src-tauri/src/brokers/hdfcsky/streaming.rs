@@ -21,7 +21,15 @@
 //!   merged into the instrument's last full packet and never published on
 //!   their own (web openalgo#2396); that baseline lives as long as the
 //!   subscription and the socket (#2397).
+//! * Each tick says what its packet carries (`investright::finish`):
+//!   an `LTP` scrip's price, an `ALL` scrip's full quote with OI on the
+//!   derivative segments, an index's levels without volume or OI; the
+//!   circuit band goes out as `upper_circuit` / `lower_circuit` in Depth.
+//! * A frame's `timestamp` is the packet's own time, as on the web; `ltt`
+//!   is `lastTradeTime`, sent in epoch seconds, in milliseconds, and left
+//!   out for a packet without one (`investright::set_trade_time`).
 
+use super::investright;
 use super::mapping::ws_scrip_id;
 use super::proto::{packet_type as pt, GenericDto, GenericDtoList};
 use super::USER_AGENT;
@@ -145,9 +153,11 @@ pub struct RawTick {
     pub oi: i64,
     pub lower_limit: f64,
     pub upper_limit: f64,
-    /// Last trade time as sent.
+    /// Last trade time as sent: epoch seconds (`investright::trade_time_ms`).
     pub ltt: i64,
-    /// Packet time, epoch ms.
+    /// Packet time, epoch ms (`packetTimestamp`, an index's own
+    /// `packetTimeStamp`, else the receipt time): the frames' `timestamp`,
+    /// as the web sends it.
     pub timestamp: i64,
     pub buy: Vec<DepthLevel>,
     pub sell: Vec<DepthLevel>,
@@ -350,18 +360,6 @@ pub fn decode_frame(bytes: &[u8]) -> Vec<RawTick> {
     packets.iter().filter_map(parse_packet).collect()
 }
 
-const AUTH_FAILURE: &[&str] = &[
-    "401",
-    "403",
-    "unauthorized",
-    "unauthorised",
-    "forbidden",
-    "invalid token",
-    "token expired",
-    "session expired",
-    "invalid api_key",
-];
-
 #[derive(Debug, Clone)]
 struct SubInfo {
     symbol: String,
@@ -475,29 +473,33 @@ impl HdfcSkyFeed {
             return Vec::new();
         };
         let t = &resolved;
-        let now = now_ms();
         let mut tick = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
             ltp: t.ltp,
+            open: t.open,
+            high: t.high,
+            low: t.low,
             close: t.close,
-            last_trade_time_ms: if t.ltt != 0 { t.ltt } else { t.timestamp },
-            timestamp_ms: now,
+            volume: t.volume,
+            last_quantity: t.ltq,
+            average_price: t.average_price,
+            total_buy_quantity: t.total_buy_quantity,
+            total_sell_quantity: t.total_sell_quantity,
+            oi: t.oi,
+            timestamp_ms: t.timestamp,
             ..Default::default()
         };
-        if sub.mode >= FeedMode::Quote {
-            tick.open = t.open;
-            tick.high = t.high;
-            tick.low = t.low;
-            tick.volume = t.volume;
-            tick.last_quantity = t.ltq;
-            tick.average_price = t.average_price;
-            tick.total_buy_quantity = t.total_buy_quantity;
-            tick.total_sell_quantity = t.total_sell_quantity;
-            tick.oi = t.oi;
-        }
-        tick.derive_change();
+        investright::finish(
+            &mut tick,
+            investright::PacketFacts {
+                subscribed: sub.mode,
+                index: t.kind == Kind::Index,
+                band: (t.lower_limit, t.upper_limit),
+                ltt: t.ltt,
+                book: t.has_depth(),
+            },
+        );
         let mut out = Vec::with_capacity(2);
         let depth = (sub.mode == FeedMode::Depth && t.has_depth()).then(|| NormalizedDepth {
             symbol: tick.symbol.clone(),
@@ -507,7 +509,7 @@ impl HdfcSkyFeed {
             sell: t.sell.clone(),
             total_buy_quantity: t.total_buy_quantity,
             total_sell_quantity: t.total_sell_quantity,
-            timestamp_ms: now,
+            timestamp_ms: t.timestamp,
             ..Default::default()
         });
         out.push(FeedEvent::Tick(tick));
@@ -515,27 +517,6 @@ impl HdfcSkyFeed {
             out.push(FeedEvent::Depth(d));
         }
         out
-    }
-
-    fn parse_text(&self, text: &str) -> Vec<FeedEvent> {
-        let Ok(v) = serde_json::from_str::<Value>(text) else {
-            return Vec::new();
-        };
-        let status = v
-            .get("status")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        if status == "error" || status == "failure" {
-            let lower = text.to_ascii_lowercase();
-            tracing::warn!("HDFC Sky feed reported an error");
-            if AUTH_FAILURE.iter().any(|k| lower.contains(k)) {
-                return vec![FeedEvent::AuthFailed(
-                    "HDFC Sky ended the live data session. Log in to HDFC Sky again.".into(),
-                )];
-            }
-        }
-        Vec::new()
     }
 }
 
@@ -572,26 +553,21 @@ impl BrokerFeed for HdfcSkyFeed {
             .collect()
     }
 
+    /// A subscribe at the new mode's type, with no unSubscribe first, also
+    /// between Quote and Depth (both `ALL`): the web moves a held scrip by
+    /// subscribing it again at the type of its highest mode
+    /// (`subscribe_scrips`, hdfcsky_adapter.py:239 and :296), and its
+    /// client sends that frame even at the type the scrip already has. The
+    /// instrument stays subscribed, so it keeps its merge baseline (web
+    /// openalgo#2396 keeps the snapshot while any mode remains).
     fn mode_change_frames(
         &mut self,
-        old: &FeedSubscription,
+        _old: &FeedSubscription,
         new: &FeedSubscription,
     ) -> Vec<Message> {
-        // The instrument stays subscribed, so it keeps its merge baseline
-        // (web openalgo#2396 keeps the snapshot while any mode remains).
         let scrips = self.scrips(std::slice::from_ref(new), true);
-        if sub_type(old.mode) == sub_type(new.mode) {
-            // Same feed type (Quote <-> Depth): only the published shape
-            // changes.
-            return Vec::new();
-        }
-        let was: Vec<(String, &'static str)> = scrips
-            .iter()
-            .map(|(id, _)| (id.clone(), sub_type(old.mode)))
-            .collect();
-        unsubscribe_messages(&was)
+        subscribe_messages(&scrips)
             .into_iter()
-            .chain(subscribe_messages(&scrips))
             .map(Message::Text)
             .collect()
     }
@@ -602,7 +578,7 @@ impl BrokerFeed for HdfcSkyFeed {
                 .iter()
                 .flat_map(|t| self.events(t))
                 .collect(),
-            Message::Text(t) => self.parse_text(t),
+            Message::Text(t) => investright::text_events(t, "HDFC Sky"),
             _ => Vec::new(),
         }
     }

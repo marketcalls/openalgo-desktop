@@ -1,0 +1,8 @@
+# A price tick in which only the volume and the time changed: no LTP on the wire.
+4d5347202f6c642f65712f6e73652f70726963652e3330343520312032320d0a  # "MSG /ld/eq/nse/price.3045 1 22" CRLF
+                                                                  # protobuf LiveData, 22 bytes
+18 01                                                             # exchange (3) = 1 (NSE)
+22 12                                                             # stock live price (4), 18 bytes
+09 00 00 d5 f8 b1 2f 79 42                                        #   ts_in_millis (1, double) = 1730790002000.0
+31 00 00 00 00 a0 52 32 41                                        #   volume (6, double) = 1200800.0
+0d0a                                                              # CRLF ending the message

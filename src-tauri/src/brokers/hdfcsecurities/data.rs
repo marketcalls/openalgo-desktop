@@ -9,7 +9,7 @@
 //! as on the web.
 
 use super::mapping::{s, ws_scrip_id};
-use super::streaming::{decode_frame, feed_request, feed_url, pad5, subscribe_frames, Packet};
+use super::streaming::{decode_frame, feed_request, feed_url, subscribe_frames, Packet};
 use super::HdfcSecuritiesBroker;
 use crate::brokers::common::streaming::{round2, Message};
 use crate::brokers::common::symbols::SymToken;
@@ -329,6 +329,14 @@ pub fn compose_quote(key: &QuoteKey, rest: (f64, f64), tick: Option<&Packet>) ->
         q.change_percent = round2((ltp - close) / close * 100.0);
     }
     q
+}
+
+/// The depth answer's five rows a side, zero padded where the book has
+/// fewer (the REST shape; the feed sends only the levels the broker sent).
+fn pad5(mut v: Vec<DepthLevel>) -> Vec<DepthLevel> {
+    v.truncate(5);
+    v.resize(5, DepthLevel::default());
+    v
 }
 
 /// Web `get_depth`.

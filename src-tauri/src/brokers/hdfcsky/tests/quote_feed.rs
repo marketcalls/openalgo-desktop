@@ -120,6 +120,12 @@ fn partial_packets_merge_into_the_last_quote_instead_of_blanking_it() {
     assert_eq!(last["volume"], 12345, "{}", last);
     assert_eq!(last["open"], 1490.0, "{}", last);
     assert_eq!(last["oi"], 777, "{}", last);
+    assert_eq!(
+        (&last["ltt"], &last["timestamp"]),
+        (&json!(1_700_000_000_000_i64), &json!(1_700_000_000_000_i64)),
+        "the trade time in ms and the packet's time: {}",
+        last
+    );
     for d in &frames {
         assert_eq!(d["ltp"], 1500.5, "no frame blanks the price: {}", d);
     }
@@ -153,26 +159,45 @@ fn the_same_token_on_two_exchanges_routes_by_packet_type() {
     assert_eq!(routed, vec![("CDS".to_string(), "CUR".to_string())]);
 }
 
-/// Web test_modes_tracked_and_highest_kept_at_broker, at the feed: when the
-/// manager lowers the instrument from Depth to LTP (its Depth subscriber
-/// left), HDFC Sky is moved to the LTP tier, and the instrument, still
-/// subscribed, keeps its baseline, so the next OI packet merges into it.
+/// Web test_modes_tracked_and_highest_kept_at_broker, at the feed. The
+/// manager keeps the broker at the instrument's highest mode, so an LTP
+/// subscriber beside a Depth one changes nothing
+/// (`subscriptions_are_reference_counted_with_effective_mode`). When the
+/// Depth subscriber leaves, HDFC Sky is moved to the LTP tier by a
+/// subscribe at LTP, never an unSubscribe (the web asserts
+/// `ws_client.unsubscribe.assert_not_called()`), and the instrument keeps
+/// its baseline, so the next OI packet merges into it. When the last
+/// subscriber leaves, it is unsubscribed once and its baseline goes.
 #[test]
 fn a_mode_change_moves_the_tier_and_keeps_the_baseline() {
+    let frames_of = |m: Vec<Message>| m.iter().map(text).collect::<Vec<Value>>();
     let mut f = feed_with(&[nifty_fut(FeedMode::Depth)]);
     send(&mut f, vec![packet(pt::NSE_FO_ALL, full())]);
-    let frames = f.mode_change_frames(&nifty_fut(FeedMode::Depth), &nifty_fut(FeedMode::Ltp));
-    let sent: Vec<Value> = frames.iter().map(text).collect();
+    let down = f.mode_change_frames(&nifty_fut(FeedMode::Depth), &nifty_fut(FeedMode::Ltp));
     assert_eq!(
-        sent,
-        vec![
-            json!({"heart_beat": false, "unSubscribe": [{"scripId": "NFO_2885", "type": "ALL"}]}),
-            json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_2885", "type": "LTP"}]}),
-        ]
+        frames_of(down),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_2885", "type": "LTP"}]})]
     );
     let events = send(&mut f, vec![packet(pt::NSE_FO_OI, open_interest(777))]);
     let d = Frames::new("hdfcsky").at(&events, Mode::Ltp).pop().unwrap();
     assert_eq!(d["ltp"], 1500.5, "{}", d);
+    let up = f.mode_change_frames(&nifty_fut(FeedMode::Ltp), &nifty_fut(FeedMode::Depth));
+    assert_eq!(
+        frames_of(up),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_2885", "type": "ALL"}]})]
+    );
+    let same = f.mode_change_frames(&nifty_fut(FeedMode::Depth), &nifty_fut(FeedMode::Quote));
+    assert_eq!(
+        frames_of(same),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_2885", "type": "ALL"}]})],
+        "Quote and Depth are both ALL, and the web subscribes again at it"
+    );
+    let gone = f.unsubscribe_frames(&[nifty_fut(FeedMode::Quote)]);
+    assert_eq!(
+        frames_of(gone),
+        [json!({"heart_beat": false, "unSubscribe": [{"scripId": "NFO_2885", "type": "ALL"}]})]
+    );
+    assert_eq!(f.baselines(), 0);
 }
 
 /// Web test_unsubscribe_at_the_snapshot_write_leaves_no_stale_baseline: once

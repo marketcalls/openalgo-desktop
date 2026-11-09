@@ -1,0 +1,16 @@
+{"step": "upstream_receives", "frames": [{"json": {"user": "U", "auth": "s", "format": "native_batch", "source": "NEOTRADEAPI", "platform": "Web", "version": "1.2.3", "sdk_version": 2, "sdk_date": "2026-08-07T09:41:17.667Z", "conn_req_time": "<now_ms>", "sessionValidation": false}}], "note": "The native_batch login, on connect."}
+{"step": "push", "frame": {"json": {"message_code": 1119, "format": "native_batch", "exchanges": {"nse_cm": {"value": 1, "divider": 100}, "nse_fo": {"value": 2, "divider": 100}, "bse_cm": {"value": 5, "divider": 100}, "bse_cd": {"value": 7, "divider": 10000000}}}}, "note": "The login answer with each exchange's price divider, before any client subscribes: a subscription made while the login is unanswered can reach Kotak twice (the post-login replay and its own queued change; websocket::manager, lane life)."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeIndices", "inputtoken": "nse_cm|Nifty 50", "ack_symbol": true}}], "note": "An index streams by Kotak's name for it, not by the master's token."}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY50", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeIndices", "inputtoken": "nse_cm|Nifty 50", "ack_symbol": true}}], "note": "NIFTY50 is the same Kotak index: the name is asked for again, as the web does."}
+{"step": "push", "frame": "frames/nifty_50.hex", "note": "One tick for the name reaches both OpenAlgo symbols (P-05)."}
+{"step": "receive", "client": "a", "frame": "expected/nifty_quote.json"}
+{"step": "receive", "client": "b", "frame": "expected/nifty50_ltp.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "note", "text": "NIFTY50 still streams under Nifty 50: nothing goes to Kotak."}
+{"step": "push", "frame": "frames/nifty_50_next.hex"}
+{"step": "receive", "client": "b", "frame": "expected/nifty50_ltp_next.json"}
+{"step": "silence", "client": "a"}
+{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY50", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"event": "unsubscribeIndices", "inputtoken": "nse_cm|Nifty 50"}}], "note": "The name's feed goes with the last symbol under it."}

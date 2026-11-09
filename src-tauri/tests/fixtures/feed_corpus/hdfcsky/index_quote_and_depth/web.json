@@ -1,0 +1,112 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "hdfcsky",
+  "inputs_sha256": "ead93059e16d31d6d1f73db3e1e386cbc357c885874d7219c3ce2aec05778caf",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "token": "26000",
+            "ltp": 24500.1,
+            "last_price": 24500.1,
+            "ltt": 1700000000500,
+            "timestamp": 1700000000500,
+            "close": 24300.0,
+            "prev_close": 24300.0,
+            "change": 200.1,
+            "change_percent": 0.82,
+            "volume": 0,
+            "last_quantity": 0,
+            "average_price": 0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "open": 24450.0,
+            "high": 24600.0,
+            "low": 24400.0
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_DEPTH",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "token": "26000",
+            "ltp": 24510.25,
+            "last_price": 24510.25,
+            "ltt": 1700000001500,
+            "timestamp": 1700000001500,
+            "close": 24300.0,
+            "prev_close": 24300.0,
+            "change": 210.25,
+            "change_percent": 0.87,
+            "volume": 0,
+            "last_quantity": 0,
+            "average_price": 0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "open": 24450.0,
+            "high": 24600.0,
+            "low": 24400.0
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "token": "26000",
+            "ltp": 24510.25,
+            "last_price": 24510.25,
+            "ltt": 1700000001500,
+            "timestamp": 1700000001500,
+            "close": 24300.0,
+            "prev_close": 24300.0,
+            "change": 210.25,
+            "change_percent": 0.87,
+            "volume": 0,
+            "last_quantity": 0,
+            "average_price": 0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "open": 24450.0,
+            "high": 24600.0,
+            "low": 24400.0
+          }
+        }
+      ]
+    }
+  ]
+}

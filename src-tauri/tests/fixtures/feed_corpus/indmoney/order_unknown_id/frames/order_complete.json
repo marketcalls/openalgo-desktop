@@ -1,0 +1,1 @@
+"{\"mode\": \"order_update\", \"timestamp\": 1786000826536, \"data\": {\"order_id\": \"96057999\", \"entity_name\": \"Yes Bank Ltd\", \"order_type\": \"SELL\", \"order_status\": \"S\", \"lot\": 1, \"executed_price\": 22.89, \"elapsed_time\": 23, \"error_message\": \" \", \"req_quantity\": 1, \"requested_lot\": 1}}"

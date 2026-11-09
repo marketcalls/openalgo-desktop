@@ -1,0 +1,18 @@
+{
+  "type": "market_data",
+  "symbol": "SENSEX",
+  "exchange": "BSE_INDEX",
+  "mode": 1,
+  "data": {
+    "symbol": "SENSEX",
+    "exchange": "BSE_INDEX",
+    "ltp": 79500.25,
+    "ltt": 1730790000000.0,
+    "timestamp": "<receipt_ms>",
+    "mode": 1,
+    "broker": "groww",
+    "topic": "BSE_INDEX_SENSEX_LTP",
+    "subscription_mode": 1
+  },
+  "broker": "groww"
+}

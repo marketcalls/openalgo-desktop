@@ -1,0 +1,53 @@
+{
+  "broker": "sahi",
+  "summary": "A Depth subscription, acknowledged at Sahi's 5 levels. A DepthTick with two bids and no asks carries the levels Sahi sent and no padding (two bids, no asks); the next replaces the book (one bid, six asks truncated to five); one with no levels clears it.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/sahi/streaming/sahi_proto.py::decode_server_message",
+      "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter._on_message",
+      "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter._handle_tick",
+      "broker/sahi/streaming/sahi_mapping.py::build_payloads",
+      "test/test_sahi_streaming_codec.py::test_depth_tick_fans_out_to_every_mode",
+      "test/test_sahi_streaming_codec.py::test_depth_truncated_to_five_levels",
+      "websocket_proxy/server.py:1308-1316 (the subscribe reply)"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Sahi sent no open interest for this instrument (open_interest, a proto3 optional, is off its ticks); the web publishes oi 0 for it (sahi_mapping.py build_quote_payload), a number the exchange never sent. The desktop leaves it out (docs: a field the stream does not carry is left out; decisions.md).",
+      "ref": "sahi_mapping.py:129",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "The web's alias of oi, sent as 0 with it for an instrument whose ticks carry no open interest; left out with oi (see oi).",
+      "ref": "sahi_mapping.py:130",
+      "approved": true
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "web pads each side to five rows of price 0.0 (sahi_mapping.py::_depth_side); docs: buy/sell are the broker's levels; never invent zero prices (decisions.md). The padding is the adapter's own: Sahi's DepthTick carries only the levels holding orders, as repeated best_buys (field 11) and best_sells (field 12) entries with no fixed empty slots (sahi_proto.py:228-231; sahi_mapping.py:99). The desktop keeps every level Sahi sent, up to five.",
+      "ref": "sahi_proto.py:228-231; sahi_mapping.py:94-102; docs/api/websocket-streaming/depth.md:166-179",
+      "approved": true
+    }
+  ]
+}

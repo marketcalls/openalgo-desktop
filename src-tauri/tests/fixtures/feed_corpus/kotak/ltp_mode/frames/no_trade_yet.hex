@@ -1,0 +1,39 @@
+# SBIN touch line before its first trade: last trade time 0.
+# SFeed market picture (web sfeed_protocol._decode_market_picture).
+b000                    # packet length 176
+281c                    # message code 7208
+01                      # exchange 1 (nse_cm)
+04                      # level 4
+00                      # auction flag
+00                      # sequence
+00                      # bitmask length
+e50b0000                # token 3045
+b004000000000000        # total buy quantity 1200
+8403000000000000        # total sell quantity 900
+0000000000000000        # volume 0
+0000000000000000        # last trade time 0 (epoch s)
+0000000000000000        # last update time
+00000000                # open 0 -> 0.0
+80380100                # previous close 80000 -> 800.0
+00000000                # high 0 -> 0.0
+00000000                # low 0 -> 0.0
+80380100                # ltp 80000 -> 800.0
+0000000000000000        # last traded quantity 0
+00000000                # average price 0 -> 0.0
+00000000                # indicative close
+01000000                # buy rows 1
+01000000                # sell rows 1
+0000                    # trading status
+00000000                # change % 0 -> 0.0
+00000000                # open interest 0
+0000000000000000        # turnover
+00000000                # change 0 -> 0.0
+00000000                # upper circuit 0 -> 0.0
+00000000                # lower circuit 0 -> 0.0
+00000000                # 52-week high
+00000000                # 52-week low
+01000000                # lot
+02                      # precision
+01000000                # multiplier
+b0040000000000007638010004000000        # bid: qty 1200, price 79990 -> 799.9, orders 4
+84030000000000008a38010003000000        # ask: qty 900, price 80010 -> 800.1, orders 3

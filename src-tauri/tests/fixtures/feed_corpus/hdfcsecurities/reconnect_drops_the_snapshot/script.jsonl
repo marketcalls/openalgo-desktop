@@ -1,0 +1,11 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NFO_35001", "type": "ALL"}]}}], "connection": 1}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "path": "/?token=t&api_key=k", "headers": {"authorization": "t"}}
+{"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NFO_35001", "type": "ALL"}]}}], "connection": 2}
+{"step": "push", "frame": "frames/oi_after_reconnect.hex"}
+{"step": "silence", "client": "a", "note": "The new socket has no full packet yet, so the OI packet has nothing to merge into. The web's adapter merges it into the previous socket's packet and publishes that quote as current (web defect, see the provenance notes).", "web": {"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "mode": 2}}
+{"step": "push", "frame": "frames/full_after_reconnect.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_after_reconnect.json"}

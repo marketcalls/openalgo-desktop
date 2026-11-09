@@ -1,0 +1,17 @@
+{"step": "upstream_receives", "frames": [{"json": {"user": "U", "auth": "s", "format": "native_batch", "source": "NEOTRADEAPI", "platform": "Web", "version": "1.2.3", "sdk_version": 2, "sdk_date": "2026-08-07T09:41:17.667Z", "conn_req_time": "<now_ms>", "sessionValidation": false}}], "note": "The native_batch login, on connect."}
+{"step": "push", "frame": {"json": {"message_code": 1119, "format": "native_batch", "exchanges": {"nse_cm": {"value": 1, "divider": 100}, "nse_fo": {"value": 2, "divider": 100}, "bse_cm": {"value": 5, "divider": 100}, "bse_cd": {"value": 7, "divider": 10000000}}}}, "note": "The login answer with each exchange's price divider, before any client subscribes: a subscription made while the login is unanswered can reach Kotak twice (the post-login replay and its own queued change; websocket::manager, lane life)."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeDepth", "inputtoken": "nse_cm|2885", "ack_symbol": true}}, {"json": {"event": "subscribeScrips", "inputtoken": "nse_cm|2885", "ack_symbol": true}}]}
+{"step": "push", "frame": {"json": {"message_code": 1109, "trading_symbols": {"nse_cm|2885": "RELIANCE-EQ"}}}, "note": "The subscribe acknowledgement maps the key to Kotak's trading symbol."}
+{"step": "push", "frame": "frames/depth_two_levels.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}
+{"step": "drop_upstream", "note": "Kotak drops the socket; the manager reconnects."}
+{"step": "upstream_connected", "connection": 2}
+{"step": "upstream_receives", "frames": [{"json": {"user": "U", "auth": "s", "format": "native_batch", "source": "NEOTRADEAPI", "platform": "Web", "version": "1.2.3", "sdk_version": 2, "sdk_date": "2026-08-07T09:41:17.667Z", "conn_req_time": "<now_ms>", "sessionValidation": false}}], "connection": 2, "note": "A new connection logs in again; the old dividers and book are gone."}
+{"step": "push", "frame": {"json": {"message_code": 1119, "format": "native_batch", "exchanges": {"nse_cm": {"value": 1, "divider": 100}, "nse_fo": {"value": 2, "divider": 100}, "bse_cm": {"value": 5, "divider": 100}, "bse_cd": {"value": 7, "divider": 10000000}}}}}
+{"step": "upstream_receives", "frames": [{"json": {"event": "subscribeDepth", "inputtoken": "nse_cm|2885", "ack_symbol": true}}, {"json": {"event": "subscribeScrips", "inputtoken": "nse_cm|2885", "ack_symbol": true}}], "connection": 2}
+{"step": "push", "frame": {"json": {"message_code": 1109, "trading_symbols": {"nse_cm|2885": "RELIANCE-EQ"}}}, "note": "The subscribe acknowledgement maps the key to Kotak's trading symbol."}
+{"step": "push", "frame": "frames/touch_line.hex", "note": "No book on this connection yet: the Depth holder gets no frame. The web republishes the old connection's book here."}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}}
+{"step": "push", "frame": "frames/depth_after.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth_after.json"}

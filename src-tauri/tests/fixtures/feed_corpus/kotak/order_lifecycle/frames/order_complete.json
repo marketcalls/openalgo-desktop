@@ -1,0 +1,20 @@
+{
+  "type": "order",
+  "data": {
+    "nOrdNo": "251109000000101",
+    "ordSt": "complete",
+    "exSeg": "nse_cm",
+    "trdSym": "RELIANCE-EQ",
+    "tok": "2885",
+    "qty": "10",
+    "fldQty": "10",
+    "unFldSz": "0",
+    "prcTp": "L",
+    "trnsTp": "B",
+    "prc": "1300.50",
+    "trgPrc": "0.00",
+    "avgPrc": "1300.45",
+    "prod": "CNC",
+    "rejRsn": ""
+  }
+}

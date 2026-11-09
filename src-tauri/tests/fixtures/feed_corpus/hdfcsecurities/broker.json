@@ -1,0 +1,43 @@
+{
+  "broker": "hdfcsecurities",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "CDS": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "NSE_INDEX": [
+        5
+      ],
+      "BSE_INDEX": [
+        5
+      ]
+    },
+    "orders": false
+  },
+  "sources": [
+    "broker/hdfcsecurities/streaming/hdfcsecurities_mapping.py::HDFCSecuritiesCapabilityRegistry",
+    "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter.subscribe",
+    "services/order_update_service.py:36"
+  ],
+  "notes": [
+    "One socket for every mode: LTP subscribes type LTP, Quote and Depth type ALL; the book is five levels on every exchange (SUPPORTED_DEPTH_LEVELS = [5]).",
+    "No order-update stream: hdfcsecurities is in neither the web's order adapter registry nor its polling brokers (services/order_update_service.py:36-69)."
+  ]
+}

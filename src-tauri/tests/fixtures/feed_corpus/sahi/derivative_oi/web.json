@@ -1,0 +1,176 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "sahi",
+  "inputs_sha256": "230cbc5508e6000008108be90272fe6cb4cda7d9680e60e37ac7038f63d4daef",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV25FUT",
+      "exchange": "NFO",
+      "token": "50001",
+      "brsymbol": "NIFTY25NOV25FUT",
+      "name": "NIFTY",
+      "expiry": "25-NOV-25",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "tick_size": 0.05
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": "quote",
+            "ltp": 24700.0,
+            "timestamp": "<receipt_ms>",
+            "ltt": 1761700002000,
+            "last_trade_time": 1761700002000,
+            "volume": 125000,
+            "oi": 1500,
+            "open_interest": 1500,
+            "upper_circuit": 27170.0,
+            "lower_circuit": 22230.0
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": "quote",
+            "ltp": 24705.0,
+            "timestamp": "<receipt_ms>",
+            "ltt": 1761700003000,
+            "last_trade_time": 1761700003000,
+            "volume": 126000,
+            "oi": 1525,
+            "open_interest": 1525,
+            "upper_circuit": 27170.0,
+            "lower_circuit": 22230.0
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": "full",
+            "ltp": 24705.0,
+            "timestamp": "<receipt_ms>",
+            "ltt": 1761700003000,
+            "last_trade_time": 1761700003000,
+            "volume": 126000,
+            "oi": 1525,
+            "open_interest": 1525,
+            "upper_circuit": 27170.0,
+            "lower_circuit": 22230.0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 24704.5,
+                  "quantity": 75,
+                  "orders": 3
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 24705.5,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": "quote",
+            "ltp": 24710.0,
+            "timestamp": "<receipt_ms>",
+            "ltt": 1761700004000,
+            "last_trade_time": 1761700004000,
+            "volume": 127000,
+            "oi": 1550,
+            "open_interest": 1550,
+            "upper_circuit": 27170.0,
+            "lower_circuit": 22230.0
+          }
+        }
+      ]
+    }
+  ]
+}

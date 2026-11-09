@@ -17,10 +17,15 @@ use super::streaming::{
 };
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use chrono::NaiveDate;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+
+mod order_ids;
+mod quote_feed;
 
 macro_rules! fixture {
     ($name:literal) => {
@@ -723,7 +728,7 @@ fn subscribe_frames_split_by_mode_and_segment() {
 }
 
 #[test]
-fn ticks_resolve_retain_and_fan_out_depth() {
+fn ticks_resolve_and_keep_the_last_price() {
     let mut f = IndmoneyFeed::new("wss://x", "tok");
     f.subscribe_frames(&[
         sub("SBIN", "NSE", "3045", FeedMode::Quote),
@@ -741,35 +746,33 @@ fn ticks_resolve_retain_and_fan_out_depth() {
         (t.symbol.as_str(), t.exchange.as_str(), t.mode),
         ("SBIN", "NSE", 2)
     );
+    assert_eq!((t.ltp, t.close, t.volume), (1426.0, 1418.0, 5000));
     assert_eq!(
-        (t.ltp, t.close, t.volume, t.change),
-        (1426.0, 1418.0, 5000, 8.0)
+        (t.last_trade_time_ms, t.timestamp_ms),
+        (1750138351089, 1750138351089)
     );
-    assert_eq!(t.last_trade_time_ms, 1750138351089);
-    // Zeros keep the last value; double-encoded frames decode.
+    // A zero is nothing new: the packet leaves it out (the bridge keeps
+    // the last value), and its price is the last one; double-encoded
+    // frames decode.
     let z = json!({"mode":"quote","instrument":"3045","timestamp":1,"data":{"ltp":0,"high":1431}});
     let wrapped = Value::String(z.to_string()).to_string();
     let ev = f.parse(&Message::Text(wrapped));
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
-    assert_eq!((t.ltp, t.high, t.open), (1426.0, 1431.0, 1410.0));
+    assert_eq!((t.ltp, t.high), (1426.0, 1431.0));
+    assert!(!t.knows(QuoteField::Open) && t.knows(QuoteField::High));
     // Bare token 2885 is subscribed on NSE and NFO: ambiguous, dropped.
     let amb = json!({"mode":"ltp","instrument":"2885","data":{"ltp":1}});
     assert!(f.parse(&Message::Text(amb.to_string())).is_empty());
-    // Qualified instrument resolves; a depth subscription also gets depth.
+    // Qualified instrument resolves; no book is made of the best bid and
+    // ask (audit RB-13): they go out as the quote's own fields.
     let nfo = json!({"mode":"quote","instrument":"NFO:2885","data":{"ltp":1450,"bid_price":1449.5,"bid_qty":500,"ask_price":1450.5,"ask_qty":250}});
     let ev = f.parse(&Message::Text(nfo.to_string()));
-    assert_eq!(ev.len(), 2);
-    let FeedEvent::Depth(dp) = &ev[1] else {
-        panic!()
+    let [FeedEvent::Tick(t)] = &ev[..] else {
+        panic!("{:?}", ev)
     };
     assert_eq!(
-        (
-            dp.symbol.as_str(),
-            dp.buy.len(),
-            dp.buy[0].price,
-            dp.sell[0].quantity
-        ),
-        ("RELIANCE27OCT26FUT", 5, 1449.5, 250)
+        (t.symbol.as_str(), t.extras.bid_price, t.extras.ask_quantity),
+        ("RELIANCE27OCT26FUT", Some(1449.5), Some(250))
     );
     let ltp = json!({"mode":"ltp","instrument":"NSE:2885","data":{"ltp":1427}});
     let ev = f.parse(&Message::Text(ltp.to_string()));
@@ -778,6 +781,8 @@ fn ticks_resolve_retain_and_fan_out_depth() {
         (t.symbol.as_str(), t.mode, t.ltp, t.open),
         ("RELIANCE", 1, 1427.0, 0.0)
     );
+    // No packet time: stamped on receipt, with no trade time.
+    assert!(t.timestamp_ms > 0 && !t.knows(QuoteField::LastTradeTime));
     assert_eq!(
         f.parse(&Message::Text("pong".into())),
         vec![FeedEvent::Heartbeat]
@@ -818,12 +823,9 @@ fn mode_changes_are_gapless_and_keep_the_last_values() {
     let partial = json!({"mode":"quote","instrument":"NSE:3045","data":{"ltp":1427}});
     let ev = f.parse(&Message::Text(partial.to_string()));
     match &ev[..] {
-        [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
-            assert_eq!((t.ltp, t.open, t.mode), (1427.0, 1410.0, 3));
-            assert_eq!(
-                (d.ltp, d.buy[0].price, d.sell[0].quantity),
-                (1427.0, 1425.9, 20)
-            );
+        [FeedEvent::Tick(t)] => {
+            assert_eq!((t.ltp, t.mode), (1427.0, 2));
+            assert!(!t.knows(QuoteField::Open));
         }
         other => panic!("unexpected {:?}", other),
     }
@@ -853,14 +855,12 @@ fn mode_changes_are_gapless_and_keep_the_last_values() {
             json!({"action":"unsubscribe","mode":"ltp","instruments":["NSE:3045"]}),
         ]
     );
-    // While both streams arrive, an `ltp` tick keeps a Quote holder's fields.
+    // While both streams arrive, an `ltp` packet is published as LTP, as
+    // the web's LTP topic is: the Quote holder's fields stay in the bridge.
     let overlap = json!({"mode":"ltp","instrument":"3045","data":{"ltp":1428}});
     let ev = f.parse(&Message::Text(overlap.to_string()));
     match &ev[..] {
-        [FeedEvent::Tick(t)] => assert_eq!(
-            (t.ltp, t.open, t.close, t.mode),
-            (1428.0, 1410.0, 1418.0, 2)
-        ),
+        [FeedEvent::Tick(t)] => assert_eq!((t.ltp, t.mode), (1428.0, 1)),
         other => panic!("unexpected {:?}", other),
     }
     assert_eq!((f.subscription_count(), f.cache_len()), (1, 1));

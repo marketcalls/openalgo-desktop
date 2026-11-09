@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "mode": "quote", "instruments": ["NFO:52345"]}}]}
+{"step": "push", "frame": "frames/future_full.json"}
+{"step": "receive", "client": "a", "frame": "expected/future_full.json"}
+{"step": "push", "frame": "frames/future_partial.json"}
+{"step": "receive", "client": "a", "frame": "expected/future_partial.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "unsubscribe", "mode": "quote", "instruments": ["NFO:52345"]}}]}

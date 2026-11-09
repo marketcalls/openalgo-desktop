@@ -1,0 +1,7 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"hex": "0a0608021202c516"}], "connection": 1}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "refuse_upgrades", "status": 429, "times": 1}
+{"step": "drop_upstream", "code": 1000, "reason": "normal"}
+{"step": "upstream_connections", "count": 1, "refused": 1, "ms": 300, "note": "one refused attempt, no second within 30 s"}

@@ -15,7 +15,19 @@
 //!   `(exchange, token)`.
 //! * `*_CIRC` and `*_OI` packets reuse `mbpData` for a partial refresh: every
 //!   other field is a proto3 zero. They are merged into the last full packet
-//!   for the instrument and never published on their own.
+//!   for the instrument and never published on their own; that packet lives
+//!   as long as the subscription and the socket.
+//! * Each tick says what its packet carries (`investright::finish`, shared
+//!   with HDFC Sky): an `LTP` scrip's price, an `ALL` scrip's full quote
+//!   with OI on the derivative segments, an index's levels without volume,
+//!   order flow or OI; the circuit band goes out as `upper_circuit` /
+//!   `lower_circuit` in Depth.
+//! * A frame's `timestamp` is the packet's own time, as on the web; `ltt`
+//!   is `lastTradeTime`, sent in epoch seconds, in milliseconds, and left
+//!   out for a packet without one (`investright::set_trade_time`).
+//! * Text frames are acknowledgements and errors; an error naming a token or
+//!   auth problem ends the session (`investright::text_events`, audit
+//!   RB-10).
 
 use super::mapping::ws_scrip_id;
 use super::proto::{packet_type as pt, GenericDto, GenericDtoList};
@@ -25,6 +37,7 @@ use crate::brokers::common::streaming::{
     NormalizedTick, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
+use crate::brokers::hdfcsky::investright;
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use prost::Message as _;
@@ -72,7 +85,8 @@ pub struct Packet {
     pub oi: i64,
     pub lower_limit: f64,
     pub upper_limit: f64,
-    /// Last trade time as sent (0 when absent).
+    /// Last trade time as sent: epoch seconds, 0 when absent
+    /// (`investright::trade_time_ms`).
     pub ltt: i64,
     /// Epoch ms (packet timestamp, or receive time).
     pub timestamp_ms: i64,
@@ -376,7 +390,8 @@ pub struct HdfcSecuritiesFeed {
     /// `(OpenAlgo exchange, token)` -> subscription.
     subs: HashMap<(String, i64), SubInfo>,
     /// Last full packet per subscribed instrument, for partial merges.
-    /// Entries are removed with their subscription.
+    /// Entries are removed with their subscription and on every new
+    /// connection.
     last: HashMap<(String, i64), Packet>,
 }
 
@@ -435,29 +450,30 @@ impl HdfcSecuritiesFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
             ltp: p.ltp,
+            open: p.open,
+            high: p.high,
+            low: p.low,
             close: p.close,
+            volume: p.volume,
+            last_quantity: p.ltq,
+            average_price: p.average_price,
+            total_buy_quantity: p.total_buy_quantity,
+            total_sell_quantity: p.total_sell_quantity,
+            oi: p.oi,
             timestamp_ms: p.timestamp_ms,
-            last_trade_time_ms: if p.ltt > 1_000_000_000_000 {
-                p.ltt
-            } else {
-                p.ltt * 1000
-            },
             ..Default::default()
         };
-        if sub.mode >= FeedMode::Quote {
-            t.open = p.open;
-            t.high = p.high;
-            t.low = p.low;
-            t.volume = p.volume;
-            t.last_quantity = p.ltq;
-            t.average_price = p.average_price;
-            t.total_buy_quantity = p.total_buy_quantity;
-            t.total_sell_quantity = p.total_sell_quantity;
-            t.oi = p.oi;
-        }
-        t.derive_change();
+        investright::finish(
+            &mut t,
+            investright::PacketFacts {
+                subscribed: sub.mode,
+                index: p.kind == Kind::Index,
+                band: (p.lower_limit, p.upper_limit),
+                ltt: p.ltt,
+                book: p.depth.is_some(),
+            },
+        );
         let depth = (sub.mode == FeedMode::Depth)
             .then(|| p.depth.clone())
             .flatten()
@@ -465,8 +481,8 @@ impl HdfcSecuritiesFeed {
                 symbol: t.symbol.clone(),
                 exchange: t.exchange.clone(),
                 ltp: t.ltp,
-                buy: pad5(buy),
-                sell: pad5(sell),
+                buy,
+                sell,
                 total_buy_quantity: p.total_buy_quantity,
                 total_sell_quantity: p.total_sell_quantity,
                 timestamp_ms: p.timestamp_ms,
@@ -514,13 +530,6 @@ impl HdfcSecuritiesFeed {
     }
 }
 
-/// Exactly five levels, zero padded.
-pub fn pad5(mut v: Vec<DepthLevel>) -> Vec<DepthLevel> {
-    v.truncate(5);
-    v.resize(5, DepthLevel::default());
-    v
-}
-
 impl BrokerFeed for HdfcSecuritiesFeed {
     fn broker(&self) -> &'static str {
         "hdfcsecurities"
@@ -528,6 +537,18 @@ impl BrokerFeed for HdfcSecuritiesFeed {
 
     fn ws_request(&self) -> Result<WsRequest> {
         feed_request(&self.url, &self.token)
+    }
+
+    /// A new socket starts from its own first full quote: nothing on it
+    /// vouches for a price from the last one, so a circuit or OI packet
+    /// that comes first publishes nothing. The web's InvestRight adapter
+    /// keeps its snapshots across a reconnect (`_on_ws_connect` changes
+    /// only `connected`) and republishes the pre-outage quote; its HDFC Sky
+    /// sibling drops them (openalgo#2397, `_drop_snapshots`). The
+    /// subscriptions stay; the manager replays them.
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.last.clear();
+        Vec::new()
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
@@ -540,6 +561,21 @@ impl BrokerFeed for HdfcSecuritiesFeed {
         subscribe_frames(&items, "unSubscribe")
     }
 
+    /// The instrument stays subscribed, so it keeps its merge snapshot. A
+    /// mode change is a subscribe at the new mode's type, with no
+    /// unSubscribe first, also between Quote and Depth (both `ALL`): the web
+    /// moves a held scrip by subscribing it again at the type of its highest
+    /// mode (`subscribe_scrips`, hdfcsecurities_adapter.py:211 and :255),
+    /// and its client sends that frame even at the type it already has.
+    fn mode_change_frames(
+        &mut self,
+        _old: &FeedSubscription,
+        new: &FeedSubscription,
+    ) -> Vec<Message> {
+        let items = self.items(std::slice::from_ref(new), true);
+        subscribe_frames(&items, "subscribe")
+    }
+
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
         match msg {
             Message::Binary(b) => {
@@ -549,10 +585,7 @@ impl BrokerFeed for HdfcSecuritiesFeed {
                 }
                 out
             }
-            Message::Text(t) => {
-                tracing::debug!("HDFC Securities feed text frame: {} bytes", t.len());
-                Vec::new()
-            }
+            Message::Text(t) => investright::text_events(t, "HDFC Securities"),
             _ => Vec::new(),
         }
     }

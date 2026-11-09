@@ -1,0 +1,4 @@
+# Sahi ServerMessage: a quote tick with only the id and price (web test_lower_tick_does_not_serve_higher_modes).
+1a07      # ServerMessage.quote_tick (field 3), 7 bytes
+08c516    #   instrument_id = 2885 (field 1)
+20ccf007  #   last_trade_price, paise = 129100 (field 4)

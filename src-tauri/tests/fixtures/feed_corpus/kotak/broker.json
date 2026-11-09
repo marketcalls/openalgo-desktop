@@ -1,0 +1,31 @@
+{
+  "broker": "kotak",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [5],
+      "NFO": [5],
+      "BSE": [5],
+      "BFO": [5],
+      "CDS": [5],
+      "BCD": [5],
+      "MCX": [5],
+      "NSE_INDEX": [5],
+      "BSE_INDEX": [5]
+    },
+    "orders": "a dedicated order-update socket (the realtime cn socket)"
+  },
+  "sources": [
+    "broker/kotak/streaming/kotak_adapter.py::_build_feed_client",
+    "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter.subscribe",
+    "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._to_depth",
+    "broker/kotak/streaming/kotak_order_adapter.py",
+    "services/order_update_service.py:56"
+  ],
+  "notes": [
+    "The web streams Kotak over SFeed (native_batch) for every data centre; the legacy HSM client is kept only for a data centre whose feed config names it (kotak_adapter.py:135), which none does.",
+    "Depth is the five-level SFeed book whatever depth is asked for: subscribe ignores depth_level and _to_depth pads to five rows.",
+    "An index's Depth subscription is its index feed: a price over an empty book."
+  ]
+}

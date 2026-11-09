@@ -1,0 +1,48 @@
+{
+  "broker": "indmoney",
+  "summary": "A Quote subscription: a full quote packet, then a partial one whose missing and zero fields keep their last values.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/indmoney/streaming/indWebSocket.py::IndWebSocket._on_message",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter.subscribe",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._on_data",
+      "broker/indmoney/streaming/indmoney_adapter.py::IndmoneyWebSocketAdapter._normalize_market_data",
+      "broker/indmoney/streaming/indmoney_mapping.py::IndmoneyExchangeMapper"
+    ],
+    "notes": [
+      "Frames follow the INDstocks price socket's documented shape (indmoney_adapter.py:575-583: mode, instrument, timestamp in ms, data) with fractional prices so a price's JSON type is not what differs."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "INDstocks sends OI as 0 when it has none (an equity's OI); the web's own get_value reads a 0 as 'nothing new' and keeps the last value, but with none to keep it sends the 0 (indmoney_adapter.py:651-665). The desktop leaves out a field with no value: a field the stream did not give a value is left out, never sent as 0 (docs; openalgo#2376; lead approval 2026-11-09).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    },
+    {
+      "key": "oi_change",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "INDstocks sends the OI change as 0 when it has none (an equity's OI); the web's own get_value reads a 0 as 'nothing new' and keeps the last value, but with none to keep it sends the 0 (indmoney_adapter.py:651-665). The desktop leaves out a field with no value: a field the stream did not give a value is left out, never sent as 0 (docs; openalgo#2376; lead approval 2026-11-09).",
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+    }
+  ]
+}

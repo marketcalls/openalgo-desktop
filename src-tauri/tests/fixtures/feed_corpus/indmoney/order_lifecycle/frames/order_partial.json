@@ -1,0 +1,1 @@
+{"mode": "order_update", "timestamp": 1794302700200, "data": {"order_id": "96057848", "order_type": "BUY", "order_status": "PARTIALLY_EXECUTED", "req_quantity": 10, "filled_quantity": 4, "remaining_quantity": 6, "executed_price": 1426.4, "error_message": " "}}

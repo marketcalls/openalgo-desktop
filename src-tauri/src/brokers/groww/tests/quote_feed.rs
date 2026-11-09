@@ -4,10 +4,9 @@
 //! leaves out the OHLC and volume that did not change, and an index tick
 //! carries only a value. The ticks are the web test's, as protobuf, go
 //! through the real parser and come out as the 8765 frames the bridge
-//! makes of them (`feed::testkit`).
-//!
-//! What has no counterpart: the web caches Groww's `value` (turnover) too;
-//! the desktop's frames have one schema and no such key.
+//! makes of them (`feed::testkit`). The web caches Groww's `value`
+//! (turnover) too: the desktop carries it as `BrokerField::TradedValue`
+//! (`a_quote_keeps_the_traded_value` in the parent module).
 
 use super::*;
 use crate::feed::testkit::{keys, Frames};
@@ -73,6 +72,7 @@ fn a_quote_keeps_the_ohlc_of_an_earlier_tick() {
     assert_eq!(d["ltp"], 812.9);
     // A double, as the web passes Groww's protobuf double through.
     assert_eq!(d["volume"], 1_200_500.0);
+    assert_eq!(d["ltt"], 1_730_790_001_000.0);
     assert_eq!(
         (
             d["open"].as_f64(),

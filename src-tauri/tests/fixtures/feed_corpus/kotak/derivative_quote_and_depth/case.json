@@ -1,0 +1,36 @@
+{
+  "broker": "kotak",
+  "summary": "An index future held at Quote by one client and at Depth by another: one depth packet gives the Quote frame with OI and the five-level book; when the Depth holder leaves, only the depth stream is unsubscribed and the Quote frames go on with OI.",
+  "scenarios": [
+    "derivative-oi",
+    "mode-change",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "53001",
+      "brsymbol": "NIFTY25NOVFUT",
+      "brexchange": "nse_fo",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX",
+      "expiry": "25-NOV-26"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter.unsubscribe_depth"
+    ],
+    "notes": [
+      "desktop-decision (lead 2026-11-09): a client that joins an instrument without raising its highest held mode sends Kotak nothing. The web's adapter subscribes it as a new subscription and sends its streams again (a Quote client joining while a Depth client holds this future: {\"event\": \"subscribeScrips\", \"inputtoken\": \"nse_fo|53001\", \"ack_symbol\": true}; a Depth client joining a held Depth: subscribeDepth and subscribeScrips again). The desktop coalesces holder changes and never re-sends a subscription whose effective mode is unchanged, which is safer under brokers' subscription rate limits; where a broker answers a re-subscribe with a fresh full packet, the new client gets its first frame at the next tick rather than at once. No step of this case shows it (each join here raises the mode).",
+      "Live check (maintainer, market hours): how long a new client waits for its first frame on a quiet instrument."
+    ]
+  },
+  "deviations": []
+}

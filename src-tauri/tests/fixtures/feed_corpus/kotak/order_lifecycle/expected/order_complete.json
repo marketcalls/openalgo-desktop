@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "kotak",
+  "orderid": "251109000000101",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 10,
+  "price": 1300.5,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "CNC",
+  "order_status": "complete",
+  "filled_quantity": 10,
+  "pending_quantity": 0,
+  "average_price": 1300.45,
+  "rejection_reason": ""
+}

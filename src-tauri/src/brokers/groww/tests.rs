@@ -1363,6 +1363,18 @@ fn connect_frame_matches_web() {
     assert_eq!(v["verbose"], false);
     let plain = connect_frame("jwt1", None, None);
     assert!(!plain.contains("nkey") && !plain.contains("sig"));
+    // Byte for byte the web's json.dumps (groww_nats.py:65-97).
+    assert_eq!(
+        plain,
+        "CONNECT {\"verbose\": false, \"pedantic\": false, \"tls_required\": true, \
+         \"jwt\": \"jwt1\", \"protocol\": 1, \"version\": \"2.10.18\", \"lang\": \"python3\", \
+         \"name\": \"nats.py\", \"headers\": true, \"no_responders\": true}\r\n"
+    );
+    assert!(
+        f.ends_with(", \"nkey\": \"UKEY\", \"sig\": \"SIG\"}\r\n"),
+        "{}",
+        f
+    );
 }
 
 fn text(m: &Message) -> String {
@@ -1401,7 +1413,7 @@ fn nats_handshake_replies_through_the_feed() {
     assert!(ups[0].starts_with("CONNECT "));
     assert!(ups[0].contains(&public));
     assert!(ups[0].contains("\"sig\""));
-    assert!(ups[0].contains("\"jwt\":\"JWT\""));
+    assert!(ups[0].contains("\"jwt\": \"JWT\""));
     assert_eq!(ups[1], "PING\r\n");
     assert!(!ev.contains(&FeedEvent::AuthOk));
     // The PONG after CONNECT accepts the session; a server PING gets PONG.
@@ -1447,7 +1459,7 @@ fn subjects_follow_web_topics() {
     );
     assert_eq!(
         subjects(&sub("X", "NFO", "35001", FeedMode::Depth)),
-        ["/ld/fo/nse/price.35001", "/ld/fo/nse/book.35001"]
+        ["/ld/fo/nse/book.35001", "/ld/fo/nse/price.35001"]
     );
     assert_eq!(
         subjects(&sub("SENSEX25OCT82000CE", "BFO", "825001", FeedMode::Quote)),
@@ -1544,9 +1556,17 @@ fn feed_frames_and_ticks() {
         sub("SBIN", "NSE", "3045", FeedMode::Quote),
         sub("NIFTY28OCT2524500CE", "NFO", "35001", FeedMode::Depth),
     ]);
+    // One frame per SUB, a Depth's book before its price, then one PING, as
+    // the web sends them.
+    let frames: Vec<String> = frames.iter().map(text).collect();
     assert_eq!(
-        text(&frames[0]),
-        "SUB /ld/eq/nse/price.3045 1\r\nSUB /ld/fo/nse/price.35001 2\r\nSUB /ld/fo/nse/book.35001 3\r\nPING\r\n"
+        frames,
+        [
+            "SUB /ld/eq/nse/price.3045 1\r\n",
+            "SUB /ld/fo/nse/book.35001 2\r\n",
+            "SUB /ld/fo/nse/price.35001 3\r\n",
+            "PING\r\n"
+        ]
     );
     // Quote tick.
     let ev = f.parse(&msg_frame(1, &ltp_payload(812.35)));
@@ -1565,7 +1585,7 @@ fn feed_frames_and_ticks() {
     assert_eq!(t.change, 4.35);
     // Quote subscriptions ignore book ticks; depth subscriptions merge.
     assert!(f.parse(&msg_frame(1, &depth_payload())).is_empty());
-    let ev = f.parse(&msg_frame(3, &depth_payload()));
+    let ev = f.parse(&msg_frame(2, &depth_payload()));
     assert_eq!(ev.len(), 2);
     let FeedEvent::Depth(d) = &ev[1] else {
         panic!("{:?}", ev)
@@ -1573,7 +1593,7 @@ fn feed_frames_and_ticks() {
     assert_eq!(d.symbol, "NIFTY28OCT2524500CE");
     assert_eq!(d.buy.len(), 1); // the zero placeholder level is dropped
     assert_eq!((d.buy[0].price, d.buy[0].orders), (812.3, 3));
-    let ev = f.parse(&msg_frame(2, &ltp_payload(112.4)));
+    let ev = f.parse(&msg_frame(3, &ltp_payload(112.4)));
     let FeedEvent::Depth(d) = &ev[1] else {
         panic!("{:?}", ev)
     };
@@ -1583,9 +1603,10 @@ fn feed_frames_and_ticks() {
     assert!(f.parse(&msg_frame(1, b"\xff\xff")).is_empty());
     // Unsubscribe removes every sid of the instrument.
     let un = f.unsubscribe_frames(&[sub("NIFTY28OCT2524500CE", "NFO", "35001", FeedMode::Depth)]);
-    assert_eq!(text(&un[0]), "UNSUB 2\r\nUNSUB 3\r\n");
+    let un: Vec<String> = un.iter().map(text).collect();
+    assert_eq!(un, ["UNSUB 2\r\n", "UNSUB 3\r\n"]);
     assert_eq!(f.instrument_count(), 1);
-    assert!(f.parse(&msg_frame(3, &depth_payload())).is_empty());
+    assert!(f.parse(&msg_frame(2, &depth_payload())).is_empty());
     // A new connection forgets per-connection sids.
     f.on_connected();
     assert_eq!(f.instrument_count(), 0);
@@ -1593,6 +1614,29 @@ fn feed_frames_and_ticks() {
         f.parse(&Message::Text("-ERR 'Authentication Timeout'\r\n".into()))[0],
         FeedEvent::AuthFailed(_)
     ));
+}
+
+/// Web nats_websocket.py:1097-1112: a deliberate disconnect unsubscribes
+/// every live sid, one frame each, in subscribe order; nothing is left to
+/// unsubscribe once the instruments are released or the connection is new.
+#[test]
+fn a_deliberate_close_unsubscribes_every_live_sid() {
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[
+        sub("SBIN", "NSE", "3045", FeedMode::Quote),
+        sub("NIFTY28OCT2524500CE", "NFO", "35001", FeedMode::Depth),
+    ]);
+    let bye: Vec<String> = f.farewell_frames().iter().map(text).collect();
+    assert_eq!(bye, ["UNSUB 1\r\n", "UNSUB 2\r\n", "UNSUB 3\r\n"]);
+    f.unsubscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Quote)]);
+    let bye: Vec<String> = f.farewell_frames().iter().map(text).collect();
+    assert_eq!(bye, ["UNSUB 2\r\n", "UNSUB 3\r\n"]);
+    f.on_connected();
+    assert!(f.farewell_frames().is_empty());
 }
 
 #[test]
@@ -1615,6 +1659,200 @@ fn index_ticks_carry_ltp() {
     assert_eq!(ev.len(), 1);
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
     assert_eq!((t.ltp, t.exchange.as_str()), (24890.15, "NSE_INDEX"));
+}
+
+/// A book before the first price is no trade: a Quote holder gets nothing
+/// from it, as on the web (groww_adapter.py:966-967), never a quote with an
+/// LTP of 0, and the Depth frame keeps `ltp` (0) and its time (the 1.0.6
+/// rule) with no quote field invented.
+#[test]
+fn a_book_before_the_first_price_publishes_no_quote() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
+    let events = f.parse(&msg_frame(1, &depth_payload()));
+    assert!(Frames::new("groww").at(&events, Mode::Quote).is_empty());
+    let depth = Frames::new("groww").at(&events, Mode::Depth);
+    assert_eq!(depth.len(), 1, "{:?}", depth);
+    assert_eq!(depth[0]["ltp"], 0.0);
+    for k in ["open", "close", "volume"] {
+        assert!(depth[0].get(k).is_none(), "{}: {}", k, depth[0]);
+    }
+}
+
+/// An LTP subscriber gets the quote the web's Groww adapter sends it (its
+/// Quote normalisation of the tick, groww_adapter.py:918-919, :975): the
+/// OHLC and volume beside the price and its time, the volume a double as
+/// groww_protobuf.py reads it.
+#[test]
+fn an_ltp_frame_carries_the_quote_the_web_sends() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Ltp)]);
+    let events = f.parse(&msg_frame(1, &ltp_payload(812.35)));
+    let frames = Frames::new("groww").at(&events, Mode::Ltp);
+    let [d] = frames.as_slice() else {
+        panic!("one frame expected: {:?}", frames)
+    };
+    assert_eq!(d["ltp"], 812.35);
+    assert_eq!(
+        (d["open"].as_f64(), d["high"].as_f64(), d["low"].as_f64()),
+        (Some(809.0), Some(815.5), Some(806.25))
+    );
+    assert_eq!(d["close"], 808.0);
+    assert_eq!(d["volume"].as_f64(), Some(5_123_400.0));
+    assert!(d["volume"].is_f64(), "volume: {}", d["volume"]);
+}
+
+/// The web's merged cache keeps Groww's traded value with the quote
+/// (groww_adapter.py:43, :1115-1116): a later tick that leaves it out keeps
+/// it, as `value`, a double.
+#[test]
+fn a_quote_keeps_the_traded_value() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let tick = |ltp: f64, value: f64| {
+        proto::LiveData {
+            ltp_data: Some(proto::StocksLivePrice {
+                ts_in_millis: 1_730_790_000_000.0,
+                ltp,
+                value,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec()
+    };
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Quote)]);
+    let mut frames = Frames::new("groww");
+    let first = frames.at(
+        &f.parse(&msg_frame(1, &tick(812.5, 974_250_000.0))),
+        Mode::Quote,
+    );
+    assert_eq!(first[0]["value"], 974_250_000.0);
+    let next = frames.at(&f.parse(&msg_frame(1, &tick(812.9, 0.0))), Mode::Quote);
+    assert_eq!(next[0]["value"], 974_250_000.0);
+}
+
+/// The web lifts a Depth subscriber's best bid and ask from the book into
+/// flat fields under twelve names (groww_adapter.py:1020-1048); the padded
+/// empty level is no level.
+#[test]
+fn a_depth_frame_carries_the_best_bid_and_ask_under_the_web_names() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
+    let mut frames = Frames::new("groww");
+    frames.at(&f.parse(&msg_frame(2, &ltp_payload(812.35))), Mode::Depth);
+    let book = frames.at(&f.parse(&msg_frame(1, &depth_payload())), Mode::Depth);
+    let [d] = book.as_slice() else {
+        panic!("one frame expected: {:?}", book)
+    };
+    for k in ["bid", "bid_price"] {
+        assert_eq!(d[k], 812.3, "{}", k);
+    }
+    for k in ["bid_qty", "bid_size", "bid_quantity"] {
+        assert_eq!(d[k], 120, "{}", k);
+    }
+    for k in ["ask", "ask_price", "offer_price"] {
+        assert_eq!(d[k], 812.4, "{}", k);
+    }
+    for k in ["ask_qty", "ask_size", "ask_quantity", "offer_quantity"] {
+        assert_eq!(d[k], 80, "{}", k);
+    }
+}
+
+/// The web builds a Depth subscriber's flat best bid and ask afresh from
+/// each book it publishes (groww_adapter.py:1020-1048): a side the book
+/// emptied has none, on the book's own frame and on the price ticks after
+/// it, never the last book's.
+#[test]
+fn an_emptied_book_side_drops_its_best_bid_or_ask() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    const BID: [&str; 5] = ["bid", "bid_price", "bid_qty", "bid_size", "bid_quantity"];
+    const ASK: [&str; 7] = [
+        "ask",
+        "ask_price",
+        "offer_price",
+        "ask_qty",
+        "ask_size",
+        "ask_quantity",
+        "offer_quantity",
+    ];
+    let shown = |d: &Value, keys: &[&str]| -> Vec<String> {
+        keys.iter()
+            .filter(|k| d.get(**k).is_some())
+            .map(|k| k.to_string())
+            .collect()
+    };
+    let book = |buy: Vec<proto::DepthLevel>| {
+        proto::LiveData {
+            depth_data: Some(proto::MarketDepth {
+                ts_in_millis: 1759722013000.0,
+                buy,
+                sell: Vec::new(),
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec()
+    };
+    let bid = |price, quantity| proto::DepthLevel {
+        orders: 1,
+        price_qty: Some(proto::PriceQty { price, quantity }),
+    };
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
+    let mut frames = Frames::new("groww");
+    frames.at(&f.parse(&msg_frame(2, &ltp_payload(812.35))), Mode::Depth);
+    let full = frames.at(&f.parse(&msg_frame(1, &depth_payload())), Mode::Depth);
+    assert_eq!(shown(&full[0], &ASK).len(), ASK.len(), "{}", full[0]);
+    // Only bids left: the new bid is sent, the ask is gone.
+    let bids = frames.at(
+        &f.parse(&msg_frame(1, &book(vec![bid(812.2, 40.0)]))),
+        Mode::Depth,
+    );
+    let [d] = bids.as_slice() else {
+        panic!("one frame expected: {:?}", bids)
+    };
+    assert_eq!(
+        (d["bid"].as_f64(), d["bid_qty"].as_i64()),
+        (Some(812.2), Some(40))
+    );
+    assert!(shown(d, &ASK).is_empty(), "{}", d);
+    // Both sides emptied: no best bid or ask, and the next price brings none
+    // back.
+    let empty = frames.at(&f.parse(&msg_frame(1, &book(Vec::new()))), Mode::Depth);
+    let priced = frames.at(&f.parse(&msg_frame(2, &ltp_payload(812.4))), Mode::Depth);
+    for d in [&empty[0], priced.last().expect("a frame for the price")] {
+        assert_eq!(d["depth"], json!({"buy": [], "sell": []}), "{}", d);
+        assert!(shown(d, &BID).is_empty(), "{}", d);
+        assert!(shown(d, &ASK).is_empty(), "{}", d);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1690,6 +1928,12 @@ mod http_round_trip {
         h.get("x-api-version").and_then(|v| v.to_str().ok()) == Some("1.0")
     }
 
+    /// `Content-Type: application/json`, which the web sends on every call,
+    /// a GET included (`_groww_headers`, order_api.py:78-85).
+    fn json_type(h: &HeaderMap) -> bool {
+        h.get("content-type").and_then(|v| v.to_str().ok()) == Some("application/json")
+    }
+
     /// Live prices the fake LTP endpoint knows.
     fn ltp_of(key: &str) -> Option<f64> {
         match key {
@@ -1746,7 +1990,7 @@ mod http_round_trip {
             .route(
                 "/v1/order/list",
                 get(move |h: HeaderMap, Query(q): Query<HashMap<String, String>>| async move {
-                    log(&s2, format!("list|{}|{}|{}|{}", q["segment"], q["page"], q["page_size"], api_version(&h)));
+                    log(&s2, format!("list|{}|{}|{}|{}|{}", q["segment"], q["page"], q["page_size"], api_version(&h), json_type(&h)));
                     if q["segment"] == "CASH" && f.cash_orders_fail {
                         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"status": "FAILURE", "error": {"message": "Unable to serve request currently"}})));
                     }
@@ -2023,8 +2267,8 @@ mod http_round_trip {
         assert!(create.contains("\"trading_symbol\":\"NIFTY25OCT24500CE\""));
         assert!(create.contains("\"segment\":\"FNO\""));
         assert!(create.ends_with("|true"), "X-API-VERSION on create");
-        assert!(seen.contains(&"list|CASH|0|100|true".to_string()));
-        assert!(seen.contains(&"list|FNO|0|100|true".to_string()));
+        assert!(seen.contains(&"list|CASH|0|100|true|true".to_string()));
+        assert!(seen.contains(&"list|FNO|0|100|true|true".to_string()));
         assert!(seen.contains(&"cancel|\"GMK39038RDT490CCVRP\"|\"CASH\"|true".to_string()));
         assert!(seen.contains(&"cancel|\"GLTFO25100600009\"|\"CASH\"|true".to_string()));
         assert!(seen.contains(&"cancel|\"GLTFO25100600009\"|\"FNO\"|true".to_string()));

@@ -1,0 +1,49 @@
+{
+  "broker": "kotak",
+  "summary": "NIFTY (Quote) and NIFTY50 (LTP) both stream Kotak's Nifty 50: one index tick reaches both, releasing NIFTY keeps the name's feed for NIFTY50, and releasing NIFTY50 too unsubscribes it (audit P-05).",
+  "scenarios": [
+    "index",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    },
+    {
+      "symbol": "NIFTY50",
+      "exchange": "NSE_INDEX",
+      "token": "26999",
+      "brsymbol": "NIFTY50",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/sfeed_protocol.py::decode_packet",
+      "broker/kotak/streaming/sfeed_websocket.py::KotakSFeedWebSocket._dispatch",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._on_data_received",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter._index_targets_for",
+      "broker/kotak/streaming/kotak_adapter.py::KotakWebSocketAdapter.unsubscribe_quote",
+      "test/test_kotak_quote_feed.py::test_two_symbols_on_one_index_name_both_receive_the_tick",
+      "test/test_kotak_quote_feed.py::test_the_index_feed_stays_while_another_symbol_still_uses_its_name"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "An SFeed index packet carries no volume; the web's index normaliser writes volume 0 (sfeed_websocket.py::_to_index) and publishes it, a zero the exchange never sent. The desktop leaves it out (web openalgo#2376).",
+      "ref": "sfeed_websocket.py:670",
+      "approved": true
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "broker": "sahi",
+  "summary": "A Depth subscription on NIFTY (NSE_INDEX): Sahi's DepthTick for an index carries a price and no levels. The Depth client gets one frame per tick, as on the web (the feed makes no book event for an index), with the empty book {buy: [], sell: []}.",
+  "scenarios": [
+    "index",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/sahi/streaming/sahi_proto.py::decode_server_message",
+      "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter._on_message",
+      "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter._handle_tick",
+      "broker/sahi/streaming/sahi_mapping.py::build_payloads",
+      "test/test_sahi_streaming_codec.py::test_index_ltp_without_time_and_derivative_oi"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "web sends zero rows; docs: indices lack tradable depth, never invent zero prices. The web pads the index's empty book to five rows of price 0.0 a side (sahi_mapping.py::_depth_side); the desktop sends the empty book {buy: [], sell: []} (lead ruling R1, the Sahi dialect's index_book).",
+      "ref": "sahi_mapping.py:94-102; feed/dialect/names.rs (sahi: index_book); decisions.md (Index Depth per broker)",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Sahi sent no open interest for this instrument (open_interest, a proto3 optional, is off its ticks); the web publishes oi 0 for it (sahi_mapping.py build_quote_payload), a number the exchange never sent. The desktop leaves it out (docs: a field the stream does not carry is left out; decisions.md).",
+      "ref": "sahi_mapping.py:129",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "The web's alias of oi, sent as 0 with it for an instrument whose ticks carry no open interest; left out with oi (see oi).",
+      "ref": "sahi_mapping.py:130",
+      "approved": true
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "web-defect",
+      "reason": "The tick left the price band off (dpr_upper, a proto3 scalar, reads as 0); the web publishes upper_circuit 0.0 (sahi_mapping.py build_quote_payload), a band nobody sent. The desktop sends none for an instrument whose ticks never carried one, and keeps the band an earlier tick of the connection carried.",
+      "ref": "sahi_mapping.py:131",
+      "approved": true
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "web-defect",
+      "reason": "The tick left the price band off (dpr_lower); the web publishes lower_circuit 0.0, as upper_circuit.",
+      "ref": "sahi_mapping.py:132",
+      "approved": true
+    }
+  ]
+}

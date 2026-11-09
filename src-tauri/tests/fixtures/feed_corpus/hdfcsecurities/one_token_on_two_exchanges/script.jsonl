@@ -1,0 +1,10 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]}}]}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "USDINR25NOV26FUT", "exchange": "CDS"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NCD_2885", "type": "ALL"}]}}]}
+{"step": "push", "frame": "frames/currency.hex"}
+{"step": "receive", "client": "a", "frame": "expected/currency.json"}
+{"step": "silence", "client": "a", "note": "Nothing for RELIANCE from a CDS packet."}
+{"step": "push", "frame": "frames/equity.hex"}
+{"step": "receive", "client": "a", "frame": "expected/equity.json"}
+{"step": "silence", "client": "a", "note": "Nothing for the currency future."}

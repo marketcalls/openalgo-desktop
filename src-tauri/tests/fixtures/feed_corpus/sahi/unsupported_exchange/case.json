@@ -1,0 +1,36 @@
+{
+  "broker": "sahi",
+  "summary": "A Quote subscribe on MCX, an exchange Sahi does not stream, is refused before any lookup with the web's words, an error item in a partial reply, and nothing is sent to Sahi (web sahi_adapter.py:202-205; Broker::feed_refusal).",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "CRUDEOIL25NOVFUT",
+      "exchange": "MCX",
+      "token": "450001",
+      "name": "CRUDEOIL",
+      "expiry": "19-NOV-25",
+      "lotsize": 100,
+      "instrumenttype": "FUT",
+      "tick_size": 1.0
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/sahi/streaming/sahi_proto.py::decode_server_message",
+      "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter._on_message",
+      "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter._handle_tick",
+      "broker/sahi/streaming/sahi_mapping.py::build_payloads",
+      "broker/sahi/streaming/sahi_adapter.py::SahiWebSocketAdapter.subscribe",
+      "broker/sahi/streaming/sahi_mapping.py::SahiExchangeMapper",
+      "websocket_proxy/server.py:1318-1338"
+    ],
+    "notes": [
+      "The MCX row is in the case's master so the web replay can name it; Sahi's own master has no MCX rows. The refusal comes before the lookup, so the reply is the same either way."
+    ]
+  },
+  "deviations": []
+}

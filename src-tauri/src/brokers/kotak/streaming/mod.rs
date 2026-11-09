@@ -22,21 +22,22 @@
 //! index tick reaches every OpenAlgo symbol subscribed under its name
 //! (NIFTY and NIFTY50), and the name's feed stays until the last goes.
 //!
-//! The binary packets are decoded in `decode` (re-exported here).
+//! The binary packets are decoded in `decode` (re-exported here); what each
+//! packet says, as ticks and books, is `ticks`.
 
 mod decode;
+mod ticks;
 
 pub use decode::*;
+use ticks::{depth_event, packet_tick, Book};
 
 use super::data::{index_candidates, is_index, kotak_segment};
 use super::feed_config::{lookup_feed_url, FeedLookup};
 use crate::brokers::common::streaming::{
-    now_ms, ping, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, PrepareError, QuoteField, WsRequest, WEB_PING_INTERVAL,
-    WEB_PING_TIMEOUT,
+    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, PrepareError,
+    WsRequest, WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
 };
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -47,30 +48,8 @@ pub const MSG_AUTH_RESPONSE: [u64; 2] = [1117, 1119];
 pub const MSG_SUBSCRIBE_ACK: u64 = 1109;
 /// Subscribed tokens per connection (web `MAX_SUBSCRIPTIONS`).
 pub const MAX_SUBSCRIPTIONS: usize = 3000;
-
-/// What a mini touch line does not carry (it has a price, the previous
-/// close, the trade time and quantity): not known until a market picture
-/// fills it, and never sent as 0 meanwhile (web openalgo#2376).
-const NOT_IN_A_MINI_TICK: AbsentFields = AbsentFields::of(&[
-    QuoteField::Open,
-    QuoteField::High,
-    QuoteField::Low,
-    QuoteField::Volume,
-    QuoteField::AveragePrice,
-    QuoteField::TotalBuyQuantity,
-    QuoteField::TotalSellQuantity,
-    QuoteField::OpenInterest,
-]);
-
-/// What an index packet never carries.
-const NOT_IN_AN_INDEX_PACKET: AbsentFields = AbsentFields::of(&[
-    QuoteField::Volume,
-    QuoteField::AveragePrice,
-    QuoteField::LastQuantity,
-    QuoteField::TotalBuyQuantity,
-    QuoteField::TotalSellQuantity,
-    QuoteField::OpenInterest,
-]);
+/// How long the login waits for its answer (web `AUTH_TIMEOUT_SECONDS`).
+const SFEED_LOGIN_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// The feed's segment for an OpenAlgo exchange. BSE currency derivatives
 /// stream as `bse_cd` (SFeed exchange id 7, web `kotak_mapping.py`); the
@@ -79,6 +58,42 @@ fn feed_segment(exchange: &str) -> Option<&'static str> {
     match exchange {
         "BCD" => Some("bse_cd"),
         other => kotak_segment(other),
+    }
+}
+
+/// An SFeed stream a subscription runs on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Stream {
+    Depth,
+    Scrips,
+    Indices,
+}
+
+impl Stream {
+    /// The streams a subscription asks for, in the web's order: an index
+    /// its index feed; Depth the depth stream and then the scrip stream for
+    /// the price (Kotak sends them apart; `subscribe` calls
+    /// `subscribe_depth` before `subscribe_quote`); the quote modes the
+    /// scrip stream.
+    fn of(index: bool, mode: FeedMode) -> &'static [Stream] {
+        if index {
+            &[Stream::Indices]
+        } else if mode == FeedMode::Depth {
+            &[Stream::Depth, Stream::Scrips]
+        } else {
+            &[Stream::Scrips]
+        }
+    }
+
+    fn event(self, add: bool) -> &'static str {
+        match (self, add) {
+            (Stream::Depth, true) => "subscribeDepth",
+            (Stream::Scrips, true) => "subscribeScrips",
+            (Stream::Indices, true) => "subscribeIndices",
+            (Stream::Depth, false) => "unsubscribeDepth",
+            (Stream::Scrips, false) => "unsubscribeScrips",
+            (Stream::Indices, false) => "unsubscribeIndices",
+        }
     }
 }
 
@@ -94,180 +109,6 @@ struct SubInfo {
     aliases: Vec<(String, String)>,
 }
 
-/// Last known values of a subscribed instrument; a zero in a packet means
-/// unchanged.
-#[derive(Debug, Clone, Default)]
-struct State {
-    ltp: f64,
-    open: f64,
-    high: f64,
-    low: f64,
-    close: f64,
-    volume: i64,
-    average_price: f64,
-    last_quantity: i64,
-    total_buy: i64,
-    total_sell: i64,
-    oi: i64,
-    ltt: i64,
-    buy: Vec<DepthLevel>,
-    sell: Vec<DepthLevel>,
-    /// A depth packet (level 8 or 16) has filled the book.
-    book: bool,
-    /// A market picture has filled every quote field; until then a mini
-    /// touch line has said only what it carries.
-    picture: bool,
-}
-
-fn keep(old: f64, new: f64) -> f64 {
-    if new != 0.0 {
-        new
-    } else {
-        old
-    }
-}
-
-fn keep_i(old: i64, new: i64) -> i64 {
-    if new != 0 {
-        new
-    } else {
-        old
-    }
-}
-
-/// A depth packet's side, padded to five: the whole book as the exchange
-/// sees it now, so an empty row is an empty level. Filling it from the
-/// last packet brought back levels the exchange had removed, stale and
-/// even crossed (web openalgo#2376).
-fn book_side(rows: &[SfeedRow]) -> Vec<DepthLevel> {
-    let mut side: Vec<DepthLevel> = rows
-        .iter()
-        .take(5)
-        .map(|r| DepthLevel {
-            price: r.price,
-            quantity: r.quantity,
-            orders: r.orders,
-        })
-        .collect();
-    side.resize(5, DepthLevel::default());
-    side
-}
-
-impl State {
-    /// A market picture: every quote field, a zero keeping the last value.
-    /// A depth packet (level 8 or 16) replaces the book; the touch line
-    /// (level 4) leaves it as the last depth packet set it (web
-    /// `sfeed_websocket.py`, which sends only depth packets to the book).
-    fn fold_picture(&mut self, pkt: &Sfeed) {
-        let Sfeed::Scrip {
-            level,
-            ltp,
-            open,
-            high,
-            low,
-            close,
-            average_price,
-            last_trade_time,
-            last_trade_qty,
-            total_buy,
-            total_sell,
-            volume,
-            oi,
-            buy,
-            sell,
-            ..
-        } = pkt
-        else {
-            return;
-        };
-        self.ltp = keep(self.ltp, *ltp);
-        self.open = keep(self.open, *open);
-        self.high = keep(self.high, *high);
-        self.low = keep(self.low, *low);
-        self.close = keep(self.close, *close);
-        self.average_price = keep(self.average_price, *average_price);
-        self.volume = keep_i(self.volume, *volume);
-        self.last_quantity = keep_i(self.last_quantity, *last_trade_qty);
-        self.total_buy = keep_i(self.total_buy, *total_buy);
-        self.total_sell = keep_i(self.total_sell, *total_sell);
-        self.oi = keep_i(self.oi, *oi);
-        self.ltt = keep_i(self.ltt, *last_trade_time);
-        if matches!(level, 8 | 16) {
-            self.buy = book_side(buy);
-            self.sell = book_side(sell);
-            self.book = true;
-        }
-        self.picture = true;
-    }
-
-    /// A mini touch line: the price, previous close, trade time and
-    /// quantity; the rest stays as last known.
-    fn fold_mini(&mut self, pkt: &Sfeed) {
-        let Sfeed::Lite {
-            ltp,
-            close,
-            last_trade_time,
-            last_trade_qty,
-            ..
-        } = pkt
-        else {
-            return;
-        };
-        self.ltp = keep(self.ltp, *ltp);
-        self.close = keep(self.close, *close);
-        self.ltt = keep_i(self.ltt, *last_trade_time);
-        self.last_quantity = keep_i(self.last_quantity, *last_trade_qty);
-    }
-
-    fn fold_index(&mut self, pkt: &Sfeed) {
-        let Sfeed::Index {
-            value,
-            open,
-            high,
-            low,
-            close,
-            last_trade_time,
-            ..
-        } = pkt
-        else {
-            return;
-        };
-        self.ltp = keep(self.ltp, *value);
-        self.open = keep(self.open, *open);
-        self.high = keep(self.high, *high);
-        self.low = keep(self.low, *low);
-        self.close = keep(self.close, *close);
-        self.ltt = keep_i(self.ltt, *last_trade_time);
-    }
-}
-
-/// What a tick of `sub` cannot say: what its packets do not carry, and the
-/// trade time before the first trade (it was the wall clock).
-fn absent_of(sub: &SubInfo, st: &State) -> AbsentFields {
-    let lacks = if is_index(&sub.exchange) {
-        NOT_IN_AN_INDEX_PACKET
-    } else if st.picture {
-        AbsentFields::default()
-    } else {
-        NOT_IN_A_MINI_TICK
-    };
-    if st.ltt <= 0 {
-        lacks.with(QuoteField::LastTradeTime)
-    } else {
-        lacks
-    }
-}
-
-fn epoch_ms(t: i64) -> i64 {
-    if t <= 0 {
-        0
-    } else if t < 100_000_000_000 {
-        t * 1000
-    } else {
-        t
-    }
-}
-
 /// The Kotak SFeed market-data feed.
 pub struct KotakFeed {
     url: String,
@@ -281,7 +122,8 @@ pub struct KotakFeed {
     /// Inbound alias -> every subscription key under it: NIFTY and NIFTY50
     /// both subscribe "Nifty 50".
     aliases: HashMap<(String, String), Vec<String>>,
-    state: HashMap<String, State>,
+    /// The book of each subscription whose depth packets have filled one.
+    books: HashMap<String, Book>,
 }
 
 impl KotakFeed {
@@ -295,7 +137,7 @@ impl KotakFeed {
             trading_symbols: HashMap::new(),
             subs: HashMap::new(),
             aliases: HashMap::new(),
-            state: HashMap::new(),
+            books: HashMap::new(),
         }
     }
 
@@ -398,7 +240,7 @@ impl KotakFeed {
                     }
                 }
             }
-            self.state.remove(&key);
+            self.books.remove(&key);
             if !self.input_in_use(&old.input) {
                 self.trading_symbols.remove(&old.input);
             }
@@ -420,10 +262,11 @@ impl KotakFeed {
         Message::Text(v.to_string())
     }
 
+    /// The subscribe (or unsubscribe) frames for `subs`, as the web's
+    /// adapter batches them: one frame per stream, the streams in the order
+    /// their first subscription asks for them (`_process_batch_subscriptions`).
     fn frames(&mut self, subs: &[FeedSubscription], add: bool) -> Vec<Message> {
-        let mut scrips = Vec::new();
-        let mut depth = Vec::new();
-        let mut indices = Vec::new();
+        let mut batch: Vec<(Stream, Vec<String>)> = Vec::new();
         for s in subs {
             if add
                 && !self.subs.contains_key(&Self::sub_key(s))
@@ -445,36 +288,25 @@ impl KotakFeed {
             if !add && self.input_in_use(&input) {
                 continue;
             }
-            if index {
+            for stream in Stream::of(index, s.mode) {
+                let at = match batch.iter().position(|(st, _)| st == stream) {
+                    Some(i) => i,
+                    None => {
+                        batch.push((*stream, Vec::new()));
+                        batch.len() - 1
+                    }
+                };
                 // NIFTY and NIFTY50 name one index feed: one entry a frame.
-                if !indices.contains(&input) {
-                    indices.push(input);
+                let inputs = &mut batch[at].1;
+                if !inputs.contains(&input) {
+                    inputs.push(input.clone());
                 }
-            } else {
-                // Depth needs the quote stream too: Kotak sends depth and
-                // LTP separately.
-                if s.mode == FeedMode::Depth {
-                    depth.push(input.clone());
-                }
-                scrips.push(input);
             }
         }
-        let (ev_s, ev_d, ev_i) = if add {
-            ("subscribeScrips", "subscribeDepth", "subscribeIndices")
-        } else {
-            (
-                "unsubscribeScrips",
-                "unsubscribeDepth",
-                "unsubscribeIndices",
-            )
-        };
-        let mut out = Vec::new();
-        for (ev, list) in [(ev_s, scrips), (ev_d, depth), (ev_i, indices)] {
-            if !list.is_empty() {
-                out.push(Self::event_frame(ev, &list, add));
-            }
-        }
-        out
+        batch
+            .into_iter()
+            .map(|(st, inputs)| Self::event_frame(st.event(add), &inputs, add))
+            .collect()
     }
 
     /// Every subscription a packet names, by its token, else its name: an
@@ -488,99 +320,22 @@ impl KotakFeed {
             .unwrap_or_default()
     }
 
-    fn tick_for(&self, key: &str, st: &State, now: i64) -> Option<NormalizedTick> {
-        let sub = self.subs.get(key)?;
-        let mut t = NormalizedTick {
-            symbol: sub.symbol.clone(),
-            exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
-            ltp: st.ltp,
-            timestamp_ms: now,
-            last_trade_time_ms: epoch_ms(st.ltt),
-            ..Default::default()
-        };
-        if sub.mode != FeedMode::Ltp {
-            t.open = st.open;
-            t.high = st.high;
-            t.low = st.low;
-            t.close = st.close;
-            t.volume = st.volume;
-            t.average_price = st.average_price;
-            t.last_quantity = st.last_quantity;
-            t.total_buy_quantity = st.total_buy;
-            t.total_sell_quantity = st.total_sell;
-            t.oi = st.oi;
-        }
-        t.absent = absent_of(sub, st);
-        t.derive_change();
-        Some(t)
-    }
-
-    /// A market picture: folded into each instrument's state it names, a
-    /// tick, and the depth in depth mode.
-    fn on_scrip(&mut self, pkt: &Sfeed, now: i64, out: &mut Vec<FeedEvent>) {
-        let Sfeed::Scrip {
-            exchange, token, ..
-        } = pkt
-        else {
-            return;
-        };
-        for key in self.lookup(exchange, token, "") {
-            let st = self.state.entry(key.clone()).or_default();
-            st.fold_picture(pkt);
-            let st = st.clone();
-            let mode = self.subs.get(&key).map(|s| s.mode);
-            if mode == Some(FeedMode::Ltp) && st.ltp <= 0.0 {
-                continue;
-            }
-            self.publish(&key, &st, now, out);
-        }
-    }
-
-    /// A packet's tick, and for a Depth subscription whose book has
-    /// arrived, that book with the packet's price. Kotak sends the price
-    /// and the book in separate packets; the web republishes the depth with
-    /// its cached book on every packet (`kotak_adapter._on_data_received`,
-    /// mode 3), so the option chain, the order dialog and every Depth
-    /// holder see the price move between book updates.
-    fn publish(&self, key: &str, st: &State, now: i64, out: &mut Vec<FeedEvent>) {
-        let Some(sub) = self.subs.get(key) else {
-            return;
-        };
-        if let Some(t) = self.tick_for(key, st, now) {
-            out.push(FeedEvent::Tick(t));
-        }
-        if sub.mode == FeedMode::Depth && st.book {
-            out.push(FeedEvent::Depth(NormalizedDepth {
-                symbol: sub.symbol.clone(),
-                exchange: sub.exchange.clone(),
-                ltp: st.ltp,
-                buy: st.buy.clone(),
-                sell: st.sell.clone(),
-                total_buy_quantity: st.total_buy,
-                total_sell_quantity: st.total_sell,
-                timestamp_ms: now,
-                ..Default::default()
-            }));
-        }
-    }
-
+    /// One packet: a tick for each subscription it names (every OpenAlgo
+    /// symbol under an index's name), and for a Depth subscription whose
+    /// book has arrived, that book with the packet's price. Kotak sends the
+    /// price and the book in separate packets; the web republishes the
+    /// depth with its cached book on every packet
+    /// (`kotak_adapter._on_data_received`, mode 3), so the option chain, the
+    /// order dialog and every Depth holder see the price move between book
+    /// updates.
     fn on_packet(&mut self, pkt: Sfeed, out: &mut Vec<FeedEvent>) {
-        let now = now_ms();
-        match &pkt {
-            Sfeed::Scrip { .. } => self.on_scrip(&pkt, now, out),
-            Sfeed::Lite {
+        let keys = match &pkt {
+            Sfeed::Scrip {
                 exchange, token, ..
-            } => {
-                for key in self.lookup(exchange, token, "") {
-                    let st = self.state.entry(key.clone()).or_default();
-                    st.fold_mini(&pkt);
-                    let st = st.clone();
-                    if st.ltp > 0.0 {
-                        self.publish(&key, &st, now, out);
-                    }
-                }
             }
+            | Sfeed::Lite {
+                exchange, token, ..
+            } => self.lookup(exchange, token, ""),
             Sfeed::Index {
                 exchange,
                 token,
@@ -589,26 +344,42 @@ impl KotakFeed {
             } => {
                 // An index answers with a token of Kotak's choosing; its name
                 // is the identity it was subscribed under.
-                let mut keys = self.lookup(exchange, token, name);
+                let keys = self.lookup(exchange, token, name);
                 if keys.is_empty() {
-                    keys = self.lookup(exchange, "", &name.to_ascii_uppercase());
-                }
-                for key in keys {
-                    let st = self.state.entry(key.clone()).or_default();
-                    st.fold_index(&pkt);
-                    let st = st.clone();
-                    if st.ltp <= 0.0 {
-                        continue;
-                    }
-                    if let Some(t) = self.tick_for(&key, &st, now) {
-                        out.push(FeedEvent::Tick(t));
-                    }
+                    self.lookup(exchange, "", &name.to_ascii_uppercase())
+                } else {
+                    keys
                 }
             }
             Sfeed::MarketStatus { exchange, code } => {
                 tracing::info!("Kotak market status: {} code {}", exchange, code);
+                return;
             }
-            Sfeed::Cas { .. } => {}
+            Sfeed::Cas { .. } => return,
+        };
+        let now = now_ms();
+        for key in keys {
+            let Some(sub) = self.subs.get(&key) else {
+                continue;
+            };
+            let Some(tick) = packet_tick(sub, &pkt, now) else {
+                continue;
+            };
+            if let Sfeed::Scrip {
+                level: 8 | 16,
+                buy,
+                sell,
+                ..
+            } = &pkt
+            {
+                self.books.insert(key.clone(), Book::of(buy, sell));
+            }
+            out.push(FeedEvent::Tick(tick));
+            if sub.mode == FeedMode::Depth && !is_index(&sub.exchange) {
+                if let Some(book) = self.books.get(&key) {
+                    out.push(FeedEvent::Depth(depth_event(sub, book, &pkt, now)));
+                }
+            }
         }
     }
 
@@ -670,9 +441,9 @@ impl KotakFeed {
         self.subs.len()
     }
 
-    /// Cached per-instrument state entries (bounded by subscriptions).
+    /// Books kept (bounded by subscriptions).
     pub fn state_len(&self) -> usize {
-        self.state.len()
+        self.books.len()
     }
 }
 
@@ -702,12 +473,20 @@ impl BrokerFeed for KotakFeed {
         // A new connection authenticates again; old dividers and partial
         // state do not carry over.
         self.dividers.clear();
-        self.state.clear();
+        self.books.clear();
         vec![Message::Text(self.auth_frame().to_string())]
     }
 
     fn awaits_auth_ack(&self) -> bool {
         true
+    }
+
+    /// The web closes a login left unanswered for 15 s and reconnects
+    /// (`sfeed_websocket.py` `_watch_auth`, `AUTH_TIMEOUT_SECONDS`): the
+    /// socket stays open on a rejected login, which looks like a quiet
+    /// market.
+    fn auth_ack_deadline(&self) -> Option<Duration> {
+        Some(SFEED_LOGIN_TIMEOUT)
     }
 
     /// The web pings the feed every 30 s and drops a socket that has not
@@ -729,33 +508,38 @@ impl BrokerFeed for KotakFeed {
         self.frames(subs, false)
     }
 
+    /// A mode change as the web's adapter makes it: a higher mode is a new
+    /// subscription, so it asks again for every stream that mode runs on
+    /// (`subscribe`: the depth stream and the scrip stream for Depth); a
+    /// lower one drops only the depth stream, the quote modes still holding
+    /// the scrip stream (`unsubscribe_depth`, `unsubscribe_quote`).
     fn mode_change_frames(
         &mut self,
         old: &FeedSubscription,
         new: &FeedSubscription,
     ) -> Vec<Message> {
         let index = is_index(&new.exchange);
-        let was_depth = old.mode == FeedMode::Depth;
-        let is_depth = new.mode == FeedMode::Depth;
         self.register(new, true);
-        if index || was_depth == is_depth {
-            return Vec::new();
-        }
         let Some(input) = self.subs.get(&Self::sub_key(new)).map(|s| s.input.clone()) else {
             return Vec::new();
         };
-        if is_depth {
-            vec![Self::event_frame("subscribeDepth", &[input], true)]
-        } else {
-            // The book goes with the depth stream; the price and the quote
-            // fields stay, so the next packet does not read them as zero.
-            if let Some(st) = self.state.get_mut(&Self::sub_key(new)) {
-                st.buy.clear();
-                st.sell.clear();
-                st.book = false;
-            }
-            vec![Self::event_frame("unsubscribeDepth", &[input], false)]
+        if new.mode > old.mode {
+            return Stream::of(index, new.mode)
+                .iter()
+                .map(|st| Self::event_frame(st.event(true), std::slice::from_ref(&input), true))
+                .collect();
         }
+        if old.mode == FeedMode::Depth && !index {
+            // The book goes with the depth stream; the quote stays with the
+            // bridge.
+            self.books.remove(&Self::sub_key(new));
+            return vec![Self::event_frame(
+                Stream::Depth.event(false),
+                &[input],
+                false,
+            )];
+        }
+        Vec::new()
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

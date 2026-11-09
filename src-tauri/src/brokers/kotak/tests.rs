@@ -18,7 +18,9 @@ use super::order_feed::{realtime_url, KotakOrderFeed};
 use super::streaming::{decode_packet, parse_dividers, split_batch, KotakFeed, Sfeed};
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use chrono::NaiveDate;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -963,6 +965,9 @@ fn text_frames(frames: &[Message]) -> Vec<Value> {
 fn sfeed_handshake_subscribe_and_ticks() {
     let mut f = KotakFeed::new(DEFAULT_SFEED_URL, "sid-1", "<USER_ID>".into(), master());
     assert!(f.awaits_auth_ack());
+    // Web sfeed_websocket.py `AUTH_TIMEOUT_SECONDS`: a login unanswered
+    // for 15 s is closed and made again.
+    assert_eq!(f.auth_ack_deadline(), Some(Duration::from_secs(15)));
     let hello = text_frames(&f.on_connected());
     assert_eq!(hello[0]["user"], "<USER_ID>");
     assert_eq!(hello[0]["auth"], "sid-1");
@@ -978,15 +983,21 @@ fn sfeed_handshake_subscribe_and_ticks() {
         fsub("TCS", "NSE", FeedMode::Ltp),
         fsub("NIFTY", "NSE_INDEX", FeedMode::Quote),
     ]));
+    // In the web adapter's order: SBIN's Depth asks for the depth stream
+    // before the scrip stream (`subscribe`), and each stream's frame comes
+    // where its first subscription asked for it.
     assert_eq!(frames.len(), 3);
     assert_eq!(
         frames[0],
+        json!({"event": "subscribeDepth", "inputtoken": "nse_cm|3045", "ack_symbol": true})
+    );
+    assert_eq!(
+        frames[1],
         json!({"event": "subscribeScrips", "inputtoken": "nse_cm|3045,nse_cm|11536", "ack_symbol": true})
     );
-    assert_eq!(frames[1]["event"], "subscribeDepth");
-    assert_eq!(frames[1]["inputtoken"], "nse_cm|3045");
     assert_eq!(frames[2]["inputtoken"], "nse_cm|Nifty 50");
-    // Depth packet for SBIN -> a quote tick and a 5-level depth.
+    // Depth packet for SBIN -> a quote tick (a market picture is a Quote
+    // packet with OI) and a 5-level depth.
     let mp = packet(
         0,
         1,
@@ -999,16 +1010,17 @@ fn sfeed_handshake_subscribe_and_ticks() {
         (FeedEvent::Tick(t), FeedEvent::Depth(d)) => {
             assert_eq!(
                 (t.symbol.as_str(), t.mode, t.ltp, t.close),
-                ("SBIN", 3, 814.1, 812.35)
+                ("SBIN", 2, 814.1, 812.35)
             );
-            assert_eq!(d.buy.len(), 5);
+            // The book's real levels only, never zero-padded rows.
+            assert_eq!((d.buy.len(), d.sell.len()), (1, 1));
             assert_eq!(d.buy[0].price, 814.05);
-            assert_eq!(d.sell[1], DepthLevel::default());
         }
         other => panic!("unexpected {:?}", other),
     }
-    // A mini touch line only moves the LTP; the rest is kept, and the
-    // depth holder gets the cached book at the new price.
+    // A mini touch line carries the LTP and the previous close and says it
+    // lacks the rest, which the bridge keeps; the depth holder gets the
+    // cached book at the new price.
     let ev = f.parse(&Message::Binary(packet(
         0,
         1,
@@ -1017,7 +1029,11 @@ fn sfeed_handshake_subscribe_and_ticks() {
     )));
     match &ev[..] {
         [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
-            assert_eq!((t.ltp, t.open, t.close), (815.0, 810.0, 812.35));
+            // This mini packet has no previous close either.
+            assert_eq!(t.ltp, 815.0);
+            for f in [QuoteField::Open, QuoteField::Volume, QuoteField::Close] {
+                assert!(!t.knows(f), "{:?}: {:?}", f, t);
+            }
             assert_eq!((d.ltp, d.buy[0].price), (815.0, 814.05));
         }
         other => panic!("unexpected {:?}", other),
@@ -1039,33 +1055,48 @@ fn sfeed_handshake_subscribe_and_ticks() {
         }
         other => panic!("unexpected {:?}", other),
     }
-    // Unsubscribed tokens are ignored and leave no state behind.
+    // Unsubscribed tokens are ignored and leave no state behind; only a
+    // book is kept between packets.
     assert!(f
         .parse(&Message::Binary(packet(0, 1, 1, &mini_body(42, 100, 0))))
         .is_empty());
-    assert_eq!(f.state_len(), 2);
+    assert_eq!(f.state_len(), 1);
     let un = text_frames(&f.unsubscribe_frames(&[fsub("SBIN", "NSE", FeedMode::Depth)]));
+    assert_eq!(un[0]["event"], "unsubscribeDepth");
     assert_eq!(
-        un[0],
+        un[1],
         json!({"event": "unsubscribeScrips", "inputtoken": "nse_cm|3045"})
     );
-    assert_eq!(un[1]["event"], "unsubscribeDepth");
-    assert_eq!((f.subscription_count(), f.state_len()), (2, 1));
-    // Mode changes only touch the depth stream.
+    assert_eq!((f.subscription_count(), f.state_len()), (2, 0));
+    // A higher mode subscribes again every stream it runs on, as the web's
+    // `subscribe` does; a lower one drops only the depth stream.
     let up = text_frames(&f.mode_change_frames(
         &fsub("TCS", "NSE", FeedMode::Ltp),
         &fsub("TCS", "NSE", FeedMode::Depth),
     ));
     assert_eq!(
         up,
-        vec![json!({"event": "subscribeDepth", "inputtoken": "nse_cm|11536", "ack_symbol": true})]
+        vec![
+            json!({"event": "subscribeDepth", "inputtoken": "nse_cm|11536", "ack_symbol": true}),
+            json!({"event": "subscribeScrips", "inputtoken": "nse_cm|11536", "ack_symbol": true}),
+        ]
     );
-    assert!(f
-        .mode_change_frames(
-            &fsub("TCS", "NSE", FeedMode::Ltp),
-            &fsub("TCS", "NSE", FeedMode::Quote)
-        )
-        .is_empty());
+    let down = text_frames(&f.mode_change_frames(
+        &fsub("TCS", "NSE", FeedMode::Depth),
+        &fsub("TCS", "NSE", FeedMode::Ltp),
+    ));
+    assert_eq!(
+        down,
+        vec![json!({"event": "unsubscribeDepth", "inputtoken": "nse_cm|11536"})]
+    );
+    let quote = text_frames(&f.mode_change_frames(
+        &fsub("TCS", "NSE", FeedMode::Ltp),
+        &fsub("TCS", "NSE", FeedMode::Quote),
+    ));
+    assert_eq!(
+        quote,
+        vec![json!({"event": "subscribeScrips", "inputtoken": "nse_cm|11536", "ack_symbol": true})]
+    );
     // native_fallback is a refusal.
     let fb = json!({"message_code": 1117, "format": "native_fallback"});
     assert!(matches!(
@@ -1120,14 +1151,14 @@ fn depth_holders_see_every_packets_price_with_the_cached_book() {
         ev
     );
 
-    // Leaving depth drops the book but keeps the quote fields.
+    // Leaving depth drops the book; the quote stays with the bridge.
     f.mode_change_frames(
         &fsub("SBIN", "NSE", FeedMode::Depth),
         &fsub("SBIN", "NSE", FeedMode::Quote),
     );
     let ev = f.parse(&mini(3045, 81_700));
     match &ev[..] {
-        [FeedEvent::Tick(t)] => assert_eq!((t.ltp, t.open, t.close), (817.0, 810.0, 812.35)),
+        [FeedEvent::Tick(t)] => assert_eq!(t.ltp, 817.0),
         other => panic!("unexpected {:?}", other),
     }
     // Back in depth, nothing is published as a book until one arrives.
@@ -1191,6 +1222,10 @@ fn order_feed_handshake_alternates_and_parses_orders() {
     // The web's keepalive: a ping every 30 s, answered within 10 s.
     assert!(matches!(f.heartbeat(), Some((d, Message::Ping(_))) if d.as_secs() == 30));
     assert_eq!(f.heartbeat_reply_timeout().map(|d| d.as_secs()), Some(10));
+    // The web's watchdog (`KOTAK_CONNECT_ACK_TIMEOUT_SECONDS`): a connect
+    // with no acknowledgement within 10 s is dropped (audit P-06).
+    assert!(f.awaits_auth_ack());
+    assert_eq!(f.auth_ack_deadline(), Some(Duration::from_secs(10)));
     let first = f.connect_frame();
     match &first {
         Message::Text(t) => assert_eq!(
@@ -1213,8 +1248,11 @@ fn order_feed_handshake_alternates_and_parses_orders() {
     // Acknowledged: the encoding sticks.
     assert!(matches!(f.connect_frame(), Message::Text(t) if t.starts_with("{type:cn")));
     let r = j(fixture!("responses.json"));
+    // This connect has no answer yet: its first order frame proves the
+    // login (web `normalize` sets `_connect_acked`); later ones do not
+    // repeat it.
     match &f.parse(&Message::Text(r["order_feed_order"].to_string()))[..] {
-        [FeedEvent::OrderUpdate(u)] => {
+        [FeedEvent::AuthOk, FeedEvent::OrderUpdate(u)] => {
             assert_eq!(
                 (u.symbol.as_str(), u.exchange.as_str()),
                 ("NIFTY27OCT2625000CE", "NFO")

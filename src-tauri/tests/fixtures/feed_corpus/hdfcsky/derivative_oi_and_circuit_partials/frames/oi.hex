@@ -1,0 +1,8 @@
+# HDFC Sky protobuf GenericDTOList: an OI-only packet (NSE_FO_OI): OI 777
+# Written by scripts/feed_corpus/protolite.py from the web's hdfcsky_market_pb2.py.
+0a13            # genericDTOList (GenericDTO, 19 bytes)
+08b99102        #   instrumentId = 35001
+1204            #   mbpData (MBPData, 4 bytes)
+88018906        #     oi = 777
+40c8d195ffbc31  #   packetTimestamp = 1700000000200
+480e            #   packetType = NSE_FO_OI

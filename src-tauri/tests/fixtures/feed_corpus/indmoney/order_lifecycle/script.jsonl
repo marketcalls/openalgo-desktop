@@ -1,0 +1,12 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "mode": "order_update"}}], "socket": "orders"}
+{"step": "push", "socket": "orders", "frame": "frames/order_open.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_partial.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_complete.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_rejected.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_cancelled.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}

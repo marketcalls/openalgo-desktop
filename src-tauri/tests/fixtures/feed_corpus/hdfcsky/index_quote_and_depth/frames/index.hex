@@ -1,0 +1,14 @@
+# HDFC Sky protobuf GenericDTOList: an index packet (NSE_INDEX) for NIFTY
+# Written by scripts/feed_corpus/protolite.py from the web's hdfcsky_market_pb2.py.
+0a4d                  # genericDTOList (GenericDTO, 77 bytes)
+0890cb01              #   instrumentId = 26000
+1a3e                  #   indexData (IndexData, 62 bytes)
+0a084e69667479203530  #     indexName = Nifty 50
+116666666606edd740    #     indexValue = 24500.1
+19000000000006d840    #     highIndexValue = 24600.0
+210000000000d4d740    #     lowIndexValue = 24400.0
+290000000080e0d740    #     openingIndex = 24450.0
+310000000000bbd740    #     closingIndex = 24300.0
+50f4d395ffbc31        #     packetTimeStamp = 1700000000500
+4090d395ffbc31        #   packetTimestamp = 1700000000400
+4802                  #   packetType = NSE_INDEX

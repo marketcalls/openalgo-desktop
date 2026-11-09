@@ -1,0 +1,4 @@
+# Sahi ServerMessage: a non-fatal stream error (web test_decode_error).
+2a24                                      # ServerMessage.error (field 5), 36 bytes
+0a12554e4b4e4f574e5f494e535452554d454e54  #   code = 'UNKNOWN_INSTRUMENT' (field 1)
+120e69642039206e6f7420666f756e64          #   message = 'id 9 not found' (field 2)

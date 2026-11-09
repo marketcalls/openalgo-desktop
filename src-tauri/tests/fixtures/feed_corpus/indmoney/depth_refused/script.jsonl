@@ -1,0 +1,2 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "partial", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "error", "message": "Invalid mode 3. INDmoney supports only 1 (LTP) or 2 (Quote)", "broker": "indmoney"}], "message": "Subscription processing complete", "broker": "indmoney"}}
+{"step": "silence", "client": "a", "note": "Nothing is subscribed at the broker and nothing is published."}

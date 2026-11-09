@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "mode": "quote", "instruments": ["NSE:2885"]}}]}
+{"step": "push", "frame": "frames/quote_full.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote_full.json"}
+{"step": "push", "frame": "frames/quote_partial.json", "note": "volume and ask_qty 0, open/low/close/average_price missing: each keeps its last value."}
+{"step": "receive", "client": "a", "frame": "expected/quote_partial.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "unsubscribe", "mode": "quote", "instruments": ["NSE:2885"]}}]}

@@ -1,0 +1,40 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "hdfcsky",
+  "inputs_sha256": "693e187b7abe0af975de554e08850bc5a9dd4cf1db33b161f3acd60bf49fbbcb",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 1,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000000,
+            "close": 0.0,
+            "prev_close": 0.0
+          }
+        }
+      ]
+    }
+  ]
+}

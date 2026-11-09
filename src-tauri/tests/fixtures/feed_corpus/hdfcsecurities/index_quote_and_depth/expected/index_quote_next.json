@@ -1,0 +1,22 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "data": {
+    "change": 210.25,
+    "change_percent": 0.87,
+    "close": 24300.0,
+    "exchange": "NSE_INDEX",
+    "high": 24600.0,
+    "last_price": 24510.25,
+    "low": 24400.0,
+    "ltp": 24510.25,
+    "open": 24450.0,
+    "prev_close": 24300.0,
+    "symbol": "NIFTY",
+    "timestamp": 1700000001500,
+    "token": "26000"
+  },
+  "broker": "hdfcsecurities"
+}

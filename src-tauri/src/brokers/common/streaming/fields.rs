@@ -32,10 +32,12 @@
 //! * fyers: best bid and ask, circuits, exchange time, `UpdateType`; the
 //!   quote in LTP-mode packets (`carried`) (done).
 //! * groww: `TradedValue`, best bid and ask from the book.
-//! * hdfcsecurities, hdfcsky: circuits (CIRC packets), OI in quote packets.
+//! * hdfcsecurities, hdfcsky: circuits (full and CIRC packets), OI on derivative
+//!   quote packets, index order flow absent.
 //! * iiflcapital, nubra, samco: best bid and ask (nubra done).
 //! * indmoney: best bid and ask, OI change, OI in Quote.
-//! * kotak: nothing beyond the canonical quote.
+//! * kotak: OI in Quote (`carried`, market pictures); the packet's own
+//!   change (`carried`).
 //! * motilal: volume in LTP packets (`carried`), circuits.
 //! * mstock: exchange time, circuits.
 //! * paytm: 52-week range, OI change.

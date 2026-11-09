@@ -25,7 +25,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -80,6 +80,9 @@ pub(crate) const BAD_SCRIP_TTL: Duration = Duration::from_secs(300);
 pub(crate) const BAD_SCRIP_MAX: usize = 2048;
 /// Bound on the order-id map shared with the order feed.
 pub(crate) const ORDER_ID_MAX: usize = 4096;
+/// The order book is read for one unknown stream order id at most this
+/// often (web `_ID_REFRESH_MIN_INTERVAL`).
+const BOOK_READ_EVERY: Duration = Duration::from_secs(5);
 
 /// Documented rate-limit category of a request (web `classify`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -224,6 +227,9 @@ pub struct IndmoneyBroker {
     /// they were found (bounded, expiring).
     bad_scrips: Mutex<HashMap<String, Instant>>,
     order_ids: Arc<Mutex<OrderIdMap>>,
+    /// When the order book was last read to resolve each unknown stream
+    /// order id (bounded by `ORDER_ID_MAX`).
+    book_reads: Mutex<HashMap<String, Instant>>,
 }
 
 impl IndmoneyBroker {
@@ -243,6 +249,7 @@ impl IndmoneyBroker {
             other_pacer: Pacer::per_second(12.0),
             bad_scrips: Mutex::new(HashMap::new()),
             order_ids: Arc::new(Mutex::new(OrderIdMap::default())),
+            book_reads: Mutex::new(HashMap::new()),
         }
     }
 
@@ -263,6 +270,30 @@ impl IndmoneyBroker {
 
     pub(crate) fn order_id_map(&self) -> Arc<Mutex<OrderIdMap>> {
         self.order_ids.clone()
+    }
+
+    /// Whether the order book may be read now to resolve the stream order
+    /// id `raw`: once per order in 5 s, so a burst of updates for one
+    /// unknown order reads it once and a new order is not held up by
+    /// another's read (web `_id_refresh_attempts`). Refused when
+    /// `ORDER_ID_MAX` orders are waiting at once.
+    pub(crate) fn claim_book_read(&self, raw: &str) -> bool {
+        let now = Instant::now();
+        let mut reads = self.book_reads.lock();
+        if reads
+            .get(raw)
+            .is_some_and(|at| now.duration_since(*at) < BOOK_READ_EVERY)
+        {
+            return false;
+        }
+        if reads.len() >= ORDER_ID_MAX {
+            reads.retain(|_, at| now.duration_since(*at) < BOOK_READ_EVERY);
+            if reads.len() >= ORDER_ID_MAX {
+                return false;
+            }
+        }
+        reads.insert(raw.to_string(), now);
+        true
     }
 
     async fn pace(&self, bucket: Bucket) -> Result<()> {
@@ -463,7 +494,8 @@ impl Broker for IndmoneyBroker {
             // Offered by `IndmoneyBroker::order_socket` through `Broker::create_order_feed`; the trait had no
             // order-feed factory yet.
             order_feed: true,
-            depth_levels: &[5],
+            // The web registry's one level; Depth itself is refused.
+            depth_levels: &[1],
         }
     }
 
@@ -584,6 +616,14 @@ impl Broker for IndmoneyBroker {
             &self.urls.prices_ws,
             token(auth)?,
         )))
+    }
+
+    fn feed_refusal(&self, exchange: &str) -> Option<String> {
+        mapping::feed_refusal(exchange)
+    }
+
+    async fn complete_order_update(&self, auth: &AuthToken, u: OrderUpdate) -> OrderUpdate {
+        orders::complete_order_update(self, auth, u).await
     }
 }
 

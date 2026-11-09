@@ -1,11 +1,10 @@
 //! Web `test/test_kotak_quote_feed.py` (openalgo#2376): SFeed bytes in, the
 //! 8765 frames out (`feed::testkit`), with the web test's values.
 //!
-//! The desktop's decoder already published average price, last quantity,
-//! the book totals and OI, with the exchange's trade time: those cases pin
-//! it. Not carried: an equity's change fields and a Quote-mode tick's OI,
-//! never in the desktop's Quote frames, and the web's Kotak-only
-//! `totalbuyqty` / `totalsellqty` names.
+//! Each packet's tick says what the packet carries and the bridge merges
+//! it (`feed::bridge::snapshot`), as the web merges a packet over the
+//! instrument's last state; these cases read the frames, built the same
+//! way (`feed::testkit`).
 
 use super::*;
 use crate::brokers::kotak::streaming::exchange_name;
@@ -171,14 +170,48 @@ fn a_quote_carries_every_field_the_packet_decoded() {
         "last_quantity": 50,
         "total_buy_quantity": 900,
         "total_sell_quantity": 800,
+        "oi": 4_200,
+        // The packet's own change percent (nc 150), not one worked out
+        // from the price and close (1.18).
+        "percent_change": 1.5,
     });
     for (k, v) in expected.as_object().unwrap() {
         assert_eq!(q.get(k), Some(v), "{}: {}", k, q);
     }
 }
 
+/// A market picture's book totals are the exchange's figure now, a 0
+/// included: with every bid gone the total buy quantity is 0, not the last
+/// one (web `kotak_adapter._on_data_received`, where a complete packet's
+/// fields win; audit P-04).
+#[test]
+fn a_book_total_of_zero_is_zero() {
+    let mut f = tcs(FeedMode::Depth);
+    let mut frames = Frames::new("kotak");
+    let full = Picture {
+        level: DEPTH,
+        ..Default::default()
+    };
+    frames_of(&mut f, &mut frames, full.packet(), Mode::Depth);
+    let no_bids = Picture {
+        level: DEPTH,
+        total_buy: 0,
+        buy: vec![],
+        ..Default::default()
+    };
+    let d = last(frames_of(
+        &mut f,
+        &mut frames,
+        no_bids.packet(),
+        Mode::Depth,
+    ));
+    assert_eq!(d["total_buy_quantity"], 0, "{}", d);
+    assert_eq!(d["total_sell_quantity"], 800, "{}", d);
+}
+
 /// Web `test_ltt_is_the_exchange_last_trade_time_in_milliseconds`, with
-/// `last_trade_time` beside it.
+/// `last_trade_time` beside it in Quote and Depth (the web's mode 1 publish
+/// is `ltp` and `ltt` only).
 #[test]
 fn ltt_is_the_exchange_trade_time_in_milliseconds() {
     for (mode, level) in [
@@ -199,7 +232,11 @@ fn ltt_is_the_exchange_trade_time_in_milliseconds() {
             at,
         ));
         assert_eq!(d["ltt"], LAST_TRADE_TIME * 1000, "{:?}", mode);
-        assert_eq!(d["last_trade_time"], d["ltt"], "{:?}", mode);
+        if mode == FeedMode::Ltp {
+            assert!(d.get("last_trade_time").is_none(), "{}", d);
+        } else {
+            assert_eq!(d["last_trade_time"], d["ltt"], "{:?}", mode);
+        }
     }
 }
 
@@ -286,7 +323,9 @@ fn a_mini_tick_keeps_the_last_known_ohlc_and_volume() {
 }
 
 /// Web `test_a_depth_packet_replaces_the_whole_book`: an empty row is an
-/// empty level, not the previous packet's.
+/// empty level, not the previous packet's. A side holds its real levels
+/// only, where the web pads it to five zero rows (a web defect, lead
+/// decision 9 Nov).
 #[test]
 fn a_depth_packet_replaces_the_whole_book() {
     let mut f = tcs(FeedMode::Depth);
@@ -306,9 +345,13 @@ fn a_depth_packet_replaces_the_whole_book() {
     };
     let d = last(frames_of(&mut f, &mut frames, second.packet(), Mode::Depth));
     assert_eq!(d["depth"]["buy"][0]["price"], 2135.0);
-    let empty = json!({"price": 0.0, "quantity": 0, "orders": 0});
-    assert_eq!(d["depth"]["buy"][1], empty);
-    assert_eq!(d["depth"]["sell"][1], empty);
+    assert_eq!(d["depth"]["buy"].as_array().map(Vec::len), Some(1), "{}", d);
+    assert_eq!(
+        d["depth"]["sell"].as_array().map(Vec::len),
+        Some(1),
+        "{}",
+        d
+    );
 }
 
 /// Web `test_bcd_maps_to_the_segment_the_feed_reports`: BSE currency

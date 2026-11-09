@@ -1,0 +1,6 @@
+# Sahi ServerMessage: an index quote tick: no trade time, no volume, no band.
+1a0d        # ServerMessage.quote_tick (field 3), 13 bytes
+0890cb01    #   instrument_id = 26000 (field 1)
+1001        #   exchange_segment = 1 (field 2)
+1801        #   instrument_type = 1 (field 3)
+20aef99501  #   last_trade_price, paise = 2456750 (field 4)

@@ -1,0 +1,18 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "upstream_receives", "frames": [{"json": {"user": "U", "auth": "s", "format": "native_batch", "source": "NEOTRADEAPI", "platform": "Web", "version": "1.2.3", "sdk_version": 2, "sdk_date": "2026-08-07T09:41:17.667Z", "conn_req_time": "<now_ms>", "sessionValidation": false}}], "note": "The market data feed logs in on its own socket."}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"json": {"type": "cn", "Authorization": "t", "Sid": "s", "src": "WEB"}}], "note": "The realtime socket's connect frame, JSON first (kotak_order_adapter.py on_open_extra)."}
+{"step": "push", "socket": "orders", "frame": {"json": {"ak": "ok", "type": "cn", "msg": "connected"}}}
+{"step": "push", "socket": "orders", "frame": "frames/order_open.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_partial.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_complete.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "push", "socket": "orders", "frame": "frames/position.json", "note": "A position frame: OpenAlgo has no position update, so nothing is sent."}
+{"step": "silence", "client": "a"}
+{"step": "push", "socket": "orders", "frame": "frames/order_trigger_pending.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_trigger_pending.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_rejected.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_cancelled.json"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}

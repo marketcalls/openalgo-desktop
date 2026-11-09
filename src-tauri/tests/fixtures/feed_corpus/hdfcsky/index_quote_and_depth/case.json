@@ -1,0 +1,80 @@
+{
+  "broker": "hdfcsky",
+  "summary": "NIFTY on NSE_INDEX: an index packet at Quote, then with a Depth client too: an index has OHLC and the previous close, no volume, totals, book or OI.",
+  "scenarios": [
+    "index",
+    "absent-field",
+    "first-full-packet",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsky/streaming/hdfcsky_websocket.py::HDFCSkyWebSocket._parse_packet",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._on_ticks",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "indexData's percentChange and yearly high and low are not read by either side.",
+      "Quote to Depth is the same feed type (ALL); the web's adapter calls subscribe_scrips again at ALL and its client sends a second subscribe, and so does the desktop (lead decision, bk-b phase B round 2 item e: the broker-facing frames are part of parity; nothing shows the second subscribe is a no-op at HDFC). An index has no book on either side: neither Depth frame has a depth key."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
+      "ref": "hdfcsky_websocket.py:705; hdfcsky_adapter.py:435-439",
+      "approved": true
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
+      "ref": "hdfcsky_websocket.py:705; hdfcsky_adapter.py:435-439",
+      "approved": true
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "An index packet carries no trade time; the web falls back to the packet's own time (tick.get('ltt', tick.get('timestamp'))) and sends it as ltt, a time no trade happened at. The desktop leaves ltt out (investright::set_trade_time). Lead decision (bk-b phase B, item 4): the trade-time fallback is absent, never a packet or receipt time.",
+      "ref": "hdfcsky_adapter.py:421",
+      "approved": true
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
+      "ref": "hdfcsky_websocket.py:705; hdfcsky_adapter.py:435-439",
+      "approved": true
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
+      "ref": "hdfcsky_websocket.py:705; hdfcsky_adapter.py:435-439",
+      "approved": true
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "An index packet carries no volume, trade quantity, average price or book totals; the web sends them as 0 (its parser's volume 0, the adapter's tick.get(..., 0)) instead of leaving them out. Lead decision (bk-b phase B, item 5): an index's volume, last quantity, average price and book totals are left out; the web's 0 is a web defect.",
+      "ref": "hdfcsky_websocket.py:705; hdfcsky_adapter.py:435-439",
+      "approved": true
+    }
+  ]
+}
