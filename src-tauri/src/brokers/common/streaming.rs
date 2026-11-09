@@ -293,6 +293,10 @@ pub struct NormalizedDepth {
     /// (`Orders`), its own LTP (`Ltp`).
     #[serde(skip_serializing_if = "AbsentFields::is_empty")]
     pub absent: AbsentFields,
+    /// The book packet's own feed time, epoch ms, where the broker sends one
+    /// (Fyers TBT `feed_time`, fyers_tbt_websocket.py:511).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feed_time_ms: Option<i64>,
 }
 
 /// A normalised order update (web `order_update` event fields).

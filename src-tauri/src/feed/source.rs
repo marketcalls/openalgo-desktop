@@ -127,6 +127,15 @@ pub struct DepthLevel {
 pub struct DepthBook {
     pub buy: Vec<DepthLevel>,
     pub sell: Vec<DepthLevel>,
+    /// The levels the book was streamed at, where the broker has a deeper
+    /// socket beside its main feed: that socket's (Dhan 20, Fyers 50), or
+    /// the main feed's when the book came from there, a subscription at
+    /// the deep levels having fallen back (audit P-10). `None`: the
+    /// holder's depth.
+    pub levels: Option<u8>,
+    /// The book packet's own time, epoch ms, where the broker sends one
+    /// (Fyers TBT `feed_time`).
+    pub time_ms: Option<i64>,
 }
 
 /// The quote fields an update knows, each `None` when the broker's stream
@@ -186,6 +195,9 @@ pub struct MarketUpdate {
     /// The broker's instrument token, from the symbol master (the web's
     /// Arrow, HDFC, Rupeezy, Upstox and Fyers adapters send it as `token`).
     pub token: Option<Arc<str>>,
+    /// The broker's trading symbol, from the symbol master (web Fyers names
+    /// a TBT book by it, `NSE:SBIN-EQ`).
+    pub broker_symbol: Option<Arc<str>>,
 }
 
 impl MarketUpdate {
@@ -201,6 +213,7 @@ impl MarketUpdate {
             depth: None,
             exact_mode: false,
             token: None,
+            broker_symbol: None,
         }
     }
 }

@@ -22,6 +22,10 @@ use crate::feed::source::{DepthBook, InstrumentKey, MarketUpdate};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// An instrument's broker token and trading symbol (`None`: not in the
+/// symbol master).
+pub(in crate::feed) type BrokerIds = (Option<Arc<str>>, Option<Arc<str>>);
+
 /// An instrument's last book as its frame sent it, with the book's totals.
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::feed) struct LastBook {
@@ -53,8 +57,10 @@ pub(in crate::feed) struct Snapshot {
     /// them, and so do its depth messages (the 1.0.6 contract: an adapter
     /// marks a total only when its book lacks it too).
     book_lacks: AbsentFields,
-    /// The instrument's broker token, looked up once per snapshot.
+    /// The instrument's broker token and trading symbol, looked up once per
+    /// snapshot.
     token: Option<Arc<str>>,
+    broker_symbol: Option<Arc<str>>,
     /// The instrument's last book in this connection (shared: every tick
     /// makes a new snapshot).
     book: Option<Arc<LastBook>>,
@@ -74,8 +80,13 @@ impl Snapshot {
         self.token.clone()
     }
 
-    pub(in crate::feed) fn set_token(&mut self, token: Option<Arc<str>>) {
+    pub(in crate::feed) fn broker_symbol(&self) -> Option<Arc<str>> {
+        self.broker_symbol.clone()
+    }
+
+    pub(in crate::feed) fn set_ids(&mut self, (token, broker_symbol): BrokerIds) {
         self.token = token;
+        self.broker_symbol = broker_symbol;
     }
 
     /// What a depth frame on this snapshot leaves out of the book's own
@@ -115,6 +126,7 @@ pub(in crate::feed) fn keep_book(
             epoch,
             book_lacks: AbsentFields::default(),
             token: None,
+            broker_symbol: None,
             book,
         },
     );
@@ -129,6 +141,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
     use QuoteField as F;
     let prev = prev.filter(|p| p.of_epoch(epoch));
     let token = prev.and_then(Snapshot::token);
+    let broker_symbol = prev.and_then(Snapshot::broker_symbol);
     let book = prev.and_then(|p| p.book.clone());
     let (mut s, mut known) = match prev {
         Some(p) => (p.tick.clone(), p.tick.known()),
@@ -164,6 +177,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
         epoch,
         book_lacks: t.absent.minus(AbsentFields::ALL.minus(BOOK_TOTALS)),
         token,
+        broker_symbol,
         book,
     }
 }

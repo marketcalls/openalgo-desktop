@@ -300,6 +300,14 @@ fn as_integer(v: Value) -> Value {
     }
 }
 
+/// The levels this frame's book was streamed at: the holder's depth, or the
+/// main feed's where its deep subscription fell back (web Dhan names 5
+/// then, dhan_adapter.py:930, 1042; web Fyers sends no 50-level frame).
+fn served(fr: &Frame<'_>) -> u8 {
+    let levels = fr.update.depth.as_ref().and_then(|b| b.levels);
+    levels.map_or(fr.depth, |l| l.min(fr.depth))
+}
+
 /// The value of `source` in this frame, if known.
 fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
     let q = fr.q;
@@ -329,7 +337,35 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::Extra(e) => extra(e, q),
         Source::DepthLevels => {
             let book = fr.content == Mode::Depth && !fr.update.key.is_index();
-            book.then(|| Value::from(fr.depth))
+            book.then(|| Value::from(served(fr)))
+        }
+        Source::BookLevels => {
+            let b = fr
+                .update
+                .depth
+                .as_ref()
+                .filter(|_| fr.content == Mode::Depth)?;
+            let present = b.buy.len().max(b.sell.len()).min(usize::from(fr.depth));
+            Some(Value::from(present))
+        }
+        Source::BookTime(unit) => fr
+            .update
+            .depth
+            .as_ref()
+            .and_then(|b| b.time_ms)
+            .map(|ms| time(ms, unit)),
+        Source::ExchangeToken => {
+            let token = fr
+                .update
+                .token
+                .as_deref()
+                .filter(|_| !fr.update.key.is_index())?;
+            Some(Value::from(token.get(10..).unwrap_or(token)))
+        }
+        Source::BrokerSymbol => fr.update.broker_symbol.as_deref().map(Value::from),
+        Source::FiftyOr(fifty, other) => {
+            let at_fifty = fr.content == Mode::Depth && served(fr) == 50;
+            value(if at_fifty { *fifty } else { *other }, fr)
         }
         Source::SubscriptionMode => Some(Value::from(fr.mode.as_u8())),
         Source::Topic => Some(Value::from(format!(
@@ -341,10 +377,9 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::BrokerId => Some(Value::from(fr.broker)),
         Source::PerMode(texts) => Some(Value::from(texts[fr.mode.index()])),
         Source::Token => fr.update.token.as_deref().map(Value::from),
-        Source::Timestamp(unit) => Some(time(fr.update.timestamp, unit)),
         Source::True => Some(Value::Bool(true)),
         Source::FiftyLevels(inner) => {
-            let fifty = fr.content == Mode::Depth && fr.depth == 50;
+            let fifty = fr.content == Mode::Depth && served(fr) == 50;
             fifty.then(|| value(*inner, fr)).flatten()
         }
     }

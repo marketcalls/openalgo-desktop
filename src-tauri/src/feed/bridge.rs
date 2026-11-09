@@ -414,7 +414,7 @@ impl BrokerBridge {
                 self.note_deep_book(&ev);
             }
             let Some(tick) = pairing::awaits_book(&ev) else {
-                self.publish(self.convert(&ev));
+                self.publish(self.convert_from(&ev, deep));
                 return true;
             };
             let next = pairing::next_event(tick, rx);
@@ -422,15 +422,15 @@ impl BrokerBridge {
                 if deep {
                     self.note_deep_book(book);
                 }
-                self.convert(&ev);
-                let both = self.convert(book).map(|u| MarketUpdate {
+                self.convert_from(&ev, deep);
+                let both = self.convert_from(book, deep).map(|u| MarketUpdate {
                     exact_mode: false,
                     ..u
                 });
                 self.publish(both);
                 return true;
             }
-            self.publish(self.convert(&ev));
+            self.publish(self.convert_from(&ev, deep));
             match next {
                 Next::Other(other) => ev = other,
                 Next::Lagged(n) => {
@@ -449,11 +449,16 @@ impl BrokerBridge {
         }
     }
 
-    /// The instrument's broker token from the symbol master.
-    fn token(&self, key: &InstrumentKey) -> Option<Arc<str>> {
-        self.symbols
-            .by_symbol(&key.exchange, &key.symbol)
-            .map(|row| Arc::from(row.token.as_str()))
+    /// The instrument's broker token and trading symbol from the symbol
+    /// master.
+    fn ids(&self, key: &InstrumentKey) -> snapshot::BrokerIds {
+        match self.symbols.by_symbol(&key.exchange, &key.symbol) {
+            Some(row) => (
+                Some(Arc::from(row.token.as_str())),
+                Some(Arc::from(row.brsymbol.as_str())),
+            ),
+            None => (None, None),
+        }
     }
 
     /// The main feed's connection count: a snapshot belongs to the
@@ -465,7 +470,14 @@ impl BrokerBridge {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// `ev` from the main feed (the bridge's tests).
+    #[cfg(test)]
     fn convert(&self, ev: &FeedEvent) -> Option<MarketUpdate> {
+        self.convert_from(ev, false)
+    }
+
+    /// `ev` as an update; `deep`: it came from the deeper-book socket.
+    fn convert_from(&self, ev: &FeedEvent, deep: bool) -> Option<MarketUpdate> {
         match ev {
             FeedEvent::Tick(t) => {
                 let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
@@ -476,7 +488,7 @@ impl BrokerBridge {
                 }
                 let mut merged = snapshot::merge(st.last_tick.get(&key), t, epoch);
                 if merged.token().is_none() {
-                    merged.set_token(self.token(&key));
+                    merged.set_ids(self.ids(&key));
                 }
                 // A packet without a trade (OI, circuits) only updates the
                 // snapshot; the next priced packet carries what it brought.
@@ -486,6 +498,7 @@ impl BrokerBridge {
                     .flatten()
                     .map(|u| MarketUpdate {
                         token: merged.token(),
+                        broker_symbol: merged.broker_symbol(),
                         ..u
                     });
                 st.last_tick.insert(key, merged);
@@ -494,18 +507,31 @@ impl BrokerBridge {
             FeedEvent::Depth(d) => {
                 let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
                 let epoch = self.connection();
+                // A broker with a deeper socket: its books are at its levels,
+                // the main feed's at the main levels (a fallen-back holder's).
+                let levels = (*self.deep.lock()).map(|l| if deep { l } else { DEFAULT_DEPTH });
                 let mut st = self.state.lock();
                 if !st.holds(&key) {
                     return None;
                 }
                 let last = st.last_tick.get(&key).filter(|s| s.of_epoch(epoch));
                 let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
-                let token = last.and_then(Snapshot::token).or_else(|| self.token(&key));
-                let update = depth_update(key.clone(), d, last.map(Snapshot::tick), lacks);
+                let (token, broker_symbol) = match last.filter(|s| s.token().is_some()) {
+                    Some(s) => (s.token(), s.broker_symbol()),
+                    None => self.ids(&key),
+                };
+                let mut update = depth_update(key.clone(), d, last.map(Snapshot::tick), lacks);
+                if let Some(book) = update.depth.as_mut() {
+                    book.levels = levels;
+                }
                 if let Some(book) = LastBook::of(&update) {
                     snapshot::keep_book(&mut st.last_tick, &key, book, epoch);
                 }
-                Some(MarketUpdate { token, ..update })
+                Some(MarketUpdate {
+                    token,
+                    broker_symbol,
+                    ..update
+                })
             }
             _ => None,
         }

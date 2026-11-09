@@ -76,6 +76,7 @@ pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> Option<Mark
         depth: None,
         exact_mode: false,
         token: None,
+        broker_symbol: None,
     })
 }
 
@@ -155,9 +156,12 @@ pub(crate) fn depth_update(
         depth: Some(DepthBook {
             buy: side(&d.buy),
             sell: side(&d.sell),
+            levels: None,
+            time_ms: d.feed_time_ms,
         }),
         exact_mode: true,
         token: None,
+        broker_symbol: None,
     }
 }
 

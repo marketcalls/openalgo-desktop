@@ -37,6 +37,11 @@ a cleared book side) is sent.
   `timestamp`; the web leaves `ltp` out too).
 - A book without totals takes the tick's; a book without order counts
   (Upstox) sends levels without `orders`.
+- A frame names the levels its book was served at: Dhan's `depth_level`
+  says 5 once a 20-level subscription fell back to the main feed (web
+  dhan_adapter.py:930, 1042), and Fyers sends no 50-level keys then
+  (`DepthBook::levels`, set by the bridge for a broker with a deeper
+  socket).
 - A book goes out level for level as the adapter carries it: a broker's
   fixed empty slots (price 0, quantity 0: the Zerodha golden fixtures carry
   five a side) are kept, and nothing pads a short book. The levels an
@@ -163,11 +168,17 @@ Deliberate differences, each a web defect or a desktop rule:
 - A web key that holds a wrong value is not copied with that value: Pocketful
   publishes the average price as Depth's `ltp`, Zerodha web reads OI from the
   wrong offset; the desktop decoders keep the right values.
-- `token` (Arrow, both HDFC, Rupeezy, Upstox, Fyers) is the instrument's
-  broker token from the symbol master, as text.
+- `token` (Arrow, both HDFC, Rupeezy, Upstox) is the instrument's broker
+  token from the symbol master, as text. Fyers names its frames as its web
+  adapter does: the exchange's token (the fytoken less its first ten
+  digits, `Source::ExchangeToken`, fyers_mapping.py:82) on HSM frames and
+  the ticker (`NSE:SBIN-EQ`, the master's `brsymbol`) on TBT 50-level
+  frames; an index has no `token` (the web's `""` placeholder).
 - Fyers' `update_type` (`BrokerField::UpdateType`, text) and its 50-level
-  frame's `total_buy_qty`, `total_sell_qty`, `feed_time`, `depth_levels`,
-  `is_50_depth` (`Source::FiftyLevels`, on 50-level Depth frames only), and
+  frame's `total_buy_qty`, `total_sell_qty`, `feed_time` (the TBT
+  packet's own feed time, seconds), `depth_levels` (the levels the book
+  holds, its longer side, fyers_tbt_websocket.py:519-530), `is_50_depth`
+  (`Source::FiftyLevels`, on frames whose book was served at 50 levels), and
   the `timestamp` Upstox puts inside `depth` (`Dialect::book_time`), are
   carried since 1.0.7.
 
