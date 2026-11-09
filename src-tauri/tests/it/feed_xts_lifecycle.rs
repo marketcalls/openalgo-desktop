@@ -129,6 +129,11 @@ struct FakeBroker {
     tasks: JoinSet<()>,
 }
 
+/// Until the connections open at `epoch` are to end.
+async fn dropped(drop_all: &mut watch::Receiver<u64>, epoch: u64) {
+    let _ = drop_all.wait_for(|e| *e != epoch).await;
+}
+
 async fn socket_connection(
     tcp: tokio::net::TcpStream,
     mut accept: watch::Receiver<bool>,
@@ -159,7 +164,7 @@ async fn socket_connection(
     }
     loop {
         tokio::select! {
-            _ = drop_all.wait_for(|e| *e != epoch) => {
+            () = dropped(&mut drop_all, epoch) => {
                 let _ = ws.close(None).await;
                 return;
             }
