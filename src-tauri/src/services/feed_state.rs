@@ -67,10 +67,7 @@ pub fn needs_attention(block: &Value) -> bool {
         .into_iter()
         .flatten()
         .any(|feed| !silent_connections(feed).is_empty());
-    refused
-        || pool_down
-        || orders["source"] == "not_started"
-        || orders["connected"] == json!(false)
+    refused || pool_down || orders["source"] == "not_started" || orders["connected"] == json!(false)
 }
 
 /// The connections of one feed's entry that carry instruments and are not
