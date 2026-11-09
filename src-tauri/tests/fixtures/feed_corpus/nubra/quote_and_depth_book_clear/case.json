@@ -1,0 +1,31 @@
+{
+  "broker": "nubra",
+  "summary": "RELIANCE held at Quote and at Depth: an order book gives the Quote its best bid and ask; a book with no resting orders takes them off the Quote as it empties the Depth book (R107-06).",
+  "scenarios": [
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/nubra/api/nubrawebsocket.py::NubraWebSocket._decode_protobuf",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_index_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_ohlcv_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_orderbook_data"
+    ],
+    "notes": [
+      "The review's input: book.hex then book_empty.hex with both modes held."
+    ]
+  },
+  "deviations": []
+}

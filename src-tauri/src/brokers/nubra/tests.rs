@@ -11,7 +11,9 @@ use super::streaming::{self, decode_order_update, NubraFeed, OrderSession};
 use super::*;
 use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product, Validity};
 use crate::brokers::common::relay::Session;
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -710,6 +712,91 @@ fn order_book_frames_tick_and_depth() {
     assert!(frames.is_empty());
     let ev = f.parse(&Message::Binary(hexframe("orderbook")));
     assert_eq!(ev.len(), 1);
+}
+
+/// A feed corpus frame: `#` comment lines, then hex.
+fn corpus_frame(text: &str) -> Message {
+    let hex: String = text
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .flat_map(str::split_whitespace)
+        .collect();
+    Message::Binary(hex::decode(hex).unwrap())
+}
+
+macro_rules! corpus {
+    ($case:literal, $frame:literal) => {
+        corpus_frame(include_str!(concat!(
+            "../../../tests/fixtures/feed_corpus/nubra/",
+            $case,
+            "/frames/",
+            $frame
+        )))
+    };
+}
+
+fn rel_depth_feed() -> NubraFeed {
+    let mut f = NubraFeed::new("wss://x", "TOK", SymbolResolver::new());
+    f.subscribe_frames(&[fsub("RELIANCE", "NSE", "2885", "RELIANCE", FeedMode::Depth)]);
+    f
+}
+
+fn quote_of(ev: &[FeedEvent]) -> crate::brokers::common::streaming::NormalizedTick {
+    ev.iter()
+        .find_map(|e| match e {
+            FeedEvent::Tick(t) => Some(t.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no tick: {:?}", ev))
+}
+
+/// R107-06: a book with no resting orders takes the best bid and ask off
+/// the Quote; the bridge, which keeps a `None` as the last value, must be
+/// told they are gone. One side alone goes the same way.
+#[test]
+fn a_book_that_empties_a_side_takes_its_best_price_off_the_quote() {
+    let mut f = rel_depth_feed();
+    let first = quote_of(&f.parse(&corpus!("quote_and_depth_book_clear", "book.hex")));
+    assert_eq!(
+        (first.extras.bid_price, first.extras.ask_price),
+        (Some(1301.0), Some(1301.5))
+    );
+    let empty = quote_of(&f.parse(&corpus!("quote_and_depth_book_clear", "book_empty.hex")));
+    let kept = first.extras.overlay(empty.extras);
+    assert_eq!((kept.bid_price, kept.ask_price), (None, None));
+
+    let mut f = rel_depth_feed();
+    let first = quote_of(&f.parse(&corpus!("one_sided_book_clear", "book.hex")));
+    let bids_only = quote_of(&f.parse(&corpus!("one_sided_book_clear", "book_bids_only.hex")));
+    let kept = first.extras.overlay(bids_only.extras);
+    assert_eq!((kept.bid_price, kept.ask_price), (Some(1301.1), None));
+}
+
+/// R107-11: an order book before the first trade still reaches the Depth
+/// holder, without an LTP of its own; no quote goes out for it.
+#[test]
+fn a_book_before_the_first_trade_still_reaches_depth() {
+    let mut f = rel_depth_feed();
+    let ev = f.parse(&corpus!("book_before_price", "book_no_ltp.hex"));
+    let [FeedEvent::Depth(d)] = &ev[..] else {
+        panic!("the book alone: {:?}", ev)
+    };
+    assert!(d.absent.contains(QuoteField::Ltp));
+    assert_eq!(
+        (d.buy.len(), d.buy[0].price, d.buy[0].quantity),
+        (1, 1301.0, 10)
+    );
+    assert!(d.sell.is_empty());
+    // After a reconnect the state starts again: the same book, no LTP.
+    let mut f = rel_depth_feed();
+    f.parse(&corpus!("book_first_after_reconnect", "book.hex"));
+    f.on_connected();
+    f.subscribe_frames(&[fsub("RELIANCE", "NSE", "2885", "RELIANCE", FeedMode::Depth)]);
+    let ev = f.parse(&corpus!("book_first_after_reconnect", "book_no_ltp.hex"));
+    let [FeedEvent::Depth(d)] = &ev[..] else {
+        panic!("the book alone: {:?}", ev)
+    };
+    assert!(d.absent.contains(QuoteField::Ltp));
 }
 
 #[test]

@@ -1,0 +1,32 @@
+{
+  "broker": "nubra",
+  "summary": "An order book before RELIANCE has traded (no LTP in the message): the Depth holder gets the book with LTP 0, and the next book with a trade gives its price (R107-11).",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/nubra/api/nubrawebsocket.py::NubraWebSocket._decode_protobuf",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_index_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_ohlcv_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_orderbook_data"
+    ],
+    "notes": [
+      "The review's raw frame: ref_id 2885, one bid 1301 x 10, no ltp tag."
+    ]
+  },
+  "deviations": []
+}

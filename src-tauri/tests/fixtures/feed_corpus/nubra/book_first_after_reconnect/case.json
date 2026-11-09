@@ -1,0 +1,30 @@
+{
+  "broker": "nubra",
+  "summary": "Nubra drops the socket after a priced book: the subscriptions go again on the new connection, and the first book on it, without an LTP, reaches the Depth holder with LTP 0, nothing from before the drop (R107-11).",
+  "scenarios": [
+    "reconnect",
+    "depth-update",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/nubra/api/nubrawebsocket.py::NubraWebSocket._decode_protobuf",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_index_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_ohlcv_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_orderbook_data"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

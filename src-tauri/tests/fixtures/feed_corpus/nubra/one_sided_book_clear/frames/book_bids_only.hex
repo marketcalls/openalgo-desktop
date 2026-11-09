@@ -1,0 +1,32 @@
+# The next order-book message: two bids, no asks, a new LTP.
+# Any(Any(BatchWebSocketOrderbookMessage)), the inner message:
+#   {
+#    "instruments": [
+#     {
+#      "ref_id": 2885,
+#      "timestamp": 1740729569000,
+#      "bids": [
+#       {
+#        "price": 130110,
+#        "quantity": 12,
+#        "orders": 1
+#       },
+#       {
+#        "price": 130060,
+#        "quantity": 22,
+#        "orders": 2
+#       }
+#      ],
+#      "ltp": 130125,
+#      "ltq": 3,
+#      "volume": 50013
+#     }
+#    ],
+#    "timestamp": 1740729569000
+#   }
+0a27747970652e676f6f676c65617069732e636f6d2f676f6f676c652e70726f
+746f6275662e416e79128e010a59747970652e676f6f676c65617069732e636f
+6d2f70726f746f732e7a616e736b6172736563757269746965732e6e75627261
+66726f6e74656e642e4261746368576562536f636b65744f72646572626f6f6b
+4d6573736167651231122840c51610e89dc5dcd4321a0808bef807100c18011a
+08088cf8071016180228cdf807300338dd860308e89dc5dcd432
