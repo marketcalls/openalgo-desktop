@@ -65,6 +65,11 @@ const CLOSED_UNHEARD: Ended<'static> = Ended::Closed {
     reason: "",
 };
 
+/// Whether `new` streams more of an instrument than `old`.
+fn raises(old: &FeedSubscription, new: &FeedSubscription) -> bool {
+    (new.mode, new.depth) > (old.mode, old.depth)
+}
+
 /// What a login acknowledgement that did not come in time means.
 #[derive(Debug, Clone, Copy)]
 enum AckLapse {
@@ -343,16 +348,21 @@ impl Supervisor {
         }
     }
 
-    /// Sends the full subscription set and reports the feed connected.
+    /// Reports the feed connected and sends the full subscription set, in
+    /// that order (review X3): a change made once the status says so is
+    /// handed to this session, which holds it until the set has gone and
+    /// sends it unless the set already carries it (`Apply::seq`). Reported
+    /// after the set, a change made while it went out reached nobody: too
+    /// late for the set, and not queued for a session not yet connected.
     async fn subscribe_all<S>(&mut self, broker: &str, write: &mut S) -> Sent
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
-        self.resubscribe(write).await?;
-        self.stats.mark_connected();
         self.status.send_replace(FeedStatus::Connected {
             broker: broker.to_string(),
         });
+        self.resubscribe(write).await?;
+        self.stats.mark_connected();
         Ok(())
     }
 
@@ -699,62 +709,61 @@ impl Supervisor {
         }
     }
 
-    /// Frames for a run of deltas, in the web's order (`in_web_order`).
-    /// Consecutive subscribes (and consecutive unsubscribes) go to the feed
+    /// Frames for a run of deltas, in the web's order (`in_web_order`:
+    /// unsubscribes, mode changes, subscribes). Each kind goes to the feed
     /// in one call, so feeds that can batch send one frame or request per
     /// run rather than one per instrument (web #2176: Firstock, Pocketful,
-    /// RMoney batching). With
-    /// `later`, unsubscribes are releases a caller waits on, and the
-    /// broker's own answers to them are collected there.
+    /// RMoney batching). With `later`, a caller waits: unsubscribes are
+    /// its releases and subscribes and mode upgrades its admissions, and
+    /// the broker's own answers to them are collected there.
     fn delta_frames(&mut self, deltas: Vec<Delta>, mut later: Option<&mut Later>) -> Vec<Message> {
-        let deltas = super::registry::in_web_order(deltas);
-        let mut frames = Vec::new();
-        let mut subs: Vec<FeedSubscription> = Vec::new();
-        let mut unsubs: Vec<FeedSubscription> = Vec::new();
-        for d in deltas {
+        let (mut unsubs, mut changes, mut subs) = (Vec::new(), Vec::new(), Vec::new());
+        for d in super::registry::in_web_order(deltas) {
             match d {
-                Delta::Subscribe(s) => {
-                    if !unsubs.is_empty() {
-                        frames.extend(
-                            self.release_run(std::mem::take(&mut unsubs), later.as_deref_mut()),
-                        );
-                    }
-                    subs.push(s);
-                }
-                Delta::Unsubscribe(s) => {
-                    if !subs.is_empty() {
-                        frames.extend(
-                            self.subscribe_run(std::mem::take(&mut subs), later.as_deref_mut()),
-                        );
-                    }
-                    unsubs.push(s);
-                }
-                Delta::ModeChange(old, new) => {
-                    if !subs.is_empty() {
-                        frames.extend(
-                            self.subscribe_run(std::mem::take(&mut subs), later.as_deref_mut()),
-                        );
-                    }
-                    if !unsubs.is_empty() {
-                        frames.extend(
-                            self.release_run(std::mem::take(&mut unsubs), later.as_deref_mut()),
-                        );
-                    }
-                    frames.extend(self.feed.mode_change_frames(&old, &new));
-                }
+                Delta::Unsubscribe(s) => unsubs.push(s),
+                Delta::ModeChange(old, new) => changes.push((old, new)),
+                Delta::Subscribe(s) => subs.push(s),
             }
         }
-        if !subs.is_empty() {
-            frames.extend(self.subscribe_run(subs, later.as_deref_mut()));
-        }
+        let mut frames = Vec::new();
         if !unsubs.is_empty() {
-            frames.extend(self.release_run(unsubs, later));
+            frames.extend(self.release_run(unsubs, later.as_deref_mut()));
+        }
+        frames.extend(self.change_run(changes, later.as_deref_mut()));
+        if !subs.is_empty() {
+            frames.extend(self.subscribe_run(subs, later));
         }
         frames
     }
 
-    /// The frames of one run of unsubscribes; for a waited release, through
-    /// `BrokerFeed::release_frames`, keeping the broker's later answer.
+    /// The frames of one run of mode changes. An upgrade its caller waits
+    /// on goes through `BrokerFeed::mode_upgrade_frames`, keeping the
+    /// broker's later answer (review X2); a change a release left is the
+    /// plain one, since nothing new has to be taken.
+    fn change_run(
+        &mut self,
+        changes: Vec<(FeedSubscription, FeedSubscription)>,
+        later: Option<&mut Later>,
+    ) -> Vec<Message> {
+        let (upgrades, plain): (Vec<_>, Vec<_>) = if later.is_some() {
+            changes.into_iter().partition(|(old, new)| raises(old, new))
+        } else {
+            (Vec::new(), changes)
+        };
+        let mut frames: Vec<Message> = plain
+            .iter()
+            .flat_map(|(old, new)| self.feed.mode_change_frames(old, new))
+            .collect();
+        if let (Some(later), false) = (later, upgrades.is_empty()) {
+            let (upgrade_frames, answer) = self.feed.mode_upgrade_frames(&upgrades);
+            frames.extend(upgrade_frames);
+            if let Some(answer) = answer {
+                later.push((upgrades.into_iter().map(|(_, new)| new).collect(), answer));
+            }
+        }
+        frames
+    }
+
     /// The frames of one run of subscribes; for an admission its caller
     /// waits on, through `BrokerFeed::admission_frames`, keeping the
     /// broker's later answer (review R107-03).
@@ -773,6 +782,8 @@ impl Supervisor {
         frames
     }
 
+    /// The frames of one run of unsubscribes; for a waited release, through
+    /// `BrokerFeed::release_frames`, keeping the broker's later answer.
     fn release_run(
         &mut self,
         unsubs: Vec<FeedSubscription>,

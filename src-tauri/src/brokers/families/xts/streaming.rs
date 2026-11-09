@@ -427,6 +427,7 @@ impl XtsFeed {
                 code,
                 instruments,
                 waited: None,
+                then_release: None,
             })
             .collect()
     }
@@ -704,6 +705,13 @@ impl BrokerFeed for XtsFeed {
         subs: &[FeedSubscription],
     ) -> (Vec<Message>, Option<ReleaseAnswer>) {
         release::frames(self, subs, true)
+    }
+
+    fn mode_upgrade_frames(
+        &mut self,
+        changes: &[(FeedSubscription, FeedSubscription)],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        release::upgrade_frames(self, changes)
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

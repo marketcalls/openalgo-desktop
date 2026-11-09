@@ -239,3 +239,26 @@ async fn a_mixed_batch_refuses_only_the_refused_instrument() {
     assert_eq!(refused[0].0, "INFY");
     assert_eq!(*calls.lock(), 3, "the batch, then each instrument");
 }
+
+fn numbered(i: usize) -> FeedSubscription {
+    FeedSubscription {
+        symbol: format!("S{i:02}"),
+        token: (5000 + i).to_string(),
+        brsymbol: format!("S{i:02}-EQ"),
+        ..sbin()
+    }
+}
+
+/// Review X1: one refused instrument out of 50 is found in about a dozen
+/// calls, within the manager's wait; one by one it took 25 s and the wait
+/// ran out, so every item was answered as a success.
+#[tokio::test]
+async fn a_refused_batch_is_searched_by_halves() {
+    let (base, calls) = subscribe_endpoint("5017").await;
+    let mut f = feed(base);
+    let subs: Vec<FeedSubscription> = (0..50).map(numbered).collect();
+    let refused = admit(&mut f, &subs).await;
+    assert_eq!(refused.len(), 1, "{:?}", refused);
+    assert_eq!(refused[0].0, "S17");
+    assert!(*calls.lock() <= 14, "{} calls", *calls.lock());
+}

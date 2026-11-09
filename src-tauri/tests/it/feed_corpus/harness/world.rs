@@ -570,6 +570,7 @@ fn route(a: &HttpAnswer, urls: &BTreeMap<Socket, String>, http: &str) -> Route {
     }
     let mut r = Route::new(a.method.as_deref(), &a.path, a.status, body);
     r.record = a.record;
+    r.when_body = a.when_body.clone();
     r
 }
 

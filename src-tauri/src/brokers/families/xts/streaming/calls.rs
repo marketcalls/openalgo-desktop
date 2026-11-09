@@ -5,8 +5,10 @@
 
 use super::{mapping, release, SUBSCRIBE_BATCH};
 use serde_json::{json, Value};
+use std::collections::VecDeque;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 /// A subscription request queued for the worker.
 #[derive(Debug, Clone, PartialEq)]
@@ -17,6 +19,10 @@ pub struct Command {
     /// A release or an admission the manager waits on: answered; a release
     /// is never retried behind its caller's back (audit C01, R107-03).
     pub waited: Option<release::Waited>,
+    /// A mode upgrade: the message code to release once the broker has
+    /// taken this one (review X2). Nothing is released for what it refused,
+    /// so an instrument keeps the mode it streams at.
+    pub then_release: Option<u16>,
 }
 
 /// Whether the market-data token may be sent to `url`.
@@ -182,11 +188,25 @@ pub struct CommandReport {
     pub refused: Vec<(Value, String)>,
 }
 
+/// One call's batch and what the broker said to it.
+type Outcome = (Vec<Value>, std::result::Result<CallOutcome, CallError>);
+
+/// `part` in two, its first half to be asked about next.
+fn split_in_two(mut part: Vec<Value>, parts: &mut VecDeque<Vec<Value>>) {
+    let second = part.split_off(part.len() / 2);
+    parts.push_front(second);
+    parts.push_front(part);
+}
+
 /// Run one command: at most `SUBSCRIBE_BATCH` instruments per call, `gap`
 /// between calls. With `split_duplicates`, a subscribe batch refused as
 /// already subscribed is retried one instrument at a time; without it the
 /// refusal is non-fatal. A batch that failed for a passing reason is
-/// reported for a retry (BF-03; the web retries rmoney's on a timer).
+/// reported for a retry (BF-03; the web retries rmoney's on a timer). A
+/// refused batch of an admission is searched by halves for what the broker
+/// refuses (review R107-03, X1), until `Waited::search_until`: one refused
+/// instrument out of 50 costs about a dozen calls, not 50, and what the
+/// time left unasked is answered, never taken for streaming.
 pub async fn run_command(
     t: &SubscriptionTarget<'_>,
     cmd: &Command,
@@ -207,20 +227,31 @@ pub async fn run_command(
             (batch, r)
         }
     };
-    let mut outcomes = Vec::new();
+    let search_until = cmd.waited.as_ref().and_then(release::Waited::search_until);
+    let mut outcomes: Vec<Outcome> = Vec::new();
     for batch in cmd.instruments.chunks(SUBSCRIBE_BATCH) {
         let (batch, r) = call(batch.to_vec()).await;
-        match r {
-            // One refused instrument must not refuse its batch when each
-            // has an owner waiting for its own answer (R107-03).
-            Err(CallError::Refused(_))
-                if cmd.subscribe && cmd.waited.is_some() && batch.len() > 1 =>
-            {
-                for inst in batch {
-                    outcomes.push(call(vec![inst]).await);
+        match (r, search_until) {
+            (Err(CallError::Refused(_)), Some(until)) if batch.len() > 1 => {
+                let mut parts = VecDeque::new();
+                split_in_two(batch, &mut parts);
+                while let Some(part) = parts.pop_front() {
+                    if Instant::now() >= until {
+                        let unasked = CallError::Refused(release::NOT_CHECKED.to_string());
+                        outcomes.push((part, Err(unasked)));
+                        continue;
+                    }
+                    match call(part).await {
+                        (part, Err(CallError::Refused(_)) | Ok(CallOutcome::AlreadySubscribed))
+                            if part.len() > 1 =>
+                        {
+                            split_in_two(part, &mut parts);
+                        }
+                        done => outcomes.push(done),
+                    }
                 }
             }
-            Ok(CallOutcome::AlreadySubscribed)
+            (Ok(CallOutcome::AlreadySubscribed), _)
                 if t.split_duplicates && cmd.subscribe && batch.len() > 1 =>
             {
                 tracing::info!(
@@ -229,13 +260,25 @@ pub async fn run_command(
                     "Batch holds an instrument already subscribed; subscribing one by one"
                 );
                 for inst in batch {
-                    let (one, r) = call(vec![inst]).await;
-                    outcomes.push((one, r));
+                    outcomes.push(call(vec![inst]).await);
                 }
             }
-            r => outcomes.push((batch, r)),
+            (r, _) => outcomes.push((batch, r)),
         }
     }
+    let mut report = report_of(t, cmd, outcomes, snapshots);
+    report.calls = calls;
+    report
+}
+
+/// What a command's calls came to: snapshots handed on, what to send again,
+/// what the broker refused.
+fn report_of(
+    t: &SubscriptionTarget<'_>,
+    cmd: &Command,
+    outcomes: Vec<Outcome>,
+    snapshots: &mpsc::Sender<String>,
+) -> CommandReport {
     let mut report = CommandReport::default();
     for (batch, r) in outcomes {
         match r {
@@ -284,6 +327,5 @@ pub async fn run_command(
             }
         }
     }
-    report.calls = calls;
     report
 }

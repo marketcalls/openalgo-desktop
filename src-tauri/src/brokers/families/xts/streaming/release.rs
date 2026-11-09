@@ -13,21 +13,37 @@
 //!   it again, and a new session subscribes it again. The web logs a
 //!   refused subscribe and acknowledges it (a web defect: it never
 //!   streams).
+//! * A mode upgrade an admission brought (`upgrade_frames`, review X2): the
+//!   new message code is taken first and the old one released only once
+//!   it is, so a refusal leaves the instrument streaming as it was.
 
-use super::{mapping, CommandReport, XtsFeed};
+use super::{mapping, Command, CommandReport, XtsFeed, SUBSCRIBE_BATCH, SUBSCRIBE_GAP};
 use crate::brokers::common::streaming::{
-    FeedSubscription, Message, ReleaseAnswer, ReleaseRefusals,
+    BrokerFeed, FeedSubscription, Message, ReleaseAnswer, ReleaseRefusals,
 };
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::oneshot;
+use tokio::time::Instant;
 
 /// Why a batch failed when the broker refused the market-data token (the
 /// feed reconnects with a new one).
 pub(super) const TOKEN_REFUSED: &str = "The broker ended the market data session before it \
 stopped streaming this instrument, so it stays subscribed. Unsubscribe again once the feed \
 reconnects.";
+
+/// How long an admission may search a refused batch for the instruments
+/// the broker refuses, on top of its own calls (review X1). What the
+/// manager waits for (`ADMISSION_WAIT`) covers it with room to spare.
+const SEARCH_TIME: Duration = Duration::from_secs(12);
+
+/// An instrument of a refused batch the search had no time to ask about
+/// on its own. The broker did refuse the batch that held it, so it is not
+/// streaming.
+pub(super) const NOT_CHECKED: &str = "The broker refused the group of instruments this one was \
+sent in, and there was no time to check it on its own. Subscribe to it again.";
 
 /// Why a batch failed when the broker did not answer.
 const NO_ANSWER: &str = "The broker did not answer the request to stop streaming this \
@@ -41,6 +57,9 @@ pub fn is_not_subscribed(body: &str) -> bool {
 
 /// What the broker answered a refused subscribe with, for the trader.
 fn refused_to_stream(why: &str) -> String {
+    if why == NOT_CHECKED {
+        return why.to_string();
+    }
     format!(
         "The broker refused to stream this instrument ({}).",
         why.trim_end_matches('.')
@@ -69,6 +88,8 @@ pub struct Waited(Arc<Mutex<Answer>>);
 struct Answer {
     /// An admission (else a release).
     admission: bool,
+    /// When an admission stops searching its refused batches.
+    search_until: Option<Instant>,
     commands_left: usize,
     instruments: Vec<(Value, FeedSubscription)>,
     refused: ReleaseRefusals,
@@ -91,6 +112,12 @@ impl Waited {
     /// Whether it is an admission (its passing failures are sent again).
     pub(super) fn admits(&self) -> bool {
         self.0.lock().admission
+    }
+
+    /// When an admission stops searching a refused batch for what the
+    /// broker refuses; `None` for a release, which is never searched.
+    pub(super) fn search_until(&self) -> Option<Instant> {
+        self.0.lock().search_until
     }
 
     /// One command of it ran: what the broker refused (and, for a release,
@@ -175,17 +202,78 @@ pub(super) fn frames(
     } else {
         feed.forget(subs);
     }
-    let mut commands = feed.commands(subs, admission);
+    let commands = feed.commands(subs, admission);
+    (Vec::new(), send_waited(feed, subs, commands, admission))
+}
+
+/// A waited admission's mode upgrades (old, new) as REST commands: each
+/// instrument is taken at its new message code and its old code goes only
+/// once the broker took the new one (`Command::then_release`), so a refusal
+/// leaves it streaming as it was (review X2). An upgrade that keeps its
+/// code (a 5-level book to 20, on one code) is the plain mode change: the
+/// code it streams at does not change and there is nothing to refuse.
+pub(super) fn upgrade_frames(
+    feed: &mut XtsFeed,
+    changes: &[(FeedSubscription, FeedSubscription)],
+) -> (Vec<Message>, Option<ReleaseAnswer>) {
+    let mut frames = Vec::new();
+    let mut upgraded = Vec::new();
+    let mut moves: Vec<((u16, u16), Vec<Value>)> = Vec::new();
+    for (old, new) in changes {
+        let (Some((from, _)), Some((to, inst))) = (feed.instrument(old), feed.instrument(new))
+        else {
+            continue;
+        };
+        if from == to {
+            frames.extend(feed.mode_change_frames(old, new));
+            continue;
+        }
+        upgraded.push(new.clone());
+        match moves.iter_mut().find(|(codes, _)| *codes == (to, from)) {
+            Some((_, v)) => v.push(inst),
+            None => moves.push(((to, from), vec![inst])),
+        }
+    }
+    feed.remember(&upgraded);
+    let commands = moves
+        .into_iter()
+        .map(|((code, from), instruments)| Command {
+            subscribe: true,
+            code,
+            instruments,
+            waited: None,
+            then_release: Some(from),
+        })
+        .collect();
+    let answer = send_waited(feed, &upgraded, commands, true);
+    (frames, answer)
+}
+
+/// Hand the worker `commands`, one waited admission or release of `subs`
+/// between them: where the broker's answer comes, if there is anything to
+/// send.
+fn send_waited(
+    feed: &mut XtsFeed,
+    subs: &[FeedSubscription],
+    mut commands: Vec<Command>,
+    admission: bool,
+) -> Option<ReleaseAnswer> {
     if commands.is_empty() {
-        return (Vec::new(), None);
+        return None;
     }
     let instruments = subs
         .iter()
         .filter_map(|s| feed.instrument(s).map(|(_, i)| (i, s.clone())))
         .collect();
+    let calls: usize = commands
+        .iter()
+        .map(|c| c.instruments.len().div_ceil(SUBSCRIBE_BATCH))
+        .sum();
+    let its_calls = SUBSCRIBE_GAP.saturating_mul(u32::try_from(calls).unwrap_or(u32::MAX));
     let (to, answer) = oneshot::channel();
     let waited = Waited(Arc::new(Mutex::new(Answer {
         admission,
+        search_until: admission.then(|| Instant::now() + its_calls + SEARCH_TIME),
         commands_left: commands.len(),
         instruments,
         refused: Vec::new(),
@@ -198,8 +286,10 @@ pub(super) fn frames(
     for c in commands {
         feed.enqueue(c);
     }
-    (Vec::new(), Some(answer))
+    Some(answer)
 }
 
+#[cfg(test)]
+mod search_tests;
 #[cfg(test)]
 mod tests;

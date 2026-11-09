@@ -119,7 +119,11 @@ impl Runner<'_> {
                 client,
                 message,
                 reply,
-            } => self.send(&at, client, message, reply.as_ref()).await,
+                within,
+            } => {
+                let wait = within.unwrap_or(RECV);
+                self.send(&at, client, message, reply.as_ref(), wait).await
+            }
             Action::CloseClient { client } => {
                 let mut c = self.take(&at, client);
                 let _ = c.ws.close(None).await;
@@ -325,10 +329,17 @@ impl Runner<'_> {
             .unwrap_or_else(|| bad(at, format!("client {} has sent nothing yet", name)))
     }
 
-    async fn send(&mut self, at: &str, name: &str, message: &Value, reply: Option<&Value>) {
+    async fn send(
+        &mut self,
+        at: &str,
+        name: &str,
+        message: &Value,
+        reply: Option<&Value>,
+        within: Duration,
+    ) {
         let c = self.client(name).await;
         c.send(message).await;
-        let got = next_frame(c, RECV)
+        let got = next_frame(c, within)
             .await
             .unwrap_or_else(|| bad(at, format!("client {} got no reply", name)));
         match reply {
