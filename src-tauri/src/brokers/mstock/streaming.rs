@@ -30,6 +30,7 @@
 //!
 //! mStock has no order-update stream.
 
+use crate::brokers::common::mapping::Exchange;
 use crate::brokers::common::streaming::{
     now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedSubscription, Message, NormalizedDepth,
     NormalizedTick, QuoteField, WsRequest,
@@ -220,6 +221,28 @@ fn epoch_ms(raw: u64) -> Option<i64> {
     })
 }
 
+/// An index has no trades of its own, so mStock's fixed packet fills its
+/// last quantity, average price and book totals with 0, which the web
+/// sends on (mstock_adapter.py:362-375). A 0 there is no value: it is left
+/// out, and nothing kept from an earlier packet stands in for it (lead
+/// ruling 2026-11-09, the web's zeros an approved web defect); a value the
+/// packet does carry is sent, as the web sends it.
+fn clear_unfilled_order_flow(t: &mut NormalizedTick) {
+    use QuoteField as F;
+    if t.last_quantity == 0 {
+        t.mark_cleared(F::LastQuantity);
+    }
+    if t.average_price == 0.0 {
+        t.mark_cleared(F::AveragePrice);
+    }
+    if t.total_buy_quantity == 0 {
+        t.mark_cleared(F::TotalBuyQuantity);
+    }
+    if t.total_sell_quantity == 0 {
+        t.mark_cleared(F::TotalSellQuantity);
+    }
+}
+
 /// `{"action": 1|0, "params": {"mode", "tokenList"}}` per mode.
 pub fn sub_frames(subs: &[(u8, u8, String)], subscribe: bool) -> Vec<Message> {
     let mut by_mode: BTreeMap<u8, BTreeMap<u8, Vec<String>>> = BTreeMap::new();
@@ -268,6 +291,8 @@ pub fn feed_url(base: &str, private_key: &str, jwt: &str) -> String {
 struct SubInfo {
     symbol: String,
     exchange: String,
+    /// An index (NSE_INDEX, BSE_INDEX): no trades of its own.
+    index: bool,
 }
 
 pub struct MstockFeed {
@@ -307,6 +332,7 @@ impl MstockFeed {
                     SubInfo {
                         symbol: s.symbol.clone(),
                         exchange: s.exchange.clone(),
+                        index: s.exchange.parse::<Exchange>().is_ok_and(Exchange::is_index),
                     },
                 );
             } else {
@@ -356,6 +382,9 @@ impl MstockFeed {
                 t.close = q.close;
                 t.oi = i64::try_from(q.oi).unwrap_or(0);
                 t.derive_change();
+                if sub.index {
+                    clear_unfilled_order_flow(&mut t);
+                }
             }
             if q.mode == 3 {
                 // Only the full packet has the circuit limits, and the web

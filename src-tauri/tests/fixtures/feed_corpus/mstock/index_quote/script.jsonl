@@ -2,3 +2,5 @@
 {"step": "upstream_receives", "frames": [{"text": "LOGIN:jwt"}, {"json": {"action": 1, "params": {"mode": 2, "tokenList": [{"exchangeType": 1, "tokens": ["26000"]}]}}}]}
 {"step": "push", "frame": "frames/index_quote.hex"}
 {"step": "receive", "client": "a", "frame": "expected/index_quote.json"}
+{"step": "push", "frame": "frames/index_quote_average.hex", "note": "A value the packet fills goes out; the zeros beside it stay left out."}
+{"step": "receive", "client": "a", "frame": "expected/index_quote_average.json"}

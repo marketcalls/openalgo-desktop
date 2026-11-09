@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "mstock",
-  "inputs_sha256": "8a8459b75ab2bfe91d01341c12a72721762b9e4f3894f4d1b67213547ac194d8",
+  "inputs_sha256": "6740fbeac990bf1b818af3b8aa1213d0066717a8a81eb1feae951ae3c52fca33",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -38,6 +38,40 @@
             "last_trade_quantity": 0,
             "last_quantity": 0,
             "average_price": 0.0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 2,
+          "data": {
+            "ltp": 24352.5,
+            "last_trade_time": 1730784060000,
+            "ltt": 1730784060000,
+            "exchange_timestamp": 1730784060000,
+            "open": 24200.0,
+            "high": 24400.5,
+            "low": 24150.25,
+            "close": 24250.0,
+            "prev_close": 24250.0,
+            "volume": 0,
+            "oi": 0,
+            "last_trade_quantity": 0,
+            "last_quantity": 0,
+            "average_price": 24301.4,
             "total_buy_quantity": 0,
             "total_sell_quantity": 0,
             "symbol": "NIFTY",

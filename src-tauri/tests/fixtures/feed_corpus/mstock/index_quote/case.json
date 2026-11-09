@@ -1,6 +1,6 @@
 {
   "broker": "mstock",
-  "summary": "An NSE index in Quote mode: the index frame carries LTP, OHLC, the previous close and the change worked out from them.",
+  "summary": "An NSE index in Quote mode: the frame carries LTP, OHLC and the previous close, no change (mStock's web adapter sends none), and of the order-flow fields only those the packet fills with a value; its zeros are left out.",
   "scenarios": [
     "index"
   ],
