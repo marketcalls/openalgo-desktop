@@ -326,3 +326,122 @@ async fn a_refused_broker_feed_answers_each_item_with_the_reason() {
     manager.disconnect().await.unwrap();
     broker_task.abort();
 }
+
+/// A broker that answers subscribes apart from the socket, as XTS does
+/// over REST: SBIN refused, the rest taken.
+struct RefusingFeed(MockFeed);
+
+impl openalgo_desktop_lib::websocket::BrokerFeed for RefusingFeed {
+    fn broker(&self) -> &'static str {
+        "mock"
+    }
+    fn ws_request(
+        &self,
+    ) -> openalgo_desktop_lib::error::Result<
+        openalgo_desktop_lib::brokers::common::streaming::WsRequest,
+    > {
+        self.0.ws_request()
+    }
+    fn subscribe_frames(
+        &mut self,
+        subs: &[openalgo_desktop_lib::websocket::FeedSubscription],
+    ) -> Vec<Message> {
+        self.0.subscribe_frames(subs)
+    }
+    fn unsubscribe_frames(
+        &mut self,
+        subs: &[openalgo_desktop_lib::websocket::FeedSubscription],
+    ) -> Vec<Message> {
+        self.0.unsubscribe_frames(subs)
+    }
+    fn parse(&mut self, msg: &Message) -> Vec<openalgo_desktop_lib::websocket::FeedEvent> {
+        self.0.parse(msg)
+    }
+    fn admission_frames(
+        &mut self,
+        subs: &[openalgo_desktop_lib::websocket::FeedSubscription],
+    ) -> (
+        Vec<Message>,
+        Option<openalgo_desktop_lib::brokers::common::streaming::ReleaseAnswer>,
+    ) {
+        let (to, answer) = tokio::sync::oneshot::channel();
+        let refused = subs
+            .iter()
+            .filter(|s| s.symbol == "SBIN")
+            .map(|s| {
+                (
+                    s.clone(),
+                    "The broker refused to stream this instrument (instrument not allowed)."
+                        .to_string(),
+                )
+            })
+            .collect();
+        let _ = to.send(refused);
+        (self.0.subscribe_frames(subs), Some(answer))
+    }
+}
+
+/// Review R107-03 at the feed client: an instrument the broker refuses
+/// after the subscribe was sent (XTS's REST answer) is that item's error
+/// in the reply, and nothing holds it; the other item is taken.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_subscribe_the_broker_refuses_after_sending_is_the_items_error() {
+    let (broker_url, _seen, _push, broker_task) = fake_broker().await;
+    let manager = Arc::new(WebSocketManager::new());
+    manager
+        .connect(Box::new(RefusingFeed(MockFeed::new(broker_url))))
+        .await
+        .unwrap();
+    let symbols = SymbolResolver::new();
+    symbols.load(vec![
+        row("RELIANCE", "NSE", "738561"),
+        row("SBIN", "NSE", "779521"),
+    ]);
+    let bridge = BrokerBridge::new(manager.clone(), symbols);
+    bridge.start();
+    let h = start(
+        FeedConfig {
+            port: 0,
+            ..FeedConfig::default()
+        },
+        FeedDeps {
+            source: bridge.clone(),
+            auth: Arc::new(StaticAuth {
+                api_key: API_KEY.into(),
+                user_id: USER_ID.into(),
+                broker: Some(BROKER.into()),
+            }),
+            orders: None,
+            supported_brokers: brokers(),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(eventually(Duration::from_secs(5), || manager.is_connected()).await);
+    let mut c = Client::connect(&format!("ws://{}", h.local_addr())).await;
+    c.auth().await;
+    let ack = c
+        .request(json!({"action": "subscribe", "mode": 2, "symbols": [
+            {"symbol": "RELIANCE", "exchange": "NSE"},
+            {"symbol": "SBIN", "exchange": "NSE"}]}))
+        .await;
+    assert_eq!(ack["status"], "partial", "{}", ack);
+    assert_eq!(ack["subscriptions"][0]["status"], "success", "{}", ack);
+    let refused = &ack["subscriptions"][1];
+    assert_eq!(refused["status"], "error", "{}", ack);
+    assert_eq!(
+        refused["message"],
+        "The broker refused to stream this instrument (instrument not allowed)."
+    );
+    let held: Vec<String> = manager
+        .subscriptions()
+        .into_iter()
+        .map(|s| s.symbol)
+        .collect();
+    assert_eq!(held, ["RELIANCE"]);
+    assert_eq!(h.stats().client_subscriptions, 1);
+    h.stop().await;
+    bridge.stop().await;
+    manager.disconnect().await.unwrap();
+    broker_task.abort();
+}

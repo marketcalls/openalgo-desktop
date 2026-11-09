@@ -12,6 +12,14 @@
 //!   go (`finish_unsubscribe`), so a refused release can be asked again
 //!   and is released once. An owner joining meanwhile asks the source to
 //!   hold the key again.
+//! * One release is one operation (review R107-01, R107-02): it carries a
+//!   ticket, and only the answer to the latest release settles the owner,
+//!   whenever it comes (a reply deadline is not an answer). The same
+//!   client asking again while its release is with the source (a duplicate
+//!   item in one batch, a retry after the deadline) starts a release that
+//!   supersedes it, never a shared owner's removal; the client subscribing
+//!   the key again meanwhile asks the source to hold it, and the release
+//!   then leaves it in place.
 //! * A disconnect (`Registry::remove_client`) drops its owners whatever
 //!   the source answers; a release it starts is the source's to finish.
 
@@ -19,20 +27,30 @@ use super::{source_depth, ClientId, Inner, Registry, SourceKey};
 use crate::feed::source::{answered, InstrumentKey, Mode, SourceOp, SourceOutcome};
 use futures_util::future::{FutureExt, Shared};
 
-/// The source's answer to a key's first owner, which owners joining
-/// before it comes share.
-type Answer = Shared<SourceOp>;
+/// The source's answer to an operation, which everyone waiting on that
+/// operation shares.
+pub type Answer = Shared<SourceOp>;
+
+/// The last owner's release while it is with the source.
+struct Releasing {
+    /// Which release it is (`Release::Waiting`).
+    ticket: u64,
+    answer: Answer,
+}
 
 /// One source key's owners.
 pub(super) struct SourceRef {
     owners: usize,
     /// The source's answer to the subscribe that holds the key now.
     admission: Answer,
-    /// The last owner's release is with the source.
-    releasing: bool,
+    /// The last owner's release, while it is with the source.
+    releasing: Option<Releasing>,
     /// An owner joined while that release was with the source, and asked
     /// the source to hold the key again.
     rejoined: bool,
+    /// The releasing owner itself subscribed the key again meanwhile, and
+    /// asked the source to hold it: the release leaves it in place.
+    reclaimed: bool,
 }
 
 impl SourceRef {
@@ -68,9 +86,10 @@ impl Admission {
 pub enum Release {
     /// Done: the client held nothing, or other owners keep the key.
     Done,
-    /// The source is releasing the key for its last owner; the answer
-    /// goes to `finish_unsubscribe`.
-    Waiting(SourceOp),
+    /// The source is releasing the key for its last owner; its answer,
+    /// with the release's ticket, goes to `finish_unsubscribe`, however
+    /// late it comes.
+    Waiting { answer: Answer, ticket: u64 },
 }
 
 impl Registry {
@@ -95,16 +114,18 @@ impl Registry {
                     SourceRef {
                         owners: 1,
                         admission: admission.clone(),
-                        releasing: false,
+                        releasing: None,
                         rejoined: false,
+                        reclaimed: false,
                     },
                 );
                 Box::pin(admission)
             }
             Some(r) => {
                 r.owners += 1;
-                if (r.releasing && !r.rejoined) || r.refused() {
-                    r.rejoined |= r.releasing;
+                let releasing = r.releasing.is_some();
+                if (releasing && !r.rejoined && !r.reclaimed) || r.refused() {
+                    r.rejoined |= releasing;
                     r.admission = ask();
                 }
                 Box::pin(r.admission.clone())
@@ -112,20 +133,33 @@ impl Registry {
         }
     }
 
-    /// The answer an owner of `(key, mode, depth)` already waits on.
-    pub(super) fn admission_of(
+    /// The answer for a client subscribing again a key it holds: the one it
+    /// holds, unless its own release of the key is with the source (a
+    /// retry after the reply deadline). Then the source is asked to hold the
+    /// key again, and the release leaves the owner in place when it comes
+    /// (review R107-02); a release the broker has refused already is over.
+    pub(super) fn own_admission(
         &self,
-        inner: &Inner,
+        inner: &mut Inner,
         key: &InstrumentKey,
         mode: Mode,
         depth: u8,
     ) -> Admission {
         let sk: SourceKey = (key.clone(), mode, source_depth(mode, depth));
-        let answer = match inner.refcounts.get(&sk) {
-            Some(r) => Box::pin(r.admission.clone()) as SourceOp,
-            None => answered(Ok(())),
+        let Some(r) = inner.refcounts.get_mut(&sk) else {
+            return Admission::new(answered(Ok(())), None);
         };
-        Admission::new(answer, None)
+        if let Some(rel) = &r.releasing {
+            if !r.reclaimed && !r.rejoined {
+                if matches!(rel.answer.peek(), Some(Err(_))) {
+                    r.releasing = None;
+                } else {
+                    r.reclaimed = true;
+                    r.admission = self.source.subscribe(key, mode, sk.2).shared();
+                }
+            }
+        }
+        Admission::new(Box::pin(r.admission.clone()), None)
     }
 
     /// One owner fewer of `(key, mode, depth)`. The last one asks the
@@ -149,8 +183,8 @@ impl Registry {
         let Some(r) = inner.refcounts.remove(&sk) else {
             return;
         };
-        let settled_by_source = if r.releasing {
-            !r.rejoined
+        let settled_by_source = if r.releasing.is_some() {
+            !r.rejoined && !r.reclaimed
         } else {
             r.refused()
         };
@@ -243,18 +277,29 @@ impl Registry {
             return Release::Done;
         };
         let sk: SourceKey = (key.clone(), mode, source_depth(mode, held.depth));
-        let last = inner
-            .refcounts
-            .get(&sk)
-            .is_some_and(|r| r.owners == 1 && !r.releasing && !r.refused());
+        inner.seq += 1;
+        let ticket = inner.seq;
+        let Some(r) = inner.refcounts.get_mut(&sk) else {
+            self.forget(inner, id, key, mode, held.depth);
+            return Release::Done;
+        };
+        // The last owner asks the source to let go; so does this client
+        // again while its own release is with the source (a duplicate item
+        // in one batch, a retry after the reply deadline): the new release
+        // supersedes it, and only its answer settles the owner (review
+        // R107-01, R107-02). It is never taken for a shared owner's.
+        let last = r.owners == 1 && !r.rejoined && (r.releasing.is_some() || !r.refused());
         if !last {
             self.forget(inner, id, key, mode, held.depth);
             return Release::Done;
         }
-        if let Some(r) = inner.refcounts.get_mut(&sk) {
-            r.releasing = true;
-        }
-        Release::Waiting(self.source.unsubscribe(key, mode, sk.2))
+        let answer = self.source.unsubscribe(key, mode, sk.2).shared();
+        r.reclaimed = false;
+        r.releasing = Some(Releasing {
+            ticket,
+            answer: answer.clone(),
+        });
+        Release::Waiting { answer, ticket }
     }
 
     /// Client `id`'s `key` at `mode` is no longer its.
@@ -266,14 +311,17 @@ impl Registry {
         Self::set_slot(inner, id, key, mode, None);
     }
 
-    /// The source answered the release of client `id`'s `key` at `mode`:
-    /// the client goes if the broker let go, and stays its owner (to ask
-    /// again) if not. Nothing when the client left meanwhile.
+    /// The source answered release `ticket` of client `id`'s `key` at
+    /// `mode`: the client goes if the broker let go, and stays its owner
+    /// (to ask again) if not, or if it subscribed the key again meanwhile.
+    /// Nothing when the client left meanwhile, or for an answer to another
+    /// release than the one with the source now.
     pub fn finish_unsubscribe(
         &self,
         id: ClientId,
         key: &InstrumentKey,
         mode: Mode,
+        ticket: u64,
         outcome: &SourceOutcome,
     ) {
         let mut guard = self.inner.lock();
@@ -290,12 +338,13 @@ impl Registry {
         let Some(r) = inner.refcounts.get_mut(&sk) else {
             return;
         };
-        if !r.releasing {
+        if r.releasing.as_ref().map(|rel| rel.ticket) != Some(ticket) {
             return;
         }
-        r.releasing = false;
+        r.releasing = None;
         let rejoined = std::mem::take(&mut r.rejoined);
-        if outcome.is_err() {
+        let reclaimed = std::mem::take(&mut r.reclaimed);
+        if outcome.is_err() || reclaimed {
             return;
         }
         if rejoined {

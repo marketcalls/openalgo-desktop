@@ -8,7 +8,7 @@ use crate::feed::auth::{AuthOutcome, FEED_LOCKED};
 use crate::feed::dialect::subscribe_depth;
 use crate::feed::outbox::Outbox;
 use crate::feed::protocol::{self as p, code, py_str, py_truthy, py_type_name, request_id};
-use crate::feed::registry::{Admission, ClientId, Release};
+use crate::feed::registry::{Admission, Answer, ClientId, Release};
 use crate::feed::source::{InstrumentKey, MarketDataSource, Mode, SourceOutcome, DEFAULT_DEPTH};
 use serde_json::Value;
 use std::future::Future;
@@ -21,8 +21,8 @@ time. Subscribe again in a moment.";
 
 /// What an unsubscribe item answers when the broker has not confirmed the
 /// release in time; the client keeps the subscription (audit C01).
-const NOT_RELEASED_IN_TIME: &str = "The broker has not confirmed that it stopped streaming this \
-instrument, so it stays subscribed. Unsubscribe again to retry.";
+const NOT_RELEASED_IN_TIME: &str = "The broker has not confirmed yet that it stopped streaming \
+this instrument. Unsubscribe again to retry.";
 
 /// The source's answer, or `late` once `limit` has passed.
 async fn within(
@@ -53,6 +53,10 @@ pub(super) struct Session {
     pub(super) broker: Option<String>,
     /// What the client may still send before it is closed (RATE-01).
     pub(super) meter: super::budget::Meter,
+    /// Releases answered after their reply deadline: each settles the
+    /// client's ownership when the broker's answer comes (review R107-02).
+    /// Aborted with the session, which `remove_client` follows.
+    pub(super) late: parking_lot::Mutex<tokio::task::JoinSet<()>>,
 }
 
 fn now_ms() -> i64 {
@@ -567,19 +571,32 @@ impl Session {
         let answers = futures_util::future::join_all(releasing.into_iter().map(|u| async move {
             let outcome = match u.release {
                 Release::Done => None,
-                Release::Waiting(op) => Some(within(limit, op, NOT_RELEASED_IN_TIME).await),
+                Release::Waiting { answer, ticket } => {
+                    let answered = tokio::time::timeout(limit, answer.clone()).await;
+                    Some((ticket, answer, answered.ok()))
+                }
             };
             (u.sym, u.exch, u.key, u.mode, outcome)
         }))
         .await;
         let (mut ok, mut failed) = (Vec::new(), Vec::new());
-        for (sym, exch, key, mode, outcome) in answers {
-            if let Some(outcome) = &outcome {
-                self.shared
-                    .registry
-                    .finish_unsubscribe(self.id, &key, mode, outcome);
-            }
-            let item = unsubscribed(sym, exch, mode, broker, outcome.unwrap_or(Ok(())));
+        for (sym, exch, key, mode, waited) in answers {
+            let outcome = match waited {
+                None => Ok(()),
+                Some((ticket, _, Some(outcome))) => {
+                    self.shared
+                        .registry
+                        .finish_unsubscribe(self.id, &key, mode, ticket, &outcome);
+                    outcome
+                }
+                // The reply deadline is not the broker's answer: the
+                // release stays one operation, settled when that comes.
+                Some((ticket, answer, None)) => {
+                    self.finish_late(key.clone(), mode, ticket, answer);
+                    Err(NOT_RELEASED_IN_TIME.to_string())
+                }
+            };
+            let item = unsubscribed(sym, exch, mode, broker, outcome);
             if item.message.is_some() {
                 failed.push(item);
             } else {
@@ -587,6 +604,20 @@ impl Session {
             }
         }
         (ok, failed)
+    }
+
+    /// Settle release `ticket` of `key` at `mode` when the broker answers
+    /// after the reply went out (review R107-02).
+    fn finish_late(&self, key: InstrumentKey, mode: Mode, ticket: u64, answer: Answer) {
+        let (shared, id) = (self.shared.clone(), self.id);
+        let mut late = self.late.lock();
+        while late.try_join_next().is_some() {}
+        late.spawn(async move {
+            let outcome = answer.await;
+            shared
+                .registry
+                .finish_unsubscribe(id, &key, mode, ticket, &outcome);
+        });
     }
 
     async fn unsubscribe(&mut self, data: &Value) -> Result<(), String> {

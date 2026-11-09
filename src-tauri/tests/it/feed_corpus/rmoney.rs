@@ -30,6 +30,7 @@ corpus_cases!(
         quote_touchline,
         reconnect_replays,
         server_disconnect_reconnects,
+        subscribe_refused_by_the_broker,
         text_1105,
         unsubscribe_keeps_the_others,
     ]

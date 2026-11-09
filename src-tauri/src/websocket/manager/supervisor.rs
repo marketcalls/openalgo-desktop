@@ -723,13 +723,17 @@ impl Supervisor {
                 }
                 Delta::Unsubscribe(s) => {
                     if !subs.is_empty() {
-                        frames.extend(self.feed.subscribe_frames(&std::mem::take(&mut subs)));
+                        frames.extend(
+                            self.subscribe_run(std::mem::take(&mut subs), later.as_deref_mut()),
+                        );
                     }
                     unsubs.push(s);
                 }
                 Delta::ModeChange(old, new) => {
                     if !subs.is_empty() {
-                        frames.extend(self.feed.subscribe_frames(&std::mem::take(&mut subs)));
+                        frames.extend(
+                            self.subscribe_run(std::mem::take(&mut subs), later.as_deref_mut()),
+                        );
                     }
                     if !unsubs.is_empty() {
                         frames.extend(
@@ -741,7 +745,7 @@ impl Supervisor {
             }
         }
         if !subs.is_empty() {
-            frames.extend(self.feed.subscribe_frames(&subs));
+            frames.extend(self.subscribe_run(subs, later.as_deref_mut()));
         }
         if !unsubs.is_empty() {
             frames.extend(self.release_run(unsubs, later));
@@ -751,6 +755,24 @@ impl Supervisor {
 
     /// The frames of one run of unsubscribes; for a waited release, through
     /// `BrokerFeed::release_frames`, keeping the broker's later answer.
+    /// The frames of one run of subscribes; for an admission its caller
+    /// waits on, through `BrokerFeed::admission_frames`, keeping the
+    /// broker's later answer (review R107-03).
+    fn subscribe_run(
+        &mut self,
+        subs: Vec<FeedSubscription>,
+        later: Option<&mut Later>,
+    ) -> Vec<Message> {
+        let Some(later) = later else {
+            return self.feed.subscribe_frames(&subs);
+        };
+        let (frames, answer) = self.feed.admission_frames(&subs);
+        if let Some(answer) = answer {
+            later.push((subs, answer));
+        }
+        frames
+    }
+
     fn release_run(
         &mut self,
         unsubs: Vec<FeedSubscription>,

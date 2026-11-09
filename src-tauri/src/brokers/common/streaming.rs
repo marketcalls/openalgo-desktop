@@ -378,12 +378,14 @@ impl std::fmt::Debug for OrderFeed {
 /// Events published to subscribers of the manager (shared, cheap to clone).
 pub type MarketEvent = Arc<FeedEvent>;
 
-/// The instruments a broker refused to release, each with why, for the
-/// trader (`BrokerFeed::release_frames`).
+/// The instruments a broker refused to release (or, for an admission, to
+/// stream), each with why, for the trader (`BrokerFeed::release_frames`,
+/// `BrokerFeed::admission_frames`).
 pub type ReleaseRefusals = Vec<(FeedSubscription, String)>;
 
-/// Where a broker that answers a release apart from the socket sends that
-/// answer (`BrokerFeed::release_frames`).
+/// Where a broker that answers a release or an admission apart from the
+/// socket sends that answer (`BrokerFeed::release_frames`,
+/// `BrokerFeed::admission_frames`).
 pub type ReleaseAnswer = tokio::sync::oneshot::Receiver<ReleaseRefusals>;
 
 /// A broker's step before a new instrument is subscribed
@@ -521,6 +523,19 @@ pub trait BrokerFeed: Send + Sync {
         subs: &[FeedSubscription],
     ) -> (Vec<Message>, Option<ReleaseAnswer>) {
         (self.unsubscribe_frames(subs), None)
+    }
+
+    /// The subscribe frames for `subs` when the manager waits on the
+    /// admission, and where a broker that answers subscribes apart from the
+    /// socket (XTS over REST) sends the instruments it refused, with why
+    /// (review R107-03); a sender dropped without an answer refuses
+    /// nothing (the next connection subscribes them again). Default: the
+    /// subscribe frames, whose writing is the whole admission.
+    fn admission_frames(
+        &mut self,
+        subs: &[FeedSubscription],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        (self.subscribe_frames(subs), None)
     }
 
     /// Frames that move an instrument from one effective mode to another.

@@ -186,9 +186,9 @@ pub struct Command {
     pub subscribe: bool,
     pub code: u16,
     pub instruments: Vec<Value>,
-    /// A release the manager waits on: answered, never retried behind its
-    /// caller's back (audit C01).
-    pub release: Option<release::Waited>,
+    /// A release or an admission the manager waits on: answered; a release
+    /// is never retried behind its caller's back (audit C01, R107-03).
+    pub waited: Option<release::Waited>,
 }
 
 /// Whether the market-data token may be sent to `url`.
@@ -383,6 +383,15 @@ pub async fn run_command(
     for batch in cmd.instruments.chunks(SUBSCRIBE_BATCH) {
         let (batch, r) = call(batch.to_vec()).await;
         match r {
+            // One refused instrument must not refuse its batch when each
+            // has an owner waiting for its own answer (R107-03).
+            Err(CallError::Refused(_))
+                if cmd.subscribe && cmd.waited.is_some() && batch.len() > 1 =>
+            {
+                for inst in batch {
+                    outcomes.push(call(vec![inst]).await);
+                }
+            }
             Ok(CallOutcome::AlreadySubscribed)
                 if t.split_duplicates && cmd.subscribe && batch.len() > 1 =>
             {
@@ -692,7 +701,7 @@ impl XtsFeed {
                 subscribe,
                 code,
                 instruments,
-                release: None,
+                waited: None,
             })
             .collect()
     }
@@ -940,11 +949,7 @@ impl BrokerFeed for XtsFeed {
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
-        for s in subs {
-            if let Some(k) = Self::key(s) {
-                self.book.insert(k, s.clone());
-            }
-        }
+        self.remember(subs);
         for c in self.commands(subs, true) {
             self.enqueue(c);
         }
@@ -963,7 +968,14 @@ impl BrokerFeed for XtsFeed {
         &mut self,
         subs: &[FeedSubscription],
     ) -> (Vec<Message>, Option<ReleaseAnswer>) {
-        release::frames(self, subs)
+        release::frames(self, subs, false)
+    }
+
+    fn admission_frames(
+        &mut self,
+        subs: &[FeedSubscription],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        release::frames(self, subs, true)
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

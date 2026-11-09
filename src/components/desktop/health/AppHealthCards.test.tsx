@@ -318,6 +318,35 @@ describe('App health cards', () => {
     expect(warning).toHaveTextContent(/Order updates are not arriving from the broker now/)
   })
 
+  it('counts the symbols a further connection that is not up does not stream', () => {
+    render(
+      <AppHealthCards
+        read={fresh({
+          market_data: {
+            status: 'warn',
+            broker_feeds: [
+              {
+                ...feed('market_data', {}, {}),
+                connections: {
+                  per_connection: 1000,
+                  most: 3,
+                  open: [
+                    { instruments: 1000, state: 'connected' },
+                    { instruments: 1, state: 'auth_failed' },
+                  ],
+                },
+              },
+            ],
+            feed_clients: { coalesced: 0, dropped: 0, skipped: 0 },
+          },
+        })}
+      />
+    )
+    expect(rowValue('Broker market data')).toBe(
+      '1,200 updates since it connected, 1,001 symbols on 2 connections; 1 of them not streaming'
+    )
+  })
+
   it('names an order source that is up without warning', () => {
     render(
       <AppHealthCards

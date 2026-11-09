@@ -209,6 +209,19 @@ impl Registry {
     }
 }
 
+/// Changes grouped by the connection that carries their instruments, in
+/// first-seen order.
+pub(super) fn by_conn(deltas: Vec<Routed>) -> Vec<(usize, Vec<Delta>)> {
+    let mut out: Vec<(usize, Vec<Delta>)> = Vec::new();
+    for (conn, d) in deltas {
+        match out.iter_mut().find(|(c, _)| *c == conn) {
+            Some((_, v)) => v.push(d),
+            None => out.push((conn, vec![d])),
+        }
+    }
+    out
+}
+
 /// One flush's changes as the web sends them (bk-b): each instrument's net
 /// change, the unsubscribes first, then the mode changes, then the
 /// subscribes, so a subscribe never reaches a broker at its cap before the

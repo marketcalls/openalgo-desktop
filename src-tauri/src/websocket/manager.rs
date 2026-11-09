@@ -36,6 +36,7 @@ use std::time::Duration;
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 
+mod admission;
 mod heartbeat;
 mod losses;
 mod packet;
@@ -49,7 +50,7 @@ pub use losses::{Reader, SinceConnect};
 use packet::PacketOut;
 pub use packet::{MarketPacket, Packet, PacketKind, SessionId};
 pub use pool::{FeedFactory, PoolLimits};
-use registry::{Delta, Registry, Routed};
+use registry::{by_conn, Delta, Registry, Routed};
 use release::Written;
 pub use stats::{Connection, DropCause, FeedStats, LastDrop};
 #[cfg(test)]
@@ -460,7 +461,9 @@ impl WebSocketManager {
     }
 
     /// Add references, all or none; the broker is told only about
-    /// instruments whose effective mode changed.
+    /// instruments whose effective mode changed. A broker that answers
+    /// subscribes apart from the socket is waited on, and a refusal fails
+    /// the call, letting go of what it took (review R107-03).
     pub async fn subscribe(&self, subs: Vec<FeedSubscription>) -> Result<()> {
         let subs = self
             .presubscribed(subs)
@@ -469,7 +472,7 @@ impl WebSocketManager {
             .collect::<std::result::Result<Vec<_>, String>>()
             .map_err(AppError::Validation)?;
         let usable = self.usable();
-        let deltas = {
+        let (placed, deltas) = {
             let mut reg = self.registry.lock();
             let open = |c: usize| usable.get(c).copied().unwrap_or(true);
             let free: usize = (0..reg.limits.connections)
@@ -483,15 +486,28 @@ impl WebSocketManager {
                 return Err(AppError::Validation(self.no_room(&reg)));
             }
             let mut deltas = Vec::new();
+            let mut placed = Vec::new();
             for s in subs {
                 if let Some(conn) = reg.place(&s, &open) {
+                    placed.push(Some(s.clone()));
                     deltas.extend(reg.add(s, conn));
                 }
             }
-            (deltas, reg.changes)
+            (placed, (deltas, reg.changes))
         };
-        self.apply(deltas).await;
-        Ok(())
+        let refused = self.apply_admitted(deltas).await;
+        let Some(why) = refused.values().next().cloned() else {
+            return Ok(());
+        };
+        // All or none: what the broker took goes again with the refusal.
+        self.let_go_refused(&placed, &refused);
+        let taken: Vec<FeedSubscription> = placed
+            .into_iter()
+            .flatten()
+            .filter(|s| !refused.contains_key(&s.instrument_key()))
+            .collect();
+        let _ = self.unsubscribe(taken).await;
+        Err(AppError::Validation(why))
     }
 
     /// Add references one by one, each while a connection has room for
@@ -504,30 +520,45 @@ impl WebSocketManager {
     pub async fn admit(&self, subs: Vec<FeedSubscription>) -> Vec<std::result::Result<(), String>> {
         let prepared = self.presubscribed(subs).await;
         let usable = self.usable();
-        let (answers, deltas) = {
+        let (mut answers, placed, deltas) = {
             let mut reg = self.registry.lock();
             let open = |c: usize| usable.get(c).copied().unwrap_or(true);
             let mut answers = Vec::with_capacity(prepared.len());
+            let mut placed = Vec::with_capacity(prepared.len());
             let mut deltas = Vec::new();
             for p in prepared {
                 let s = match p {
                     Ok(s) => s,
                     Err(why) => {
                         answers.push(Err(why));
+                        placed.push(None);
                         continue;
                     }
                 };
                 match reg.place(&s, &open) {
                     Some(conn) => {
+                        placed.push(Some(s.clone()));
                         deltas.extend(reg.add(s, conn));
                         answers.push(Ok(()));
                     }
-                    None => answers.push(Err(self.no_room(&reg))),
+                    None => {
+                        placed.push(None);
+                        answers.push(Err(self.no_room(&reg)));
+                    }
                 }
             }
-            (answers, (deltas, reg.changes))
+            (answers, placed, (deltas, reg.changes))
         };
-        self.apply(deltas).await;
+        // Taken once the broker took it (review R107-03).
+        let refused = self.apply_admitted(deltas).await;
+        if !refused.is_empty() {
+            self.let_go_refused(&placed, &refused);
+            for (answer, s) in answers.iter_mut().zip(&placed) {
+                if let Some(why) = s.as_ref().and_then(|s| refused.get(&s.instrument_key())) {
+                    *answer = Err(why.clone());
+                }
+            }
+        }
         answers
     }
 
@@ -566,14 +597,7 @@ impl WebSocketManager {
         if deltas.is_empty() {
             return;
         }
-        let mut by_conn: Vec<(usize, Vec<Delta>)> = Vec::new();
-        for (conn, d) in deltas {
-            match by_conn.iter_mut().find(|(c, _)| *c == conn) {
-                Some((_, v)) => v.push(d),
-                None => by_conn.push((conn, vec![d])),
-            }
-        }
-        for (conn, deltas) in by_conn {
+        for (conn, deltas) in by_conn(deltas) {
             let tx = self
                 .connections
                 .lock()
@@ -603,6 +627,8 @@ impl Drop for WebSocketManager {
     }
 }
 
+#[cfg(test)]
+mod admission_tests;
 #[cfg(test)]
 mod deadline_tests;
 #[cfg(test)]

@@ -1,9 +1,18 @@
-//! A release the manager waits on (audit C01, `BrokerFeed::release_frames`).
-//! XTS lets go of an instrument through a REST call, so the answer comes
-//! from the subscription worker, not from the socket: the instruments the
-//! broker did not let go go back to the manager with why, and such a
-//! release is never retried in the background, since its caller keeps the
-//! subscription and asks again (web `_unsubscribe_owned_subscription`).
+//! A release or an admission the manager waits on (audit C01, review
+//! R107-03; `BrokerFeed::release_frames`, `admission_frames`). XTS takes
+//! and lets go of an instrument through a REST call, so the answer comes
+//! from the subscription worker, not from the socket.
+//!
+//! * A release: the instruments the broker did not let go go back to the
+//!   manager with why, and such a release is never retried in the
+//!   background, since its caller keeps the subscription and asks again
+//!   (web `_unsubscribe_owned_subscription`).
+//! * An admission: the instruments the broker refused go back with why, so
+//!   their owners are told and let go. A passing failure (no answer, a
+//!   server error) or a refused token is not a refusal: the worker sends
+//!   it again, and a new session subscribes it again. The web logs a
+//!   refused subscribe and acknowledges it (a web defect: it never
+//!   streams).
 
 use super::{mapping, CommandReport, XtsFeed};
 use crate::brokers::common::streaming::{
@@ -30,6 +39,14 @@ pub fn is_not_subscribed(body: &str) -> bool {
     body.to_ascii_lowercase().contains("not subscribed")
 }
 
+/// What the broker answered a refused subscribe with, for the trader.
+fn refused_to_stream(why: &str) -> String {
+    format!(
+        "The broker refused to stream this instrument ({}).",
+        why.trim_end_matches('.')
+    )
+}
+
 /// What the broker answered a refused release with, for the trader.
 fn refused(why: &str) -> String {
     if why == TOKEN_REFUSED {
@@ -50,6 +67,8 @@ Unsubscribe again to retry.",
 pub struct Waited(Arc<Mutex<Answer>>);
 
 struct Answer {
+    /// An admission (else a release).
+    admission: bool,
     commands_left: usize,
     instruments: Vec<(Value, FeedSubscription)>,
     refused: ReleaseRefusals,
@@ -69,15 +88,35 @@ impl PartialEq for Waited {
 }
 
 impl Waited {
-    /// One command of the release ran: what the broker refused or did not
-    /// answer joins the answer, sent once every command has run.
-    pub(super) fn ran(&self, report: CommandReport) {
+    /// Whether it is an admission (its passing failures are sent again).
+    pub(super) fn admits(&self) -> bool {
+        self.0.lock().admission
+    }
+
+    /// One command of it ran: what the broker refused (and, for a release,
+    /// did not answer) joins the answer, sent once every command has run.
+    pub(super) fn ran(&self, report: &CommandReport) {
         let mut a = self.0.lock();
-        let failed = report
-            .refused
-            .into_iter()
-            .map(|(i, why)| (i, refused(&why)))
-            .chain(report.retry.into_iter().map(|i| (i, NO_ANSWER.to_string())));
+        let failed: Vec<(Value, String)> = if a.admission {
+            report
+                .refused
+                .iter()
+                .filter(|(_, why)| why != TOKEN_REFUSED)
+                .map(|(i, why)| (i.clone(), refused_to_stream(why)))
+                .collect()
+        } else {
+            report
+                .refused
+                .iter()
+                .map(|(i, why)| (i.clone(), refused(why)))
+                .chain(
+                    report
+                        .retry
+                        .iter()
+                        .map(|i| (i.clone(), NO_ANSWER.to_string())),
+                )
+                .collect()
+        };
         for (inst, why) in failed {
             if let Some((_, s)) = a.instruments.iter().find(|(i, _)| *i == inst) {
                 let s = s.clone();
@@ -103,6 +142,15 @@ impl XtsFeed {
         Some((code, inst))
     }
 
+    /// Decode these instruments' events.
+    pub(super) fn remember(&mut self, subs: &[FeedSubscription]) {
+        for s in subs {
+            if let Some(k) = Self::key(s) {
+                self.book.insert(k, s.clone());
+            }
+        }
+    }
+
     /// Stop decoding these instruments' events.
     pub(super) fn forget(&mut self, subs: &[FeedSubscription]) {
         for s in subs {
@@ -113,14 +161,20 @@ impl XtsFeed {
     }
 }
 
-/// The release of `subs` as REST commands the worker answers: no socket
-/// frames, and the receiver of the broker's answer.
+/// The release (or, with `admission`, the subscribe) of `subs` as REST
+/// commands the worker answers: no socket frames, and the receiver of the
+/// broker's answer.
 pub(super) fn frames(
     feed: &mut XtsFeed,
     subs: &[FeedSubscription],
+    admission: bool,
 ) -> (Vec<Message>, Option<ReleaseAnswer>) {
-    feed.forget(subs);
-    let mut commands = feed.commands(subs, false);
+    if admission {
+        feed.remember(subs);
+    } else {
+        feed.forget(subs);
+    }
+    let mut commands = feed.commands(subs, admission);
     if commands.is_empty() {
         return (Vec::new(), None);
     }
@@ -130,13 +184,14 @@ pub(super) fn frames(
         .collect();
     let (to, answer) = oneshot::channel();
     let waited = Waited(Arc::new(Mutex::new(Answer {
+        admission,
         commands_left: commands.len(),
         instruments,
         refused: Vec::new(),
         to: Some(to),
     })));
     for c in &mut commands {
-        c.release = Some(waited.clone());
+        c.waited = Some(waited.clone());
     }
     drop(waited);
     for c in commands {
