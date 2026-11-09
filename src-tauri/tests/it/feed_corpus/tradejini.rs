@@ -42,5 +42,6 @@ corpus_cases!(
         future_quote_oi,
         future_depth_oi,
         currency_quote_divisor,
+        depth_20_30_50_refused,
     ]
 );

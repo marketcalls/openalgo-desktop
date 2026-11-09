@@ -118,8 +118,11 @@ class Tradejini(Glue):
         self.stream.stream_cb = self.ad._on_data
 
     def subscribe(self, row, mode, depth):
+        # A refusal (a depth other than 5) stores nothing and sends nothing
+        # to Tradejini; the web's proxy answers it (`server.py:1286-1330`),
+        # which the case pins as the subscribe's reply.
         response = self.ad.subscribe(row["symbol"], row["exchange"], mode, depth)
-        if response.get("status") != "success":
+        if response.get("status") != "success" and response.get("code") != "INVALID_DEPTH":
             raise SystemExit(f"the web refuses this subscribe: {response}")
 
     def unsubscribe(self, row, mode, depth):

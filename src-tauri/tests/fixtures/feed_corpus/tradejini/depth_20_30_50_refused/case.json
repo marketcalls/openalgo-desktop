@@ -1,0 +1,32 @@
+{
+  "broker": "tradejini",
+  "summary": "SBIN Depth at 20, 30 and 50 levels: refused with the web's words and its partial reply, nothing subscribed at Tradejini.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"type\":\"PING\"}\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py:1286-1330 (the subscribe reply)",
+      "feed/refusals.rs (lane life)"
+    ],
+    "notes": [
+      "The web's adapter refuses any depth but 5 in Depth mode before it looks the symbol up (tradejini_adapter.py:462-465, INVALID_DEPTH), ahead of its capability registry's fallback; the proxy then answers status partial with the item's message. web.json has no pushes: the reply is the case's check."
+    ]
+  },
+  "deviations": []
+}
