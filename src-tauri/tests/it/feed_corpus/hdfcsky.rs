@@ -36,5 +36,8 @@ corpus_cases!(
         two_clients_mode_change,
         one_token_on_two_exchanges,
         no_trade_yet,
+        empty_book_first,
+        empty_book_between_books,
+        empty_book_quote_and_depth,
     ]
 );
