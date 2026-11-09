@@ -1,0 +1,30 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY28OCT26FUT",
+  "exchange": "NFO",
+  "mode": 3,
+  "broker": "motilal",
+  "data": {
+    "symbol": "NIFTY28OCT26FUT",
+    "exchange": "NFO",
+    "ltp": 0.0,
+    "timestamp": "<receipt_ms>",
+    "depth": {
+      "buy": [
+        {
+          "price": 25010.0,
+          "quantity": 75,
+          "orders": 1
+        }
+      ],
+      "sell": [
+        {
+          "price": 25011.0,
+          "quantity": 150,
+          "orders": 2
+        }
+      ]
+    },
+    "mode": 3
+  }
+}

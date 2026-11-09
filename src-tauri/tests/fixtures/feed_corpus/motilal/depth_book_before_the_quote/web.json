@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "9d73255bc8da2408f20d373ecbd4baed292dff9d7918c9167d94ab6ed30f5fa0",
+  "inputs_sha256": "f66fa2eab5d01de49e8caa971b3f88189d852afa15caf3d68876c9afc24d4cdf",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -24,17 +24,7 @@
       "deliveries": []
     },
     {
-      "line": 6,
-      "published": [],
-      "deliveries": []
-    },
-    {
       "line": 7,
-      "published": [],
-      "deliveries": []
-    },
-    {
-      "line": 8,
       "published": [],
       "deliveries": []
     },
@@ -45,6 +35,16 @@
     },
     {
       "line": 11,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 13,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 15,
       "published": [
         {
           "kind": "market",
@@ -138,7 +138,7 @@
       ]
     },
     {
-      "line": 13,
+      "line": 17,
       "published": [
         {
           "kind": "market",
@@ -232,7 +232,7 @@
       ]
     },
     {
-      "line": 15,
+      "line": 19,
       "published": [
         {
           "kind": "market",
@@ -326,7 +326,7 @@
       ]
     },
     {
-      "line": 17,
+      "line": 21,
       "published": [
         {
           "kind": "market",

@@ -39,14 +39,14 @@
       "kind": "web-defect",
       "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",
       "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:815, :820, :845",
-      "approved": true
+      "approval": "alias-unit"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get(\"OI\", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data).",
       "ref": "tradejini_adapter.py:851",
-      "approved": true
+      "approval": "leave-out-unsent"
     }
   ]
 }

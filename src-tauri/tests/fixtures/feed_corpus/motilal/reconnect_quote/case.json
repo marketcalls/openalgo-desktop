@@ -35,35 +35,35 @@
       "kind": "web-defect",
       "reason": "Before any trade the web's poll publishes a Quote from the scrip's other packets with ltp 0 (motilal_adapter.py _normalize_quote_data: quote.get('ltp', 0)), a price nothing traded at; the desktop publishes nothing until Motilal's first last-trade packet (lead rules: no zero LTP from a packet without a trade).",
       "ref": "motilal_adapter.py _normalize_quote_data",
-      "approved": true
+      "approval": "no-price-packet"
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "After the reconnect the web still publishes the day OHLC it received before the outage (MotilalWebSocket.on_close clears nothing), a pre-outage value promoted as current; the desktop starts the scrip afresh on the new connection and leaves OHLC out until Motilal sends the G packet again (lead decision 2026-11-09, as for Upstox).",
       "ref": "motilal_websocket.py on_close; motilal/streaming.rs MotilalFeed::on_connected",
-      "approved": true
+      "approval": "merge-restart-on-reconnect"
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "After the reconnect the web still publishes the day OHLC it received before the outage (MotilalWebSocket.on_close clears nothing), a pre-outage value promoted as current; the desktop starts the scrip afresh on the new connection and leaves OHLC out until Motilal sends the G packet again (lead decision 2026-11-09, as for Upstox).",
       "ref": "motilal_websocket.py on_close; motilal/streaming.rs MotilalFeed::on_connected",
-      "approved": true
+      "approval": "merge-restart-on-reconnect"
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "After the reconnect the web still publishes the day OHLC it received before the outage (MotilalWebSocket.on_close clears nothing), a pre-outage value promoted as current; the desktop starts the scrip afresh on the new connection and leaves OHLC out until Motilal sends the G packet again (lead decision 2026-11-09, as for Upstox).",
       "ref": "motilal_websocket.py on_close; motilal/streaming.rs MotilalFeed::on_connected",
-      "approved": true
+      "approval": "merge-restart-on-reconnect"
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "After the reconnect the web still publishes the day OHLC it received before the outage (MotilalWebSocket.on_close clears nothing), a pre-outage value promoted as current; the desktop starts the scrip afresh on the new connection and leaves OHLC out until Motilal sends the G packet again (lead decision 2026-11-09, as for Upstox).",
       "ref": "motilal_websocket.py on_close; motilal/streaming.rs MotilalFeed::on_connected",
-      "approved": true
+      "approval": "merge-restart-on-reconnect"
     },
     {
       "key": "missing-frame:stale-quote-after-reconnect",

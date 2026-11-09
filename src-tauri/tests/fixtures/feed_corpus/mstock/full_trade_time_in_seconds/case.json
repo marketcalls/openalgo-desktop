@@ -31,14 +31,14 @@
       "kind": "web-defect",
       "reason": "mStock's full packet carries the last traded time in epoch seconds (web test/test_mstock_quote_feed.py: last_traded_timestamp=1730783990 beside an exchange timestamp in ms); the web sends it as ltt unconverted, in seconds, while feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends it in ms (brokers/mstock/streaming.rs trade_time_ms).",
       "ref": "mstock_adapter.py:351-356",
-      "approved": true
+      "approval": "alias-unit"
     },
     {
       "key": "last_trade_time",
       "kind": "web-defect",
       "reason": "The web's last_trade_time is the packet's own time field as sent: the exchange time in epoch ms for LTP and Quote packets, the last traded timestamp in epoch seconds for a full packet (mstock_adapter.py:351-356), so the same key is off by 1000 between a Quote and a Depth frame of one instrument. The desktop sends it in epoch ms in every mode (feed/dialect/names.rs MSTOCK, Millis), as the web's own LTP and Quote frames do (lead ruling 2026-11-09).",
       "ref": "mstock_adapter.py:355; feed::dialect (mStock last_trade_time in ms, openalgo#2383)",
-      "approved": true
+      "approval": "alias-unit-switch"
     }
   ]
 }

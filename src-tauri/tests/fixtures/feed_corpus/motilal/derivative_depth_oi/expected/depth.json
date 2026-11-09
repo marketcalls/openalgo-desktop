@@ -11,12 +11,12 @@
     "timestamp": "<receipt_ms>",
     "volume": 150000,
     "average_price": 25000.25,
+    "ltq": 75,
     "open": 24990.0,
     "high": 25060.0,
     "low": 24980.0,
     "close": 24920.0,
     "oi": 1500,
-    "ltq": 75,
     "depth": {
       "buy": [
         {

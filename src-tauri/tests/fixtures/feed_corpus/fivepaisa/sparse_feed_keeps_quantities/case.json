@@ -1,0 +1,81 @@
+{
+  "broker": "fivepaisa",
+  "summary": "Quote on NSE cash: after a full MarketFeedV3 frame, a sparse frame repeating only LastRate keeps the known volume, last quantity and book totals; a later frame with an explicit 0 for one of them replaces that one alone.",
+  "scenarios": [
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_data",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._update_snapshot",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "The full frame is the web test's FEED (quote_mode's); the sparse and zero frames are the review's input (R107-08, BR-107-02) and one explicit 0 per quantity, worked here. Whether live MarketFeedV3 frames omit quantities is not verified.",
+      "Prices are not affected: a missing or 0 price is held on both sides (the average price included)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "5paisa's MarketFeedV3 frame may repeat only what changed (here LastRate alone); the web reads every quantity it does not repeat as 0 (_quote_fields and _normalize_market_data: feed.get(\"TotalQty\", 0), LastQty, TBidQ, TOffQ, BidQty, OffQty; only prices are held), so it sends invented zeros over the known quantities. The desktop keeps the last known value until 5paisa sends another, an explicit 0 included (review R107-08). Inherited web defect, approved by the lead's review-fixes decision.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; review R107-08, BR-107-02",
+      "approval": "inherited-omissions"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa's MarketFeedV3 frame may repeat only what changed (here LastRate alone); the web reads every quantity it does not repeat as 0 (_quote_fields and _normalize_market_data: feed.get(\"TotalQty\", 0), LastQty, TBidQ, TOffQ, BidQty, OffQty; only prices are held), so it sends invented zeros over the known quantities. The desktop keeps the last known value until 5paisa sends another, an explicit 0 included (review R107-08). Inherited web defect, approved by the lead's review-fixes decision.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; review R107-08, BR-107-02",
+      "approval": "inherited-omissions"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa's MarketFeedV3 frame may repeat only what changed (here LastRate alone); the web reads every quantity it does not repeat as 0 (_quote_fields and _normalize_market_data: feed.get(\"TotalQty\", 0), LastQty, TBidQ, TOffQ, BidQty, OffQty; only prices are held), so it sends invented zeros over the known quantities. The desktop keeps the last known value until 5paisa sends another, an explicit 0 included (review R107-08). Inherited web defect, approved by the lead's review-fixes decision.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; review R107-08, BR-107-02",
+      "approval": "inherited-omissions"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa's MarketFeedV3 frame may repeat only what changed (here LastRate alone); the web reads every quantity it does not repeat as 0 (_quote_fields and _normalize_market_data: feed.get(\"TotalQty\", 0), LastQty, TBidQ, TOffQ, BidQty, OffQty; only prices are held), so it sends invented zeros over the known quantities. The desktop keeps the last known value until 5paisa sends another, an explicit 0 included (review R107-08). Inherited web defect, approved by the lead's review-fixes decision.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; review R107-08, BR-107-02",
+      "approval": "inherited-omissions"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa's MarketFeedV3 frame may repeat only what changed (here LastRate alone); the web reads every quantity it does not repeat as 0 (_quote_fields and _normalize_market_data: feed.get(\"TotalQty\", 0), LastQty, TBidQ, TOffQ, BidQty, OffQty; only prices are held), so it sends invented zeros over the known quantities. The desktop keeps the last known value until 5paisa sends another, an explicit 0 included (review R107-08). Inherited web defect, approved by the lead's review-fixes decision.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; review R107-08, BR-107-02",
+      "approval": "inherited-omissions"
+    },
+    {
+      "key": "bid_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa's MarketFeedV3 frame may repeat only what changed (here LastRate alone); the web reads every quantity it does not repeat as 0 (_quote_fields and _normalize_market_data: feed.get(\"TotalQty\", 0), LastQty, TBidQ, TOffQ, BidQty, OffQty; only prices are held), so it sends invented zeros over the known quantities. The desktop keeps the last known value until 5paisa sends another, an explicit 0 included (review R107-08). Inherited web defect, approved by the lead's review-fixes decision.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; review R107-08, BR-107-02",
+      "approval": "inherited-omissions"
+    },
+    {
+      "key": "ask_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa's MarketFeedV3 frame may repeat only what changed (here LastRate alone); the web reads every quantity it does not repeat as 0 (_quote_fields and _normalize_market_data: feed.get(\"TotalQty\", 0), LastQty, TBidQ, TOffQ, BidQty, OffQty; only prices are held), so it sends invented zeros over the known quantities. The desktop keeps the last known value until 5paisa sends another, an explicit 0 included (review R107-08). Inherited web defect, approved by the lead's review-fixes decision.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; review R107-08, BR-107-02",
+      "approval": "inherited-omissions"
+    }
+  ]
+}

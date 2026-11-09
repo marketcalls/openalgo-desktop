@@ -1,0 +1,284 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "fivepaisa",
+  "inputs_sha256": "50b3b9d8b02c542e38c2ebf051a1dab22cd7ae9379599e27407084c86df012b3",
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_QUOTE",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 2,
+          "data": {
+            "ltp": 440.1,
+            "volume": 1200,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 5,
+            "last_quantity": 5,
+            "average_price": 441.3,
+            "percent_change": -0.6321969,
+            "ltt": 1759900055000,
+            "last_trade_time": 1759900055000,
+            "total_buy_quantity": 100,
+            "total_sell_quantity": 200,
+            "bid_price": 440.0,
+            "bid_quantity": 10,
+            "ask_price": 440.2,
+            "ask_quantity": 12,
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_QUOTE",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 2,
+          "data": {
+            "ltp": 441,
+            "volume": 0,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 0,
+            "last_quantity": 0,
+            "average_price": 441.3,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "bid_price": 440.0,
+            "bid_quantity": 0,
+            "ask_price": 440.2,
+            "ask_quantity": 0,
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_QUOTE",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 2,
+          "data": {
+            "ltp": 441.5,
+            "volume": 0,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 0,
+            "last_quantity": 0,
+            "average_price": 441.3,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "bid_price": 440.0,
+            "bid_quantity": 0,
+            "ask_price": 440.2,
+            "ask_quantity": 0,
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_QUOTE",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 2,
+          "data": {
+            "ltp": 441.55,
+            "volume": 0,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 0,
+            "last_quantity": 0,
+            "average_price": 441.3,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "bid_price": 440.0,
+            "bid_quantity": 0,
+            "ask_price": 440.2,
+            "ask_quantity": 0,
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_QUOTE",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 2,
+          "data": {
+            "ltp": 441.6,
+            "volume": 0,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 0,
+            "last_quantity": 0,
+            "average_price": 441.3,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "bid_price": 440.0,
+            "bid_quantity": 0,
+            "ask_price": 440.2,
+            "ask_quantity": 0,
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_QUOTE",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 2,
+          "data": {
+            "ltp": 441.65,
+            "volume": 0,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 0,
+            "last_quantity": 0,
+            "average_price": 441.3,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "bid_price": 440.0,
+            "bid_quantity": 0,
+            "ask_price": 440.2,
+            "ask_quantity": 0,
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

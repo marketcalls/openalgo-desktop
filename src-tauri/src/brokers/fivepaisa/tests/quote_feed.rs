@@ -513,3 +513,70 @@ fn an_index_carries_no_quantity_5paisa_fills_with_zero() {
     };
     assert!(t.knows(QuoteField::LastQuantity) && t.knows(QuoteField::TotalBuyQuantity));
 }
+
+/// Review R107-08: a MarketFeedV3 frame repeating only `LastRate` keeps the
+/// known volume, last quantity and book totals (5paisa did not send them),
+/// and an explicit 0 for one replaces that one alone. The desktop read
+/// every missing quantity as 0.
+#[test]
+fn a_sparse_frame_keeps_the_known_quantities() {
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let mut frames = Frames::new("fivepaisa");
+    frames.at(&send(&mut f, feed_frame()), Mode::Quote);
+    let sparse = json!({"Exch": "N", "ExchType": "C", "Token": 1660, "LastRate": 441});
+    let d = frames
+        .at(&send(&mut f, sparse.clone()), Mode::Quote)
+        .pop()
+        .unwrap();
+    let quantities = |d: &Value| {
+        [
+            d["volume"].clone(),
+            d["last_quantity"].clone(),
+            d["total_buy_quantity"].clone(),
+            d["total_sell_quantity"].clone(),
+        ]
+    };
+    assert_eq!(
+        quantities(&d),
+        [json!(1200), json!(5), json!(100), json!(200)],
+        "{}",
+        d
+    );
+    assert_eq!(d["ltp"], 441, "{}", d);
+    assert!(
+        d.get("percent_change").is_none(),
+        "no ChgPcnt, no worked-out change: {}",
+        d
+    );
+    let zero = with(
+        sparse,
+        json!({"LastRate": 441.5, "TotalQty": 0, "TBidQ": 0}),
+    );
+    let d = frames.at(&send(&mut f, zero), Mode::Quote).pop().unwrap();
+    assert_eq!(
+        quantities(&d),
+        [json!(0), json!(5), json!(0), json!(200)],
+        "{}",
+        d
+    );
+
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let first = json!({"Exch": "N", "ExchType": "C", "Token": 1660, "LastRate": 441});
+    let d = Frames::new("fivepaisa")
+        .at(&send(&mut f, first), Mode::Quote)
+        .pop()
+        .unwrap();
+    for k in [
+        "volume",
+        "last_quantity",
+        "total_buy_quantity",
+        "total_sell_quantity",
+    ] {
+        assert!(
+            d.get(k).is_none(),
+            "a first sparse frame knows no {}: {}",
+            k,
+            d
+        );
+    }
+}

@@ -249,6 +249,12 @@
       "source": ".lane/107/review-fixes.md",
       "rule": "Dhan f32 prices: the desktop renders the shortest round-trip decimal of the f32 (the intended tick, 954.1); the web's widened value (954.0999755859375) is declared as a web defect with the same reason as IIFL Capital's noise; pin it with non-binary-exact values."
     },
+    "samco-review-web-defects": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": "lead message to bk-c (review of Samco's final round), 2026-11-09",
+      "rule": "Lead: all five approved as web defects (each a wrong or lost value): (1) zeros before the first quote, (2) Samco's OI dropped in every mode, (3) index best bid/ask, last quantity and volume as 0, (4) a polled MCX order naming the MFO segment and Samco's trading symbol instead of MCX and the OpenAlgo symbol (the desktop's rule that every book carries OpenAlgo symbols), (5) no update for an order whose price carries a thousands comma."
+    },
     "per-packet-only-persistent-extras": {
       "by": "lead",
       "date": "2026-11-09",

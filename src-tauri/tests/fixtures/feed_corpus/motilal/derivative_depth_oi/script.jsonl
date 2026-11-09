@@ -2,10 +2,11 @@
 {"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28OCT26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
 {"step": "upstream_receives", "frames": ["frames/register.hex"]}
-{"step": "push", "frame": "frames/level1.hex", "note": "Only book level 1 has arrived."}
-{"step": "silence", "client": "a", "note": "A book level and no trade yet: no Depth frame."}
-{"step": "push", "frame": "frames/oi.hex"}
+{"step": "push", "frame": "frames/level1.hex", "note": "Only book level 1 has arrived: the Depth holder gets it, LTP 0."}
+{"step": "receive", "client": "a", "frame": "expected/book_1.json", "web": false}
+{"step": "push", "frame": "frames/oi.hex", "note": "Open interest: the book again, with it (the web has no quote yet)."}
+{"step": "receive", "client": "a", "frame": "expected/book_oi.json", "web": false}
 {"step": "push", "frame": "frames/ohlc.hex"}
-{"step": "silence", "client": "a", "web": {"symbol": "NIFTY28OCT26FUT", "exchange": "NFO", "mode": 3}, "note": "A book level and the day OHLC, no trade: the web publishes Depth with LTP 0."}
+{"step": "receive", "client": "a", "frame": "expected/depth_ohlc.json"}
 {"step": "push", "frame": "frames/ltp.hex"}
 {"step": "receive", "client": "a", "frame": "expected/depth.json"}

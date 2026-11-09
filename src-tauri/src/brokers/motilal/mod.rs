@@ -29,11 +29,12 @@ mod orders;
 pub mod streaming;
 #[cfg(test)]
 mod tests;
+mod wire_keys;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::redact;
-use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, Presubscribe};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -197,6 +198,9 @@ pub struct MotilalBroker {
     /// web `_FEED_WAITERS_MAX`: at most eight one-shot feed reads at once.
     pub(crate) feed_gate: Arc<Semaphore>,
     pub(crate) timings: FeedTimings,
+    /// Which instrument holds each broadcast wire key, shared by the
+    /// subscribe step and the session's feeds (`wire_keys`).
+    pub(crate) wire_keys: wire_keys::WireKeys,
 }
 
 impl MotilalBroker {
@@ -221,6 +225,7 @@ impl MotilalBroker {
             index_field: Mutex::new(None),
             feed_gate: Arc::new(Semaphore::new(8)),
             timings: FeedTimings::default(),
+            wire_keys: wire_keys::WireKeys::default(),
         }
     }
 
@@ -560,10 +565,17 @@ impl Broker for MotilalBroker {
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let s = MotilalSession::parse(auth)?;
-        Ok(Box::new(streaming::MotilalFeed::new(
-            &self.feed_ws_url,
-            &s.client_code,
-        )))
+        Ok(Box::new(
+            streaming::MotilalFeed::new(&self.feed_ws_url, &s.client_code)
+                .sharing(self.wire_keys.clone()),
+        ))
+    }
+
+    /// A second instrument on a broadcast wire key already held (NSE cash
+    /// and F&O with one scrip code) is refused: Motilal's packets cannot
+    /// tell the two apart (`wire_keys`). Checked and reserved in one hold.
+    fn feed_presubscribe(&self, _auth: &AuthToken) -> Option<Presubscribe> {
+        Some(self.wire_keys.step())
     }
 
     fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {

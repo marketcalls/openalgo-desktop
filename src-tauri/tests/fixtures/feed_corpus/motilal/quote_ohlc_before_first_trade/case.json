@@ -32,7 +32,7 @@
       "kind": "web-defect",
       "reason": "Before any trade the web's poll publishes a Quote from the scrip's other packets with ltp 0 (motilal_adapter.py _normalize_quote_data: quote.get('ltp', 0)), a price nothing traded at; the desktop publishes nothing until Motilal's first last-trade packet (lead rules: no zero LTP from a packet without a trade).",
       "ref": "motilal_adapter.py _normalize_quote_data",
-      "approved": true
+      "approval": "no-price-packet"
     }
   ]
 }
