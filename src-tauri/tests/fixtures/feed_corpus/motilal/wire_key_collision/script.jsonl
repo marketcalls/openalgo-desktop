@@ -9,4 +9,4 @@
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28OCT26FUT", "exchange": "NFO"}], "mode": 2}}
 {"step": "upstream_receives", "frames": ["frames/register_fo.hex"], "note": "The code is free: the NFO contract registers (segment D)."}
 {"step": "push", "frame": "frames/ltp_fo.hex", "note": "Now the scrip's packets are the NFO contract's."}
-{"step": "receive", "client": "a", "frame": "expected/quote_fo.json", "web": false}
+{"step": "receive", "client": "a", "frame": "expected/quote_fo.json"}

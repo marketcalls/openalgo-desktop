@@ -76,28 +76,60 @@ def matching(devs: list, args) -> list:
     return out
 
 
+def state_of(d: dict, known: dict) -> str:
+    """A deviation's approval state: its rule, or why it has none in force."""
+    approval = d.get("approval")
+    if d.get("kind") == "open":
+        return "open gap"
+    if approval is None:
+        return "pending"
+    if approval not in known:
+        return f"UNKNOWN RULE {approval}"
+    if "superseded_by" in known[approval]:
+        return f"WITHDRAWN {approval} (replaced by {known[approval]['superseded_by']})"
+    return approval
+
+
+def in_force(state: str, known: dict) -> bool:
+    return state in known
+
+
 def cmd_rules(_args) -> int:
     for rid, r in sorted(rules().items()):
-        print(f"{rid} ({r['by']}, {r['date']}, {r['source']}): {r['rule']}")
+        withdrawn = f" WITHDRAWN, replaced by {r['superseded_by']}" if "superseded_by" in r else ""
+        print(f"{rid} ({r['by']}, {r['date']}, {r['source']}){withdrawn}: {r['rule']}")
     return 0
 
 
 def cmd_list(args) -> int:
     known = rules()
+    summary: dict[str, dict[str, int]] = {}
     for b, c, path in cases(args.broker, args.case):
         doc, _ = read_case(path)
         for d in matching(doc.get("deviations", []), args):
-            approval = d.get("approval")
-            state = approval if approval in known else ("UNKNOWN " + str(approval) if approval else "pending")
-            if args.pending and approval in known:
+            state = state_of(d, known)
+            ok = in_force(state, known)
+            row = summary.setdefault(b, {"deviations": 0, "approved": 0, "to do": 0, "old flag": 0})
+            row["deviations"] += 1
+            row["approved" if ok else "to do"] += 1
+            row["old flag"] += "approved" in d
+            if args.pending and ok:
                 continue
             print(f"{b}/{c}  {d.get('key')}  [{d.get('kind')}]  {state}  {d.get('reason', '')}")
+    # Each broker's finish line: nothing "to do" and no "old flag" left.
+    print("\nbroker            deviations  approved  to do  old flag")
+    for b, row in sorted(summary.items()):
+        print(f"{b:<17} {row['deviations']:>10}  {row['approved']:>8}  {row['to do']:>5}  {row['old flag']:>8}")
     return 0
 
 
 def cmd_set(args) -> int:
-    if args.rule not in rules():
+    known = rules()
+    if args.rule not in known:
         print(f"no rule {args.rule!r} in {REGISTRY.relative_to(ROOT)}: add it first (add-rule)")
+        return 1
+    if "superseded_by" in known[args.rule]:
+        print(f"rule {args.rule!r} was withdrawn: {known[args.rule]['superseded_by']!r} replaced it")
         return 1
     changed = 0
     for b, c, path in cases(args.broker, args.case):

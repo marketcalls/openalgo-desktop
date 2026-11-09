@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "jainamxts",
-  "inputs_sha256": "fded372f7c33b1ae2444b17920fea6a9bb1f00b003c45e8b848d944775d288e7",
+  "inputs_sha256": "f8d59aa2e6aa732fd4ecae6382d09fccc29249b3821696bc11be93c429d0af4c",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -15,11 +15,13 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 4,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 9,
@@ -481,6 +483,44 @@
             "mode": 3,
             "timestamp": "<receipt_ms>"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 1,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     }

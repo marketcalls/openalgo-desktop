@@ -111,6 +111,12 @@
       "kind": "web-defect",
       "reason": "The 1502 event carries no UpperCircuitLimit; the web sends upper_circuit 0 for it (message.get('UpperCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
       "ref": "jainamxts_adapter.py _normalize_market_data (mode 3)"
+    },
+    {
+      "key": "missing-frame",
+      "kind": "web-defect",
+      "reason": "The web's adapter publishes a 1502 book once per subscription row, so with two rows for the symbol (Depth 5 and Depth 20) its listener sends each Depth client the same book twice; the desktop sends one frame per held mode for a packet.",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }

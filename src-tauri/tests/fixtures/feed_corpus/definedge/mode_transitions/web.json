@@ -15,7 +15,8 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 9,
@@ -158,6 +159,56 @@
             "timestamp": "<receipt_ms>"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "l",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
+        },
+        {
+          "client": "l",
+          "publication": 1,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
+        },
+        {
+          "client": "q",
+          "publication": 1,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        },
+        {
+          "client": "l",
+          "publication": 2,
+          "mode": 1,
+          "topic_mode": 3,
+          "serves": []
+        },
+        {
+          "client": "q",
+          "publication": 2,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": []
+        },
+        {
+          "client": "d",
+          "publication": 2,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
@@ -208,6 +259,33 @@
             "timestamp": "<receipt_ms>"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "l",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
+        },
+        {
+          "client": "l",
+          "publication": 1,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
+        },
+        {
+          "client": "q",
+          "publication": 1,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
@@ -227,6 +305,17 @@
             "mode": 1,
             "timestamp": "<receipt_ms>"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "l",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
         }
       ]
     }

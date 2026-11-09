@@ -96,6 +96,13 @@
       "ref": "samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data; decisions 2026-11-09 (data a web adapter drops is kept)",
       "key": "oi",
       "approval": "lost-data-kept"
+    },
+    {
+      "key": "missing-frame",
+      "kind": "desktop-decision",
+      "reason": "A book frame carries no trade price. The web's listener sends the Depth publication to every client up to that mode, so the Quote client gets a book frame with no new trade; the desktop sends a Quote holder nothing for a packet with no price.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
+      "approval": "no-price-packet"
     }
   ]
 }

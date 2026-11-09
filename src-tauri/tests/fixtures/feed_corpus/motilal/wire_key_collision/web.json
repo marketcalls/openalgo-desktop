@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "e9ae8f5b361d6961d5e0d95f978eb25cbf6432ae5a45e5638cbecba618a95585",
+  "inputs_sha256": "a7fb24381b3320a8a07e58490e8e026222f0b7e03e0ab5b2c518d57b827fd26a",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -26,7 +26,8 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
@@ -52,11 +53,55 @@
             "timestamp": "<receipt_ms>"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
       "line": 11,
-      "published": []
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY28OCT26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY28OCT26FUT",
+          "mode": 2,
+          "data": {
+            "ltp": 25010.5,
+            "ltq": 75,
+            "volume": 150000,
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": 0,
+            "average_price": 25000.25,
+            "symbol": "NIFTY28OCT26FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
     }
   ]
 }

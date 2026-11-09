@@ -19,6 +19,7 @@
 mod approvals;
 mod case;
 mod compare;
+mod deliveries;
 mod http;
 mod invariants;
 mod json_text;
