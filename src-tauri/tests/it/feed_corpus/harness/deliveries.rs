@@ -298,7 +298,7 @@ impl<'a> Consumer<'a> {
             })
             .collect();
         let held = format!("m{}", mode);
-        if let Some((i, d)) = ds
+        if let Some((i, _)) = ds
             .iter()
             .find(|(i, d)| d.serves.contains(&mode) && !self.used.contains(&(*i, held.clone())))
         {
