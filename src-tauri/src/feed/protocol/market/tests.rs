@@ -169,20 +169,26 @@ fn an_instruments_change_goes_under_the_brokers_names() {
         assert_eq!(d[name], 1.25, "{}: {}", broker, d);
         assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
     }
-    for broker in [
-        "zerodha",
-        "angel",
-        "upstox",
-        "dhan",
-        "compositedge",
-        "unknown",
-    ] {
+    for broker in ["zerodha", "compositedge", "unknown"] {
         for mode in [Mode::Quote, Mode::Depth] {
             let d = data_at(equity(), mode, broker);
             for k in ["price_change", "price_change_percent", "change"] {
                 assert!(d.get(k).is_none(), "{} {:?} {}: {}", broker, mode, k, d);
             }
             assert_eq!(data_at(index(), mode, broker)["price_change"], 1.25);
+        }
+    }
+    // No change keys at all, an index's included: these adapters send none
+    // (angel_adapter.py, upstox_adapter.py, dhan_adapter.py, nubra_adapter.py,
+    // dhan_sandbox_adapter.py).
+    for broker in ["angel", "upstox", "dhan", "nubra", "dhan_sandbox"] {
+        for key in [equity(), index()] {
+            for mode in [Mode::Quote, Mode::Depth] {
+                let d = data_at(key.clone(), mode, broker);
+                for k in ["price_change", "price_change_percent", "change"] {
+                    assert!(d.get(k).is_none(), "{} {:?} {}: {}", broker, mode, k, d);
+                }
+            }
         }
     }
 }

@@ -378,6 +378,8 @@ const DHAN: &[WebName] = &[
     n("depth_level", S::DepthLevels, D),
 ];
 
+const DHAN_SANDBOX: &[WebName] = &[n("last_trade_quantity", S::LastQuantity, Q)];
+
 const FIRSTOCK: &[WebName] = &[
     n("upper_circuit", S::Extra(E::UpperCircuit), Q),
     n("lower_circuit", S::Extra(E::LowerCircuit), Q),
@@ -581,8 +583,9 @@ const TRADEJINI: &[WebName] = &[
 
 const UPSTOX: &[WebName] = &[
     n("token", S::Token, L),
-    n("ltq", S::LastQuantity, L),
-    n("cp", S::Close, L),
+    // upstox_adapter.py `_build_payload`: the LTP payload's names only.
+    nt("ltq", S::LastQuantity, L, L),
+    nt("cp", S::Close, L, L),
     n("last_trade_quantity", S::LastQuantity, Q),
     n("last_trade_time", S::TradeTime(Unit::Millis), Q),
 ];
@@ -624,9 +627,12 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "zerodha" => d(Label, ZERODHA).open_interest().no_ltt_on_ltp_copies(),
         "sahi" => d(Label, SAHI).open_interest().index_book(),
         "iiflcapital" => d(Label, IIFLCAPITAL).open_interest(),
-        "nubra" => d(Label, NUBRA).no_ltt(),
+        // nubra_adapter.py `_on_index_data`: no change keys on an index.
+        "nubra" => d(Label, NUBRA).no_ltt().no_index_change(),
+        // angel_adapter.py `_normalize_market_data`: none on an index.
         "angel" => d(Number, ANGEL)
             .richer()
+            .no_index_change()
             .floats(&["total_buy_quantity", "total_sell_quantity"]),
         "arrow" => d(Absent, ARROW_HDFC).open_interest().richer(),
         "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest(),
@@ -638,14 +644,31 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .richer()
             .no_index_change(),
         "kotak" => d(Absent, KOTAK).no_index_change().index_book(),
-        "upstox" => d(Absent, UPSTOX).book_time(),
-        "fyers" => d(Absent, FYERS).no_ltt(),
+        // upstox_adapter.py `_build_payload`: no change keys, OI a float.
+        "upstox" => d(Absent, UPSTOX)
+            .book_time()
+            .no_index_change()
+            .floats(&["oi"]),
+        // fyers_mapping.py: the change only under Fyers' own names.
+        "fyers" => d(Absent, FYERS).no_ltt().no_index_change(),
         "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "jainamxts" | "rmoney" | "wisdom" => {
             d(Number, XTS).richer()
         }
         "definedge" => d(Number, DEFINEDGE).depth_needs_book(),
-        "deltaexchange" => d(Number, DELTA).no_ltt().richer(),
-        "dhan" => d(Number, DHAN).richer(),
+        // delta_adapter.py `_normalise_ticker`: `float(oi)`.
+        "deltaexchange" => d(Number, DELTA).no_ltt().richer().floats(&["oi"]),
+        // dhan_adapter.py `_normalize_*`: no change keys on an index.
+        "dhan" => d(Number, DHAN).richer().no_index_change(),
+        // dhan_sandbox_adapter.py `_mock_streaming_loop`: one dict for any
+        // instrument, an index's included, without change keys and with
+        // the last quantity only as `last_trade_quantity`.
+        "dhan_sandbox" => d(Number, DHAN_SANDBOX)
+            .no_index_change()
+            .key(Key::LastQuantity, Modes::NEVER)
+            .index_key(Key::AveragePrice, Modes::QUOTE_UP)
+            .index_key(Key::TotalBuyQuantity, Modes::QUOTE_UP)
+            .index_key(Key::TotalSellQuantity, Modes::QUOTE_UP)
+            .index_key(Key::Depth, Modes::DEPTH),
         "firstock" => d(Number, FIRSTOCK).no_index_change(),
         "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book(),
         "shoonya" => d(Number, SHOONYA).no_ltt(),
@@ -682,6 +705,7 @@ pub(crate) const BROKERS: &[&str] = &[
     "definedge",
     "deltaexchange",
     "dhan",
+    "dhan_sandbox",
     "firstock",
     "fivepaisa",
     "fivepaisaxts",
