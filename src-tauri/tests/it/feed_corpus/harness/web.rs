@@ -18,7 +18,7 @@
 //! too. The live run has already shown the expected frames are the
 //! desktop's.
 
-use super::case::{bad, read_json, Action, Case, WebFrame, WebPair, MISSING_FRAME};
+use super::case::{bad, corpus_root, read_json, Action, Case, WebFrame, WebPair, MISSING_FRAME};
 use super::deliveries::{self, Consumer, Paired};
 use super::invariants;
 use super::json_text;
@@ -53,6 +53,16 @@ pub(crate) fn check(case: &Case) {
         bad(
             &at,
             "computed from another script or other frames: run scripts/feed_corpus/web_expected.py again",
+        );
+    }
+    let pin = read_json(&corpus_root().join("web_oracle.json"));
+    if web["web_sha"] != pin["web_sha"] {
+        bad(
+            &at,
+            format!(
+                "computed at web {} but the corpus is pinned to {}: run scripts/feed_corpus/web_expected.py at that commit",
+                web["web_sha"], pin["web_sha"]
+            ),
         );
     }
     if web["instruments"] != case.instruments_json {
@@ -379,5 +389,76 @@ mod tests {
             shape(&json!({"buy": [{"price": 2.5, "quantity": 12}]}))
         );
         assert_ne!(shape(&book), shape(&json!({"buy": []})));
+    }
+
+    /// Review 2, O1: a missing `web.json` is a failure, not a comparison
+    /// quietly skipped.
+    #[test]
+    #[should_panic(expected = "every case is compared with the web")]
+    fn a_case_without_the_webs_output_fails() {
+        let mut case = Case::load("zerodha", "quote_mode");
+        case.dir = case.dir.join("no-such-folder");
+        check(&case);
+    }
+
+    #[test]
+    fn a_by_hand_case_needs_no_web_output() {
+        let mut case = Case::load("zerodha", "quote_mode");
+        case.dir = case.dir.join("no-such-folder");
+        case.by_hand = true;
+        check(&case);
+    }
+
+    /// Review 2, O10: `web.json` names the steps the replay does not model.
+    #[test]
+    fn the_steps_not_replayed_are_the_scripts() {
+        let case = Case::load("zerodha", "deliberate_disconnect");
+        let web = json!({"uncompared": [{"line": 3, "step": "disconnect"}]});
+        check_uncompared("t", &case, &web);
+    }
+
+    #[test]
+    #[should_panic(expected = "its uncompared steps are not the script's")]
+    fn a_step_not_replayed_cannot_go_unnamed() {
+        let case = Case::load("zerodha", "deliberate_disconnect");
+        check_uncompared("t", &case, &json!({"uncompared": []}));
+    }
+
+    /// Review 2, O11: the frame's mode tag and broker are compared with the
+    /// web's, beside its `data`.
+    #[test]
+    fn the_envelope_is_compared_with_the_webs() {
+        let case = Case::load("zerodha", "quote_mode");
+        let web = json!({"pushes": [{
+            "line": 3,
+            "published": [
+                {"kind": "market", "symbol": "INFY", "exchange": "NSE", "mode": 2, "data": {"ltp": 1.0}}
+            ],
+            "deliveries": [
+                {"client": "a", "publication": 0, "mode": 2, "topic_mode": 2, "serves": [2], "broker": "zerodha"}
+            ]
+        }]});
+        let point = deliveries::points("t", &web).remove(&3).unwrap();
+        let mut consumer = Consumer::new(3, &point);
+        let paired = consumer.market("a", "INFY", "NSE", 2).unwrap();
+        let mut cmp = Comparison {
+            case: &case,
+            diffs: BTreeMap::new(),
+            unconsumed: Vec::new(),
+        };
+        let same =
+            json!({"type": "market_data", "mode": 2, "broker": "zerodha", "data": {"ltp": 1.0}});
+        cmp.frames("t", &same, paired);
+        assert!(cmp.diffs.is_empty(), "{:?}", cmp.diffs);
+        let other =
+            json!({"type": "market_data", "mode": 1, "broker": "fyers", "data": {"ltp": 1.0}});
+        cmp.frames("t", &other, paired);
+        let keys: Vec<&String> = cmp.diffs.keys().collect();
+        assert_eq!(
+            keys,
+            ["envelope.broker", "envelope.mode"],
+            "{:?}",
+            cmp.diffs
+        );
     }
 }

@@ -1,0 +1,9 @@
+{
+  "about": "A ratchet on the steps the web replay does not model (web.json `uncompared`), per kind. The release gate fails above a ceiling, and on a ceiling above the count: lower it in the same change with scripts/feed_corpus/release_gate.py --update. A rise needs the lead's or the maintainer's rule in approvals.json, named under raised_by.",
+  "ceilings": {
+    "deep_feed_not_made": 1,
+    "disconnect": 5,
+    "refuse_upgrades": 8
+  },
+  "raised_by": {}
+}

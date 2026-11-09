@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "rmoney",
-  "inputs_sha256": "060f76e763187872d8e97e1673ca099597ab1867d13df6d0c86f8a9fd88e46c4",
+  "inputs_sha256": "ca48f39729b8ab9ae477ad6996a95f5192262332d2c9af2f557b92f1e8236150",
   "instruments": [
     {
       "symbol": "NIFTY",

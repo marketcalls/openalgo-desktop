@@ -20,8 +20,12 @@ web tree moved, or a glue changed); `--diff` prints, without writing, every
 key on which a case's expected frames differ from the web, which is the
 deviation list the case must declare.
 
-The web tree is read only. `web.json` is checked in; CI never runs this
-script (it has no web tree), so it is provenance, not a build step.
+The web tree is read only. `web.json` is checked in, computed at one web
+commit, the pin in `web_oracle.json` beside the corpus, which also records a
+digest of this tool's own code (`tool_sha256`). CI's `web-oracle` job (a
+requirement of ci-ok) checks out exactly that commit and runs `--check` and
+`test_oracle.py`. Moving to a newer web commit is deliberate: `--repin` writes
+the new commit into the pin.
 
 Adding a broker: `web_adapters/<broker>.py`, a `webkit.Glue` that names
 the web methods (`sources`) and builds the state they read the way the
@@ -43,15 +47,49 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import web_offers  # noqa: E402
 from web_adapters import GLUES  # noqa: E402
 from webkit import read_body, read_frame, set_step  # noqa: E402
 from webserver import WebServer  # noqa: E402
 
 CORPUS = HERE.parent.parent / "src-tauri/tests/fixtures/feed_corpus"
+PIN = CORPUS / "web_oracle.json"
 MODES = {"ltp": 1, "quote": 2, "depth": 3}
+# The tool's own code a web.json depends on, beside web_adapters/*.py.
+TOOL_FILES = ("web_expected.py", "webkit.py", "webserver.py", "protolite.py")
 # Refused upgrades and a deliberate disconnect have no adapter counterpart
 # in the replay (harness/web.rs `UNMODELLED_STEPS`).
 UNMODELLED_STEPS = ("refuse_upgrades", "disconnect")
+
+
+def tool_sha256() -> str:
+    """A digest of the code that writes web.json (harness/inventory.rs reads
+    the same files): a changed glue with the old web.json fails a test."""
+    names = sorted([*TOOL_FILES, *(f"web_adapters/{p.name}" for p in (HERE / "web_adapters").glob("*.py"))])
+    digest = hashlib.sha256()
+    for name in names:
+        digest.update(name.encode() + b"\0")
+        digest.update((HERE / name).read_bytes().replace(b"\r\n", b"\n") + b"\0")
+    return digest.hexdigest()
+
+
+def read_pin() -> dict:
+    return json.loads(PIN.read_text(encoding="utf-8"))
+
+
+def write_pin(sha: str) -> None:
+    PIN.write_text(json.dumps({"web_sha": sha, "tool_sha256": tool_sha256()}, indent=2) + "\n", encoding="utf-8")
+
+
+def pin_problems(sha: str) -> list[str]:
+    """Where the web tree in hand, or this tool's code, is not what the pin says."""
+    pin = read_pin()
+    out = []
+    if pin.get("web_sha") != sha:
+        out.append(f"the web tree is at {sha}; the corpus is pinned to {pin.get('web_sha')}")
+    if pin.get("tool_sha256") != tool_sha256():
+        out.append("web_oracle.json: tool_sha256 is not this tool's code: run web_expected.py")
+    return out
 
 
 def web_sha(web: Path, given: str | None) -> str:
@@ -380,17 +418,34 @@ def diff(case_dir: Path, out: dict) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--web", required=True, type=Path, help="the web tree (read only)")
+    ap.add_argument("--web", type=Path, help="the web tree (read only)")
     ap.add_argument("--web-sha", help="the web commit, when its .git cannot be read")
+    ap.add_argument("--repin", action="store_true", help="make the web tree's commit the pinned one")
+    ap.add_argument("--print-pin", action="store_true", help="print web_sha=<pinned commit> (for CI) and stop")
     ap.add_argument("--check", action="store_true", help="fail when a web.json is stale")
     ap.add_argument("--diff", action="store_true", help="print the differences, write nothing")
     ap.add_argument("cases", nargs="*", type=Path)
     args = ap.parse_args()
+    if args.print_pin:
+        print(f"web_sha={read_pin()['web_sha']}")
+        return 0
+    if args.web is None:
+        ap.error("--web is required")
     sha = web_sha(args.web, args.web_sha)
+    if not args.repin and read_pin()["web_sha"] != sha:
+        raise SystemExit(f"the web tree is at {sha}, the corpus is pinned to {read_pin()['web_sha']}: "
+                         "check out that commit, or pass --repin to move the corpus to this one")
     cases = args.cases or sorted(
         d for d in CORPUS.glob("*/*") if d.is_dir() and d.parent.name in GLUES
     )
     stale = 0
+    if args.check:
+        for problem in pin_problems(sha):
+            print(problem)
+            stale += 1
+        if web_offers.stale(args.web):
+            print("web_offers.json is stale: run web_expected.py")
+            stale += 1
     for case_dir in cases:
         case_dir = case_dir.resolve()
         out = compute(case_dir, args.web, sha)
@@ -409,6 +464,9 @@ def main() -> int:
         else:
             target.write_text(text)
             print(f"{name}: wrote web.json ({len(out['pushes'])} pushes)")
+    if not args.check and not args.diff:
+        write_pin(sha)
+        web_offers.write(args.web)
     return 1 if stale else 0
 
 

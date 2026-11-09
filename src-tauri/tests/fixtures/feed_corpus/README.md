@@ -132,7 +132,7 @@ One step per line. Every step may carry a `"note"` for the reader;
 | --- | --- | --- |
 | `send` | `client`, `message`, `reply` | Client `client` (connected and authenticated on first use) sends `message`; the reply must equal `reply` exactly, or, without `reply`, have `"status": "success"`. |
 | `receive` | `client`, `frame`, `web`, `web_mode` | The client's next frame must equal `frame` (a file under the case, or the frame inline). `web`/`web_mode`: see "The web's output". |
-| `silence` | `client`, `ms`, `web` | Nothing reaches the client for `ms` (default 300), and nothing is on its way to it then: every frame a fake broker has sent has been read, the tasks between a feed and a client have had their turns, and a ping to the feed server comes back with no frame before it (so a slow runner cannot pass as silence). `web` names a frame the web sends here (see "The web's output"). |
+| `silence` | `client`, `ms`, `web` | Nothing reaches the client for `ms` (default 300), and nothing is on its way to it then: every frame a fake broker has sent has been read, the tasks between a feed and a client have had their turns, and a ping to the feed server comes back with no frame before it (so a slow runner cannot pass as silence; a product timer that fires after the wait is not seen). `web` names a frame the web sends here (see "The web's output"). |
 | `close_client` | `client` | The client closes its socket. |
 | `push` | `socket`, `frame`, `connection` | The fake broker sends `frame` on the open connection (of `socket`, default `main`; on connection `connection` if named). |
 | `upstream_receives` | `socket`, `frames`, `any_order`, `connection` | The feed's next frames to the broker are exactly `frames`, in order (or in any order), all on `connection` if named. |
@@ -318,11 +318,22 @@ SHA-256 of the script and the pushed frame files (text files with LF line
 ends), and the instruments it used, so a stale `web.json` fails the case.
 `--diff <case folder>` prints, without writing, every key on which the
 case's expected frames differ from the web: the deviations the case must
-declare. `--check` fails when a checked-in `web.json` is stale. How a broker
+declare. `--check` fails when a checked-in `web.json` is stale; CI's
+`web-oracle` job (a requirement of ci-ok) runs it against the web commit pinned
+in `web_oracle.json`, so a `web.json` that does not match the web fails there.
+What the web offers each broker (`web_offers.json`, also written and
+checked by that script) comes from the web's own registries: the capability
+class in `broker/<broker>/streaming/*mapping*.py` for depth levels, and
+`services/order_update_service.py` for order updates; a broker with no such
+registry keeps the levels its `broker.json` cites (`"source": "by-hand"`). A
+capability counts as covered only with an accepted subscribe and a received
+frame of that mode. The pin also records a digest of the oracle's own code, which a test checks, so
+editing a glue needs `web_expected.py` run again (`--repin` moves the corpus to
+a newer web commit, deliberately). How a broker
 is run offline (`scripts/feed_corpus/web_adapters/<broker>.py`: the web
 methods by name, and the state they read, built as the web's own tests
 build it), and what to do where a web adapter cannot be run, is in that
-script's docstring. CI never runs it: it has no web tree.
+script's docstring.
 
 With `web.json` present, each `receive` after a delivery point is compared
 with the next frame the web sends that client for the same instrument
@@ -358,11 +369,20 @@ the client's frame with, `envelope.broker` for the broker it names.
 Every case needs `web.json` unless its provenance says `by-hand`, and
 `web.json` lists the script's steps the replay has no web behaviour for
 (`uncompared`: `refuse_upgrades`, `disconnect`, a deep feed not made),
-which `release_gate.py` counts. A
+which `release_gate.py` holds to a ratchet per kind
+(`uncompared_ceiling.json`: `--update` lowers a ceiling in the same change, and
+a rise needs a rule of `approvals.json` under `raised_by`). A
 `scripts/feed_corpus/test_oracle.py --web <tree>` holds these rules
 against the web (two packets in one frame, an unread web frame, repeated
 subscribes, a wrong `"web": false`, fan-out, the envelope, the uncompared
-steps and the gate's holds). A
+steps and the gate's holds).
+
+A deviation names a rule of `approvals.json` (`"approval"`), and the rule's
+`scope` (brokers, keys, kinds, an index or non-index instrument, a step the
+script has, or `any_of` several; `{}` covers everything) is written from the
+words of the decision and checked: a deviation the words do not cover is
+reported with the rule's scope. Fix the deviation or take it to whoever
+decided, never widen a scope to fit it. A
 key of a `random-values` deviation (allowed only for a synthetic feed,
 `dhan_sandbox`) is compared by presence and JSON type at every level (an object's keys, a list's length), not by value. Every
 key on which the desktop differs from the web must be declared:

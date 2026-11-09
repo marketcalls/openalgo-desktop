@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "rmoney",
-  "inputs_sha256": "821a86302fb5f7ad24e8dff3159c6b1a6c28b96f56dd3a5a4dce3ae813258a40",
+  "inputs_sha256": "bb5f3f26940283a3bf8771b7ecce37d94f69f406ce6e07e6f0bd3569406dfb9d",
   "instruments": [
     {
       "symbol": "RELIANCE",

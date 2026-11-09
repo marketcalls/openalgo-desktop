@@ -91,7 +91,45 @@ def deviation_kinds() -> list[str]:
 SYNTHETIC_FEEDS = ("dhan_sandbox",)
 
 
-def deviation_problems(name: str, case: dict, kinds: list[str], rules: dict | None = None) -> list[str]:
+def pattern_matches(pattern: str, value: str) -> bool:
+    """A scope's list item: an exact name, or a prefix ending in `*`
+    (harness/approvals.rs `pattern_matches`)."""
+    return value.startswith(pattern[:-1]) if pattern.endswith("*") else value == pattern
+
+
+def clause_fits(clause: dict, broker: str, key: str, kind: str, instruments: list[dict], steps: set[str]) -> bool:
+    """Is this deviation within this clause of a rule's scope?"""
+    for field, value in (("brokers", broker), ("keys", key), ("kinds", kind)):
+        if field in clause and not any(pattern_matches(p, value) for p in clause[field]):
+            return False
+    index = any(str(i.get("exchange", "")).endswith("_INDEX") for i in instruments)
+    non_index = any(not str(i.get("exchange", "")).endswith("_INDEX") for i in instruments)
+    if clause.get("instrument") == "index" and not index:
+        return False
+    if clause.get("instrument") == "non-index" and not non_index:
+        return False
+    return not ("after_step" in clause and clause["after_step"] not in steps)
+
+
+def in_scope(scope: dict, broker: str, key: str, kind: str, instruments: list[dict], steps: set[str]) -> bool:
+    """Is this deviation within the words of its rule (`scope`, any of its
+    `any_of` clauses when it has them)?"""
+    clauses = scope.get("any_of", [scope])
+    return any(clause_fits(c, broker, key, kind, instruments, steps) for c in clauses)
+
+
+def script_steps(case_dir: Path) -> set[str]:
+    """The kinds of step a case's script has (a scope's `after_step`)."""
+    return {
+        json.loads(line)["step"]
+        for line in (case_dir / "script.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+
+
+def deviation_problems(
+    name: str, case: dict, kinds: list[str], rules: dict | None = None, steps: set[str] | None = None
+) -> list[str]:
     """What the matrix could not count in a case's deviations (as the
     harness's `deviation_problems` checks them)."""
     rules = approval_rules() if rules is None else rules
@@ -109,7 +147,16 @@ def deviation_problems(name: str, case: dict, kinds: list[str], rules: dict | No
         if "approval" in dv:
             if dv["approval"] not in rules:
                 out.append(f"{label}: approval {dv['approval']!r} is no rule in approvals.json")
-            elif "superseded_by" in rules[dv["approval"]]:
+            elif "superseded_by" not in rules[dv["approval"]]:
+                scope = rules[dv["approval"]].get("scope", {})
+                fits = in_scope(
+                    scope, str(case.get("broker", "")), str(dv.get("key", "")), str(dv.get("kind", "")),
+                    case.get("instruments", []), steps or set(),
+                )
+                if not fits:
+                    out.append(f"{label}: rule {dv['approval']!r} does not cover this deviation (its scope: "
+                               f"{json.dumps(scope, sort_keys=True)})")
+            else:
                 newer = rules[dv["approval"]]["superseded_by"]
                 out.append(f"{label}: approval {dv['approval']!r} cites a withdrawn rule: {newer!r} replaced it")
             if dv.get("kind") == "open":
@@ -131,21 +178,82 @@ def mode_of(v) -> int:
     return MODES.get(str(v).strip().lower(), 0)
 
 
-def covers(case_dir: Path) -> set:
-    """The cells a case's script subscribes."""
+def script(case_dir: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in (case_dir / "script.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def subscribe_cell(msg: dict):
+    """The matrix column a `subscribe` message asks for."""
+    return {1: "ltp", 2: "quote"}.get(mode_of(msg.get("mode", 1))) or int(msg.get("depth", 5))
+
+
+def asked(case_dir: Path) -> set:
+    """The cells a case's script asks for, whatever the answer."""
     cells = set()
-    for line in (case_dir / "script.jsonl").read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        step = json.loads(line)
+    for step in script(case_dir):
         msg = step.get("message") or {}
         if step.get("step") != "send":
             continue
         if msg.get("action") == "subscribe_orders":
             cells.add("orders")
         elif msg.get("action") == "subscribe":
-            mode = mode_of(msg.get("mode", 1))
-            cells.add({1: "ltp", 2: "quote"}.get(mode) or int(msg.get("depth", 5)))
+            cells.add(subscribe_cell(msg))
+    return cells
+
+
+def accepted_items(step: dict) -> list[dict]:
+    """The instruments of a `subscribe` step that were accepted: all of them
+    with no declared reply (the harness then requires a success), else those
+    the reply marks a success."""
+    msg = step["message"]
+    items = msg.get("symbols") or [msg]
+    reply = step.get("reply")
+    if reply is None:
+        return items
+    answers = reply.get("subscriptions")
+    if answers is None:
+        return items if reply.get("status") == "success" else []
+    ok = {(a.get("symbol"), a.get("exchange")) for a in answers if a.get("status") == "success"}
+    return [i for i in items if (i.get("symbol"), i.get("exchange")) in ok]
+
+
+def received_frame(case_dir: Path, spec) -> dict:
+    return json.loads((case_dir / spec).read_text(encoding="utf-8")) if isinstance(spec, str) else spec
+
+
+def covers(case_dir: Path) -> set:
+    """The cells a case really exercises: an accepted subscribe, and a frame
+    of that instrument and mode the client received after it. A refused
+    level, or a subscribe nothing came of, covers nothing."""
+    cells = set()
+    held: dict[str, list[tuple]] = {}
+    for step in script(case_dir):
+        client = step.get("client", "")
+        if step.get("step") == "send":
+            msg = step.get("message") or {}
+            if msg.get("action") == "subscribe_orders":
+                if step.get("reply") is None or step["reply"].get("status") == "success":
+                    held.setdefault(client, []).append(("orders", None, None))
+            elif msg.get("action") == "subscribe":
+                cell = subscribe_cell(msg)
+                for item in accepted_items(step):
+                    held.setdefault(client, []).append((cell, item.get("symbol"), item.get("exchange")))
+        elif step.get("step") == "receive":
+            frame = received_frame(case_dir, step["frame"])
+            for cell, symbol, exchange in held.get(client, []):
+                if cell == "orders":
+                    if frame.get("type") == "order_update":
+                        cells.add(cell)
+                elif (
+                    frame.get("type") == "market_data"
+                    and (frame.get("symbol"), frame.get("exchange")) == (symbol, exchange)
+                    and frame.get("mode") == {"ltp": 1, "quote": 2}.get(cell, 3)
+                ):
+                    cells.add(cell)
     return cells
 
 
@@ -162,6 +270,28 @@ def result(case: dict, has_web: bool, rules: dict) -> tuple[str, int]:
     if pending:
         return f"deviation pending approval: {', '.join(d['key'] for d in pending)}" + checked, 2
     return "approved deviation" + checked, 1
+
+
+def web_offers() -> dict:
+    """What the web offers, per broker (`web_offers.py`, read from its
+    registries at the pinned commit)."""
+    path = CORPUS / "web_offers.json"
+    return json.loads(path.read_text(encoding="utf-8"))["brokers"] if path.exists() else {}
+
+
+def capabilities(broker: str, meta: dict | None, offers: dict) -> dict | None:
+    """The web's capabilities for a broker: its registries' depth levels and
+    order updates, with LTP and Quote from `broker.json` (true for all 38).
+    `None` where they are not recorded."""
+    if meta is None or broker not in offers:
+        return None
+    web = meta.get("web") or {}
+    return {
+        "ltp": web.get("ltp"),
+        "quote": web.get("quote"),
+        "depth": offers[broker]["depth"],
+        "orders": offers[broker]["orders"],
+    }
 
 
 def offered(web: dict | None, col) -> bool | None:
@@ -184,16 +314,18 @@ def build() -> str:
     problems = []
     rows, devs, scen = [], [], []
     totals = {"cases": 0, "open": 0, "pending": 0}
+    offers = web_offers()
     for broker in brokers():
         bdir = CORPUS / broker
         meta = json.loads((bdir / "broker.json").read_text()) if (bdir / "broker.json").exists() else None
-        web = meta.get("web") if meta else None
+        web = capabilities(broker, meta, offers)
         cases = sorted(d for d in bdir.glob("*") if d.is_dir()) if bdir.exists() else []
         cells = {c: [] for c, _ in COLUMNS}
+        asked_for = {c: [] for c, _ in COLUMNS}
         seen = set()
         for d in cases:
             case = json.loads((d / "case.json").read_text())
-            problems += deviation_problems(f"{broker}/{d.name}", case, kinds, rules)
+            problems += deviation_problems(f"{broker}/{d.name}", case, kinds, rules, script_steps(d))
             res, rank = result(case, (d / "web.json").exists(), rules)
             totals["cases"] += 1
             for dv in case.get("deviations", []):
@@ -206,13 +338,16 @@ def build() -> str:
             for cell in covers(d):
                 if cell in cells:
                     cells[cell].append((d.name, res, rank))
+            for cell in asked(d):
+                if cell in asked_for:
+                    asked_for[cell].append(d.name)
         line = [broker]
         for col, _ in COLUMNS:
             got = cells[col]
             off = offered(web, col)
-            if got and off is False:
-                # A case there shows the desktop refuses it, as the web does.
-                line.append("not offered by the web (refusal: " + ", ".join(f"`{n}`" for n, _, _ in got) + ")")
+            if off is False and asked_for[col]:
+                # A case there shows what the desktop answers to it.
+                line.append("not offered by the web (asked in: " + ", ".join(f"`{n}`" for n in asked_for[col]) + ")")
             elif got:
                 worst = max(r for _, _, r in got)
                 label = ["matches web", "approved deviation", "deviation pending approval", "open gap"][worst]

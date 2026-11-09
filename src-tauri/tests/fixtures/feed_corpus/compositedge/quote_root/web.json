@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "compositedge",
-  "inputs_sha256": "0889f87a2bb8fe03d1cf78b037f0532165a03c35a18c19d1ae3b10b73b3f9047",
+  "inputs_sha256": "9ec0b9a2c034f52cb6769d84e99a0d5cae2726090a7b8cc90604be75416529cf",
   "instruments": [
     {
       "symbol": "RELIANCE",

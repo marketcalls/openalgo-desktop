@@ -16,6 +16,7 @@ name: CI
 #             e2e-flow.yml)
 #   secret-scan (gitleaks, full history)
 #   code-health (size, dead code and suppression ratchet; CLAUDE.md "Code health")
+#   web-oracle (the feed corpus's web.json against the web at its pinned commit)
 #
 #   ci-ok needs every job above and fails unless all of them succeeded.
 #   Branch protection should require only the "ci-ok" check
@@ -477,10 +478,41 @@ jobs:
       - name: Feed parity release gate (review R107-15)
         # Fails while a corpus deviation names no approval rule, a case
         # declares an open gap, a capability the web offers has no case, or a
-        # harness module does not build its broker.
-        run: python3 scripts/feed_corpus/release_gate.py --check
+        # harness module does not build its broker. A pull request may not
+        # raise a ceiling on the steps the web replay does not model without a
+        # rule in approvals.json.
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          args=(--check)
+          if [ "$EVENT" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            args+=(--base-ref FETCH_HEAD)
+          fi
+          python3 scripts/feed_corpus/release_gate.py "${args[@]}"
 
   # ------------------------------------------------------- Tauri bundles
+  web-oracle:
+    name: web-oracle (feed corpus against the web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: The web commit the corpus is pinned to
+        id: pin
+        run: python3 scripts/feed_corpus/web_expected.py --print-pin >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ steps.pin.outputs.web_sha }}
+          path: web-tree
+          persist-credentials: false
+      - name: Every web.json is the web's output at that commit
+        run: python3 scripts/feed_corpus/web_expected.py --web web-tree --check
+      - name: The oracle's probes
+        run: python3 scripts/feed_corpus/test_oracle.py --web web-tree
+
   tauri-build:
     name: tauri-build (${{ matrix.name }})
     needs: [rust-lint, rust-test, frontend, frontend-test]
@@ -636,6 +668,7 @@ jobs:
       - e2e-flow
       - secret-scan
       - code-health
+      - web-oracle
       - tauri-build
       - install-smoke
       - native-e2e

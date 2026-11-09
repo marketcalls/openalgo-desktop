@@ -29,7 +29,7 @@ mod web;
 mod world;
 
 pub(crate) use approvals::registry_problems;
-pub(crate) use case::{corpus_root, deviation_problems, read_json, Case};
+pub(crate) use case::{corpus_root, deviation_problems, read_json, Case, CaseFacts};
 pub(crate) use run::run;
 pub(crate) use world::{Env, Feeds};
 

@@ -594,7 +594,8 @@ impl Case {
             Some(_) => bad(&at, "\"http\" is an array of answers"),
         };
         let (web_sha, by_hand) = provenance(&at, o.get("provenance"));
-        let deviations = deviations(&at, broker, o.get("deviations"));
+        let facts = CaseFacts::new(broker, Some(&instruments_json), &script);
+        let deviations = deviations(&at, &facts, o.get("deviations"));
         Case {
             http,
             orders,
@@ -743,8 +744,8 @@ fn refusals_at_start(steps: &mut Vec<Step>) -> BTreeMap<Socket, (u16, usize)> {
 
 /// The keys the deviations cover, with their kinds, after checking each
 /// is complete (`deviation_problems`).
-fn deviations(at: &str, broker: &str, v: Option<&Value>) -> Vec<(String, String)> {
-    let problems = deviation_problems(broker, v);
+fn deviations(at: &str, facts: &CaseFacts, v: Option<&Value>) -> Vec<(String, String)> {
+    let problems = deviation_problems(facts, v);
     if !problems.is_empty() {
         bad(at, problems.join("\n  "));
     }
@@ -763,13 +764,45 @@ const DEVIATION_FIELDS: &[&str] = &[
     "key", "kind", "reason", "ref", "approved", "approval", "web", "desktop",
 ];
 
+/// What a rule's scope is checked against: the case's broker, whether it
+/// has an index instrument and a non-index one, and its kinds of step.
+#[derive(Debug, Clone)]
+pub(crate) struct CaseFacts {
+    pub(crate) broker: String,
+    pub(crate) index: bool,
+    pub(crate) non_index: bool,
+    pub(crate) steps: BTreeSet<String>,
+}
+
+impl CaseFacts {
+    /// From `case.json`'s `instruments` and the script's text.
+    pub(crate) fn new(broker: &str, instruments: Option<&Value>, script: &str) -> CaseFacts {
+        let exchanges: Vec<&str> = instruments
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|i| i["exchange"].as_str())
+            .collect();
+        CaseFacts {
+            broker: broker.to_string(),
+            index: exchanges.iter().any(|e| e.ends_with("_INDEX")),
+            non_index: exchanges.iter().any(|e| !e.ends_with("_INDEX")),
+            steps: script
+                .lines()
+                .filter_map(|line| json_text::parse(line).ok())
+                .filter_map(|step| step["step"].as_str().map(String::from))
+                .collect(),
+        }
+    }
+}
+
 /// Every way a `case.json`'s `deviations` fall short (none when each names
 /// its key once, a kind of `DEVIATION_KINDS`, a reason, `approved` as true
 /// or false, and an `approval` that names a rule of `approvals.json`, never
 /// on an open gap): what the parity matrix counts can be trusted only when
 /// every case has none. A deviation with no `approval` is pending, which the
 /// release gate fails on, not this check.
-pub(crate) fn deviation_problems(broker: &str, v: Option<&Value>) -> Vec<String> {
+pub(crate) fn deviation_problems(facts: &CaseFacts, v: Option<&Value>) -> Vec<String> {
     let Some(v) = v else {
         return Vec::new();
     };
@@ -806,13 +839,13 @@ pub(crate) fn deviation_problems(broker: &str, v: Option<&Value>) -> Vec<String>
                 DEVIATION_KINDS.join(", ")
             ));
         }
-        if kind == RANDOM_VALUES && !SYNTHETIC_FEEDS.contains(&broker) {
+        if kind == RANDOM_VALUES && !SYNTHETIC_FEEDS.contains(&facts.broker.as_str()) {
             out.push(format!(
                 "{}: {} is only for a synthetic feed ({}), not {}",
                 name,
                 RANDOM_VALUES,
                 SYNTHETIC_FEEDS.join(", "),
-                broker
+                facts.broker
             ));
         }
         if !o
@@ -826,7 +859,7 @@ pub(crate) fn deviation_problems(broker: &str, v: Option<&Value>) -> Vec<String>
             out.push(format!("{}: approved is true or false", name));
         }
         if let Some(a) = o.get("approval") {
-            if let Some(p) = approvals::problem(a) {
+            if let Some(p) = approvals::problem(a, facts, key.unwrap_or_default(), kind) {
                 out.push(format!("{}: {}", name, p));
             }
             if kind == "open" {
@@ -1133,7 +1166,8 @@ fn http_path(at: &str, o: &Map<String, Value>) -> String {
 
 /// An answer of the fake broker API: `method` (default any), `path`,
 /// `status` (default 200), `body` (a file of the case, `{"json"}` or
-/// `{"text"}`; default empty) and `record`. A body file joins `inputs`.
+/// `{"text"}`; default empty) and `record`. A body file joins `inputs`, or
+/// an inline body's text.
 fn http_answer(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> HttpAnswer {
     let status = o.get("status").map_or(200, |s| {
         s.as_u64()
@@ -1159,11 +1193,15 @@ fn http_answer(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8
                 _ => HttpBody::Text(text),
             }
         }
-        Some(v) => match inline(at, v) {
-            ("json", json) => HttpBody::Json(json.clone()),
-            ("text", t) => HttpBody::Text(t.as_str().unwrap_or_default().to_string()),
-            _ => bad(at, "an HTTP body is a file, {\"json\"} or {\"text\"}"),
-        },
+        Some(v) => {
+            let body = match inline(at, v) {
+                ("json", json) => HttpBody::Json(json.clone()),
+                ("text", t) => HttpBody::Text(t.as_str().unwrap_or_default().to_string()),
+                _ => bad(at, "an HTTP body is a file, {\"json\"} or {\"text\"}"),
+            };
+            inputs.extend_from_slice(body.text().as_bytes());
+            body
+        }
     };
     HttpAnswer {
         method: http_method(at, o),

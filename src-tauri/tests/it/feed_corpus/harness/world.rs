@@ -508,7 +508,9 @@ impl World {
     /// bus, the clients' writers) have had enough turns, and the clients'
     /// queues are empty. By turns of the scheduler, not by the clock, so a
     /// slow runner cannot make a frame look absent (`World`'s pipeline runs
-    /// on the test's own thread: `corpus_cases!`).
+    /// on the test's own thread: `corpus_cases!`). Only what is already in
+    /// the pipeline is deterministic: a product timer that fires after the
+    /// wait is not seen (accepted by the lead, review 2 O13).
     pub(crate) async fn drain(&self) {
         for up in self.upstreams.values() {
             up.read_up_to_now().await;

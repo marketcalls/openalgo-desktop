@@ -6,7 +6,7 @@
     python3 scripts/feed_corpus/approve.py set RULE --broker B [--case C] [--key K]
             [--kind K] [--reason-has TEXT] [--dry-run]
     python3 scripts/feed_corpus/approve.py add-rule ID --by lead|maintainer
-            --source WHERE --quote TEXT [--date YYYY-MM-DD]
+            --source WHERE --quote TEXT --scope JSON [--date YYYY-MM-DD]
 
 Every deviation a case declares (`case.json` `deviations`) names the rule it
 follows in `"approval"`: an id in `src-tauri/tests/fixtures/feed_corpus/
@@ -164,11 +164,20 @@ def cmd_add_rule(args) -> int:
     if not args.quote.strip() or not args.source.strip():
         print("a rule quotes its decision (--quote) and says where it is written (--source)")
         return 1
+    try:
+        scope = json.loads(args.scope)
+    except json.JSONDecodeError as e:
+        print(f"--scope is JSON: {e}")
+        return 1
+    if not isinstance(scope, dict):
+        print("--scope is a JSON object: brokers, keys, kinds, instrument, after_step or any_of; {} covers everything")
+        return 1
     doc["rules"][args.id] = {
         "by": args.by,
         "date": args.date or datetime.date.today().isoformat(),
         "source": args.source,
         "rule": args.quote,
+        "scope": scope,
     }
     REGISTRY.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"added rule {args.id}")
@@ -196,6 +205,7 @@ def main() -> int:
     p.add_argument("id")
     p.add_argument("--by", required=True)
     p.add_argument("--source", required=True)
+    p.add_argument("--scope", required=True, help="what the decision's words cover (a JSON object; {} is everything)")
     p.add_argument("--quote", required=True)
     p.add_argument("--date")
     args = ap.parse_args()

@@ -1,0 +1,278 @@
+{
+  "about": "What the web offers each broker's clients, from its own registries. Written by scripts/feed_corpus/web_expected.py at the commit pinned in web_oracle.json.",
+  "brokers": {
+    "aliceblue": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "by-hand"
+    },
+    "angel": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "arrow": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "compositedge": {
+      "depth": [
+        5,
+        20
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "definedge": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "deltaexchange": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "dhan": {
+      "depth": [
+        5,
+        20
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "dhan_sandbox": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "by-hand"
+    },
+    "firstock": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "by-hand"
+    },
+    "fivepaisa": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "fivepaisaxts": {
+      "depth": [
+        5,
+        20
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "flattrade": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "fyers": {
+      "depth": [
+        5,
+        50
+      ],
+      "orders": true,
+      "source": "by-hand"
+    },
+    "groww": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "hdfcsecurities": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "hdfcsky": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "ibulls": {
+      "depth": [
+        5,
+        20
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "iifl": {
+      "depth": [
+        5,
+        20
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "iiflcapital": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "by-hand"
+    },
+    "indmoney": {
+      "depth": [],
+      "orders": true,
+      "source": "registry"
+    },
+    "jainamxts": {
+      "depth": [
+        5,
+        20
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "kotak": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "by-hand"
+    },
+    "motilal": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "mstock": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "nubra": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "paytm": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "pocketful": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "rmoney": {
+      "depth": [
+        5,
+        20
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "rupeezy": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "sahi": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "samco": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "shoonya": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "by-hand"
+    },
+    "tradejini": {
+      "depth": [
+        5
+      ],
+      "orders": false,
+      "source": "by-hand"
+    },
+    "tradesmart": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "upstox": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "by-hand"
+    },
+    "wisdom": {
+      "depth": [
+        5,
+        20
+      ],
+      "orders": false,
+      "source": "registry"
+    },
+    "zebu": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
+    "zerodha": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "by-hand"
+    }
+  }
+}

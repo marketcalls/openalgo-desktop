@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "groww",
-  "inputs_sha256": "31a8a2722018a208b78e1befa5d7e3d919448ca998310832459b8f6a99e50eac",
+  "inputs_sha256": "ff073c698f83009a77a4bf028e0879eb3948a5a19daf6dbd555e79cd02df99d3",
   "instruments": [
     {
       "symbol": "SBIN",

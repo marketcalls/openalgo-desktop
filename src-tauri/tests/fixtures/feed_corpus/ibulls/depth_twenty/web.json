@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "ibulls",
-  "inputs_sha256": "e8fe0a00282b6624b5da78ce78b3ec51890c61b8b6e7884a48942059b5cbea44",
+  "inputs_sha256": "d81493e931133f4372d5df5992d445af7ab7c2a39d0cb3233c7bdf227971827b",
   "instruments": [
     {
       "symbol": "RELIANCE",

@@ -4,10 +4,14 @@
 //! every deviation of every case is sound, so the parity matrix that
 //! counts them can be trusted.
 
-use super::harness::{corpus_root, deviation_problems, read_json, registry_problems, Case};
+use super::harness::{
+    corpus_root, deviation_problems, read_json, registry_problems, Case, CaseFacts,
+};
 use super::{BROKERS, WITHOUT_BROKER};
 use openalgo_desktop_lib::brokers::catalog::ALL_BROKERS;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use std::path::Path;
 
 fn folders(dir: &std::path::Path) -> BTreeSet<String> {
     std::fs::read_dir(dir)
@@ -62,7 +66,11 @@ fn every_deviation_has_a_known_kind_and_a_reason() {
                 continue;
             }
             let case_json = read_json(&path);
-            for p in deviation_problems(&broker, case_json.get("deviations")) {
+            let script = std::fs::read_to_string(path.with_file_name("script.jsonl"))
+                .unwrap_or_default()
+                .replace("\r\n", "\n");
+            let facts = CaseFacts::new(&broker, case_json.get("instruments"), &script);
+            for p in deviation_problems(&facts, case_json.get("deviations")) {
                 problems.push(format!("{}/{}: {}", broker, case, p));
             }
         }
@@ -83,7 +91,7 @@ fn an_unsound_deviation_is_named() {
         {"key": "ltt", "kind": "open", "reason": " "},
         {"kind": "open", "reason": "no key", "approved": "yes", "note": "x"}
     ]);
-    let found = deviation_problems("zerodha", Some(&devs));
+    let found = deviation_problems(&CaseFacts::new("zerodha", None, ""), Some(&devs));
     let want = [
         "deviation \"oi\": kind \"guess\" is not one of",
         "deviation \"ltt\" gives no reason",
@@ -119,7 +127,7 @@ fn approvals_name_complete_rules() {
         {"key": "oi", "kind": "web-defect", "reason": "zero", "approval": "made-up"},
         {"key": "ltp", "kind": "open", "reason": "to fix", "approval": "alias-unit"}
     ]);
-    let found = deviation_problems("zerodha", Some(&devs));
+    let found = deviation_problems(&CaseFacts::new("zerodha", None, ""), Some(&devs));
     assert_eq!(found.len(), 2, "{:?}", found);
     assert!(
         found[0].contains("approval \"made-up\" is no rule"),
@@ -141,11 +149,12 @@ fn only_a_synthetic_feed_may_declare_random_values() {
     let devs = serde_json::json!([
         {"key": "ltp", "kind": "random-values", "reason": "drawn at random"}
     ]);
+    let facts = CaseFacts::new("dhan_sandbox", None, "");
     assert_eq!(
-        deviation_problems("dhan_sandbox", Some(&devs)),
+        deviation_problems(&facts, Some(&devs)),
         Vec::<String>::new()
     );
-    let found = deviation_problems("zerodha", Some(&devs));
+    let found = deviation_problems(&CaseFacts::new("zerodha", None, ""), Some(&devs));
     assert_eq!(found.len(), 1, "{:?}", found);
     assert!(found[0].contains("synthetic feed"), "{:?}", found);
 }
@@ -161,6 +170,61 @@ fn the_corpus_covers_exactly_the_catalog_brokers() {
     let on_disk = folders(&corpus_root());
     let disk: BTreeSet<&str> = on_disk.iter().map(String::as_str).collect();
     assert_eq!(disk, catalog, "the corpus's broker folders");
+}
+
+/// `scripts/feed_corpus/web_expected.py`'s digest of its own code, as it
+/// writes it into `web_oracle.json`.
+fn oracle_tool_digest() -> String {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../scripts/feed_corpus");
+    let mut names: Vec<String> = [
+        "web_expected.py",
+        "webkit.py",
+        "webserver.py",
+        "protolite.py",
+    ]
+    .map(String::from)
+    .to_vec();
+    names.extend(
+        std::fs::read_dir(dir.join("web_adapters"))
+            .expect("the oracle's web_adapters")
+            .filter_map(Result::ok)
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".py"))
+            .map(|n| format!("web_adapters/{}", n)),
+    );
+    names.sort();
+    let mut digest = Sha256::new();
+    for name in names {
+        let bytes = std::fs::read(dir.join(&name)).expect("a file of the oracle");
+        digest.update(name.as_bytes());
+        digest.update([0]);
+        digest.update(
+            String::from_utf8_lossy(&bytes)
+                .replace("\r\n", "\n")
+                .as_bytes(),
+        );
+        digest.update([0]);
+    }
+    hex::encode(digest.finalize())
+}
+
+/// One web commit for the whole corpus, and the oracle's code as it was
+/// when `web_oracle.json` was written: a changed glue with the old
+/// `web.json` files fails here, on any machine without a web tree.
+#[test]
+fn the_web_oracle_is_pinned_and_its_code_unchanged() {
+    let pin = read_json(&corpus_root().join("web_oracle.json"));
+    let sha = pin["web_sha"].as_str().unwrap_or_default();
+    assert!(
+        sha.len() == 40 && sha.chars().all(|c| c.is_ascii_hexdigit()),
+        "web_oracle.json pins no web commit: {}",
+        pin
+    );
+    assert_eq!(
+        pin["tool_sha256"].as_str(),
+        Some(oracle_tool_digest().as_str()),
+        "the web oracle's code changed: run scripts/feed_corpus/web_expected.py"
+    );
 }
 
 /// The modules still running without their broker are brokers of the

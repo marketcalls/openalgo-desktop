@@ -45,14 +45,14 @@
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no last traded price (proto3 0); the web publishes ltp 0 and a change of ltp - close from it (-1495.0, -100.0%), a price and a change no trade made. The desktop marks the price absent: no LTP or Quote frame, and the Depth frame keeps ltp 0 with no change. Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
       "ref": "hdfcsky_adapter.py:425-432; investright::finish",
-      "approval": "no-price-packet"
+      "approval": "do-not-invent-data"
     },
     {
       "key": "change_percent",
       "kind": "web-defect",
       "reason": "Before the first trade the packet carries no last traded price (proto3 0); the web publishes ltp 0 and a change of ltp - close from it (-1495.0, -100.0%), a price and a change no trade made. The desktop marks the price absent: no LTP or Quote frame, and the Depth frame keeps ltp 0 with no change. Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
       "ref": "hdfcsky_adapter.py:425-432; investright::finish",
-      "approval": "no-price-packet"
+      "approval": "do-not-invent-data"
     },
     {
       "key": "high",
@@ -80,7 +80,7 @@
       "kind": "web-defect",
       "reason": "Two causes, one key. Before the first trade the packet has no lastTradeTime and the web sends its packet time as ltt (a time no trade happened at), where the desktop leaves ltt out; on the traded packets the web sends lastTradeTime in epoch seconds unconverted, where the desktop sends ms. Lead decisions: the trade-time fallback is absent; ltt in seconds -> ms (wrong unit).",
       "ref": "hdfcsky_adapter.py:421; investright::set_trade_time",
-      "approval": "no-packet-time-as-trade-time"
+      "approval": "do-not-invent-data"
     },
     {
       "key": "missing-frame",

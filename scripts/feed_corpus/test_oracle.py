@@ -27,9 +27,16 @@ what `web_expected.diff` (the harness's web check, mirrored) finds:
   not made are listed, not taken for compared.
 - random_values_scope (O7), gate_web_output (O1), gate_catalog (O12).
 
-CI has no web tree, so this runs by hand; the harness's own unit tests
-(`harness/deliveries.rs`) hold the consumption rule in CI. Standard library
-only.
+- inline_body_hashed, pin_checked (O2): a case's inline answer joins its
+  hash, and `--check` refuses a web tree or tool code other than the pin's.
+- uncompared_ceiling (O10): the ratchet per kind of step not replayed.
+- rule_scope (O5): a deviation outside the words of its rule is named.
+- registries_read, offers_not_broker_json, a_refused_level_covers_nothing
+  (O6): what the web offers comes from its registries, not `broker.json`,
+  and a capability counts only with an accepted subscribe and a frame.
+
+CI's `web-oracle` job runs this against the web tree at the pinned commit.
+Standard library only.
 """
 
 from __future__ import annotations
@@ -47,6 +54,7 @@ sys.path.insert(0, str(HERE))
 import parity_matrix as pm  # noqa: E402
 import release_gate as gate  # noqa: E402
 import web_expected as we  # noqa: E402
+import web_offers  # noqa: E402
 
 QUOTE_MODE = we.CORPUS / "zerodha" / "quote_mode"
 
@@ -255,6 +263,114 @@ def probe_gate_catalog() -> list[str]:
     return problems
 
 
+def probe_registries_read(web: Path) -> list[str]:
+    """The web's own registries, not what broker.json says."""
+    problems = []
+    offers = web_offers.compute(web)["brokers"]
+    for broker, depth, orders, source in (
+        ("compositedge", [5, 20], False, "registry"),
+        ("dhan", [5, 20], True, "registry"),
+        ("samco", [5], True, "registry"),
+    ):
+        want = {"depth": depth, "orders": orders, "source": source}
+        if offers.get(broker) != want:
+            problems.append(f"registries_read: {broker}: {offers.get(broker)}, not {want}")
+    return problems
+
+
+def probe_offers_not_broker_json() -> list[str]:
+    """broker.json saying less than the registries hides nothing."""
+    with tempfile.TemporaryDirectory() as tmp:
+        temporary_corpus(Path(tmp), "dhan", method="by-hand")
+        (Path(tmp) / "dhan" / "broker.json").write_text(json.dumps({"web": {"ltp": True, "quote": True, "depth": [5]}}))
+        (Path(tmp) / "web_offers.json").write_text(json.dumps({
+            "brokers": {"dhan": {"depth": [5, 20], "orders": False, "source": "registry"}}
+        }))
+        held = with_corpus(Path(tmp), ["dhan"]).get("uncovered", [])
+    return [] if any("Depth 20" in h for h in held) else [f"offers_not_broker_json: {held}"]
+
+
+def probe_refused_level_covers_nothing() -> list[str]:
+    """A refused subscribe, or an accepted one nothing came of, covers no
+    capability; a frame received for an accepted one does."""
+    message = {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 3, "depth": 20}
+    refused = {"status": "partial", "subscriptions": [{"symbol": "INFY", "exchange": "NSE", "status": "error"}]}
+    frame = {"type": "market_data", "symbol": "INFY", "exchange": "NSE", "mode": 3}
+    scripts = (
+        ([{"step": "send", "client": "a", "message": message, "reply": refused},
+          {"step": "receive", "client": "a", "frame": frame}], set()),
+        ([{"step": "send", "client": "a", "message": message}], set()),
+        ([{"step": "send", "client": "a", "message": message},
+          {"step": "receive", "client": "a", "frame": frame}], {20}),
+    )
+    problems = []
+    for steps, want in scripts:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "script.jsonl").write_text("".join(json.dumps(s) + "\n" for s in steps))
+            got = pm.covers(Path(tmp))
+        if got != want:
+            problems.append(f"a_refused_level_covers_nothing: {got}, not {want}: {steps}")
+    return problems
+
+
+def probe_uncompared_ceiling() -> list[str]:
+    """Above a ceiling, a ceiling left high, and a rise without a rule each
+    fail; a rise naming a rule in force does not."""
+    rules = {"a-rule": {"rule": "r"}, "old": {"rule": "r", "superseded_by": "a-rule"}}
+    doc = {"ceilings": {"disconnect": 5}, "raised_by": {}}
+    cases = (
+        ("at the ceiling", {"disconnect": 5}, doc, None, 0),
+        ("above", {"disconnect": 6}, doc, None, 1),
+        ("a kind with no ceiling", {"disconnect": 5, "refuse_upgrades": 1}, doc, None, 1),
+        ("left high", {"disconnect": 4}, doc, None, 1),
+        ("a rise with no rule", {"disconnect": 5}, doc, {"disconnect": 4}, 1),
+        ("a rise on a withdrawn rule", {"disconnect": 5}, {**doc, "raised_by": {"disconnect": "old"}},
+         {"disconnect": 4}, 1),
+        ("a rise with a rule", {"disconnect": 5}, {**doc, "raised_by": {"disconnect": "a-rule"}}, {"disconnect": 4}, 0),
+    )
+    problems = []
+    for name, counts, ceiling, base, want in cases:
+        got = gate.ceiling_problems(counts, ceiling, rules, base)
+        if len(got) != want:
+            problems.append(f"uncompared_ceiling: {name}: {got}")
+    return problems
+
+
+def probe_rule_scope() -> list[str]:
+    """A rule's scope comes from its words: an index-only rule on an equity case is named (review 2, O5)."""
+    equity = {"broker": "hdfcsky", "instruments": [{"symbol": "RELIANCE", "exchange": "NSE"}]}
+    index = {"broker": "hdfcsky", "instruments": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}]}
+    deviation = {"key": "ltt", "kind": "web-defect", "reason": "r", "approval": "no-packet-time-as-trade-time"}
+    kinds = ["web-defect"]
+    problems = []
+    for case, covered in ((equity, False), (index, True)):
+        found = pm.deviation_problems("probe", {**case, "deviations": [deviation]}, kinds)
+        if (not any("does not cover" in p for p in found)) != covered:
+            problems.append(f"rule_scope: {case['instruments']}: {found}")
+    return problems
+
+
+def probe_inline_body_hashed(web: Path) -> list[str]:
+    """Two different inline answers cannot share a digest."""
+    digests = []
+    for body in ({"json": {"status": "ok"}}, {"json": {"status": "changed"}}):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = make_case(Path(tmp), (150000,), receives=0)
+            edit_case(case, case_json={"http": [{"method": "GET", "path": "/probe", "body": body}]})
+            digests.append(we.compute(case, web, "probe")["inputs_sha256"])
+    return [] if digests[0] != digests[1] else ["inline_body_hashed: an inline answer does not join the digest"]
+
+
+def probe_pin_checked() -> list[str]:
+    pin = we.read_pin
+    we.read_pin = lambda: {"web_sha": "b" * 40, "tool_sha256": "c" * 64}
+    try:
+        found = we.pin_problems("a" * 40)
+    finally:
+        we.read_pin = pin
+    return [] if len(found) == 2 else [f"pin_checked: {found}"]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--web", required=True, type=Path, help="the web tree (read only)")
@@ -270,6 +386,13 @@ def main() -> int:
         + probe_random_values_scope()
         + probe_gate_web_output()
         + probe_gate_catalog()
+        + probe_uncompared_ceiling()
+        + probe_rule_scope()
+        + probe_registries_read(args.web)
+        + probe_offers_not_broker_json()
+        + probe_refused_level_covers_nothing()
+        + probe_inline_body_hashed(args.web)
+        + probe_pin_checked()
     )
     for p in problems:
         print(p)

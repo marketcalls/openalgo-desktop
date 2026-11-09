@@ -11,8 +11,10 @@
   and none still carries the old `approved` flag;
 - no case declares an open gap (kind `open`);
 - every capability the web offers (LTP, Quote, each depth level, order
-  updates, per `broker.json`) for every broker of the catalog is covered
-  by a case, and every broker of the catalog has its `broker.json`;
+  updates, per `web_offers.json`, read from the web's own registries) for
+  every broker of the catalog is covered by a case whose subscribe was
+  accepted and which received a frame for it, and every broker of the
+  catalog has its `broker.json`;
 - every broker module of the harness builds its session's broker
   (`Feeds::with_broker`): the `WITHOUT_BROKER` list in
   `src-tauri/tests/it/feed_corpus/mod.rs` is empty;
@@ -20,8 +22,11 @@
   hand, and the corpus is exactly the 38 brokers of the catalog.
 
 The steps the web replay has no behaviour for (`web.json` `uncompared`:
-refused upgrades, a deliberate disconnect, a deep feed not made) are counted
-here. They do not hold the release back.
+refused upgrades, a deliberate disconnect, a deep feed not made) are held to a
+ratchet per kind (`uncompared_ceiling.json`): the release is held above a
+ceiling, and while a ceiling sits above the count (`--update` lowers it, in
+the same change). With `--base-ref`, a ceiling higher than the base's needs a
+rule of approvals.json named under `raised_by`.
 
 A case's own result holds when its test passes (lane-test or CI); this gate
 reads the corpus's declarations and coverage, not test results. It is
@@ -32,8 +37,10 @@ generated matrix is current. Standard library only.
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -76,9 +83,58 @@ def uncompared() -> list[str]:
     ]
 
 
-def holds() -> dict[str, list[str]]:
+def ceiling_path() -> Path:
+    return pm.CORPUS / "uncompared_ceiling.json"
+
+
+def read_ceiling() -> dict:
+    path = ceiling_path()
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"ceilings": {}, "raised_by": {}}
+
+
+def base_ceilings(ref: str) -> dict | None:
+    """The ceilings at `ref`; `None` where that commit has none yet."""
+    path = ceiling_path().relative_to(pm.ROOT).as_posix()
+    done = subprocess.run(["git", "show", f"{ref}:{path}"], capture_output=True, text=True, cwd=pm.ROOT, check=False)
+    return json.loads(done.stdout)["ceilings"] if done.returncode == 0 else None
+
+
+def uncompared_counts() -> collections.Counter:
+    """The steps the web replay does not model, per kind."""
+    return collections.Counter(line.rsplit(": ", 1)[1] for line in uncompared())
+
+
+def ceiling_problems(counts: dict, doc: dict, rules: dict, base: dict | None = None) -> list[str]:
+    """The ratchet: no kind above its ceiling, no ceiling above its count,
+    and no ceiling above the base's without a rule in force."""
+    ceilings, raised_by = doc.get("ceilings", {}), doc.get("raised_by", {})
+    out = []
+    for kind in sorted(set(counts) | set(ceilings)):
+        now, ceiling = counts.get(kind, 0), ceilings.get(kind, 0)
+        if now > ceiling:
+            out.append(f"{kind}: {now} steps, above its ceiling of {ceiling}")
+        elif now < ceiling:
+            out.append(f"{kind}: {now} steps, and its ceiling still says {ceiling}: run release_gate.py --update")
+        if base is not None and ceiling > base.get(kind, 0):
+            rule = raised_by.get(kind)
+            if rule not in rules or "superseded_by" in rules[rule]:
+                out.append(f"{kind}: its ceiling rose from {base.get(kind, 0)} to {ceiling} with no rule in force "
+                           "named under raised_by")
+    return out
+
+
+def update_ceiling() -> None:
+    """Lower each ceiling to its count; a ceiling is never raised here."""
+    doc = read_ceiling()
+    counts = uncompared_counts()
+    doc["ceilings"] = {kind: min(n, counts.get(kind, 0)) for kind, n in doc["ceilings"].items()}
+    ceiling_path().write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+
+def holds(base: dict | None = None) -> dict[str, list[str]]:
     """What holds the release back, by reason."""
     rules = pm.approval_rules()
+    offers = pm.web_offers()
     found = {
         "pending": [],
         "old flag": [],
@@ -87,6 +143,7 @@ def holds() -> dict[str, list[str]]:
         "without broker": [],
         "no web output": [],
         "catalog": catalog_holds(),
+        "uncompared": ceiling_problems(uncompared_counts(), read_ceiling(), rules, base),
     }
     for broker in pm.brokers():
         bdir = pm.CORPUS / broker
@@ -94,7 +151,9 @@ def holds() -> dict[str, list[str]]:
         if not meta_path.exists():
             found["uncovered"].append(f"{broker}: no broker.json (what the web offers is not recorded)")
             continue
-        web = json.loads(meta_path.read_text(encoding="utf-8")).get("web")
+        web = pm.capabilities(broker, json.loads(meta_path.read_text(encoding="utf-8")), offers)
+        if web is None:
+            found["uncovered"].append(f"{broker}: web_offers.json does not record it (run web_expected.py)")
         covered = set()
         for d in sorted(p for p in bdir.glob("*") if p.is_dir()):
             case = json.loads((d / "case.json").read_text(encoding="utf-8"))
@@ -120,8 +179,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="fail while anything holds 1.0.7 back")
     ap.add_argument("--all", action="store_true", help="list every item, not the first 20 of each reason")
+    ap.add_argument("--update", action="store_true", help="lower the uncompared ceilings to the counts, and stop")
+    ap.add_argument("--base-ref", help="refuse an uncompared ceiling above this commit's without a rule")
     args = ap.parse_args()
-    found = holds()
+    if args.update:
+        update_ceiling()
+        print(f"wrote {ceiling_path().relative_to(pm.ROOT)}")
+        return 0
+    found = holds(base_ceilings(args.base_ref) if args.base_ref else None)
     titles = {
         "pending": "deviations naming no rule in force (approve.py set RULE ...)",
         "old flag": "deviations still carrying \"approved\" (approve.py set drops it)",
@@ -130,6 +195,7 @@ def main() -> int:
         "without broker": "harness modules without their broker (Feeds::with_broker)",
         "no web output": "cases without web.json that are not worked out by hand",
         "catalog": "the corpus is not exactly the catalog's brokers",
+        "uncompared": "steps the web replay does not model, against their ceilings",
     }
     total = 0
     for reason, items in found.items():
@@ -140,7 +206,7 @@ def main() -> int:
         if len(items) > 20 and not args.all:
             print(f"  ... and {len(items) - 20} more (--all)")
     steps = uncompared()
-    print(f"steps the web replay does not model (counted, not a hold): {len(steps)}")
+    print(f"steps the web replay does not model: {len(steps)}")
     for step in steps if args.all else steps[:20]:
         print(f"  {step}")
     if total:

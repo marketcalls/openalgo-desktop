@@ -513,15 +513,19 @@ def read_frame(case_dir: Path, spec: Any) -> tuple[bytes | str, bytes | None]:
 
 def read_body(case_dir: Path, spec: Any) -> tuple[str, bytes | None]:
     """An HTTP answer's body as the harness serves it (a file of the case,
-    `{"json"}`, `{"text"}`, or empty), and the file bytes that join the
-    case's inputs."""
+    `{"json"}`, `{"text"}`, or empty), and the bytes that join the case's
+    inputs: the file's, or an inline body's text with the keys sorted, as
+    the harness's `HttpBody::text` writes it."""
     if spec is None:
         return "", None
     if isinstance(spec, str):
         raw = (case_dir / spec).read_bytes().replace(b"\r\n", b"\n")
         return raw.decode("utf-8").rstrip("\r\n"), raw
     ((kind, v),) = spec.items()
-    return (v if kind == "text" else json.dumps(v, separators=(",", ":"))), None
+    if kind == "text":
+        return v, v.encode("utf-8")
+    hashed = json.dumps(v, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
+    return json.dumps(v, separators=(",", ":")), hashed.encode("utf-8")
 
 
 def hex_bytes(text: str) -> bytes:
