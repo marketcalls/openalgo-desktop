@@ -43,12 +43,6 @@
       "kind": "web-defect",
       "reason": "The web sends a constant oi_change of 0 on every ticker (_normalise_ticker's defaults), although Delta's ticker carries the OI change as oi[1]; the desktop sends no invented change.",
       "ref": "delta_adapter.py:584"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web publishes the merged dict once per subscription with its own mode (delta_adapter.py:470-485): an LTP holder gets mode 1. The richer fold keeps the packet mode 2 until lane wire-2 (mode_of_holder) is merged.",
-      "ref": "delta_adapter.py:470-485; lane107/wire-2"
     }
   ]
 }

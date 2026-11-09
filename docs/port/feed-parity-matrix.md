@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 51. Open gaps: 7. Deviations pending approval: 106.
+Cases: 51. Open gaps: 6. Deviations pending approval: 106.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -16,7 +16,7 @@ Cases: 51. Open gaps: 7. Deviations pending approval: 106.
 | arrow | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | compositedge | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | definedge | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| deltaexchange | open gap: `ticker_quote_ltp_mode_change` | open gap: `ticker_quote_ltp_mode_change` | open gap: `book_then_ticker_depth`, `ticker_quote_ltp_mode_change` | not offered by the web | not offered by the web | not offered by the web | not offered by the web |
+| deltaexchange | deviation pending approval: `ticker_quote_ltp_mode_change` | deviation pending approval: `ticker_quote_ltp_mode_change` | deviation pending approval: `book_then_ticker_depth`, `ticker_quote_ltp_mode_change` | not offered by the web | not offered by the web | not offered by the web | not offered by the web |
 | dhan | deviation pending approval: `ltp_ticker` | deviation pending approval: `deliberate_disconnect`, `exchange_not_supported`, `index_quote`, `quote_before_previous_close`, `quote_previous_close`, `quote_to_depth_mode_change`, `reconnect_forgets_previous_close` | deviation pending approval: `full_depth`, `future_depth_oi`, `quote_to_depth_mode_change` | deviation pending approval: `depth_20_before_and_after_the_quote`, `depth_20_feed_not_made`, `depth_20_silent_falls_back`, `depth_20_socket_refused` | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
 | dhan_sandbox | deviation pending approval: `simulated_equity_modes` | deviation pending approval: `simulated_equity_modes`, `simulated_option_quote` | deviation pending approval: `simulated_equity_modes` | not offered by the web | not offered by the web | not offered by the web | not offered by the web |
 | firstock | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -79,7 +79,6 @@ Cases: 51. Open gaps: 7. Deviations pending approval: 106.
 | deltaexchange | `book_then_ticker_depth` | `oi_change` | web-defect | no | The web sends a constant oi_change of 0 on every ticker (_normalise_ticker's defaults) whatever Delta sent; a value the desktop does not know is left out. |
 | deltaexchange | `ticker_quote_ltp_mode_change` | `average_price` | web-defect | no | Delta's ticker carries no average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does. |
 | deltaexchange | `ticker_quote_ltp_mode_change` | `oi_change` | web-defect | no | The web sends a constant oi_change of 0 on every ticker (_normalise_ticker's defaults), although Delta's ticker carries the OI change as oi[1]; the desktop sends no invented change. |
-| deltaexchange | `ticker_quote_ltp_mode_change` | `mode` | open | no | The web publishes the merged dict once per subscription with its own mode (delta_adapter.py:470-485): an LTP holder gets mode 1. The richer fold keeps the packet mode 2 until lane wire-2 (mode_of_holder) is merged. |
 | dhan | `depth_20_before_and_after_the_quote` | `ltp` | desktop-decision | no | A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote, its last traded price after; the web's 20-level frame has no ltp. |
 | dhan | `depth_20_before_and_after_the_quote` | `total_buy_quantity` | desktop-decision | no | A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web. |
 | dhan | `depth_20_before_and_after_the_quote` | `total_sell_quantity` | desktop-decision | no | A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web. |
