@@ -417,3 +417,38 @@ async fn a_5_and_a_20_holder_each_get_books_at_their_own_depth() {
     assert_eq!(twenty, [Some(20), Some(20)]);
     feed.bridge.stop().await;
 }
+
+/// A book message that carries no traded price (Groww sends it as a full
+/// tick with its best bid and ask, then the book): no LTP or Quote holder
+/// hears it, and the book reaches Depth holders alone (web
+/// groww_adapter.py:966-967 skips depth ticks for LTP and Quote users).
+#[tokio::test]
+async fn a_book_without_a_price_reaches_depth_holders_only() {
+    use crate::brokers::common::streaming::QuoteField;
+    let mut feed = Feed::new("groww");
+    let key = InstrumentKey::new("RELIANCE", "NSE");
+    feed.client(1, &key, &[Mode::Quote]);
+    feed.client(2, &key, &[Mode::Depth]);
+    let mut priceless = tick("RELIANCE", "NSE");
+    priceless.ltp = 0.0;
+    priceless.mark_absent(QuoteField::Ltp);
+    feed.tick(
+        vec![
+            FeedEvent::Tick(priceless),
+            FeedEvent::Depth(book("RELIANCE", "NSE")),
+        ],
+        1,
+    )
+    .await;
+    assert!(
+        feed.frames(1).await.is_empty(),
+        "no Quote frame without a price"
+    );
+    let depth = feed.frames(2).await;
+    assert_eq!(depth.len(), 1);
+    assert_eq!(
+        depth[0]["data"]["depth"]["buy"].as_array().map(Vec::len),
+        Some(5)
+    );
+    feed.bridge.stop().await;
+}

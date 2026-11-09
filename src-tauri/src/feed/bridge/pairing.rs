@@ -11,7 +11,7 @@
 //! A book not found waiting goes out on its own, to Depth holders only, as
 //! before, so a packet is never sent twice to the same holder.
 
-use crate::brokers::common::streaming::{FeedEvent, MarketEvent, NormalizedTick};
+use crate::brokers::common::streaming::{FeedEvent, MarketEvent, NormalizedTick, QuoteField};
 use crate::feed::source::InstrumentKey;
 use tokio::sync::broadcast::error::TryRecvError;
 use tokio::sync::broadcast::Receiver;
@@ -29,10 +29,12 @@ pub(in crate::feed) enum Next {
 }
 
 /// Whether `ev` is a full tick of an instrument with a book (an index has
-/// none), whose book may follow it.
+/// none), whose book may follow it. A tick without a traded price is not
+/// one: it only updates the snapshot, and the book behind it reaches Depth
+/// holders alone (Groww's book message, web groww_adapter.py:966-967).
 pub(in crate::feed) fn awaits_book(ev: &FeedEvent) -> Option<&NormalizedTick> {
     match ev {
-        FeedEvent::Tick(t) if t.mode >= 3 => {
+        FeedEvent::Tick(t) if t.mode >= 3 && t.knows(QuoteField::Ltp) => {
             let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
             (!key.is_index()).then_some(t)
         }
