@@ -10,7 +10,7 @@
 //! marks, [`QuoteExtras`], [`BrokerField`]):
 //!
 //! * aliceblue: OI (as `total_oi`); marks for the `tf` fields it lacks.
-//! * angel: Depth circuits (SNAP packet).
+//! * angel: Depth circuits (SNAP packet) (done).
 //! * arrow: close and change in the 17-byte LTPC packet (`carried`), Depth
 //!   circuits (241-byte packet).
 //! * XTS family (compositedge, fivepaisaxts, ibulls, iifl, jainamxts,
@@ -18,19 +18,22 @@
 //!   OI and circuits from 1502.
 //! * definedge: previous OI, total OI, best bid and ask, circuits, 52-week
 //!   range.
-//! * deltaexchange: best bid and ask (ticker `q`), `absent(Orders)`.
+//! * deltaexchange: best bid and ask (ticker `q`), the last book's totals on
+//!   a ticker, `absent(Orders)` (done).
 //! * dhan: previous close as `close`, the packet's close as `day_close`,
-//!   previous OI, `OiHigh` / `OiLow`.
+//!   previous OI, `OiHigh` / `OiLow`; no totals on a 20-level book (done).
+//! * dhan_sandbox: the simulated feed's fields, drawn by the web's model;
+//!   OI in Quote (`carried`), no change (`absent`) (done).
 //! * firstock: OI in Quote (`carried`), circuits.
 //! * fivepaisa: best bid and ask.
 //! * Noren family (flattrade, shoonya, tradesmart, zebu): the feed time
 //!   `ft` as `exchange_time_ms`, circuits, 52-week range; TradeSmart OI in
 //!   Quote.
-//! * fyers: best bid and ask, circuits, exchange time; the quote in
-//!   LTP-mode packets (`carried`).
+//! * fyers: best bid and ask, circuits, exchange time, `UpdateType`; the
+//!   quote in LTP-mode packets (`carried`) (done).
 //! * groww: `TradedValue`, best bid and ask from the book.
 //! * hdfcsecurities, hdfcsky: circuits (CIRC packets), OI in quote packets.
-//! * iiflcapital, nubra, samco: best bid and ask.
+//! * iiflcapital, nubra, samco: best bid and ask (nubra done).
 //! * indmoney: best bid and ask, OI change, OI in Quote.
 //! * kotak: nothing beyond the canonical quote.
 //! * motilal: volume in LTP packets (`carried`), circuits.

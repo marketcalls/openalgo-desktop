@@ -53,8 +53,8 @@ pub use tbt::*;
 
 use crate::brokers::common::mpp::py_round;
 use crate::brokers::common::streaming::{
-    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, BrokerField, BrokerValue, FeedEvent, FeedMode,
+    FeedSubscription, Message, NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::{AuthToken, DepthLevel};
@@ -489,7 +489,7 @@ impl HsmFeed {
             multiplier,
             precision,
         };
-        self.emit(&state, out);
+        self.emit(&state, SNAPSHOT, out);
         let first_quote = (kind == Topic::Scrip
             && !self.live.values().any(|s| s.name == state.name))
         .then(|| state.name.clone());
@@ -505,7 +505,7 @@ impl HsmFeed {
         // `depth_awaiting_quote`). A later quote, an update or another
         // snapshot of the same feed, does not send it again.
         if let Some(depth) = first_quote.and_then(|n| self.sibling(&n, "sf|", "dp|")) {
-            self.emit(depth, out);
+            self.emit(depth, SNAPSHOT, out);
         }
         true
     }
@@ -536,7 +536,7 @@ impl HsmFeed {
             }
         }
         if changed {
-            self.emit(&state, out);
+            self.emit(&state, LIVE, out);
         }
         if self.topics.contains_key(&state.name) {
             self.live.insert(id, state);
@@ -544,17 +544,25 @@ impl HsmFeed {
         true
     }
 
-    fn emit(&self, st: &TopicState, out: &mut Vec<FeedEvent>) {
+    /// `update` is the web's `update_type` for the message: `snapshot` for
+    /// a full record (83), `live` for an update (85, fyers_hsm_websocket.py
+    /// `_parse_update_data`).
+    fn emit(&self, st: &TopicState, update: &'static str, out: &mut Vec<FeedEvent>) {
         let Some(sub) = self.topics.get(&st.name) else {
             return;
         };
         let now = now_ms();
+        let typed = |mut t: NormalizedTick| {
+            t.broker_fields
+                .set(BrokerField::UpdateType, BrokerValue::Text(update));
+            FeedEvent::Tick(t)
+        };
         match st.kind {
-            Topic::Scrip => out.push(FeedEvent::Tick(scrip_tick(sub, st, now))),
+            Topic::Scrip => out.push(typed(scrip_tick(sub, st, now))),
             // An index has no order book: its tick serves every mode,
             // depth included, and no levels are made up around its value
             // (web `map_index_to_depth`, #2318).
-            Topic::Index => out.push(FeedEvent::Tick(index_tick(sub, st, now))),
+            Topic::Index => out.push(typed(index_tick(sub, st, now))),
             Topic::Depth => {
                 if sub.mode == FeedMode::Depth {
                     let quote = self.sibling(&st.name, "dp|", "sf|");
@@ -589,6 +597,10 @@ fn int(v: Option<i32>) -> i64 {
 fn field(st: &TopicState, i: usize) -> Option<i32> {
     st.values.get(i).copied().flatten()
 }
+
+/// web `update_type` (fyers_adapter.py:464, fyers_hsm_websocket.py:779).
+const SNAPSHOT: &str = "snapshot";
+const LIVE: &str = "live";
 
 /// Where a scrip (`sf`) record carries each quote field (`DATA_FIELDS`).
 const SCRIP_SOURCES: [(usize, QuoteField); 11] = [
