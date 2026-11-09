@@ -1,0 +1,19 @@
+{
+  "type": "market_data",
+  "symbol": "TCS",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "sahi",
+  "data": {
+    "symbol": "TCS",
+    "exchange": "NSE",
+    "mode": "quote",
+    "ltp": 1290.5,
+    "ltt": 1761700000123,
+    "timestamp": "<receipt_ms>",
+    "last_trade_time": 1761700000123,
+    "volume": 987654,
+    "upper_circuit": 1419.5,
+    "lower_circuit": 1161.5
+  }
+}
