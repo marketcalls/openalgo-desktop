@@ -1,0 +1,10 @@
+# Sahi ServerMessage: a quote tick for TCS; values from web test/test_sahi_streaming_codec.py::test_decode_quote_stock_absent_oi.
+1a1e            # ServerMessage.quote_tick (field 3), 30 bytes
+08905a          #   instrument_id = 11536 (field 1)
+1001            #   exchange_segment = 1 (field 2)
+1802            #   instrument_type = 2 (field 3)
+209af007        #   last_trade_price, paise = 129050 (field 4)
+28fbe282eca233  #   last_trade_time, epoch ms = 1761700000123 (field 5)
+3086a43c        #   volume_today = 987654 (field 6)
+38fed408        #   dpr_upper (upper circuit), paise = 141950 (field 7)
+40b68b07        #   dpr_lower (lower circuit), paise = 116150 (field 8)

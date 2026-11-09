@@ -1,0 +1,17 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"hex": "0a0608021202c516"}], "note": "Subscribe{mode QUOTE, ids [2885]} on the first connection."}
+{"step": "push", "frame": "frames/reliance.hex"}
+{"step": "receive", "client": "a", "frame": "expected/reliance.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "TCS", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "socket": "main#2", "frames": [{"hex": "0a0608021202905a"}], "note": "The first connection is full: TCS opens the pool's second, which replaces nothing."}
+{"step": "push", "frame": "frames/reliance_sparse.hex", "note": "The price band RELIANCE's connection carried stays: another connection opened (R107-04: the pool-wide connect count wiped it)."}
+{"step": "receive", "client": "a", "frame": "expected/reliance_sparse.json"}
+{"step": "push", "socket": "main#2", "frame": "frames/tcs.hex"}
+{"step": "receive", "client": "a", "frame": "expected/tcs.json"}
+{"step": "drop_upstream", "socket": "main#2", "note": "Only the second connection drops."}
+{"step": "upstream_connected", "socket": "main#2", "connection": 2}
+{"step": "upstream_receives", "socket": "main#2", "connection": 2, "frames": [{"hex": "0a0608021202905a"}], "note": "Its instrument is subscribed again on its new session."}
+{"step": "push", "frame": "frames/reliance_sparse.hex", "note": "The first connection was not replaced: RELIANCE keeps its band."}
+{"step": "receive", "client": "a", "frame": "expected/reliance_sparse.json"}
+{"step": "push", "socket": "main#2", "connection": 2, "frame": "frames/tcs_sparse.hex", "note": "The second connection's new session forgot what the old one said: no band from before the drop."}
+{"step": "receive", "client": "a", "frame": "expected/tcs_sparse_after_reconnect.json"}

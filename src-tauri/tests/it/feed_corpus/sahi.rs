@@ -10,16 +10,27 @@ use openalgo_desktop_lib::brokers::Broker;
 use std::sync::Arc;
 
 fn feeds(env: &Env) -> Feeds {
-    let broker = Arc::new(SahiBroker::with_urls(
-        env.symbols(),
-        env.http_url(),
-        env.http_url(),
-        format!("{}/master", env.http_url()),
-        env.url("main"),
-    ));
+    let (symbols, http) = (env.symbols(), env.http_url());
+    let at = move |url: &str| {
+        Arc::new(SahiBroker::with_urls(
+            symbols.clone(),
+            http.clone(),
+            http.clone(),
+            format!("{}/master", http),
+            url.to_string(),
+        ))
+    };
+    let broker = at(&env.url("main"));
     let auth = AuthToken::new("t");
     let feed = broker.create_feed(&auth).expect("Sahi's market feed");
-    Feeds::boxed(feed).with_broker(broker, &auth)
+    let pool_auth = auth.clone();
+    Feeds::boxed(feed)
+        .with_pool(move |url| {
+            at(url)
+                .create_feed(&pool_auth)
+                .expect("Sahi's market feed for another connection")
+        })
+        .with_broker(broker, &auth)
 }
 
 corpus_cases!(
@@ -33,6 +44,7 @@ corpus_cases!(
         index_depth,
         derivative_oi,
         reconnect_resubscribes,
+        pool_connections_keep_their_own_state,
         close_token_expired_stops,
         close_too_many_connections_waits,
         close_rate_limited_upgrade_waits,

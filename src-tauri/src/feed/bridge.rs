@@ -11,11 +11,12 @@
 //!   already reference counts across its clients, so the bridge holds
 //!   exactly one manager reference per `(instrument, mode, depth)`; the
 //!   manager merges modes per instrument for the broker.
-//! * The relay task turns the manager's `MarketEvent`s into
-//!   [`MarketUpdate`]s. A broker that sends a full tick as `Tick` plus a
-//!   separate `Depth` (Kite) is served as: the tick to Quote and LTP holders,
-//!   the depth snapshot (with the tick's quote fields) to Depth holders.
-//!   Index ticks carry no book and reach every mode directly.
+//! * The relay task turns the manager's packets (`MarketPacket`: one broker
+//!   message's events, and each connection session's opening) into
+//!   [`MarketUpdate`]s. A full tick and its book in one packet (Kite) go out
+//!   as one update for every held mode (`pairing`); a book in a packet of
+//!   its own reaches Depth holders only. A connection's new session forgets
+//!   what its earlier session said, and only that (`snapshot`).
 //!
 //! * Deep books: when the broker runs a separate depth socket (Fyers 50
 //!   levels, Dhan 20; `set_deep_levels`), a Depth subscription asking for
@@ -33,11 +34,9 @@ use super::source::{
     answered, ClientLosses, InstrumentKey, MarketDataSource, MarketUpdate, Mode, SourceOp,
     DEFAULT_DEPTH,
 };
-use crate::brokers::common::streaming::{
-    FeedEvent, FeedMode, FeedSubscription, MarketEvent, QuoteField,
-};
+use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, QuoteField};
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::websocket::{Reader, WebSocketManager};
+use crate::websocket::{MarketPacket, Packet, PacketKind, Reader, SessionId, WebSocketManager};
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -53,7 +52,7 @@ pub(super) mod snapshot;
 use apply::{Applied, Ops};
 pub use apply::{Operations, Refused};
 use deep::DeepBooks;
-use pairing::Next;
+use pairing::Step;
 pub(in crate::feed) use render::snapshot_update;
 pub(crate) use render::{depth_update, tick_update};
 use snapshot::{LastBook, Snapshot};
@@ -159,6 +158,10 @@ struct State {
     generation: u64,
     /// Deep books watched for silence, and those that fell back (`deep`).
     deep_books: DeepBooks,
+    /// The latest session seen per connection of each manager (the deeper
+    /// socket's apart: `true`), so a new one forgets what the one it
+    /// replaced said (`relay_packet`).
+    sessions: HashMap<(bool, usize), u64>,
 }
 
 impl State {
@@ -362,7 +365,7 @@ impl BrokerBridge {
         });
         for feed in [self.manager.clone(), self.depth_manager.clone()] {
             let me = self.clone();
-            let rx = feed.subscribe_ticks();
+            let rx = feed.subscribe_packets();
             set.spawn(async move { me.relay(rx, &feed).await });
         }
         *tasks = Some(set);
@@ -386,7 +389,7 @@ impl BrokerBridge {
         self.release(held).await;
     }
 
-    async fn relay(&self, mut rx: broadcast::Receiver<MarketEvent>, from: &WebSocketManager) {
+    async fn relay(&self, mut rx: broadcast::Receiver<MarketPacket>, from: &WebSocketManager) {
         // The deep-book socket's books keep its instruments watched (P-10).
         let deep = std::ptr::eq(from, self.depth_manager.as_ref());
         let mut skipped: u64 = 0;
@@ -401,59 +404,66 @@ impl BrokerBridge {
         };
         loop {
             match rx.recv().await {
-                Ok(ev) => {
-                    if !self.relay_event(ev, &mut rx, &mut lagged, deep) {
-                        return;
-                    }
-                }
+                Ok(packet) => self.relay_packet(&packet, deep),
                 Err(RecvError::Lagged(n)) => lagged(n),
                 Err(RecvError::Closed) => return,
             }
         }
     }
 
-    /// Send `ev` on; a full tick whose book already waits behind it goes
-    /// out with the book as one update (`pairing`). False once the feed has
-    /// closed.
-    fn relay_event(
-        &self,
-        mut ev: MarketEvent,
-        rx: &mut broadcast::Receiver<MarketEvent>,
-        lagged: &mut dyn FnMut(u64),
-        deep: bool,
-    ) -> bool {
-        loop {
-            if deep {
-                self.note_deep_book(&ev);
-            }
-            let Some(tick) = pairing::awaits_book(&ev) else {
-                self.publish(self.convert_from(&ev, deep));
-                return true;
-            };
-            let next = pairing::next_event(tick, rx);
-            if let Next::Book(book) = &next {
-                if deep {
-                    self.note_deep_book(book);
+    /// One packet of a manager (`deep`: the deeper socket's): a session's
+    /// opening forgets what its connection's earlier session said, and a
+    /// broker message's events go out in order, a full tick and its book
+    /// right behind it in the packet as one update (`pairing`).
+    fn relay_packet(&self, packet: &Packet, deep: bool) {
+        if !self.note_session(packet.from, deep) {
+            return;
+        }
+        let PacketKind::Events(events) = &packet.kind else {
+            return;
+        };
+        let events: Vec<&FeedEvent> = events.iter().map(|e| e.as_ref()).collect();
+        for step in pairing::steps(&events) {
+            match step {
+                Step::One(ev) => {
+                    if deep {
+                        self.note_deep_book(ev);
+                    }
+                    self.publish(self.convert_from(ev, deep, packet.from));
                 }
-                self.convert_from(&ev, deep);
-                let both = self.convert_from(book, deep).map(|u| MarketUpdate {
-                    exact_mode: false,
-                    ..u
-                });
-                self.publish(both);
-                return true;
-            }
-            self.publish(self.convert_from(&ev, deep));
-            match next {
-                Next::Other(other) => ev = other,
-                Next::Lagged(n) => {
-                    lagged(n);
-                    return true;
+                Step::Pair(tick, book) => {
+                    if deep {
+                        self.note_deep_book(book);
+                    }
+                    self.convert_from(tick, deep, packet.from);
+                    let both = self
+                        .convert_from(book, deep, packet.from)
+                        .map(|u| MarketUpdate {
+                            exact_mode: false,
+                            ..u
+                        });
+                    self.publish(both);
                 }
-                Next::Closed => return false,
-                Next::Book(_) | Next::Nothing => return true,
             }
         }
+    }
+
+    /// Whether a packet of session `from` (`deep`: of the deeper socket) is
+    /// current. A newer session of its connection forgets what the earlier
+    /// one said (audit R107-04: only that connection's state, the deep
+    /// socket's apart from the main feed's); a packet of a session already
+    /// replaced is dropped.
+    fn note_session(&self, from: SessionId, deep: bool) -> bool {
+        let st = &mut *self.state.lock();
+        let seen = st.sessions.get(&(deep, from.conn)).copied();
+        if seen.is_some_and(|s| from.session < s) {
+            return false;
+        }
+        if seen != Some(from.session) {
+            st.sessions.insert((deep, from.conn), from.session);
+            snapshot::forget_session(&mut st.last_tick, deep, from);
+        }
+        true
     }
 
     fn publish(&self, update: Option<MarketUpdate>) {
@@ -474,33 +484,24 @@ impl BrokerBridge {
         }
     }
 
-    /// The main feed's connection count: a snapshot belongs to the
-    /// connection that made it (`snapshot`).
-    fn connection(&self) -> u64 {
-        self.manager
-            .stats()
-            .connects
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    /// `ev` from the main feed (the bridge's tests).
+    /// `ev` from the main feed's first session (the bridge's tests).
     #[cfg(test)]
     fn convert(&self, ev: &FeedEvent) -> Option<MarketUpdate> {
-        self.convert_from(ev, false)
+        self.convert_from(ev, false, SessionId::default())
     }
 
-    /// `ev` as an update; `deep`: it came from the deeper-book socket.
-    fn convert_from(&self, ev: &FeedEvent, deep: bool) -> Option<MarketUpdate> {
+    /// `ev` as an update; `deep`: it came from the deeper-book socket, in a
+    /// packet of session `from`.
+    fn convert_from(&self, ev: &FeedEvent, deep: bool, from: SessionId) -> Option<MarketUpdate> {
         match ev {
             FeedEvent::Tick(t) => {
                 let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
                 let deep_levels = *self.deep.lock();
-                let epoch = self.connection();
                 let mut st = self.state.lock();
                 if !st.holds(&key) {
                     return None;
                 }
-                let mut merged = snapshot::merge(st.last_tick.get(&key), t, epoch);
+                let mut merged = snapshot::merge(st.last_tick.get(&key), t, from);
                 if merged.token().is_none() {
                     merged.set_ids(self.ids(&key));
                 }
@@ -522,7 +523,6 @@ impl BrokerBridge {
             }
             FeedEvent::Depth(d) => {
                 let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
-                let epoch = self.connection();
                 // A broker with a deeper socket: its books are at its levels,
                 // the main feed's at the main levels (a fallen-back holder's,
                 // also when the deeper socket did not start this session).
@@ -538,7 +538,7 @@ impl BrokerBridge {
                 if !st.holds(&key) {
                     return None;
                 }
-                let last = st.last_tick.get(&key).filter(|s| s.of_epoch(epoch));
+                let last = st.last_tick.get(&key);
                 let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
                 let (token, broker_symbol) = match last.filter(|s| s.token().is_some()) {
                     Some(s) => (s.token(), s.broker_symbol()),
@@ -548,8 +548,8 @@ impl BrokerBridge {
                 if let Some(book) = update.depth.as_mut() {
                     book.levels = levels;
                 }
-                if let Some(book) = LastBook::of(&update) {
-                    snapshot::keep_book(&mut st.last_tick, &key, book, epoch, deep);
+                if let Some(book) = LastBook::of(&update, from) {
+                    snapshot::keep_book(&mut st.last_tick, &key, book, deep);
                 }
                 if deep {
                     update.deep_book = update.depth.take();
@@ -658,6 +658,8 @@ impl MarketDataSource for BrokerBridge {
 }
 
 #[cfg(test)]
+mod packet_tests;
+#[cfg(test)]
 mod tests {
     use super::render::tests::full_tick;
     use super::*;
@@ -670,9 +672,13 @@ mod tests {
     async fn events_the_relay_skips_are_counted_against_its_feed() {
         let manager = Arc::new(WebSocketManager::new());
         let bridge = BrokerBridge::new(manager.clone(), SymbolResolver::new());
-        let (tx, rx) = broadcast::channel::<MarketEvent>(2);
+        let (tx, rx) = broadcast::channel::<MarketPacket>(2);
         for _ in 0..5 {
-            let _ = tx.send(Arc::new(FeedEvent::Tick(full_tick("SBIN", "NSE"))));
+            let tick = Arc::new(FeedEvent::Tick(full_tick("SBIN", "NSE")));
+            let _ = tx.send(Arc::new(Packet {
+                from: SessionId::default(),
+                kind: PacketKind::Events(vec![tick]),
+            }));
         }
         drop(tx);
         bridge.relay(rx, &manager).await;
@@ -877,10 +883,11 @@ mod tests {
         });
         let open = |b: &BrokerBridge| b.convert(&book).and_then(|u| u.quote).and_then(|q| q.open);
         assert_eq!(open(&bridge), Some(1180.1));
-        manager
-            .stats()
-            .connects
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let next = SessionId {
+            conn: 0,
+            session: 1,
+        };
+        assert!(bridge.note_session(next, false));
         assert_eq!(open(&bridge), None, "the old connection's quote");
         let mut partial = full_tick("SBIN", "NSE");
         partial.mark_absent(QuoteField::Open);

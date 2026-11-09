@@ -13,6 +13,7 @@ pub use crate::brokers::common::streaming::{
     NormalizedTick, OrderUpdate, StopKind,
 };
 pub use manager::{
-    Connection, DropCause, FeedConfig, FeedFactory, FeedStats, FeedStatus, LastDrop, PoolLimits,
-    Reader, SinceConnect, WebSocketManager, TICK_CHANNEL_CAP,
+    Connection, DropCause, FeedConfig, FeedFactory, FeedStats, FeedStatus, LastDrop, MarketPacket,
+    Packet, PacketKind, PoolLimits, Reader, SessionId, SinceConnect, WebSocketManager,
+    TICK_CHANNEL_CAP,
 };

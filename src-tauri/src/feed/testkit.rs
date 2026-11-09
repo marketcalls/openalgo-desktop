@@ -4,12 +4,13 @@
 //! right behind it as one update) and delivered as the registry delivers
 //! them.
 
-use super::bridge::pairing;
+use super::bridge::pairing::{self, Step};
 use super::bridge::snapshot::{self, LastBook, Snapshot};
 use super::bridge::{depth_update, snapshot_update};
 use super::protocol::{market_data, reaches};
 use super::{InstrumentKey, MarketUpdate, Mode};
 use crate::brokers::common::streaming::{FeedEvent, QuoteField};
+use crate::websocket::SessionId;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -31,32 +32,25 @@ impl Frames {
     }
 
     /// The `data` of every frame a subscriber at `mode` receives for
-    /// `events`, in order.
+    /// `events`, one broker message's (one manager packet), in order.
     pub(crate) fn at(&mut self, events: &[FeedEvent], mode: Mode) -> Vec<Value> {
         let mut out = Vec::new();
-        let mut events = events.iter().peekable();
-        while let Some(e) = events.next() {
-            // `bridge::pairing`: a full tick and the book that follows it.
-            let book = pairing::awaits_book(e).and_then(|t| {
-                events.next_if(|next| {
-                    matches!(next, FeedEvent::Depth(d) if d.symbol == t.symbol && d.exchange == t.exchange)
-                })
-            });
-            if let (FeedEvent::Tick(t), Some(FeedEvent::Depth(d))) = (e, book) {
-                let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
-                let merged = snapshot::merge(self.last.get(&key), t, 0);
-                let both = depth_update(key.clone(), d, Some(merged.tick()), merged.book_lacks());
-                self.last.insert(key.clone(), merged);
-                if let Some(book) = LastBook::of(&both) {
-                    snapshot::keep_book(&mut self.last, &key, book, 0, false);
-                }
-                self.push(&mut out, both_modes(both), mode);
-                continue;
-            }
-            let update = match e {
-                FeedEvent::Tick(t) => {
+        let events: Vec<&FeedEvent> = events.iter().collect();
+        // `bridge::pairing`: a full tick and its book right behind it.
+        for step in pairing::steps(&events) {
+            let update = match step {
+                Step::Pair(FeedEvent::Tick(t), FeedEvent::Depth(d)) => {
                     let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
-                    let merged = snapshot::merge(self.last.get(&key), t, 0);
+                    let merged = snapshot::merge(self.last.get(&key), t, SessionId::default());
+                    let both =
+                        depth_update(key.clone(), d, Some(merged.tick()), merged.book_lacks());
+                    self.last.insert(key.clone(), merged);
+                    self.keep(&key, &both);
+                    both_modes(both)
+                }
+                Step::One(FeedEvent::Tick(t)) => {
+                    let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
+                    let merged = snapshot::merge(self.last.get(&key), t, SessionId::default());
                     // As the bridge: a packet without a price only updates
                     // the snapshot.
                     let update = t
@@ -69,21 +63,26 @@ impl Frames {
                         None => continue,
                     }
                 }
-                FeedEvent::Depth(d) => {
+                Step::One(FeedEvent::Depth(d)) => {
                     let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
                     let last = self.last.get(&key);
                     let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
                     let u = depth_update(key.clone(), d, last.map(Snapshot::tick), lacks);
-                    if let Some(book) = LastBook::of(&u) {
-                        snapshot::keep_book(&mut self.last, &key, book, 0, false);
-                    }
+                    self.keep(&key, &u);
                     u
                 }
-                _ => continue,
+                Step::One(_) | Step::Pair(..) => continue,
             };
             self.push(&mut out, update, mode);
         }
         out
+    }
+
+    /// The update's book as the instrument's last, as the bridge keeps it.
+    fn keep(&mut self, key: &InstrumentKey, update: &MarketUpdate) {
+        if let Some(book) = LastBook::of(update, SessionId::default()) {
+            snapshot::keep_book(&mut self.last, key, book, false);
+        }
     }
 
     /// `update`'s frame for a subscriber at `mode`, if `feed::registry`

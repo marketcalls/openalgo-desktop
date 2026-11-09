@@ -7,6 +7,11 @@
 //! `_merge_feed`, HDFC's snapshot, the Noren cache), and a Depth frame
 //! built on the snapshot carries that quote. A new connection starts every
 //! instrument afresh, so nothing from before an outage is sent as current.
+//! Which session of which broker connection said what is kept with it
+//! (`SessionId`): a connection's new session forgets only what its earlier
+//! session said (`forget_session`), the deeper socket's books apart from
+//! the main feed's quote and books, and a pool's other connections keep
+//! theirs (audit R107-04).
 //!
 //! Two fields follow others: the trade time belongs to the price it came
 //! with (a packet with a new price and no trade time drops the old one),
@@ -19,6 +24,7 @@
 
 use crate::brokers::common::streaming::{AbsentFields, NormalizedTick, QuoteField};
 use crate::feed::source::{DepthBook, InstrumentKey, MarketUpdate};
+use crate::websocket::SessionId;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -32,16 +38,19 @@ pub(in crate::feed) struct LastBook {
     pub(in crate::feed) book: DepthBook,
     pub(in crate::feed) total_buy: Option<i64>,
     pub(in crate::feed) total_sell: Option<i64>,
+    /// The session whose packet brought it.
+    pub(in crate::feed) from: SessionId,
 }
 
 impl LastBook {
-    /// The book of a depth update, if it carries one.
-    pub(in crate::feed) fn of(update: &MarketUpdate) -> Option<Self> {
+    /// The book of a depth update from session `from`, if it carries one.
+    pub(in crate::feed) fn of(update: &MarketUpdate, from: SessionId) -> Option<Self> {
         let q = update.quote.as_ref();
         Some(Self {
             book: update.depth.clone()?,
             total_buy: q.and_then(|q| q.total_buy_quantity),
             total_sell: q.and_then(|q| q.total_sell_quantity),
+            from,
         })
     }
 }
@@ -52,7 +61,9 @@ impl LastBook {
 pub(in crate::feed) struct Snapshot {
     /// Every field explicit: `carried` is what is known, `absent` the rest.
     tick: NormalizedTick,
-    epoch: u64,
+    /// The main-feed session whose packets built the quote (none before the
+    /// first tick).
+    from: Option<SessionId>,
     /// The book totals the latest tick marked absent: its stream lacks
     /// them, and so do its depth messages (the 1.0.6 contract: an adapter
     /// marks a total only when its book lacks it too).
@@ -70,11 +81,6 @@ pub(in crate::feed) struct Snapshot {
 impl Snapshot {
     pub(in crate::feed) fn tick(&self) -> &NormalizedTick {
         &self.tick
-    }
-
-    /// Whether it belongs to the broker connection numbered `epoch`.
-    pub(in crate::feed) fn of_epoch(&self, epoch: u64) -> bool {
-        self.epoch == epoch
     }
 
     pub(in crate::feed) fn token(&self) -> Option<Arc<str>> {
@@ -103,20 +109,65 @@ impl Snapshot {
     pub(in crate::feed) fn deep_book(&self) -> Option<&LastBook> {
         self.deep_book.as_deref()
     }
+
+    /// Nothing of the quote known any more (its session was replaced); the
+    /// instrument's ids and books of other sessions stay.
+    fn forget_quote(&mut self) {
+        self.tick = no_quote(&self.tick.symbol, &self.tick.exchange);
+        self.from = None;
+        self.book_lacks = AbsentFields::default();
+    }
 }
 
-/// Keep `book` as `key`'s last book (`deep`: from the deeper socket) in
-/// connection `epoch`: on its snapshot, or on a snapshot with no quote yet
-/// when the book came first.
+/// An instrument's tick before anything is known of its quote.
+fn no_quote(symbol: &str, exchange: &str) -> NormalizedTick {
+    NormalizedTick {
+        symbol: symbol.to_string(),
+        exchange: exchange.to_string(),
+        absent: AbsentFields::ALL,
+        ..Default::default()
+    }
+}
+
+/// `from` opened on its connection (`deep`: of the deeper socket): forget
+/// what an earlier session of that connection said, the quote and books it
+/// built on the main feed or the books on the deeper socket. What the
+/// manager's other connections said stays: a pool's new connection
+/// replaces nothing.
+pub(in crate::feed) fn forget_session(
+    snapshots: &mut HashMap<InstrumentKey, Snapshot>,
+    deep: bool,
+    from: SessionId,
+) {
+    let replaced = |by: Option<SessionId>| {
+        by.is_some_and(|s| s.conn == from.conn && s.session != from.session)
+    };
+    for s in snapshots.values_mut() {
+        if deep {
+            if replaced(s.deep_book.as_ref().map(|b| b.from)) {
+                s.deep_book = None;
+            }
+            continue;
+        }
+        if replaced(s.book.as_ref().map(|b| b.from)) {
+            s.book = None;
+        }
+        if replaced(s.from) {
+            s.forget_quote();
+        }
+    }
+}
+
+/// Keep `book` as `key`'s last book (`deep`: from the deeper socket): on its
+/// snapshot, or on a snapshot with no quote yet when the book came first.
 pub(in crate::feed) fn keep_book(
     snapshots: &mut HashMap<InstrumentKey, Snapshot>,
     key: &InstrumentKey,
     book: LastBook,
-    epoch: u64,
     deep: bool,
 ) {
     let book = Some(Arc::new(book));
-    if let Some(s) = snapshots.get_mut(key).filter(|s| s.of_epoch(epoch)) {
+    if let Some(s) = snapshots.get_mut(key) {
         if deep {
             s.deep_book = book;
         } else {
@@ -125,17 +176,11 @@ pub(in crate::feed) fn keep_book(
         return;
     }
     let (book, deep_book) = if deep { (None, book) } else { (book, None) };
-    let tick = NormalizedTick {
-        symbol: key.symbol.clone(),
-        exchange: key.exchange.clone(),
-        absent: AbsentFields::ALL,
-        ..Default::default()
-    };
     snapshots.insert(
         key.clone(),
         Snapshot {
-            tick,
-            epoch,
+            tick: no_quote(&key.symbol, &key.exchange),
+            from: None,
             book_lacks: AbsentFields::default(),
             token: None,
             broker_symbol: None,
@@ -148,11 +193,15 @@ pub(in crate::feed) fn keep_book(
 const BOOK_TOTALS: AbsentFields =
     AbsentFields::of(&[QuoteField::TotalBuyQuantity, QuoteField::TotalSellQuantity]);
 
-/// `t` merged into `prev`, unless `prev` is missing or from an earlier
-/// connection (then `t` alone).
-pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch: u64) -> Snapshot {
+/// `t`, a packet of session `from`, merged into `prev` (missing: `t`
+/// alone). What an earlier session of the connection said is already
+/// forgotten (`forget_session`).
+pub(in crate::feed) fn merge(
+    prev: Option<&Snapshot>,
+    t: &NormalizedTick,
+    from: SessionId,
+) -> Snapshot {
     use QuoteField as F;
-    let prev = prev.filter(|p| p.of_epoch(epoch));
     let token = prev.and_then(Snapshot::token);
     let broker_symbol = prev.and_then(Snapshot::broker_symbol);
     let book = prev.and_then(|p| p.book.clone());
@@ -175,7 +224,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
     s.mode = t.mode;
     s.timestamp_ms = t.timestamp_ms;
     s.extras = s.extras.overlay(t.extras);
-    s.broker_fields = t.broker_fields.clone();
+    s.broker_fields = s.broker_fields.overlay(&t.broker_fields);
     s.numbers = t.numbers;
     s.book_absent = t.book_absent;
     let known = known.without(F::LastTradeTime).without(F::Orders);
@@ -189,7 +238,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
     }
     Snapshot {
         tick: s,
-        epoch,
+        from: Some(from),
         book_lacks: t.absent.minus(AbsentFields::ALL.minus(BOOK_TOTALS)),
         token,
         broker_symbol,
