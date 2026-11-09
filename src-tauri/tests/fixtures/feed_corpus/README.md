@@ -81,6 +81,13 @@ web, with the cases that show the desktop refusing it too; a broker with
   its `Broker::feed_depth_levels` says (default 5 everywhere).
 - `upstream_ignore` (optional): text frames the fake broker does not record
   (a feed's text heartbeat). WebSocket pings are never recorded.
+- `deep_book_timeout_ms` (optional): the broker's deep-book silence timeout
+  (Dhan's 30 s, `broker_runtime::deep_book_timeout`, audit P-10) shortened
+  to this, so a case can pass it; only with `with_broker` and for a broker
+  that has one.
+- `deep_feed_not_made` (optional, true or false): the broker's deep-book
+  feed could not be made this session (see "Adding a broker": with
+  `with_broker` and `with_depth`).
 - `http` (optional): what the fake broker REST API answers from the start,
   a list of `{"method", "path", "status", "body", "record"}` (see "The fake
   broker API").
@@ -113,8 +120,8 @@ One step per line. Every step may carry a `"note"` for the reader;
 | `upstream_receives` | `socket`, `frames`, `any_order`, `connection` | The feed's next frames to the broker are exactly `frames`, in order (or in any order), all on `connection` if named. |
 | `upstream_connected` | `socket`, `connection`, `path`, `headers` | Connection `connection` (default 1) was opened, with this path and query and these headers (only the named ones are compared). |
 | `drop_upstream` | `socket`, `code`, `reason` | The fake broker closes the open connection, as a broker dropping the socket does, with a close frame of that code and reason if given (Sahi's 4401, 4403, 4429); the manager reconnects or stops as the feed decides. |
-| `disconnect` | `socket` | That socket's manager closes it deliberately (`WebSocketManager::disconnect`, as a logout or a broker switch does) while clients still hold subscriptions. From then on the fake broker records the feed's close as a frame it sent, so the next `upstream_receives` names the feed's farewell frames (`BrokerFeed::farewell_frames`) and then `{"close": null}` (any code) or `{"close": 1000}`; a connection that ends without a close frame shows as "ended without a close frame". The end of the case does not expect that manager's subscriptions to be released at the broker. |
-| `refuse_upgrades` | `socket`, `status`, `times` | The next `times` (default 1) connection attempts are refused with HTTP `status` (429, 401). |
+| `disconnect` | `socket` | That socket's manager closes it deliberately (`WebSocketManager::disconnect`, as a logout or a broker switch does) while clients still hold subscriptions; the next `upstream_receives` names the feed's farewell frames (`BrokerFeed::farewell_frames`) and then its close (`{"close": ..}`, below). The end of the case does not expect that manager's subscriptions to be released at the broker. |
+| `refuse_upgrades` | `socket`, `status`, `times` | The next `times` (default 1) connection attempts are refused with HTTP `status` (429, 401). At the very start of the script (only notes before it) it applies before the feeds connect: a socket that never starts (Dhan's 20-level socket refused, audit P-10), whose first connection the harness does not wait for. |
 | `upstream_connections` | `socket`, `count`, `refused`, `ms` | The socket reaches exactly `count` opened connections (and `refused` refused upgrades, if named) and still has them after `ms` (default 300): a feed that reconnected, or one that stopped. |
 | `http_serve` | `method`, `path`, `status`, `body`, `record` | The fake broker API answers `path` with this from now on (the order book a poller reads next). Counts as a push for the receipt window and for `web.json`. |
 | `http_polled` | `method`, `path`, `times` | Wait until `path`'s current answer has been read `times` times (default 1): the poller has seen it. |
@@ -130,7 +137,15 @@ request the feed sends, the string `"<any>"` matches any value at that key:
 only for a value no case can know (Upstox's random `guid`), never where the
 value is deterministic. `"<now_ms>"` and `"<now_s>"` match an integer epoch
 time of this run, in ms or s: a time the feed stamps when it sends (Kotak's
-`conn_req_time`). A `.hex` file takes any spacing and `#` comments,
+`conn_req_time`). In `upstream_receives`, `{"close": null}` is the feed's
+close frame with any code, `{"close": 4001}` with that code, and
+`{"close": {"code": 4001, "reason": "..."}}` with that code and reason: a
+feed that closes the socket itself (after an in-band authentication error)
+or after a `disconnect`. On a socket whose script expects a close (or
+disconnects it), every close the feed makes is recorded from the start, in
+order with its frames, and a connection that ends without a close frame
+shows as "ended without a close frame"; other sockets record no closes. A
+`.hex` file takes any spacing and `#` comments,
 so a packet is written field by field:
 
 ```
@@ -379,8 +394,17 @@ feed takes its step before a new instrument (`Broker::feed_presubscribe`,
 Samco's index lookup over REST, answered by the fake broker API); and the
 order relay completes each order socket's update with it
 (`Broker::complete_order_update`, IndMoney's order-book lookup for an
-order it did not see placed), waiting at most 5 s as the runtime does. The
-broker lives until the case ends. A
+order it did not see placed), waiting at most 5 s as the runtime does; and
+a deep-book socket from `.with_depth(levels, ..)` starts as a session starts
+it (`broker_runtime::connect_deep_feed`: the pool, the room refusal, the
+broker's silence timeout), while a case whose `case.json` says
+`"deep_feed_not_made": true` runs as a session whose broker could not make
+that feed (`Broker::create_depth_feed` failed), so Depth subscribes at those
+levels are served at the market feed's levels
+(`BrokerBridge::set_deep_unavailable`).
+A deep socket refused from the start (`refuse_upgrades` first in the
+script) is the manager's refused session, which the bridge reads from the
+depth manager's status. The broker lives until the case ends. A
 feed whose `prepare` calls the broker's REST API first (Upstox's authorize,
 Groww's socket token) reads it from the fake broker API:
 `env.serve_json("/v3/feed/market-data-feed/authorize", json!({"data":
