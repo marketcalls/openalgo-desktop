@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "samco",
-  "inputs_sha256": "23535fbc77a509aa0929ae1a56dabb5588f4ce0d17728208b975b0ef99efccb4",
+  "inputs_sha256": "cc2b4128de9f458109744af601b9ee829d84cb2b26624d525fc4f9731b689889",
   "instruments": [
     {
       "symbol": "NIFTY",

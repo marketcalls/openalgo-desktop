@@ -11,11 +11,13 @@
     "ltp": 24510.4,
     "ltt": 1791002702000,
     "timestamp": "<receipt_ms>",
+    "last_quantity": 0,
     "open": 24400.0,
     "high": 24550.5,
     "low": 24390.25,
     "close": 24450.0,
     "last_trade_time": 1791002702000,
+    "last_trade_quantity": 0,
     "change": 60.4,
     "change_percentage": 0.25
   }

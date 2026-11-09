@@ -1,6 +1,6 @@
 {
   "broker": "samco",
-  "summary": "NIFTY at LTP and at Quote, its streaming id (-23) looked up over REST as it is first subscribed: an index quote frame, then a partial one with a new price and change.",
+  "summary": "NIFTY at LTP and at Quote, its streaming id (-23) looked up over REST as it is first subscribed: an index quote frame, then a partial one with a new price and change; that tick carries Samco's ltq, sent under last_quantity and last_trade_quantity, while the first quote, without one, sends neither.",
   "scenarios": [
     "index",
     "first-full-packet",
@@ -84,14 +84,14 @@
     {
       "key": "last_quantity",
       "kind": "web-defect",
-      "reason": "Samco sent no ltq for the index, and the web sends last_quantity 0, a value it never received; the desktop leaves it out. (Where Samco does send an ltq for an index, the desktop must send it, under both of the adapter's names: a Phase B fix.)",
+      "reason": "Samco's first index quote carries no ltq; the web sends last_quantity and last_trade_quantity 0, a value it never received; the desktop leaves them out, and sends Samco's ltq when it comes (the second tick).",
       "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09",
       "approved": true
     },
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
-      "reason": "As last_quantity: the web sends last_trade_quantity 0 for an index frame without ltq; the desktop leaves it out.",
+      "reason": "Samco's first index quote carries no ltq; the web sends last_quantity and last_trade_quantity 0, a value it never received; the desktop leaves them out, and sends Samco's ltq when it comes (the second tick).",
       "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09",
       "approved": true
     },
