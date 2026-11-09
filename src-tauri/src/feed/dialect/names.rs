@@ -125,11 +125,11 @@ pub(crate) enum DataMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Fold {
     /// The adapter publishes a dict per mode (Zerodha, as recorded in
-    /// tests/fixtures/web/websocket/01 and 05; Sahi, Rupeezy, Upstox, ...):
-    /// each frame is trimmed to its holder's mode.
+    /// tests/fixtures/web/websocket/01 and 05; Sahi, Rupeezy, Upstox,
+    /// AliceBlue, Jainam, ...): each frame is trimmed to its holder's mode.
     PerMode,
     /// The adapter publishes one dict per packet (Arrow, Paytm, mStock, the
-    /// XTS family, Delta Exchange, Angel, Dhan, IndMoney, Pocketful): a
+    /// other XTS members, Delta Exchange, Angel, Dhan, IndMoney, Pocketful): a
     /// lower mode's frame carries the whole packet, its book
     /// and circuits included. The desktop still sends one frame per mode a
     /// client holds (lead decision 2026-11-09): the web's single frame
