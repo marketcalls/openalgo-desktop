@@ -133,7 +133,7 @@
       "kind": "web-defect",
       "reason": "AliceBlue's dk and df carry each level's order count (bo1..bo5, so1..so5); the web publishes 0 for every level (aliceblue_adapter.py:1280-1290), a wrong value (lead ruling 2026-11-09). The desktop sends the counts. And a df delta carries only the levels that changed; the web replaces the whole bid side with the one level the delta names (losing the four unchanged bids) and drops the best ask's new quantity because the delta carries no price beside it. The desktop merges the delta level by level.",
       "ref": "audit appendix item 10; aliceblue_mapping.py:219-262; aliceblue_adapter.py:700-718, 1280-1290",
-      "approval": "index-change-and-zero-level"
+      "approval": "aliceblue-order-counts-zero-level-clear"
     }
   ]
 }
