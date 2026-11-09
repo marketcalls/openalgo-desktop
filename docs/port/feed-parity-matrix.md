@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 78. Open gaps: 92. Deviations pending approval: 132.
+Cases: 78. Open gaps: 90. Deviations pending approval: 132.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -43,7 +43,7 @@ Cases: 78. Open gaps: 92. Deviations pending approval: 132.
 | sahi | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | samco | open gap: `index_ltp_and_quote`, `ltp_mode` | open gap: `index_ltp_and_quote`, `quote_and_depth_clients`, `quote_mode` | open gap: `depth_book_first_future`, `depth_quote_then_book`, `quote_and_depth_clients`, `reconnect_forgets_state` | not offered by the web | not offered by the web | not offered by the web | deviation pending approval: `order_book_polling` |
 | shoonya | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| tradejini | deviation pending approval: `index_quote_and_ltp`, `ltp_mode` | open gap: `currency_quote_divisor`, `depth_to_quote_and_back`, `future_quote_oi`, `index_quote_and_ltp`, `quote_mode` | open gap: `depth_book_update_and_clear`, `depth_to_quote_and_back`, `depth_waits_for_the_quote`, `future_depth_oi`, `reconnect_drops_the_book` | not offered by the web | not offered by the web | not offered by the web | not offered by the web |
+| tradejini | deviation pending approval: `index_quote_and_ltp`, `ltp_mode` | deviation pending approval: `currency_quote_divisor`, `depth_to_quote_and_back`, `future_quote_oi`, `index_quote_and_ltp`, `quote_mode` | deviation pending approval: `depth_book_update_and_clear`, `depth_to_quote_and_back`, `depth_waits_for_the_quote`, `future_depth_oi`, `reconnect_drops_the_book` | not offered by the web | not offered by the web | not offered by the web | not offered by the web |
 | tradesmart | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | upstox | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | wisdom | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -334,8 +334,6 @@ Cases: 78. Open gaps: 92. Deviations pending approval: 132.
 | tradejini | `depth_book_update_and_clear` | `depth` | web-defect | no | Tradejini sent an empty book (nDepth 0, no levels); the web pads each empty side with five zero levels (_extract_depth_data), a book that was never there. The desktop sends an empty side as an empty array (lead decision 2026-11-09: zero-padded levels or sides are a web defect). |
 | tradejini | `depth_to_quote_and_back` | `ltt` | web-defect | no | Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as "2025-11-05 14:25:31" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or "" (LTP). |
 | tradejini | `depth_to_quote_and_back` | `oi` | web-defect | no | An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get("OI", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data). |
-| tradejini | `depth_to_quote_and_back` | `total_buy_quantity` | open | no | Depth was dropped and its book went with it: the web prunes the L5 half (_prune_tick_cache), so its Quote has no totals. The desktop's Quote frame still carries the dropped book's totals, which the bridge's snapshot keeps, because a tick can say a field is missing from its packet but not that it is gone (feed/bridge/snapshot.rs). Needs a carrier mark that withdraws a field (lane wire); the Tradejini feed then withdraws the totals when the book goes. |
-| tradejini | `depth_to_quote_and_back` | `total_sell_quantity` | open | no | As total_buy_quantity. |
 | tradejini | `depth_waits_for_the_quote` | `ltt` | web-defect | no | Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as "2025-11-05 14:25:31" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or "" (LTP). |
 | tradejini | `depth_waits_for_the_quote` | `upper_circuit` | web-defect | no | This L1 (the web test's L1_TICK) carries no circuit limits; the web sends upper_circuit 0 (message.get("ucl", 0)). The desktop leaves it out. |
 | tradejini | `depth_waits_for_the_quote` | `lower_circuit` | web-defect | no | As upper_circuit, for lcl. |

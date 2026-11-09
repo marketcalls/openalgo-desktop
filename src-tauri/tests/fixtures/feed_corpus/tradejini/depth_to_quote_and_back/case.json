@@ -45,18 +45,6 @@
       "kind": "web-defect",
       "reason": "An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get(\"OI\", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data).",
       "ref": "tradejini_adapter.py:851"
-    },
-    {
-      "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "Depth was dropped and its book went with it: the web prunes the L5 half (_prune_tick_cache), so its Quote has no totals. The desktop's Quote frame still carries the dropped book's totals, which the bridge's snapshot keeps, because a tick can say a field is missing from its packet but not that it is gone (feed/bridge/snapshot.rs). Needs a carrier mark that withdraws a field (lane wire); the Tradejini feed then withdraws the totals when the book goes.",
-      "ref": "tradejini_adapter.py:585-596 _prune_tick_cache, :743-751; feed/bridge/snapshot.rs merge"
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "As total_buy_quantity.",
-      "ref": "tradejini_adapter.py:585-596 _prune_tick_cache, :743-751; feed/bridge/snapshot.rs merge"
     }
   ]
 }

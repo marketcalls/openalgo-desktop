@@ -186,7 +186,7 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 | rupeezy | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; D circuits | none | circuits (parsed, not yet carried) |
 | sahi | L `last_trade_time`; Q `oi`, circuits | label | circuits (decoded past the price bands), `carried(OpenInterest)` on Quote |
 | samco | L `last_trade_time`; Q `last_trade_quantity`, `change`, `change_percentage`, `best_bid_price`, `best_bid_quantity`, `best_ask_price`, `best_ask_quantity` | number | best bid and ask |
-| tradejini | Q `last_trade_time` (text, IST), `change`, `change_percent`, `percent_change` (only when Tradejini sent `chng`), `oi`; D circuits; no canonical `price_change*` | number | circuits, `carried(OpenInterest)` on Quote, `absent` for every L1 field never sent, `chng` included |
+| tradejini | Q `last_trade_time` (text, IST), `change`, `change_percent`, `percent_change` (only when Tradejini sent `chng`), `oi`; D circuits; no canonical `price_change*` | number | circuits, `carried(OpenInterest)` on Quote, `absent` for every L1 field never sent, `chng` included, `cleared` book totals on the first tick after Depth goes |
 | upstox | L `ltq`, `cp`, `indicative_equilibrium_price`; Q `last_trade_quantity`, `last_trade_time`, `reference_price`, `indicative_equilibrium_quantity`, `indicative_imbalance_quantity_total`, `indicative_imbalance_quantity_market`, `cas_eligible`; depth levels without `orders` | none | `carried(LastQuantity, Close)` on LTPC, the auction `BrokerField`s (audit P-11), `absent(Orders)` on the book |
 | zerodha | Q `exchange_timestamp` (index full packets, s) | label | `extras.exchange_time_ms` on 32-byte index packets, `carried(Change)` on index packets |
 

@@ -38,7 +38,7 @@ use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use crate::security::secret::Secret;
 use serde_json::json;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Read;
 use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -416,6 +416,9 @@ pub struct TradejiniFeed {
     /// and its totals, so a price tick sends the Depth view again with it
     /// (web openalgo#2341).
     books: HashMap<String, L5>,
+    /// Instruments whose book went with a dropped Depth: their next tick
+    /// clears the book totals the bridge still keeps (bounded by `subs`).
+    totals_gone: HashSet<String>,
 }
 
 impl TradejiniFeed {
@@ -429,6 +432,7 @@ impl TradejiniFeed {
             subs: BTreeMap::new(),
             l1: HashMap::new(),
             books: HashMap::new(),
+            totals_gone: HashSet::new(),
         }
     }
 
@@ -566,7 +570,14 @@ impl TradejiniFeed {
         });
         entry.merge(d);
         let snapshot = entry.clone();
-        out.push(FeedEvent::Tick(self.tick(&sub, &snapshot)));
+        let mut t = self.tick(&sub, &snapshot);
+        // The book's totals went with Depth: the web prunes the L5 half
+        // (`_prune_tick_cache`), so its Quote shows none from then on.
+        if !self.books.contains_key(&key) && self.totals_gone.remove(&key) {
+            t.mark_cleared(QuoteField::TotalBuyQuantity);
+            t.mark_cleared(QuoteField::TotalSellQuantity);
+        }
+        out.push(FeedEvent::Tick(t));
         if sub.mode == FeedMode::Depth {
             if let Some(book) = self.books.get(&key) {
                 out.push(FeedEvent::Depth(self.depth(&sub, book)));
@@ -678,6 +689,7 @@ impl BrokerFeed for TradejiniFeed {
         // through `subscribe_frames`, which re-sends each feed's full list.
         self.l1.clear();
         self.books.clear();
+        self.totals_gone.clear();
         Vec::new()
     }
 
@@ -710,6 +722,7 @@ impl BrokerFeed for TradejiniFeed {
             }
             self.l1.remove(&k);
             self.books.remove(&k);
+            self.totals_gone.remove(&k);
         }
         if subs.is_empty() {
             return Vec::new();
@@ -727,8 +740,14 @@ impl BrokerFeed for TradejiniFeed {
         if new.mode != FeedMode::Depth {
             // The book goes with Depth, so Depth held again later cannot
             // send the old book before a fresh one comes (web
-            // openalgo#2359); the L1 quote stays.
-            self.books.remove(&k);
+            // openalgo#2359); the L1 quote stays, and its next tick clears
+            // the totals the book brought.
+            if self.books.remove(&k).is_some() {
+                self.totals_gone.insert(k.clone());
+            }
+        } else {
+            // A fresh book brings its own totals.
+            self.totals_gone.remove(&k);
         }
         self.subs.insert(
             k,
