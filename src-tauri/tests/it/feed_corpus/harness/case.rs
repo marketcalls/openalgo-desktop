@@ -421,6 +421,11 @@ pub(crate) struct Case {
     /// timeout (Dhan's 30 s, `broker_runtime::deep_book_timeout`) shortened
     /// so a case can pass it; only for a broker that has one.
     pub(crate) deep_book_timeout: Option<std::time::Duration>,
+    /// `case.json` `deep_feed_not_made`: the broker's deeper-book feed
+    /// could not be made this session (`Broker::create_depth_feed` failed),
+    /// so Depth subscribes at its levels are served at the market feed's
+    /// levels (`BrokerBridge::set_deep_unavailable`).
+    pub(crate) deep_feed_not_made: bool,
     /// What the fake broker API answers from the start (`case.json`
     /// `http`).
     pub(crate) http: Vec<HttpAnswer>,
@@ -469,6 +474,7 @@ impl Case {
                 "deviations",
                 "invariants",
                 "deep_book_timeout_ms",
+                "deep_feed_not_made",
             ],
         );
         if o.get("broker").and_then(Value::as_str) != Some(broker) {
@@ -556,6 +562,12 @@ impl Case {
             sockets,
             close_sockets,
             refused_at_start,
+            deep_feed_not_made: match o.get("deep_feed_not_made") {
+                None => false,
+                Some(v) => v
+                    .as_bool()
+                    .unwrap_or_else(|| bad(&at, "\"deep_feed_not_made\" is true or false")),
+            },
             deep_book_timeout: o.get("deep_book_timeout_ms").map(|v| {
                 std::time::Duration::from_millis(
                     v.as_u64()

@@ -87,8 +87,7 @@ impl Env {
 /// and the order updates where the broker has them.
 pub(crate) struct Feeds {
     market: Box<dyn BrokerFeed>,
-    /// The deep-book feed and its levels, or why it could not be made.
-    depth: Option<(u8, Result<Box<dyn BrokerFeed>, AppError>)>,
+    depth: Option<(u8, Box<dyn BrokerFeed>)>,
     orders: Option<OrderFeed>,
     /// What must live as long as the case (a broker whose poller stops
     /// when it is dropped).
@@ -135,19 +134,11 @@ impl Feeds {
     /// on the market feed for its price (`BrokerBridge::set_deep_levels`).
     /// With `with_broker`, the socket starts as a session starts it
     /// (`broker_runtime::connect_deep_feed`: the pool and room refusal, the
-    /// broker's silence timeout, Dhan's 30 s).
+    /// broker's silence timeout, Dhan's 30 s), or, for a case whose
+    /// `case.json` says `"deep_feed_not_made": true`, as a session does when
+    /// `Broker::create_depth_feed` failed.
     pub(crate) fn with_depth(mut self, levels: u8, feed: impl BrokerFeed + 'static) -> Feeds {
-        let feed: Box<dyn BrokerFeed> = Box::new(feed);
-        self.depth = Some((levels, Ok(feed)));
-        self
-    }
-
-    /// The broker's `levels`-level book feed could not be made this session
-    /// (`Broker::create_depth_feed` failed): with `with_broker`, Depth
-    /// subscribes at those levels are served at the market feed's levels
-    /// (`BrokerBridge::set_deep_unavailable`), as a session serves them.
-    pub(crate) fn with_failed_depth(mut self, levels: u8) -> Feeds {
-        self.depth = Some((levels, Err(AppError::Unsupported("depth_feed"))));
+        self.depth = Some((levels, Box::new(feed)));
         self
     }
 
@@ -285,24 +276,27 @@ impl World {
         // closed, so its frames need not be expected and its books do not
         // move off the market feed.
         let depth_used = case.sockets.contains(&Socket::Depth);
+        if case.deep_feed_not_made && (feeds.depth.is_none() || feeds.broker.is_none()) {
+            panic!(
+                "feed corpus {}: deep_feed_not_made needs a broker's with_depth and with_broker",
+                case.id
+            );
+        }
         match (feeds.depth, &feeds.broker) {
             // `broker_runtime::start_deep_feed`'s wiring, from the feed on.
-            (Some((levels, feed)), Some((b, _))) if feed.is_err() || depth_used => {
-                let made = feed.is_ok();
+            (Some((levels, _)), Some((b, _))) if case.deep_feed_not_made => {
+                let feed = Err(AppError::Unsupported("depth_feed"));
                 broker_runtime::connect_deep_feed(&deep, &bridge, b.id(), levels, feed).await;
-                if made {
-                    connected.push(Socket::Depth);
-                }
             }
-            (Some((levels, Ok(feed))), None) if depth_used => {
+            (Some((levels, feed)), Some((b, _))) if depth_used => {
+                broker_runtime::connect_deep_feed(&deep, &bridge, b.id(), levels, Ok(feed)).await;
+                connected.push(Socket::Depth);
+            }
+            (Some((levels, feed)), None) if depth_used => {
                 bridge.set_deep_levels(Some(levels));
                 deep.connect(feed).await.expect("the depth feed starts");
                 connected.push(Socket::Depth);
             }
-            (Some((_, Err(_))), None) => panic!(
-                "feed corpus {}: a deep-book feed that could not be made needs with_broker",
-                case.id
-            ),
             _ => {}
         }
         if let Some(t) = case.deep_book_timeout {

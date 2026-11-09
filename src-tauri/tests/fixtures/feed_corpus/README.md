@@ -85,6 +85,9 @@ web, with the cases that show the desktop refusing it too; a broker with
   (Dhan's 30 s, `broker_runtime::deep_book_timeout`, audit P-10) shortened
   to this, so a case can pass it; only with `with_broker` and for a broker
   that has one.
+- `deep_feed_not_made` (optional, true or false): the broker's deep-book
+  feed could not be made this session (see "Adding a broker": with
+  `with_broker` and `with_depth`).
 - `http` (optional): what the fake broker REST API answers from the start,
   a list of `{"method", "path", "status", "body", "record"}` (see "The fake
   broker API").
@@ -394,9 +397,11 @@ order relay completes each order socket's update with it
 order it did not see placed), waiting at most 5 s as the runtime does; and
 a deep-book socket from `.with_depth(levels, ..)` starts as a session starts
 it (`broker_runtime::connect_deep_feed`: the pool, the room refusal, the
-broker's silence timeout), while `.with_failed_depth(levels)` is a deep-book
-feed the broker could not make, so Depth subscribes at those levels are
-served at the market feed's levels (`BrokerBridge::set_deep_unavailable`).
+broker's silence timeout), while a case whose `case.json` says
+`"deep_feed_not_made": true` runs as a session whose broker could not make
+that feed (`Broker::create_depth_feed` failed), so Depth subscribes at those
+levels are served at the market feed's levels
+(`BrokerBridge::set_deep_unavailable`).
 A deep socket refused from the start (`refuse_upgrades` first in the
 script) is the manager's refused session, which the bridge reads from the
 depth manager's status. The broker lives until the case ends. A
