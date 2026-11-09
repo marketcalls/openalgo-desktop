@@ -279,12 +279,6 @@ impl WebSocketManager {
         self.packets.send(from, events);
     }
 
-    /// Test hook: a new session of connection `conn` opens.
-    #[cfg(test)]
-    pub(crate) fn open_session(&self, conn: usize) -> SessionId {
-        self.packets.open(conn)
-    }
-
     /// Test hook: the latest session number, on connection `conn`.
     #[cfg(test)]
     pub(crate) fn test_session(&self, conn: usize) -> SessionId {
