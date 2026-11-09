@@ -67,10 +67,12 @@ pub(crate) async fn run_commands(
         if report.reconnect {
             reconnect.store(true, std::sync::atomic::Ordering::SeqCst);
         }
-        if let Some(waited) = &cmd.release {
-            // Its caller keeps the subscription and asks again (audit C01).
-            waited.ran(report);
-            continue;
+        if let Some(waited) = &cmd.waited {
+            waited.ran(&report);
+            if !waited.admits() {
+                // Its caller keeps the subscription and asks again (C01).
+                continue;
+            }
         }
         if report.retry.is_empty() {
             continue;
@@ -92,7 +94,7 @@ pub(crate) async fn run_commands(
                 subscribe: cmd.subscribe,
                 code: cmd.code,
                 instruments: report.retry,
-                release: None,
+                waited: None,
             },
             attempt: attempt + 1,
             due: tokio::time::Instant::now() + wait,

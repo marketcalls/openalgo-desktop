@@ -90,7 +90,7 @@ impl WebSocketManager {
     /// Hand connection `conn` the change and wait for what it did; `None`
     /// when no socket carried it (no task, or the task dropped it while
     /// connecting or reconnecting): the registry is the truth then.
-    async fn send_waited(
+    pub(super) async fn send_waited(
         &self,
         conn: usize,
         (deltas, seq): (Vec<Delta>, u64),

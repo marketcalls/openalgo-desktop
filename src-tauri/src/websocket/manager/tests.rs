@@ -23,7 +23,7 @@ pub(super) fn fast() -> FeedConfig {
     }
 }
 
-fn sub(symbol: &str, mode: FeedMode) -> FeedSubscription {
+pub(super) fn sub(symbol: &str, mode: FeedMode) -> FeedSubscription {
     FeedSubscription {
         symbol: symbol.into(),
         exchange: "NSE".into(),
