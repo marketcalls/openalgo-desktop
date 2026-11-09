@@ -329,6 +329,10 @@ struct Script {
     /// (`hold_subscribe`, `answer_subscribe`), with the answers waiting.
     slow: HashSet<InstrumentKey>,
     waiting: Vec<(InstrumentKey, tokio::sync::oneshot::Sender<SourceOutcome>)>,
+    /// Keys whose next unsubscribe is answered only when the test says
+    /// (`delay_release`, `answer_release`), with the answers waiting.
+    delayed: HashSet<(InstrumentKey, Mode)>,
+    late: Vec<(ActiveKey, tokio::sync::oneshot::Sender<SourceOutcome>)>,
 }
 
 /// In-memory source for tests and the soak harness. Counts active
@@ -409,6 +413,39 @@ impl FakeSource {
             .entry((key, mode))
             .or_default()
             .push_back(None);
+    }
+
+    /// Answer the next unsubscribe of `key` at `mode` only once
+    /// `answer_release` is called (a broker that answers late); the key
+    /// stays active until then.
+    pub fn delay_release(&self, key: InstrumentKey, mode: Mode) {
+        self.script.lock().delayed.insert((key, mode));
+    }
+
+    /// Answer the unsubscribes of `key` at `mode` waiting on
+    /// `delay_release` with `outcome`: let go on success, unless a
+    /// subscribe came since; still streamed on a refusal.
+    pub fn answer_release(&self, key: &InstrumentKey, mode: Mode, outcome: SourceOutcome) {
+        let mut active = self.active.lock();
+        let mut script = self.script.lock();
+        let (now, rest): (Vec<_>, Vec<_>) = script
+            .late
+            .drain(..)
+            .partition(|((k, m, _), _)| k == key && *m == mode);
+        script.late = rest;
+        for (k, tx) in now {
+            // A subscribe since the release (an owner joining, or the same
+            // one again) held the key still: it stays.
+            if outcome.is_ok() && script.unreleased.remove(&k) {
+                match active.get_mut(&k) {
+                    Some(n) if *n > 1 => *n -= 1,
+                    _ => {
+                        active.remove(&k);
+                    }
+                }
+            }
+            let _ = tx.send(outcome.clone());
+        }
     }
 
     /// Take at most `instruments` distinct instruments at once.
@@ -512,6 +549,15 @@ impl MarketDataSource for FakeSource {
         }
         let mut active = self.active.lock();
         let k = (key.clone(), mode, depth);
+        {
+            let mut script = self.script.lock();
+            if script.delayed.remove(&(key.clone(), mode)) {
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                script.unreleased.insert(k.clone());
+                script.late.push((k, tx));
+                return Box::pin(async move { rx.await.unwrap_or(Ok(())) });
+            }
+        }
         let scripted = {
             let mut script = self.script.lock();
             let next = script

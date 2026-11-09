@@ -302,3 +302,136 @@ async fn a_tick_before_the_reply_waits_for_it() {
     assert_eq!(tick["data"]["ltp"], 1424.0);
     h.handle.stop().await;
 }
+
+/// What the client holds and the source streams: (client subscriptions,
+/// source keys, keys active at the source).
+fn held(h: &Harness) -> (usize, usize, usize) {
+    let s = h.handle.stats();
+    (
+        s.client_subscriptions,
+        s.source_keys,
+        h.source.active_count(),
+    )
+}
+
+/// Review R107-01: the same item twice in one unsubscribe, the broker
+/// refusing it: both items answer the refusal, the client stays the owner
+/// (it did not lose it to its own duplicate), and the retry releases it
+/// once.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_duplicate_item_keeps_the_owner_the_broker_refused() {
+    let h = start_default().await;
+    let mut c = subscribed(&h.url, "Quote").await;
+    for _ in 0..2 {
+        h.source
+            .fail_release(reliance(), Mode::Quote, "explicit refusal");
+    }
+    let ack = c
+        .request(
+            json!({"action": "unsubscribe", "mode": "Quote", "request_id": "dup",
+            "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"},
+                        {"symbol": "RELIANCE", "exchange": "NSE"}]}),
+        )
+        .await;
+    assert_eq!(ack["status"], "error", "{}", ack);
+    assert_eq!(ack["failed"].as_array().map(Vec::len), Some(2), "{}", ack);
+    assert_eq!(held(&h), (1, 1, 1), "the refused owner stays");
+
+    let ack = c.request(unsubscribe("Quote", "again")).await;
+    assert_eq!(ack["status"], "success", "{}", ack);
+    assert_eq!(held(&h), (0, 0, 0));
+    assert!(
+        h.source.violations().is_empty(),
+        "{:?}",
+        h.source.violations()
+    );
+    h.handle.stop().await;
+}
+
+/// Review R107-02: a release the broker answers after the reply deadline
+/// is still that release's answer. The client is told it is not confirmed
+/// yet; the late success lets the owner go, so the same subscribe then
+/// asks the broker again and streams.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_release_answered_after_the_deadline_settles_the_owner() {
+    let h = start_with(FakeSource::new(known()), |c| {
+        c.op_timeout = Duration::from_millis(300)
+    })
+    .await;
+    let mut c = subscribed(&h.url, "Quote").await;
+    h.source.delay_release(reliance(), Mode::Quote);
+    let ack = c.request(unsubscribe("Quote", "slow")).await;
+    assert_eq!(ack["status"], "error", "{}", ack);
+    assert_eq!(held(&h), (1, 1, 1), "still with the broker");
+
+    h.source.answer_release(&reliance(), Mode::Quote, Ok(()));
+    assert!(
+        eventually(Duration::from_secs(5), || held(&h) == (0, 0, 0)).await,
+        "the late answer settles it: {:?}",
+        held(&h)
+    );
+
+    let ack = c
+        .request(json!({"action": "subscribe", "mode": "Quote",
+            "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}))
+        .await;
+    assert_eq!(ack["status"], "success", "{}", ack);
+    assert_eq!(held(&h), (1, 1, 1), "asked at the broker again");
+    assert!(
+        h.source.violations().is_empty(),
+        "{:?}",
+        h.source.violations()
+    );
+    h.handle.stop().await;
+}
+
+/// Review R107-02: subscribing the key again while its release is still
+/// with the broker asks the broker to hold it, and the release, when it
+/// lands, leaves the owner streaming.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn subscribing_again_during_a_late_release_keeps_it_streaming() {
+    let h = start_with(FakeSource::new(known()), |c| {
+        c.op_timeout = Duration::from_millis(300)
+    })
+    .await;
+    let mut c = subscribed(&h.url, "Quote").await;
+    h.source.delay_release(reliance(), Mode::Quote);
+    let ack = c.request(unsubscribe("Quote", "slow")).await;
+    assert_eq!(ack["status"], "error", "{}", ack);
+    let ack = c
+        .request(json!({"action": "subscribe", "mode": "Quote",
+            "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}))
+        .await;
+    assert_eq!(ack["status"], "success", "{}", ack);
+
+    h.source.answer_release(&reliance(), Mode::Quote, Ok(()));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(held(&h), (1, 1, 1), "held at the broker again");
+    h.source
+        .publish(MarketUpdate::ltp(reliance(), 1424.0, 1_791_000_000_000));
+    assert!(next_tick(&mut c).await.is_some(), "it streams");
+    h.handle.stop().await;
+}
+
+/// Review R107-02: a refusal that comes after the reply deadline keeps the
+/// owner, and the retry releases it once.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_release_refused_after_the_deadline_keeps_the_owner() {
+    let h = start_with(FakeSource::new(known()), |c| {
+        c.op_timeout = Duration::from_millis(300)
+    })
+    .await;
+    let mut c = subscribed(&h.url, "Quote").await;
+    h.source.delay_release(reliance(), Mode::Quote);
+    let ack = c.request(unsubscribe("Quote", "slow")).await;
+    assert_eq!(ack["status"], "error", "{}", ack);
+    h.source
+        .answer_release(&reliance(), Mode::Quote, Err("late refusal".into()));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(held(&h), (1, 1, 1));
+
+    let ack = c.request(unsubscribe("Quote", "again")).await;
+    assert_eq!(ack["status"], "success", "{}", ack);
+    assert_eq!(held(&h), (0, 0, 0));
+    h.handle.stop().await;
+}

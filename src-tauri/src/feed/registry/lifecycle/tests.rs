@@ -31,14 +31,16 @@ fn subscribe(r: &Registry, id: u64, k: &InstrumentKey, mode: Mode, depth: u8) ->
 }
 
 /// An unsubscribe as the session runs it; `None` while the source has not
-/// answered (the release is then dropped, as a session timeout drops it).
+/// answered (the release stays with the source, as after a reply
+/// deadline: its answer, if it comes, settles it).
 fn unsubscribe(r: &Registry, id: u64, k: &InstrumentKey, mode: Mode) -> Option<SourceOutcome> {
     match r.begin_unsubscribe(id, k, mode) {
         Release::Done => Some(Ok(())),
-        Release::Waiting(op) => {
-            let outcome = op.now_or_never();
-            let settled = outcome.clone().unwrap_or(Err("no answer".into()));
-            r.finish_unsubscribe(id, k, mode, &settled);
+        Release::Waiting { answer, ticket } => {
+            let outcome = answer.now_or_never();
+            if let Some(o) = &outcome {
+                r.finish_unsubscribe(id, k, mode, ticket, o);
+            }
             outcome
         }
     }
@@ -164,9 +166,12 @@ fn unsubscribe_all_keeps_only_what_the_broker_refused() {
         .map(|(k, mode, release)| {
             let outcome = match release {
                 Release::Done => Ok(()),
-                Release::Waiting(op) => op.now_or_never().expect("answered"),
+                Release::Waiting { answer, ticket } => {
+                    let o = answer.now_or_never().expect("answered");
+                    r.finish_unsubscribe(7, &k, mode, ticket, &o);
+                    o
+                }
             };
-            r.finish_unsubscribe(7, &k, mode, &outcome);
             (k.symbol, outcome)
         })
         .collect();
@@ -183,11 +188,11 @@ fn unsubscribe_all_keeps_only_what_the_broker_refused() {
         .begin_unsubscribe_all(7)
         .into_iter()
         .map(|(k, mode, release)| {
-            let Release::Waiting(op) = release else {
+            let Release::Waiting { answer, ticket } = release else {
                 panic!("RELIANCE is still the client's alone")
             };
-            let outcome = op.now_or_never().expect("answered");
-            r.finish_unsubscribe(7, &k, mode, &outcome);
+            let outcome = answer.now_or_never().expect("answered");
+            r.finish_unsubscribe(7, &k, mode, ticket, &outcome);
             outcome
         })
         .collect();

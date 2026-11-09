@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 mod lifecycle;
-pub use lifecycle::{Admission, Release};
+pub use lifecycle::{Admission, Answer, Release};
 
 pub type ClientId = u64;
 
@@ -199,7 +199,7 @@ impl Registry {
                     h.depth = depth;
                 }
                 Self::set_slot(inner, id, key, mode, Some(depth));
-                return Ok(self.admission_of(inner, key, mode, depth));
+                return Ok(self.own_admission(inner, key, mode, depth));
             }
             Some(_) => {}
             None => {
@@ -416,11 +416,11 @@ mod tests {
         assert_eq!(all.len(), 1);
         for (k, mode, release) in all {
             assert_eq!((&k, mode), (&key("A"), Mode::Depth));
-            let Release::Waiting(op) = release else {
+            let Release::Waiting { answer, ticket } = release else {
                 panic!("the last owner waits for the source")
             };
-            let outcome = op.now_or_never().expect("answered at once");
-            r.finish_unsubscribe(1, &k, mode, &outcome);
+            let outcome = answer.now_or_never().expect("answered at once");
+            r.finish_unsubscribe(1, &k, mode, ticket, &outcome);
         }
         assert_eq!(src.active_count(), 0);
     }

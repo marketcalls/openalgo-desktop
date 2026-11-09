@@ -337,6 +337,7 @@ fn new_session(
         user_id: None,
         broker: None,
         meter: Meter::new(shared.cfg.frame_budget, Instant::now()),
+        late: Default::default(),
     }
 }
 
