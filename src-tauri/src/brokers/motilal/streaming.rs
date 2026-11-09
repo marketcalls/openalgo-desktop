@@ -653,6 +653,19 @@ impl BrokerFeed for MotilalFeed {
     fn supported_depth_levels(&self) -> &'static [u8] {
         &[5]
     }
+
+    /// The web's logout before a deliberate close (motilal_websocket.py
+    /// `disconnect`, :272-287). The web marks it an unverified frame,
+    /// copied from the trade socket's doc 34; it goes out only on a socket
+    /// being closed anyway (lead decision 2026-11-09).
+    fn farewell_frames(&self) -> Vec<Message> {
+        vec![logout_frame(&self.client_code)]
+    }
+}
+
+/// Motilal's logout action (doc 34), the farewell of both sockets.
+fn logout_frame(client_code: &str) -> Message {
+    Message::Text(json!({"clientid": client_code, "action": "logout"}).to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -810,5 +823,11 @@ impl BrokerFeed for MotilalOrderFeed {
             ORDER_HEARTBEAT,
             Message::Text(json!({"clientid": self.client_code, "action": "heartbeat"}).to_string()),
         ))
+    }
+
+    /// Doc 34's logout before a deliberate close (web
+    /// `MotilalOrderUpdateAdapter.disconnect`, motilal_order_adapter.py:131-139).
+    fn farewell_frames(&self) -> Vec<Message> {
+        vec![logout_frame(&self.client_code)]
     }
 }

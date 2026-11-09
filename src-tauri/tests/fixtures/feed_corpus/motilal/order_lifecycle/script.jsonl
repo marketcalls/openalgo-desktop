@@ -13,3 +13,6 @@
 {"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
 {"step": "push", "frame": "frames/order_cancelled.json", "socket": "orders"}
 {"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}
+{"step": "disconnect", "socket": "orders", "note": "A deliberate close (a logout, a broker switch): Motilal's logout action goes first (doc 34)."}
+{"step": "upstream_receives", "frames": [{"json": {"clientid": "C1", "action": "logout"}}, {"close": null}], "socket": "orders"}
+{"step": "upstream_connections", "socket": "orders", "count": 1, "ms": 300}

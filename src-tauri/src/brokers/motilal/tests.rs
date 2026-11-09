@@ -1092,6 +1092,22 @@ fn order_stream_frames_and_updates() {
     assert!(matches!(&ev[0], FeedEvent::AuthFailed(_)));
 }
 
+/// Both sockets say Motilal's logout before a deliberate close (web
+/// `motilal_order_adapter.py:131-139` and `motilal_websocket.py:272-287`).
+#[test]
+fn both_sockets_log_out_before_a_deliberate_close() {
+    let logout = json!({"clientid": "<USER_ID>", "action": "logout"});
+    let s = MotilalSession::parse(&auth()).unwrap();
+    let orders = MotilalOrderFeed::new("wss://example.invalid/ws", &s, master());
+    let market = MotilalFeed::new("wss://example.invalid/feed", "<USER_ID>");
+    for frames in [orders.farewell_frames(), market.farewell_frames()] {
+        let [Message::Text(t)] = frames.as_slice() else {
+            panic!("{:?}", frames)
+        };
+        assert_eq!(serde_json::from_str::<Value>(t).unwrap(), logout);
+    }
+}
+
 #[test]
 fn broker_identity() {
     let b = MotilalBroker::new(SymbolResolver::new());
