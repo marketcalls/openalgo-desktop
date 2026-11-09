@@ -6,7 +6,9 @@
 use super::to_json;
 use crate::brokers::common::streaming::{Number, NumberForm, TimeText};
 use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Fold, Key, Source, Unit};
-use crate::feed::source::{DepthBook, DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
+use crate::feed::source::{
+    DepthBook, DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields, DEFAULT_DEPTH,
+};
 use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
 use serde_json::Value;
@@ -303,8 +305,16 @@ fn as_integer(v: Value) -> Value {
 /// The levels this frame's book was streamed at: the holder's depth, or the
 /// main feed's where its deep subscription fell back (web Dhan names 5
 /// then, dhan_adapter.py:930, 1042; web Fyers sends no 50-level frame).
+///
+/// A lower holder of a one-dict broker's packet (`Fold::Richer`) is shown
+/// the packet's whole main-feed book (a deep book never reaches it), so it
+/// names that book's levels: the main feed's unless the book says (web
+/// Dhan sends the full packet's `depth_level` 5 to its Quote client too).
 fn served(fr: &Frame<'_>) -> u8 {
     let levels = book_for(fr.update, fr.depth).and_then(|b| b.levels);
+    if fr.mode < Mode::Depth {
+        return levels.unwrap_or(DEFAULT_DEPTH);
+    }
     levels.map_or(fr.depth, |l| l.min(fr.depth))
 }
 
@@ -340,7 +350,9 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         }
         Source::Extra(e) => extra(e, q),
         Source::DepthLevels => {
-            let book = fr.content == Mode::Depth && !fr.update.key.is_index();
+            // A lower holder names levels only of a book its frame shows.
+            let shown = fr.mode == Mode::Depth || fr.update.depth.is_some();
+            let book = fr.content == Mode::Depth && !fr.update.key.is_index() && shown;
             book.then(|| Value::from(served(fr)))
         }
         Source::BookLevels => {
