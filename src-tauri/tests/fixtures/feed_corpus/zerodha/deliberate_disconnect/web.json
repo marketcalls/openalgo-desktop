@@ -1,0 +1,16 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "zerodha",
+  "inputs_sha256": "2ba091ead7c7b0a05add180cc3630f52aeffa1092496ca57df0f1b0f55272e74",
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": []
+}
