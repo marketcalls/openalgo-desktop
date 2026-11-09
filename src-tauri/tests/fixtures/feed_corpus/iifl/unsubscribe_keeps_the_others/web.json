@@ -22,11 +22,13 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 4,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 9,
@@ -54,6 +56,17 @@
             "mode": 2,
             "timestamp": "<receipt_ms>"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     },
@@ -84,15 +97,28 @@
             "timestamp": "<receipt_ms>"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
       "line": 15,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 17,
-      "published": []
+      "published": [],
+      "deliveries": []
     }
   ]
 }

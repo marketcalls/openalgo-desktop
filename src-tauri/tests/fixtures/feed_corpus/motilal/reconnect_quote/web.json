@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "e7bf0ab96571c18b6826be9c43c4fe6bcf7e77ab05703db2c72388ec45933c7e",
+  "inputs_sha256": "627a69b5bd091ccdcf065088b045e961cb124510ac25f40b1573655be6863e19",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -15,7 +15,8 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
@@ -40,6 +41,17 @@
             "mode": 2,
             "timestamp": "<receipt_ms>"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     },
@@ -67,6 +79,17 @@
             "timestamp": "<receipt_ms>"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
@@ -93,10 +116,21 @@
             "timestamp": "<receipt_ms>"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
-      "line": 14,
+      "line": 15,
       "published": [
         {
           "kind": "market",
@@ -118,6 +152,17 @@
             "mode": 2,
             "timestamp": "<receipt_ms>"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

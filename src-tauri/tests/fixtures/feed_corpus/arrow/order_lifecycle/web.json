@@ -39,6 +39,16 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -66,6 +76,16 @@
             "average_price": 1500.45,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     },
@@ -95,6 +115,16 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -123,6 +153,16 @@
             "rejection_reason": "RMS: Insufficient funds"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -150,6 +190,16 @@
             "average_price": 0.0,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     }

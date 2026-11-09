@@ -15,11 +15,13 @@
   "pushes": [
     {
       "line": 2,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 6,
@@ -108,15 +110,28 @@
             "timestamp": "<receipt_ms>"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
       "line": 11,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 13,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 14,
@@ -204,6 +219,17 @@
             "exchange": "NSE",
             "timestamp": "<receipt_ms>"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     },
@@ -293,6 +319,17 @@
             "exchange": "NSE",
             "timestamp": "<receipt_ms>"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     }

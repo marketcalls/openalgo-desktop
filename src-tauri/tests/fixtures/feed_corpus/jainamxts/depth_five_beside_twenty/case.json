@@ -58,7 +58,7 @@
     {
       "key": "depth",
       "kind": "web-defect",
-      "reason": "The web publishes each 1502 book once, and its listener sends it to every Depth client of the symbol whatever depth that client asked for, so this Depth 5 client gets the twenty levels a Depth 20 client asked for. The desktop gives each Depth holder the levels it asked for: the Depth 20 client the twenty, this one the first five (feed/protocol/market.rs book_for; audit P-10, lead ruling).",
+      "reason": "The web publishes each 1502 book once per subscription row, and its listener sends each copy to every Depth client of the symbol whatever depth that client asked for, so this Depth 5 client gets the twenty levels a Depth 20 client asked for. The desktop gives each Depth holder the levels it asked for: the Depth 20 client the twenty, this one the first five (feed/protocol/market.rs book_for; audit P-10, lead ruling).",
       "ref": "websocket_proxy/server.py (a Depth publish to every Depth client of the symbol); jainamxts_adapter.py _extract_depth_data",
       "approval": "depth-own-level-only"
     },
@@ -110,6 +110,12 @@
       "reason": "The 1502 event carries no UpperCircuitLimit; the web sends upper_circuit 0 for it (message.get('UpperCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
       "ref": "jainamxts_adapter.py _normalize_market_data (mode 3)",
       "approval": "leave-out-unsent"
+    },
+    {
+      "key": "missing-frame",
+      "kind": "web-defect",
+      "reason": "The web's adapter publishes a 1502 book once per subscription row, so with two rows for the symbol (Depth 5 and Depth 20) its listener sends each Depth client the same book twice; the desktop sends one frame per held mode for a packet.",
+      "approval": "one-frame-per-held-mode"
     }
   ]
 }

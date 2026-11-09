@@ -15,7 +15,8 @@
   "pushes": [
     {
       "line": 1,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 4,
@@ -35,11 +36,23 @@
             "mode": "ltp"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
+        }
       ]
     },
     {
       "line": 6,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 7,
@@ -58,6 +71,17 @@
             "timestamp": "<receipt_ms>",
             "mode": "ltp"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
         }
       ]
     }

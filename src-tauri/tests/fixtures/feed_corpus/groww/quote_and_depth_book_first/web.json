@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "groww",
-  "inputs_sha256": "af550ae9f1333e64b2154ad9c5ead9d3f6f03f9115543ebae9a7cd6a55cfabd1",
+  "inputs_sha256": "b38341dfc81d4be7fcc161ec23cd53d308fe6b60d384e2dd549533389a8910bd",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -14,11 +14,13 @@
   "pushes": [
     {
       "line": 1,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 3,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 8,
@@ -77,6 +79,26 @@
             "ask_quantity": 200,
             "offer_quantity": 200
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": [
+            2
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     },
@@ -168,6 +190,33 @@
             "ask_quantity": 200,
             "offer_quantity": 200
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "mode": 2,
+          "topic_mode": 3,
+          "serves": []
+        },
+        {
+          "client": "b",
+          "publication": 1,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     }
