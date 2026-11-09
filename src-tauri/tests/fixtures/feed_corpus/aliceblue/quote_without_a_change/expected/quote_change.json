@@ -1,0 +1,22 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "aliceblue",
+  "data": {
+    "ltp": 1296.0,
+    "ltt": 1794302705000,
+    "volume": 4568100,
+    "last_quantity": 5,
+    "average_price": 1292.33,
+    "total_buy_quantity": 234000,
+    "total_sell_quantity": 345678,
+    "open": 1288.0,
+    "high": 1301.2,
+    "low": 1285.1,
+    "close": 1280.0,
+    "change_percent": 1.25,
+    "total_oi": 0
+  }
+}

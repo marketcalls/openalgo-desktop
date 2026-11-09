@@ -732,6 +732,31 @@ fn feed() -> AliceBlueFeed {
     )
 }
 
+/// The web only forwards AliceBlue's `pc`: with none known on the
+/// connection there is no change, though the close is known (lead rule
+/// no-derived-change); once one has come a partial update keeps it.
+#[test]
+fn the_change_is_only_the_pc_aliceblue_sent() {
+    let mut f = feed();
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Quote)]);
+    f.parse(&Message::Text(READY.into()));
+    let mut tick = |packet: Value| {
+        let events = f.parse(&Message::Text(packet.to_string()));
+        match events.into_iter().next() {
+            Some(FeedEvent::Tick(t)) => t,
+            other => panic!("tick expected, got {other:?}"),
+        }
+    };
+    let t = tick(json!({"t":"tk","e":"NSE","tk":"3045","lp":"812.35","c":"808.1"}));
+    assert!(!t.knows(QuoteField::Change), "no pc, no change");
+    let t = tick(json!({"t":"tf","e":"NSE","tk":"3045","lp":"813","pc":"0.53"}));
+    assert!(t.knows(QuoteField::Change));
+    assert_eq!(t.change_percent, 0.53);
+    let t = tick(json!({"t":"tf","e":"NSE","tk":"3045","lp":"814"}));
+    assert!(t.knows(QuoteField::Change));
+    assert_eq!(t.change_percent, 0.53, "a partial update keeps it");
+}
+
 #[test]
 fn live_feed_frames_and_retention() {
     let mut f = feed();

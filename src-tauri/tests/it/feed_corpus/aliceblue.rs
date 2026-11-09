@@ -53,6 +53,7 @@ corpus_cases!(
     [
         quote_snapshot_then_delta,
         absent_fields_and_a_price_without_time,
+        quote_without_a_change,
         two_clients_share_a_quote,
         ltp_then_quote,
         depth_future_deltas,

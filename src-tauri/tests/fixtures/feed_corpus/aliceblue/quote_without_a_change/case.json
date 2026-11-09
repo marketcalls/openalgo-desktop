@@ -1,0 +1,72 @@
+{
+  "broker": "aliceblue",
+  "summary": "A Quote client on an equity whose tk snapshot carries no change (pc): the frame has no change_percent, never one worked out from the close. A tf delta then brings pc, and a later delta with only a new price keeps it, as a partial update does.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"k\":\"\",\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._handle_message",
+      "broker/aliceblue/streaming/aliceblue_mapping.py::AliceBlueMessageMapper.parse_tick_data",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._update_market_snapshot",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received"
+    ],
+    "notes": [
+      "The web only forwards pc (aliceblue_mapping.py:145, float(message.get('pc', 0))), so the desktop works no change out without one (lead rule no-derived-change, as for Noren and 5paisa).",
+      "A tf leaves out what has not changed: docs/port/market-data-frames.md, Partial-update feeds."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, and a string (\"1794302700\"); the protocol's WebSocket timestamps are epoch milliseconds (docs/prompt/websockets-format.md), so the unit is wrong, as for Dhan. The desktop sends the trade time in ms, as a number.",
+      "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries last_quantity (ltq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries total_buy_quantity (tbq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries total_sell_quantity (tsq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "change_percent",
+      "kind": "web-defect",
+      "reason": "The tk snapshot carries no pc; the web's Quote sends change_percent 0.0 for it. A value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "aliceblue_mapping.py:145; aliceblue_adapter.py:1260",
+      "approval": "leave-out-unsent"
+    }
+  ]
+}
