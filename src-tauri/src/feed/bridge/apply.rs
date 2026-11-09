@@ -173,6 +173,35 @@ pub struct Operations {
 }
 
 impl State {
+    /// A client holds `key` still, its release refused: streamed as before,
+    /// and no longer a release to try again.
+    pub(super) fn keep(&mut self, key: DesiredKey) {
+        self.ops.retry.remove(&key);
+        self.desired.insert(key);
+    }
+
+    /// The broker refused these instruments of a session's whole set and
+    /// the manager let them go, with nobody waiting: they are listed for
+    /// Health (its reason), and a key still wanted is tried again at the
+    /// next pass (review B2).
+    pub(super) fn replay_refused(
+        &mut self,
+        refused: &crate::brokers::common::streaming::ReleaseRefusals,
+    ) {
+        for (s, why) in refused {
+            let held: Vec<DesiredKey> = self
+                .applied
+                .keys()
+                .filter(|k| k.0.symbol == s.symbol && k.0.exchange == s.exchange)
+                .cloned()
+                .collect();
+            for k in held {
+                self.applied.remove(&k);
+                self.ops.refused.insert(k, why.clone());
+            }
+        }
+    }
+
     pub(super) fn operations(&self) -> Operations {
         let mut refused: Vec<Refused> = self
             .ops
@@ -439,6 +468,7 @@ impl BrokerBridge {
                 (Err(why), _) => {
                     if any_live(&waiters) {
                         st.desired.remove(&k);
+                        st.ops.refused.remove(&k);
                     } else if st.desired.contains(&k) {
                         tracing::warn!(
                             "{} on {} could not be streamed: {}",
@@ -512,8 +542,10 @@ impl BrokerBridge {
     }
 
     /// Record what the broker let go of and answer whoever waited. What it
-    /// kept stays applied: wanted again when its client waits (the client
-    /// keeps the subscription), else tried again after a pause.
+    /// kept stays applied, and is tried again after a pause: a client that
+    /// still owns it says so (`keep`). Someone waiting is not an owner (an
+    /// owner gone by now still has its reply's wait open), so a refusal
+    /// never brings a key back on its own (review B1).
     fn settle_releases(&self, generation: u64, released: Vec<Released>) {
         let mut st = self.state.lock();
         let current = st.generation == generation;
@@ -523,10 +555,7 @@ impl BrokerBridge {
             st.ops.in_flight.remove(&r.key);
             let waiters = st.ops.releasing.remove(&r.key).unwrap_or_default();
             if let (Err(why), true) = (&r.outcome, current) {
-                if any_live(&waiters) {
-                    st.desired.insert(r.key.clone());
-                    st.ops.retry.remove(&r.key);
-                } else if !st.desired.contains(&r.key) {
+                if !st.desired.contains(&r.key) {
                     let attempt = st.ops.retry.get(&r.key).map_or(0, |(_, n)| n + 1);
                     let pause = RETRY_BASE
                         .saturating_mul(1u32 << attempt.min(6))

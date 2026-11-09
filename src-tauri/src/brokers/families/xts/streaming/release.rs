@@ -16,6 +16,18 @@
 //! * A mode upgrade an admission brought (`upgrade_frames`, review X2): the
 //!   new message code is taken first and the old one released only once
 //!   it is, so a refusal leaves the instrument streaming as it was.
+//! * A mode downgrade a release left (`downgrade_frames`, review B3), the
+//!   mirror: the lower code is taken first, the higher released only once
+//!   it is, and the release is waited on through both.
+//! * A session's whole set (`Kind::Sync`, review B2): what the broker
+//!   refuses goes back too, for the manager to let go and the trader to be
+//!   told, and one refused instrument does not stop the others.
+//!
+//! A passing failure of an admission is sent again with its waiter, and
+//! only what that retry comes to answers it: a retry report is not an
+//! answer (review B2). If every attempt fails its owner is told it was not
+//! started, and the broker to let go of it in case only its answers were
+//! lost.
 
 use super::{mapping, Command, CommandReport, XtsFeed, SUBSCRIBE_BATCH, SUBSCRIBE_GAP};
 use crate::brokers::common::streaming::{
@@ -38,6 +50,16 @@ reconnects.";
 /// the broker refuses, on top of its own calls (review X1). What the
 /// manager waits for (`ADMISSION_WAIT`) covers it with room to spare.
 const SEARCH_TIME: Duration = Duration::from_secs(12);
+
+/// The same for a session's whole set, which nobody is waiting on in
+/// front of a screen: what it leaves unasked stays subscribed but silent
+/// until the next reconnect (review B2).
+const SYNC_SEARCH_TIME: Duration = Duration::from_secs(120);
+
+/// An admission's instrument the broker never answered about, however
+/// often it was asked.
+const NOT_ANSWERED: &str = "The broker did not answer the request to stream this instrument, \
+so it was not started. Subscribe again.";
 
 /// An instrument of a refused batch the search had no time to ask about
 /// on its own. The broker did refuse the batch that held it, so it is not
@@ -78,6 +100,17 @@ Unsubscribe again to retry.",
     )
 }
 
+/// What the worker's answer is for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Kind {
+    /// A release its caller waits on (a mode downgrade included).
+    Release,
+    /// A subscribe its caller waits on.
+    Admission,
+    /// A session's whole set.
+    Sync,
+}
+
 /// One waited release, shared by the commands it sent (one per message
 /// code). When the last command has run its answer goes to the manager; a
 /// release whose commands never ran (the worker went with its connection)
@@ -86,8 +119,7 @@ Unsubscribe again to retry.",
 pub struct Waited(Arc<Mutex<Answer>>);
 
 struct Answer {
-    /// An admission (else a release).
-    admission: bool,
+    kind: Kind,
     /// When an admission stops searching its refused batches.
     search_until: Option<Instant>,
     commands_left: usize,
@@ -108,10 +140,30 @@ impl PartialEq for Waited {
     }
 }
 
+impl Answer {
+    /// One command of it is done with: the answer goes once none is left.
+    fn command_done(&mut self) {
+        self.commands_left = self.commands_left.saturating_sub(1);
+        if self.commands_left == 0 {
+            if let Some(to) = self.to.take() {
+                let _ = to.send(std::mem::take(&mut self.refused));
+            }
+        }
+    }
+
+    fn refuse(&mut self, instrument: &Value, why: String) {
+        if let Some((_, s)) = self.instruments.iter().find(|(i, _)| i == instrument) {
+            let s = s.clone();
+            self.refused.push((s, why));
+        }
+    }
+}
+
 impl Waited {
-    /// Whether it is an admission (its passing failures are sent again).
+    /// Whether it is an admission or a session's whole set (its passing
+    /// failures are sent again).
     pub(super) fn admits(&self) -> bool {
-        self.0.lock().admission
+        self.0.lock().kind != Kind::Release
     }
 
     /// When an admission stops searching a refused batch for what the
@@ -120,15 +172,30 @@ impl Waited {
         self.0.lock().search_until
     }
 
-    /// One command of it ran: what the broker refused (and, for a release,
-    /// did not answer) joins the answer, sent once every command has run.
-    pub(super) fn ran(&self, report: &CommandReport) {
+    /// A command of it ran: what the broker refused (and, for a release,
+    /// did not answer) joins the answer, sent once every command is done
+    /// with. `more`: this command is not (what it could not settle goes
+    /// again, or a further step follows it). A refused token settles nothing
+    /// (the feed reconnects): an admission is left to the next session's
+    /// set, so its answer is dropped.
+    pub(super) fn ran(&self, report: &CommandReport, more: bool) {
         let mut a = self.0.lock();
-        let failed: Vec<(Value, String)> = if a.admission {
+        if report.reconnect && a.kind != Kind::Release {
+            a.to = None;
+            return;
+        }
+        let failed: Vec<(Value, String)> = if a.kind == Kind::Admission {
             report
                 .refused
                 .iter()
-                .filter(|(_, why)| why != TOKEN_REFUSED)
+                .map(|(i, why)| (i.clone(), refused_to_stream(why)))
+                .collect()
+        } else if a.kind == Kind::Sync {
+            // What the search had no time for is not known to be refused.
+            report
+                .refused
+                .iter()
+                .filter(|(_, why)| why != NOT_CHECKED)
                 .map(|(i, why)| (i.clone(), refused_to_stream(why)))
                 .collect()
         } else {
@@ -145,17 +212,27 @@ impl Waited {
                 .collect()
         };
         for (inst, why) in failed {
-            if let Some((_, s)) = a.instruments.iter().find(|(i, _)| *i == inst) {
-                let s = s.clone();
-                a.refused.push((s, why));
+            a.refuse(&inst, why);
+        }
+        if !more {
+            a.command_done();
+        }
+    }
+
+    /// Asked every time the worker asks, the broker never answered about
+    /// `instruments`: an admission is told so; a session's whole set just
+    /// tries again at the next reconnect. True when they are now nobody's,
+    /// so the broker is to let go of them in case it took them.
+    pub(super) fn gave_up(&self, instruments: &[Value]) -> bool {
+        let mut a = self.0.lock();
+        let told = a.kind == Kind::Admission;
+        if told {
+            for inst in instruments {
+                a.refuse(inst, NOT_ANSWERED.to_string());
             }
         }
-        a.commands_left = a.commands_left.saturating_sub(1);
-        if a.commands_left == 0 {
-            if let Some(to) = a.to.take() {
-                let _ = to.send(std::mem::take(&mut a.refused));
-            }
-        }
+        a.command_done();
+        told
     }
 }
 
@@ -189,36 +266,37 @@ impl XtsFeed {
     }
 }
 
-/// The release (or, with `admission`, the subscribe) of `subs` as REST
-/// commands the worker answers: no socket frames, and the receiver of the
-/// broker's answer.
+/// The release or the subscribe of `subs`, by `kind`, as REST commands
+/// the worker answers: no socket frames, and the receiver of the broker's
+/// answer.
 pub(super) fn frames(
     feed: &mut XtsFeed,
     subs: &[FeedSubscription],
-    admission: bool,
+    kind: Kind,
 ) -> (Vec<Message>, Option<ReleaseAnswer>) {
-    if admission {
+    let subscribe = kind != Kind::Release;
+    if subscribe {
         feed.remember(subs);
     } else {
         feed.forget(subs);
     }
-    let commands = feed.commands(subs, admission);
-    (Vec::new(), send_waited(feed, subs, commands, admission))
+    let commands = feed.commands(subs, subscribe);
+    (Vec::new(), send_waited(feed, subs, commands, kind))
 }
 
-/// A waited admission's mode upgrades (old, new) as REST commands: each
-/// instrument is taken at its new message code and its old code goes only
-/// once the broker took the new one (`Command::then_release`), so a refusal
-/// leaves it streaming as it was (review X2). An upgrade that keeps its
-/// code (a 5-level book to 20, on one code) is the plain mode change: the
-/// code it streams at does not change and there is nothing to refuse.
-pub(super) fn upgrade_frames(
+/// Mode changes (old, new) that take a new message code before they let go
+/// of the old one: the new code is asked first and `Command::then_release`
+/// releases the old once it is taken; a change that keeps its code is the
+/// plain mode change (nothing to refuse). `kind` is who waits.
+fn taken_then_released(
     feed: &mut XtsFeed,
     changes: &[(FeedSubscription, FeedSubscription)],
+    kind: Kind,
 ) -> (Vec<Message>, Option<ReleaseAnswer>) {
     let mut frames = Vec::new();
-    let mut upgraded = Vec::new();
+    let mut changed = Vec::new();
     let mut moves: Vec<((u16, u16), Vec<Value>)> = Vec::new();
+
     for (old, new) in changes {
         let (Some((from, _)), Some((to, inst))) = (feed.instrument(old), feed.instrument(new))
         else {
@@ -228,13 +306,13 @@ pub(super) fn upgrade_frames(
             frames.extend(feed.mode_change_frames(old, new));
             continue;
         }
-        upgraded.push(new.clone());
+        changed.push(new.clone());
         match moves.iter_mut().find(|(codes, _)| *codes == (to, from)) {
             Some((_, v)) => v.push(inst),
             None => moves.push(((to, from), vec![inst])),
         }
     }
-    feed.remember(&upgraded);
+    feed.remember(&changed);
     let commands = moves
         .into_iter()
         .map(|((code, from), instruments)| Command {
@@ -245,8 +323,28 @@ pub(super) fn upgrade_frames(
             then_release: Some(from),
         })
         .collect();
-    let answer = send_waited(feed, &upgraded, commands, true);
+    let answer = send_waited(feed, &changed, commands, kind);
     (frames, answer)
+}
+
+/// A waited admission's mode upgrades (old, new): a refusal leaves each
+/// instrument streaming as it was (review X2).
+pub(super) fn upgrade_frames(
+    feed: &mut XtsFeed,
+    changes: &[(FeedSubscription, FeedSubscription)],
+) -> (Vec<Message>, Option<ReleaseAnswer>) {
+    taken_then_released(feed, changes, Kind::Admission)
+}
+
+/// A waited release's mode downgrades (old, new): the lower code is taken
+/// before the higher goes, so the lower holders never lose their stream;
+/// what the broker refuses, either way, is that release's answer (review
+/// B3).
+pub(super) fn downgrade_frames(
+    feed: &mut XtsFeed,
+    changes: &[(FeedSubscription, FeedSubscription)],
+) -> (Vec<Message>, Option<ReleaseAnswer>) {
+    taken_then_released(feed, changes, Kind::Release)
 }
 
 /// Hand the worker `commands`, one waited admission or release of `subs`
@@ -256,7 +354,7 @@ fn send_waited(
     feed: &mut XtsFeed,
     subs: &[FeedSubscription],
     mut commands: Vec<Command>,
-    admission: bool,
+    kind: Kind,
 ) -> Option<ReleaseAnswer> {
     if commands.is_empty() {
         return None;
@@ -270,10 +368,15 @@ fn send_waited(
         .map(|c| c.instruments.len().div_ceil(SUBSCRIBE_BATCH))
         .sum();
     let its_calls = SUBSCRIBE_GAP.saturating_mul(u32::try_from(calls).unwrap_or(u32::MAX));
+    let search_time = match kind {
+        Kind::Release => None,
+        Kind::Admission => Some(SEARCH_TIME),
+        Kind::Sync => Some(SYNC_SEARCH_TIME),
+    };
     let (to, answer) = oneshot::channel();
     let waited = Waited(Arc::new(Mutex::new(Answer {
-        admission,
-        search_until: admission.then(|| Instant::now() + its_calls + SEARCH_TIME),
+        kind,
+        search_until: search_time.map(|t| Instant::now() + its_calls + t),
         commands_left: commands.len(),
         instruments,
         refused: Vec::new(),

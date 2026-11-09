@@ -564,6 +564,41 @@ pub trait BrokerFeed: Send + Sync {
         v
     }
 
+    /// Whether this broker answers subscribes itself, apart from the
+    /// socket (`admission_frames`, `resync_frames`): a subscribe made
+    /// before a session is up then waits for the broker's answer to that
+    /// session's whole set (review B2). Default: no; a subscribe is taken
+    /// once written, as the web's adapters take it.
+    fn answers_admissions(&self) -> bool {
+        false
+    }
+
+    /// The frames that subscribe a new session's whole set `subs`, and, for
+    /// a broker that answers subscribes itself, where it says what it
+    /// refused. Default: the subscribe frames.
+    fn resync_frames(
+        &mut self,
+        subs: &[FeedSubscription],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        (self.subscribe_frames(subs), None)
+    }
+
+    /// The frames for mode downgrades `(old, new)` a release left, whose
+    /// caller waits, and, for a broker that answers releases itself, where
+    /// it says what it refused: a refusal keeps the higher mode (review
+    /// B3). Default: the plain mode changes, whose writing is the whole
+    /// change.
+    fn mode_downgrade_frames(
+        &mut self,
+        changes: &[(FeedSubscription, FeedSubscription)],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        let frames = changes
+            .iter()
+            .flat_map(|(old, new)| self.mode_change_frames(old, new))
+            .collect();
+        (frames, None)
+    }
+
     /// The frames for mode upgrades `(old, new)` a caller waits on, and,
     /// for a broker that answers subscribes apart from the socket, where
     /// its refusals come (keyed by the new subscription, like

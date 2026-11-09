@@ -180,6 +180,9 @@ struct Running {
     cmd: mpsc::Sender<Command>,
     task: JoinHandle<()>,
     status: watch::Receiver<FeedStatus>,
+    /// The whole sets its sessions send, for a broker that answers them
+    /// itself (`admission`).
+    sets: Option<admission::Sets>,
 }
 
 pub struct WebSocketManager {

@@ -4,6 +4,7 @@
 //! subscription changes, and reconnects with capped backoff after an
 //! error, a close or a stall (see the manager's module docs).
 
+use super::admission::{SentSet, SetAnswer};
 use super::heartbeat::{Beat, Heartbeat};
 use super::packet::{PacketOut, SessionId};
 use super::registry::{Delta, Registry};
@@ -14,9 +15,9 @@ use crate::brokers::common::ratelimit::backoff_delay;
 use crate::brokers::common::redact::{url_safe_error, ws_error_kind};
 use crate::brokers::common::streaming::{
     normalize_request, BrokerFeed, Ended, FeedEvent, FeedSubscription, MarketEvent, Message,
-    PrepareError, Reconnect, ReleaseAnswer, StopKind,
+    PrepareError, Reconnect, ReleaseAnswer, ReleaseRefusals, StopKind,
 };
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{FutureExt, SinkExt, StreamExt};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
@@ -70,6 +71,14 @@ fn raises(old: &FeedSubscription, new: &FeedSubscription) -> bool {
     (new.mode, new.depth) > (old.mode, old.depth)
 }
 
+/// The broker's answer to a whole set, when it comes.
+async fn set_answered(answer: &mut Option<SetAnswer>) -> Option<ReleaseRefusals> {
+    match answer {
+        Some(a) => a.clone().await.ok(),
+        None => std::future::pending().await,
+    }
+}
+
 /// What a login acknowledgement that did not come in time means.
 #[derive(Debug, Clone, Copy)]
 enum AckLapse {
@@ -104,6 +113,13 @@ pub(super) struct Supervisor {
     /// its acknowledgement reached the broker twice; Kotak, run
     /// 42519352778).
     pub(super) synced: u64,
+    /// Where each whole set a session sends is announced, for a subscribe
+    /// waiting on it (review B2).
+    pub(super) sets: watch::Sender<Option<SentSet>>,
+    /// The broker's answer to the set this session sent, until it comes.
+    pub(super) set_answer: Option<SetAnswer>,
+    /// How many sets the connection has sent.
+    pub(super) generation: u64,
 }
 
 impl Supervisor {
@@ -531,6 +547,7 @@ impl Supervisor {
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
         R: futures_util::Stream<Item = std::result::Result<Message, WsError>> + Unpin,
     {
+        self.set_answer = None;
         let hello = self.feed.on_connected();
         if let Err(end) = self.send_all(write, hello).await {
             return end;
@@ -590,6 +607,10 @@ impl Supervisor {
                         return end;
                     }
                     subscribed = true;
+                }
+                refused = set_answered(&mut self.set_answer), if self.set_answer.is_some() => {
+                    self.set_answer = None;
+                    self.drop_refused(refused.unwrap_or_default());
                 }
                 _ = watchdog.tick() => {
                     if let Some(cause) = self.stalled(broker, last_rx) {
@@ -661,7 +682,10 @@ impl Supervisor {
             if apply.seq <= self.synced {
                 // Made before this session was sent its whole set, which
                 // carries it already.
-                apply.deltas.clear();
+                if let Some(reply) = apply.reply.take() {
+                    let _ = reply.send(Written::Carried);
+                }
+                continue;
             }
             let Some(reply) = apply.reply else {
                 plain.extend(apply.deltas);
@@ -738,30 +762,33 @@ impl Supervisor {
         frames
     }
 
-    /// The frames of one run of mode changes. An upgrade its caller waits
-    /// on goes through `BrokerFeed::mode_upgrade_frames`, keeping the
-    /// broker's later answer (review X2); a change a release left is the
-    /// plain one, since nothing new has to be taken.
+    /// The frames of one run of mode changes. A caller waits on an upgrade
+    /// (an admission) through `BrokerFeed::mode_upgrade_frames` and on a
+    /// downgrade (a release) through `mode_downgrade_frames`, keeping the
+    /// broker's later answer (review X2, B3).
     fn change_run(
         &mut self,
         changes: Vec<(FeedSubscription, FeedSubscription)>,
         later: Option<&mut Later>,
     ) -> Vec<Message> {
-        let (upgrades, plain): (Vec<_>, Vec<_>) = if later.is_some() {
-            changes.into_iter().partition(|(old, new)| raises(old, new))
-        } else {
-            (Vec::new(), changes)
+        let Some(later) = later else {
+            return changes
+                .iter()
+                .flat_map(|(old, new)| self.feed.mode_change_frames(old, new))
+                .collect();
         };
-        let mut frames: Vec<Message> = plain
-            .iter()
-            .flat_map(|(old, new)| self.feed.mode_change_frames(old, new))
-            .collect();
-        if let (Some(later), false) = (later, upgrades.is_empty()) {
-            let (upgrade_frames, answer) = self.feed.mode_upgrade_frames(&upgrades);
-            frames.extend(upgrade_frames);
-            if let Some(answer) = answer {
-                later.push((upgrades.into_iter().map(|(_, new)| new).collect(), answer));
-            }
+        let (up, down): (Vec<_>, Vec<_>) =
+            changes.into_iter().partition(|(old, new)| raises(old, new));
+        let mut frames = Vec::new();
+        if !up.is_empty() {
+            let (sent, answer) = self.feed.mode_upgrade_frames(&up);
+            frames.extend(sent);
+            keep_answer(later, up, answer);
+        }
+        if !down.is_empty() {
+            let (sent, answer) = self.feed.mode_downgrade_frames(&down);
+            frames.extend(sent);
+            keep_answer(later, down, answer);
         }
         frames
     }
@@ -812,9 +839,55 @@ impl Supervisor {
             (reg.effective_on(self.conn), reg.changes)
         };
         self.synced = synced;
+        self.generation += 1;
+        let mut answer = None;
         if !subs.is_empty() {
-            frames.extend(self.feed.subscribe_frames(&subs));
+            let (sent, refusals) = self.feed.resync_frames(&subs);
+            frames.extend(sent);
+            answer = refusals.map(FutureExt::shared);
         }
+        self.set_answer = answer.clone();
+        self.sets.send_replace(Some(SentSet {
+            seq: synced,
+            generation: self.generation,
+            answer,
+        }));
         self.send_all(write, frames).await
+    }
+
+    /// The broker refused these instruments of the session's whole set,
+    /// which no subscribe waits on (a reconnect's replay; one that does
+    /// has heard it too): the manager lets go of them, so they do not come
+    /// back at the next reconnect to refuse the good ones with them, and
+    /// the trader is told through the log and the Health page (review B2).
+    fn drop_refused(&self, refused: ReleaseRefusals) {
+        if refused.is_empty() {
+            return;
+        }
+        {
+            let mut reg = self.registry.lock();
+            for (s, why) in &refused {
+                reg.forget_instrument(s);
+                tracing::warn!(
+                    broker = self.feed.broker(),
+                    symbol = %s.symbol,
+                    exchange = %s.exchange,
+                    "The broker no longer streams this instrument after reconnecting: {}",
+                    why
+                );
+            }
+        }
+        self.packets.refused(self.session, refused);
+    }
+}
+
+/// Keep a broker's later answer to `changes`, against what they become.
+fn keep_answer(
+    later: &mut Later,
+    changes: Vec<(FeedSubscription, FeedSubscription)>,
+    answer: Option<ReleaseAnswer>,
+) {
+    if let Some(answer) = answer {
+        later.push((changes.into_iter().map(|(_, new)| new).collect(), answer));
     }
 }

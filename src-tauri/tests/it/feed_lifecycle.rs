@@ -95,8 +95,9 @@ async fn a_refused_release_is_an_error_item_and_the_retry_releases_it() {
 }
 
 /// Web test_invalid_or_exceptional_broker_response_preserves_exact_ownership:
-/// a release the broker never answers is answered as not done once the
-/// wait is over, and the subscription stays.
+/// a release the broker has not answered is answered as not done once the
+/// wait is over, the subscription stays, and asking again joins the
+/// release: what settles it is the broker's answer (review B1).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_unanswered_release_keeps_the_subscription() {
     let h = start_with(FakeSource::new(known()), |c| {
@@ -104,7 +105,7 @@ async fn an_unanswered_release_keeps_the_subscription() {
     })
     .await;
     let mut c = subscribed(&h.url, "Quote").await;
-    h.source.hold_release(reliance(), Mode::Quote);
+    h.source.delay_release(reliance(), Mode::Quote);
 
     let ack = c.request(unsubscribe("Quote", "q")).await;
     assert_eq!(ack["status"], "error", "{}", ack);
@@ -118,8 +119,18 @@ async fn an_unanswered_release_keeps_the_subscription() {
     );
     assert_eq!(h.source.active_count(), 1);
     let ack = c.request(unsubscribe("Quote", "q2")).await;
-    assert_eq!(ack["status"], "success", "{}", ack);
-    assert_eq!(h.source.active_count(), 0);
+    assert_eq!(ack["status"], "error", "still not answered: {}", ack);
+    assert_eq!(h.source.active_count(), 1);
+    h.source.answer_release(&reliance(), Mode::Quote, Ok(()));
+    assert!(
+        eventually(Duration::from_secs(5), || h.source.active_count() == 0).await,
+        "its answer settles it"
+    );
+    assert!(
+        eventually(Duration::from_secs(5), || held(&h) == (0, 0, 0)).await,
+        "{:?}",
+        held(&h)
+    );
     h.handle.stop().await;
 }
 
@@ -322,10 +333,8 @@ fn held(h: &Harness) -> (usize, usize, usize) {
 async fn a_duplicate_item_keeps_the_owner_the_broker_refused() {
     let h = start_default().await;
     let mut c = subscribed(&h.url, "Quote").await;
-    for _ in 0..2 {
-        h.source
-            .fail_release(reliance(), Mode::Quote, "explicit refusal");
-    }
+    h.source
+        .fail_release(reliance(), Mode::Quote, "explicit refusal");
     let ack = c
         .request(
             json!({"action": "unsubscribe", "mode": "Quote", "request_id": "dup",

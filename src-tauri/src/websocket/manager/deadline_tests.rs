@@ -172,6 +172,9 @@ pub(super) fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender
         stats: Arc::default(),
         conn: 0,
         synced: 0,
+        sets: watch::channel(None).0,
+        set_answer: None,
+        generation: 0,
     };
     (s, cmd_tx)
 }

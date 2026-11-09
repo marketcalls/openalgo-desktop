@@ -57,6 +57,8 @@ impl WebSocketManager {
             let (status, seen) = watch::channel(FeedStatus::Disconnected);
             (status, seen)
         };
+        let answers = feed.answers_admissions();
+        let (sets, set_seen) = watch::channel(None);
         let task = tokio::spawn(
             Supervisor {
                 feed,
@@ -70,6 +72,9 @@ impl WebSocketManager {
                 stats: self.stats.clone(),
                 conn,
                 synced: 0,
+                sets,
+                set_answer: None,
+                generation: 0,
             }
             .run(),
         );
@@ -77,6 +82,7 @@ impl WebSocketManager {
             cmd: tx,
             task,
             status: seen,
+            sets: answers.then_some(set_seen),
         }
     }
 
