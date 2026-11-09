@@ -39,12 +39,6 @@
   },
   "deviations": [
     {
-      "key": "last_trade_time",
-      "kind": "web-defect",
-      "reason": "The web's Flattrade adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
-      "ref": "broker/flattrade/streaming/flattrade_adapter.py normalisers (last_trade_time = data.get(ltt))"
-    },
-    {
       "key": "oi",
       "kind": "web-defect",
       "reason": "Noren's toi is the total open interest (Shoonya's adapter names it open_interest); the web's Flattrade adapter sends it only as total_traded_value, a turnover name, so a client reading oi loses it. The desktop sends total_traded_value as the web does and keeps oi (lead ruling 2026-11-09).",

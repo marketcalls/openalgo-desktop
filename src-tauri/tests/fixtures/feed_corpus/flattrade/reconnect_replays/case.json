@@ -32,12 +32,6 @@
   },
   "deviations": [
     {
-      "key": "last_trade_time",
-      "kind": "web-defect",
-      "reason": "The web's Flattrade adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
-      "ref": "broker/flattrade/streaming/flattrade_adapter.py normalisers (last_trade_time = data.get(ltt))"
-    },
-    {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Flattrade Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",

@@ -36,13 +36,5 @@
       "Noren sends OI as oi and toi, and each member reads it as its web adapter does (audit FB-07): Shoonya streams toi as open_interest. The partial carries an oi change without toi to show which one is read.",
       "Circuits, the 52-week range and depth_level go out in Depth frames as the web sends them."
     ]
-  },
-  "deviations": [
-    {
-      "key": "last_trade_time",
-      "kind": "web-defect",
-      "reason": "The web's Shoonya adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
-      "ref": "broker/shoonya/streaming/shoonya_adapter.py normalisers (last_trade_time = data.get(ltt))"
-    }
-  ]
+  }
 }

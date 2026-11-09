@@ -50,7 +50,7 @@
     {
       "key": "last_trade_time",
       "kind": "web-defect",
-      "reason": "The web's Flattrade adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
+      "reason": "The frame carries no ltt: the web's Flattrade adapter sends last_trade_time as null (data.get(ltt)); the desktop sends no null keys and leaves it out (lead ruling 2026-11-09).",
       "ref": "broker/flattrade/streaming/flattrade_adapter.py normalisers (last_trade_time = data.get(ltt))"
     },
     {
