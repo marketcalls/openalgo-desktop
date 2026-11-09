@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "aliceblue",
-  "inputs_sha256": "307153c17472397f0e964c28b869e92ded00dbeebd6e3c1f4011d3f0d464c9a3",
+  "inputs_sha256": "598b5c68d76f28760acef0b603ea596dfa3419aba4d74e26745ec7124f182e00",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
@@ -16,6 +16,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "aliceblue"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "aliceblue"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

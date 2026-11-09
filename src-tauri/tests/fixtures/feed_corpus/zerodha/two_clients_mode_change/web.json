@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "zerodha",
-  "inputs_sha256": "49e03a82bcb9eaaeb22275945d85a179436c2c90e939b5ff815c142c1b832324",
+  "inputs_sha256": "f37fc569594a478de3b15b3e30f1e655f66079f56f24d5236ee1b815b7bf65fa",
   "instruments": [
     {
       "symbol": "INFY",
@@ -13,6 +13,96 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "INFY",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "zerodha"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zerodha"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "INFY",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "zerodha"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zerodha"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 8,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "INFY",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "zerodha"
+            }
+          ],
+          "failed": [],
+          "broker": "zerodha"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 13,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "INFY",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "zerodha"
+            }
+          ],
+          "failed": [],
+          "broker": "zerodha"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 5,

@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 5, "broker": "hdfcsecurities"}], "message": "Subscription processing complete", "broker": "hdfcsecurities"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]}}]}
 {"step": "push", "frame": "frames/full_book_a.hex"}
 {"step": "receive", "client": "a", "frame": "expected/depth_a.json"}

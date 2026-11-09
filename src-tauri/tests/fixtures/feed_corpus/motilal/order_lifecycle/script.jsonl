@@ -1,5 +1,5 @@
 {"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The market data socket logs in as it opens; no market data is asked for."}
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "upstream_receives", "frames": [{"json": {"clientid": "C1", "authtoken": "at", "apikey": "k"}}, {"json": {"clientid": "C1", "action": "OrderSubscribe"}}], "socket": "orders", "note": "The in-band authorisation, then the order subscription (doc 34)."}
 {"step": "push", "frame": "frames/order_open.json", "socket": "orders"}
 {"step": "receive", "client": "a", "frame": "expected/order_open.json"}

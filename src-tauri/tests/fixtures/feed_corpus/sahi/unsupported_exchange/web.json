@@ -16,5 +16,28 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "CRUDEOIL25NOVFUT",
+              "exchange": "MCX",
+              "status": "error",
+              "message": "Exchange MCX is not streamed by Sahi",
+              "broker": "sahi"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "sahi"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": []
 }

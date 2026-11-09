@@ -1,8 +1,8 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "sahi"}], "message": "Subscription processing complete", "broker": "sahi"}}
 {"step": "upstream_receives", "frames": [{"hex": "0a0608021202c516"}], "note": "Subscribe{mode QUOTE, ids [2885]} on the first connection."}
 {"step": "push", "frame": "frames/reliance.hex"}
 {"step": "receive", "client": "a", "frame": "expected/reliance.json"}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "TCS", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "TCS", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "TCS", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "sahi"}], "message": "Subscription processing complete", "broker": "sahi"}}
 {"step": "upstream_receives", "socket": "main#2", "frames": [{"hex": "0a0608021202905a"}], "note": "The first connection is full: TCS opens the pool's second, which replaces nothing."}
 {"step": "push", "frame": "frames/reliance_sparse.hex", "note": "The price band RELIANCE's connection carried stays: another connection opened (R107-04: the pool-wide connect count wiped it)."}
 {"step": "receive", "client": "a", "frame": "expected/reliance_sparse.json"}

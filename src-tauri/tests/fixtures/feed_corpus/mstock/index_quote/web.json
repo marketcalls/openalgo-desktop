@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "mstock",
-  "inputs_sha256": "6740fbeac990bf1b818af3b8aa1213d0066717a8a81eb1feae951ae3c52fca33",
+  "inputs_sha256": "47eac61749c02ce8b6891e650048a60a8c11cc9c7c3459831e59aa79194fc5fa",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -14,6 +14,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "mstock"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "mstock"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

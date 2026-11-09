@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "zerodha",
-  "inputs_sha256": "269c82f1a0082705c6ee22996f154b482c66402e86636c3d05ac225de385339a",
+  "inputs_sha256": "be526a113f2a53149871d419703df2814fa35c979856013517401ac2f6255a4e",
   "instruments": [
     {
       "symbol": "USDINR25NOV26FUT",
@@ -17,6 +17,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "USDINR25NOV26FUT",
+              "exchange": "CDS",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "zerodha"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zerodha"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

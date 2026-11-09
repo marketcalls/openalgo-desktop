@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fivepaisa",
-  "inputs_sha256": "df2be3c967c15e6be807ae78f84eb7e11619f376717f85758e3c66742c81e9c3",
+  "inputs_sha256": "c0a9eb6d3fe58c7485b8d4462a8a7cb2b1de759c38dc5f772baf9837679e1b73",
   "instruments": [
     {
       "symbol": "ITC",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "ITC",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "fivepaisa"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisa"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "ITC",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "fivepaisa"
+            }
+          ],
+          "failed": [],
+          "broker": "fivepaisa"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "jainamxts",
-  "inputs_sha256": "f219d57e869db061d0982f678d0cf53a91eb1a9eeaf065b7b0b55706c0963435",
+  "inputs_sha256": "0a5b26d9917941a13e8b6648b9ee71e5842ad7cd440cf0f5b4484dba98b24ea4",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "jainamxts"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "jainamxts"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

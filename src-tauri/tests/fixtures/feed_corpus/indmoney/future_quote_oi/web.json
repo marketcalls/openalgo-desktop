@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "indmoney",
-  "inputs_sha256": "13272714c19452059bc76a6fb3b8a51d0c69ba2af5caa38a04cb337d5d75cc54",
+  "inputs_sha256": "e7a16f328287423fbc6e2f6d77cb3f7cf16c325f4307c5d350b4186aad80c42e",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
@@ -17,6 +17,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "indmoney"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "indmoney"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "indmoney"
+            }
+          ],
+          "failed": [],
+          "broker": "indmoney"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

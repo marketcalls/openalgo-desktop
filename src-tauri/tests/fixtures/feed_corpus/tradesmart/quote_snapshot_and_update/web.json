@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradesmart",
-  "inputs_sha256": "9bbe3fcbb09a55383643cd5d5fdcd19a2e21b365fb5e383994f54fa652eba7df",
+  "inputs_sha256": "1a7fc663195ff4539df64e329ba35b3029a670bc8757b5aa9579978aed4aa32c",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "tradesmart"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradesmart"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 9,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "tradesmart"
+            }
+          ],
+          "failed": [],
+          "broker": "tradesmart"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

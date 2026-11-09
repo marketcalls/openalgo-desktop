@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "shoonya",
-  "inputs_sha256": "93200156acd4aaef482bc18ce618ba70f3aeba7f1f90352329c8b2b40e698df2",
+  "inputs_sha256": "f0f56e6ed5461565d14d70253d595e88eac98e813c198e47fe654c38c09d936a",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "shoonya"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "shoonya"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

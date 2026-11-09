@@ -1,6 +1,6 @@
 {"step": "upstream_receives", "frames": [{"hex": "0025010401000968736d6b6579313233020001500300010104000c4f70656e416c676f2d48534d"}], "note": "The binary authentication request with the JWT's hsm_key, sent on connect."}
 {"step": "push", "frame": "frames/auth_ok.hex"}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "SBIN", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "fyers"}], "message": "Subscription processing complete", "broker": "fyers"}}
 {"step": "upstream_receives", "frames": [{"hex": "0017040201001100010e73667c6e73655f636d7c333034350200010b"}]}
 {"step": "push", "frame": "frames/quote_snapshot.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}

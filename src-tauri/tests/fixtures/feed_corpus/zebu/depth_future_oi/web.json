@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "zebu",
-  "inputs_sha256": "0039e7127f8887528d5a940c942a1ae93b4e3324b8c8f2caecfc64e35f5ba06f",
+  "inputs_sha256": "6fdc9b9bb9cef1f13140dfbdec62c4298c3c7fa26d857f72538bc01702a8a6ed",
   "instruments": [
     {
       "symbol": "NIFTY25NOV26FUT",
@@ -16,6 +16,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "zebu"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zebu"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 12,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "zebu"
+            }
+          ],
+          "failed": [],
+          "broker": "zebu"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

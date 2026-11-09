@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "a92072b6aaf4af9b2d10f60e2d26b56cdb81177807cd768c4220e0f85deba1fa",
+  "inputs_sha256": "d9d393016347ead3138357815f472cee12985657c8969f15373f22078c98fc7c",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -16,6 +16,30 @@
     {
       "line": 7,
       "step": "disconnect"
+    }
+  ],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "motilal"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "motilal"
+        }
+      ],
+      "from_adapter": true
     }
   ],
   "pushes": [

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "firstock",
-  "inputs_sha256": "eed364c7ca142baaaa08377c60e677590baf2a0420ba054ba02be3dc5ebffdfa",
+  "inputs_sha256": "65c29187d2b975b07dcb0279f46181347b4ddd160a62d12be9961094b8275eeb",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "firstock"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "firstock"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 9,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "firstock"
+            }
+          ],
+          "failed": [],
+          "broker": "firstock"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

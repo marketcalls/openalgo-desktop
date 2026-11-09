@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "paytm",
-  "inputs_sha256": "09cd0ffaab485f5c154b1cc4f5f5ad67cd40bed08ed6bacd7774d6fa597f26ba",
+  "inputs_sha256": "eb94c6500c184d0d7769066663c73c436f53b5929e9838909cd86d534bea5682",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -20,6 +20,96 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "paytm"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "paytm"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 6,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "paytm"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "paytm"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 11,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "paytm"
+            }
+          ],
+          "failed": [],
+          "broker": "paytm"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 13,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "paytm"
+            }
+          ],
+          "failed": [],
+          "broker": "paytm"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 4,

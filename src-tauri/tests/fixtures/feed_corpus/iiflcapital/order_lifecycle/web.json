@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "iiflcapital",
-  "inputs_sha256": "12e00b093ef36a78a25278ae1dfe107441af4eb3e0b2cbda069a592b16a23305",
+  "inputs_sha256": "86ad2161d13381514d9591a2e8b4a469394b8575b3f040e0b49258293677dfa6",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

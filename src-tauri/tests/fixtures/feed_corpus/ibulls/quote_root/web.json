@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "ibulls",
-  "inputs_sha256": "68971e399bfb46b3700b629cd543c882cb896670ef87dc6c2e6f2990876297ad",
+  "inputs_sha256": "00968df11d9b4695a37aeb227094b302ab579e2f99b0dac58ea98ac9bc21ba9f",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "ibulls"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "ibulls"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

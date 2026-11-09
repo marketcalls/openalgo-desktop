@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "angel",
-  "inputs_sha256": "72330c6b1356d34598cc11276ba6adb86d061788d9332b0834bdf9a9193c6e59",
+  "inputs_sha256": "134cd05169b2c4dd1d9ace765ba46ed321b286bb8521e21cd2377fd4cbf991f4",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,96 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "angel"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "angel"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "angel"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "angel"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "angel"
+            }
+          ],
+          "failed": [],
+          "broker": "angel"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 9,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "angel"
+            }
+          ],
+          "failed": [],
+          "broker": "angel"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

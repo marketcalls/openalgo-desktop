@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsecurities",
-  "inputs_sha256": "74fe94f7891d9f87fdcc922d2640873f75665af468d470ed5748eb955730b3f0",
+  "inputs_sha256": "301990c5f8901fa35f6f5aa33773e196d6476e9b78faaf29bf2cc0fa7a4b4294",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,96 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": null,
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 8,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "failed": [],
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 13,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "failed": [],
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 5,

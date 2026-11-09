@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "iiflcapital",
-  "inputs_sha256": "3ec22b46969e716574c97aa3beed788a2588b8ca0f5cd4589492c5c34c1d9cde",
+  "inputs_sha256": "e8d1181d6363a5bc3d911d121d3368c35be26b958206d7c7f76704ceed7d597e",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "iiflcapital"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "iiflcapital"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 6,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "iiflcapital"
+            }
+          ],
+          "failed": [],
+          "broker": "iiflcapital"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 1,

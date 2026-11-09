@@ -4,5 +4,5 @@
 {"step": "receive", "client": "a", "frame": "expected/ohlcv.json"}
 {"step": "push", "frame": "frames/ohlcv_count_too_high.hex", "note": "The one packet present is read; the missing second is not waited for."}
 {"step": "receive", "client": "a", "frame": "expected/ohlcv_second.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "SBIN", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "rupeezy"}], "failed": [], "broker": "rupeezy"}}
 {"step": "upstream_receives", "frames": [{"json": {"ticker": "NSE:SBIN", "mode": "ohlcv", "message_type": "unsubscribe"}}]}

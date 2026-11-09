@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "angel",
-  "inputs_sha256": "068993c63a74cc4f4781f53ba4f3c1dbc62b7cbd8fd3644f643006a10a28da6c",
+  "inputs_sha256": "5a2d34aa78279111adbb991ba92b47cef98adc56c05dec26505b2d9aa7ebd8d0",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "angel"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "angel"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

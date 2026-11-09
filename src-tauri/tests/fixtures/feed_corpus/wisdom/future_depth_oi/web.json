@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "wisdom",
-  "inputs_sha256": "cb250fd84f87f80ebfdb5c96345810db4dfa1c885026fb0d1f00cd85e3b88e4d",
+  "inputs_sha256": "2d7c119c169cb88edc47cd58b3886c7bbc0a3006f6185e706f402bcb7d4fe4ad",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
@@ -16,6 +16,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "wisdom"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "wisdom"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

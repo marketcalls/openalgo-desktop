@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fivepaisaxts",
-  "inputs_sha256": "77185c82c508e6c572f567e217a47f18bda665e0d25bcfdf7416e67c4c0fbe2c",
+  "inputs_sha256": "8d73390e3db69707a75ffe71ce2d1f7ef0ec72f2bbc26ee3ad1dad551bf5680c",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -20,6 +20,74 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "fivepaisaxts"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisaxts"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "fivepaisaxts"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisaxts"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 13,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "fivepaisaxts"
+            }
+          ],
+          "failed": [],
+          "broker": "fivepaisaxts"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

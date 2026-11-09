@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "definedge",
-  "inputs_sha256": "2c1e85023f381371a354448cdb3ea02e8c9a7db83c004fbf6661607a01de461a",
+  "inputs_sha256": "af47d42e0b6194d5d5942f7a78d8588106a08dd23135f23e9ed0da74f662c5c3",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "definedge"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "definedge"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

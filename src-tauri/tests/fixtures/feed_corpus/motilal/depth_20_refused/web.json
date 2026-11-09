@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "67c6d60c3e80cdf5a848c7b9cab575e2688179795bc98b01215f7c2193c69986",
+  "inputs_sha256": "c5730a6e23bec0f254b0abb4da783cef5494ecf552b8c21246461fb9cb43e682",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,51 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "error",
+              "message": "Invalid depth level 20. Motilal only supports 5-level depth",
+              "broker": "motilal"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "motilal"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "motilal"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "motilal"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

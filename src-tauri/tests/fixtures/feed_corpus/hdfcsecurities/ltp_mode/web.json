@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsecurities",
-  "inputs_sha256": "5c9dff05d3c748ced12dff3b69e1d148cdf2274c438fd79fb3d18cb48e318587",
+  "inputs_sha256": "4620f3daf84362bed023e9845f918afabb6c958dfa3c9e9a4a9dfbcb87ba75c2",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": null,
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

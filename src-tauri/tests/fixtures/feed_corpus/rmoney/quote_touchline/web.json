@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "rmoney",
-  "inputs_sha256": "e05bc305f5c2e42c6e2c0acfee4da408649e8c521951fde8f439cfbc43fd447c",
+  "inputs_sha256": "8cf564a6ea3c9c6eaafaee8eba32b73b85ef55430ff7c14f4b87ea6a03ff135d",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "rmoney"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "rmoney"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

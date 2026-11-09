@@ -1,6 +1,6 @@
 {"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}], "note": "The market data feed's connect frame."}
 {"step": "push", "frame": "frames/ck_market.json"}
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}], "socket": "orders", "note": "RB-12: the connect frame alone; the subscription waits for ck."}
 {"step": "push", "frame": "frames/ck_orders.json", "socket": "orders"}
 {"step": "upstream_receives", "frames": [{"json": {"t": "o", "actid": "u"}}], "socket": "orders", "note": "RB-12: ck said Ok."}

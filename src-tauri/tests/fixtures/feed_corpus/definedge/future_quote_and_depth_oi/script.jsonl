@@ -1,13 +1,13 @@
 {"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}]}
 {"step": "push", "frame": "frames/ck.json"}
-{"step": "send", "client": "q", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "q", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "definedge"}], "message": "Subscription processing complete", "broker": "definedge"}}
 {"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NFO|52345"}}, {"json": {"t": "d", "k": "NFO|52345"}}]}
-{"step": "send", "client": "d", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "d", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "definedge"}], "message": "Subscription processing complete", "broker": "definedge"}}
 {"step": "upstream_receives", "frames": [{"json": {"t": "u", "k": "NFO|52345"}}], "note": "Depth now effective: the depth feed alone carries everything."}
 {"step": "push", "frame": "frames/depth_ack.json"}
 {"step": "receive", "client": "q", "frame": "expected/quote_with_depth_held.json"}
 {"step": "receive", "client": "d", "frame": "expected/depth.json"}
-{"step": "send", "client": "d", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 3}}
+{"step": "send", "client": "d", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO", "mode": "Depth", "status": "success", "broker": "definedge"}], "failed": [], "broker": "definedge"}}
 {"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NFO|52345"}}], "note": "Quote effective again: the touchline comes back."}
 {"step": "push", "frame": "frames/depth_update.json"}
 {"step": "receive", "client": "q", "frame": "expected/quote_alone.json"}

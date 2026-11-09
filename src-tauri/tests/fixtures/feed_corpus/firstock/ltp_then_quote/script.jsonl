@@ -1,12 +1,12 @@
 {"step": "push", "frame": "frames/login_ok.json", "note": "The login answer before any subscription, as the web waits for."}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": 5, "broker": "firstock"}], "message": "Subscription processing complete", "broker": "firstock"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "tokens": "NSE:2885"}}]}
 {"step": "push", "frame": "frames/ltp.json"}
 {"step": "receive", "client": "a", "frame": "expected/ltp.json"}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "firstock"}], "message": "Subscription processing complete", "broker": "firstock"}}
 {"step": "push", "frame": "frames/full.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
 {"step": "receive", "client": "a", "frame": "expected/ltp_from_quote.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "LTP", "status": "success", "broker": "firstock"}], "failed": [], "broker": "firstock"}}
 {"step": "push", "frame": "frames/ltp_after.json", "note": "An LTP-only tick merged over the snapshot: the Quote holder gets every field it has."}
 {"step": "receive", "client": "a", "frame": "expected/quote_after.json"}

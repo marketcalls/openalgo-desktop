@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "mode": 2, "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "mode": 2, "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": null, "broker": "hdfcsky"}], "message": "Subscription processing complete", "broker": "hdfcsky"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]}}], "note": "Connection 1 takes the first 1 instruments, its room."}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "mode": 2, "symbols": [{"symbol": "INFY", "exchange": "NSE"}]}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "mode": 2, "symbols": [{"symbol": "INFY", "exchange": "NSE"}]}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "INFY", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": null, "broker": "hdfcsky"}], "message": "Subscription processing complete", "broker": "hdfcsky"}}
 {"step": "upstream_connected", "socket": "main#2", "connection": 1, "path": "/?token=t&api_key=k", "headers": {"authorization": "t"}, "note": "The next instrument opens a second connection, with the session's query and headers."}
 {"step": "upstream_receives", "socket": "main#2", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_1594", "type": "ALL"}]}}]}
 {"step": "push", "socket": "main#2", "frame": "frames/infy.hex"}

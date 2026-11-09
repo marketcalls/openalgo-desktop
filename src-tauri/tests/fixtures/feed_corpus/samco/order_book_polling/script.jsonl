@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "http_polled", "path": "/order/orderBook", "note": "The poller has read the empty book: its silent baseline."}
 {"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_open.json"}
 {"step": "receive", "client": "a", "frame": "expected/book_open.json"}

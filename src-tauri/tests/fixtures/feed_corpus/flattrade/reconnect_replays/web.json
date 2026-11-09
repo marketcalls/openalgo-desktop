@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "flattrade",
-  "inputs_sha256": "93200156acd4aaef482bc18ce618ba70f3aeba7f1f90352329c8b2b40e698df2",
+  "inputs_sha256": "ffec5a660b7882b25e5bdbcb3ea1339087f3f46b25bb54adc605314dc39a6225",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "flattrade"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "flattrade"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

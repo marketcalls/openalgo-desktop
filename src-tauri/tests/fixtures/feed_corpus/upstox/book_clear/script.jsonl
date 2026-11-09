@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "upstox"}], "message": "Subscription processing complete", "broker": "upstox"}}
 {"step": "upstream_receives", "frames": [{"binary_json": {"guid": "<any>", "method": "sub", "data": {"instrumentKeys": ["NSE_FO|52175"], "mode": "full"}}}]}
 {"step": "push", "frame": "frames/book.hex"}
 {"step": "receive", "client": "a", "frame": "expected/depth.json"}

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fivepaisa",
-  "inputs_sha256": "62485f2c3bbd52b4eedfeb08ec4ed36f31207898244661f391b3f7c1802c1bfc",
+  "inputs_sha256": "a7b0f536f69486e709c18ed87f4664ff1fd9e96fc5e6154b5a93bc4620db274d",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -14,6 +14,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "fivepaisa"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisa"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

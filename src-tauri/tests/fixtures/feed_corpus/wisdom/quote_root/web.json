@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "wisdom",
-  "inputs_sha256": "9ec0b9a2c034f52cb6769d84e99a0d5cae2726090a7b8cc90604be75416529cf",
+  "inputs_sha256": "2016671b1002a4207925b6019472f49d27d5d00b714f2c5bfe9c66fcccaf6feb",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "wisdom"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "wisdom"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

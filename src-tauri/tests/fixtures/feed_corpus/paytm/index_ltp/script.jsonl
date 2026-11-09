@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "LTP", "depth": 5, "broker": "paytm"}], "message": "Subscription processing complete", "broker": "paytm"}}
 {"step": "upstream_receives", "frames": [{"json": [{"actionType": "ADD", "modeType": "LTP", "scripType": "INDEX", "exchangeType": "NSE", "scripId": "13"}]}]}
 {"step": "push", "frame": "frames/index_ltp.hex"}
 {"step": "receive", "client": "a", "frame": "expected/index_ltp.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "mode": "LTP", "status": "success", "broker": "paytm"}], "failed": [], "broker": "paytm"}}
 {"step": "upstream_receives", "frames": [{"json": [{"actionType": "REMOVE", "modeType": "LTP", "scripType": "INDEX", "exchangeType": "NSE", "scripId": "13"}]}]}

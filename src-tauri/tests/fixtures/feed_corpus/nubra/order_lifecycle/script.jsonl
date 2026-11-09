@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "upstream_receives", "socket": "orders", "frames": [{"text": "subscribe nubra-corpus-session notifications notification"}], "note": "The order socket named by /userinfo, reached through the loopback relay."}
 {"step": "push", "frame": "frames/order_open.hex", "socket": "orders"}
 {"step": "receive", "client": "a", "frame": "expected/order_open.json"}

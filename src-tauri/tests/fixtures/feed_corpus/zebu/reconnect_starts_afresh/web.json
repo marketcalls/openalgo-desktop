@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "zebu",
-  "inputs_sha256": "b330415402c37cdc5b89cd42885a2486d2fff854560ef241ec6c9ad3aa11b24f",
+  "inputs_sha256": "abfab6046df7c06f6d7a8187109432178a77c62a9583b0fa84b09d74e93e8735",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "zebu"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zebu"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

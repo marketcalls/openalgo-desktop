@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Depth", "depth": 5, "broker": "sahi"}], "message": "Subscription processing complete", "broker": "sahi"}}
 {"step": "upstream_receives", "frames": [{"hex": "0a070803120390cb01"}], "note": "Subscribe{mode DEPTH, ids [26000]}"}
 {"step": "push", "frame": "frames/index_depth.hex"}
 {"step": "receive", "client": "a", "frame": "expected/index_depth.json"}

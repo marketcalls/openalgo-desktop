@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "samco",
-  "inputs_sha256": "c1286d5fbac3b2993712860960fc1665493c8ef71ed1d66bd79bb60529f4c49a",
+  "inputs_sha256": "86fc4178b4adc7359a06bc1203ab6a8f65ea8bc62b25ac4443204361e8633aaa",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -44,6 +44,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

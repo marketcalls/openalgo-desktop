@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "hdfcsecurities"}], "message": "Subscription processing complete", "broker": "hdfcsecurities"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NFO_35001", "type": "ALL"}]}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": null, "broker": "hdfcsecurities"}], "message": "Subscription processing complete", "broker": "hdfcsecurities"}}
 {"step": "push", "frame": "frames/oi_first.hex"}
 {"step": "silence", "client": "a", "note": "A partial packet before the first full one has nothing to merge into."}
 {"step": "silence", "client": "b", "note": "Nor for the Quote client."}

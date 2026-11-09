@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO", "status": "success", "mode": "Quote", "depth": 5, "broker": "deltaexchange"}], "message": "Subscription processing complete", "broker": "deltaexchange"}}
 {"step": "upstream_receives", "frames": [{"json": {"type": "subscribe", "payload": {"channels": [{"name": "ticker", "symbols": ["BTCUSD"]}]}}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 1}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO", "status": "success", "mode": "LTP", "depth": 5, "broker": "deltaexchange"}], "message": "Subscription processing complete", "broker": "deltaexchange"}}
 {"step": "note", "text": "LTP rides the same ticker channel: nothing more goes to Delta."}
 {"step": "push", "frame": "frames/ticker.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
@@ -8,7 +8,7 @@
 {"step": "push", "frame": "frames/ticker_mark_only.json", "note": "A ticker with only the mark price: what it omits keeps its last value."}
 {"step": "receive", "client": "a", "frame": "expected/quote_mark_only.json"}
 {"step": "receive", "client": "b", "frame": "expected/ltp_mark_only.json"}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO", "status": "success", "mode": "Depth", "depth": 5, "broker": "deltaexchange"}], "message": "Subscription processing complete", "broker": "deltaexchange"}}
 {"step": "upstream_receives", "frames": [{"json": {"type": "subscribe", "payload": {"channels": [{"name": "ob_l2", "symbols": ["BTCUSD"]}]}}}], "note": "Depth adds the book channel; the ticker stays."}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 3}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO", "mode": "Depth", "status": "success", "broker": "deltaexchange"}], "failed": [], "broker": "deltaexchange"}}
 {"step": "upstream_receives", "frames": [{"json": {"type": "unsubscribe", "payload": {"channels": [{"name": "ob_l2", "symbols": ["BTCUSD"]}]}}}]}

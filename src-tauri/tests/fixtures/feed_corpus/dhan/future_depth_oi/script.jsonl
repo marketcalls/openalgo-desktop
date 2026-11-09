@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "dhan"}], "message": "Subscription processing complete", "broker": "dhan"}}
 {"step": "upstream_receives", "frames": [{"json": {"RequestCode": 21, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_FNO", "SecurityId": "52175"}]}}]}
 {"step": "push", "frame": "frames/prev_close.hex"}
 {"step": "silence", "client": "a"}

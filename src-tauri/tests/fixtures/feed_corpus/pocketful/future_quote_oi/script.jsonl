@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "pocketful"}], "message": "Subscription processing complete", "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [[2, 52345]], "m": "marketdata"}}], "note": "NFO is exchange code 2."}
 {"step": "push", "frame": "frames/detailed.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO", "mode": "Quote", "status": "success", "broker": "pocketful"}], "failed": [], "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[2, 52345]], "m": "marketdata"}}]}

@@ -4,6 +4,7 @@
     python3 scripts/feed_corpus/predicates.py                  write every case's `allows`
     python3 scripts/feed_corpus/predicates.py CASE_DIR ...     only these cases
     python3 scripts/feed_corpus/predicates.py --check          fail when one is not what the frames show
+    python3 scripts/feed_corpus/predicates.py --pin-replies    give each send with a web reply its expected reply
 
 A deviation names a key; `allows` says which differences on that key it
 covers, so a value outside what was seen fails the case
@@ -162,14 +163,41 @@ def write_case(case_dir: Path) -> bool:
     return changed
 
 
+def pin_replies(case_dir: Path) -> int:
+    """Pin the web's reply as a send's expected reply where the script has
+    none; the live run then shows where the desktop's differs. Run
+    web_expected.py again afterwards: the script is part of a case's hash."""
+    web = json.loads((case_dir / "web.json").read_text(encoding="utf-8"))
+    replies = {r["line"]: r for r in web.get("replies", [])}
+    path = case_dir / "script.jsonl"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    pinned = 0
+    for i, line in enumerate(lines):
+        reply = replies.get(i + 1)
+        if not line.strip() or not reply or not reply["from_adapter"] or len(reply["frames"]) != 1:
+            continue
+        step = json.loads(line)
+        if step.get("step") == "send" and step.get("reply") is None:
+            step["reply"] = reply["frames"][0]
+            lines[i] = json.dumps(step, ensure_ascii=False)
+            pinned += 1
+    if pinned:
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return pinned
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="fail when an `allows` is not what the frames show")
+    ap.add_argument("--pin-replies", action="store_true", help="pin the web's reply on each send that has none")
     ap.add_argument("cases", nargs="*", type=Path)
     args = ap.parse_args()
     cases = [c.resolve() for c in args.cases] or sorted(
         d for d in we.CORPUS.glob("*/*") if d.is_dir() and (d / "web.json").exists()
     )
+    if args.pin_replies:
+        print(f"{sum(pin_replies(c) for c in cases)} replies pinned")
+        return 0
     if args.check:
         problems = [f"{c.parent.name}/{c.name}: {p}" for c in cases for p in violations(c)]
         for problem in problems:

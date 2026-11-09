@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "sahi",
-  "inputs_sha256": "e21b85609ef6978c87e55b4ef856328f2cf159c2603e1de99ad987dc9e1fb5e3",
+  "inputs_sha256": "a66d0091dfcbbe9b1263be0605376336152f613aff159a5792ea51f00ad39692",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -11,6 +11,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "sahi"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "sahi"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

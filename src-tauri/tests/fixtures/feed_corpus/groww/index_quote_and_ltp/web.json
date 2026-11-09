@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "groww",
-  "inputs_sha256": "d98dc9f4ecabc6de2056171f63cef020129f9fb4a86f887577cb2c371991db11",
+  "inputs_sha256": "edfb8633dd5653b3f4c2fec5af65d7bb0110eafc1704fa51e92b7bac312164bb",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -20,6 +20,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "groww"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "groww"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 6,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SENSEX",
+              "exchange": "BSE_INDEX",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "groww"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "groww"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 1,

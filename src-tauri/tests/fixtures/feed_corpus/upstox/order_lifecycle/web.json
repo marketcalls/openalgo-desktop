@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "upstox",
-  "inputs_sha256": "e4063d7bea549ee75b405d5d24d64c371f02bbdbb10724ffb54b15137693be75",
+  "inputs_sha256": "be783fddce4e198527527c2c085b8ab8bb26ad8906eeffec544fe2a616f096cd",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

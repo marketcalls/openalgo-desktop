@@ -1,13 +1,13 @@
 {"step": "push", "frame": "frames/login_ok.json", "note": "The login answer before any subscription."}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "firstock"}], "message": "Subscription processing complete", "broker": "firstock"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "tokens": "NSE:2885"}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "firstock"}], "message": "Subscription processing complete", "broker": "firstock"}}
 {"step": "push", "frame": "frames/full.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
 {"step": "receive", "client": "b", "frame": "expected/quote.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "firstock"}], "failed": [], "broker": "firstock"}}
 {"step": "push", "frame": "frames/ltp_after.json", "note": "Only the client still holding Quote gets it."}
 {"step": "receive", "client": "b", "frame": "expected/quote_after.json"}
 {"step": "silence", "client": "a"}
-{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "firstock"}], "failed": [], "broker": "firstock"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": "unsubscribe", "tokens": "NSE:2885"}}]}

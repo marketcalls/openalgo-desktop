@@ -13,6 +13,50 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "error",
+              "message": "Invalid depth level 30. Must be 5 or 20",
+              "broker": "compositedge"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "compositedge"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 6,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "error",
+              "message": "Invalid depth level 50. Must be 5 or 20",
+              "broker": "compositedge"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "compositedge"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

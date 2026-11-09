@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "INFY", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 5, "broker": "mstock"}], "message": "Subscription processing complete", "broker": "mstock"}}
 {"step": "upstream_receives", "frames": [{"text": "LOGIN:jwt"}, {"json": {"action": 1, "params": {"mode": 3, "tokenList": [{"exchangeType": 1, "tokens": ["1594"]}]}}}]}
 {"step": "push", "frame": "frames/full.hex"}
 {"step": "receive", "client": "a", "frame": "expected/full.json"}

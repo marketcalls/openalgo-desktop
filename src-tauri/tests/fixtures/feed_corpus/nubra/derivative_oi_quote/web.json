@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "nubra",
-  "inputs_sha256": "a1573d096583a0dc33052bacc72c54c38f3484e28120d2117c88f01e8478a2fc",
+  "inputs_sha256": "2361bf6e9b17eeb87cb4e4f51c63bec9d46f4e8cb34cef634107ba92e7295742",
   "instruments": [
     {
       "symbol": "NIFTY25NOV2625000CE",
@@ -17,6 +17,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV2625000CE",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "nubra"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "nubra"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

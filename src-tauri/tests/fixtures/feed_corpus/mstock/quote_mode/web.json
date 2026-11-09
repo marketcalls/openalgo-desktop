@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "mstock",
-  "inputs_sha256": "3e37bbc2017cda5a4c2402a862a7e2d3ef5f7abbfd65f08fbd9bc0495f00d4d8",
+  "inputs_sha256": "124e4557bc2063edbdd6bdaf3b8e114a10941628bbe85360c4f2b4bf8ec36cb8",
   "instruments": [
     {
       "symbol": "INFY",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "INFY",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "mstock"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "mstock"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "INFY",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "mstock"
+            }
+          ],
+          "failed": [],
+          "broker": "mstock"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

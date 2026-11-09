@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "http_polled", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "note": "The poller has read the empty book: its silent baseline (it reads the FNO list too)."}
 {"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "body": "frames/book_open.json"}
 {"step": "receive", "client": "a", "frame": "expected/order_open.json"}

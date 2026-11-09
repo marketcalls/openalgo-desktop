@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradesmart",
-  "inputs_sha256": "18418937187c9565834790ebef0f9db97d68cbcd07626fa5d75141a1bb2661e7",
+  "inputs_sha256": "ad430d886b6dc30aa83dcf916d215324d8a3c386ba75ae0fe04942c69be61862",
   "instruments": [
     {
       "symbol": "NIFTY25NOV26FUT",
@@ -16,6 +16,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "tradesmart"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradesmart"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 11,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "tradesmart"
+            }
+          ],
+          "failed": [],
+          "broker": "tradesmart"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

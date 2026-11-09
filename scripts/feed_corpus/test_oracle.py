@@ -26,6 +26,11 @@ what `web_expected.diff` (the harness's web check, mirrored) finds:
 - steps_not_replayed (O10): refused upgrades, a disconnect and a deep feed
   not made are listed, not taken for compared.
 - random_values_scope (O7), gate_web_output (O1), gate_catalog (O12).
+- web_false_beside_a_declared_frame (O8, Codex's counterexample): an expected
+  LTP of 9999.0 marked `"web": false`, beside a silence naming the real 1500.0
+  delivery, is one occurrence written as two.
+- fold_never_reuses (O14): LTP, Quote, LTP on one of each: the third has none.
+- broker_json_fails_closed (O15): a missing, null or malformed `web` holds.
 
 - inline_body_hashed, pin_checked (O2): a case's inline answer joins its
   hash, and `--check` refuses a web tree or tool code other than the pin's.
@@ -168,6 +173,39 @@ def probe_web_false(web: Path) -> list[str]:
     return [] if named else [f"web_false_checked: not named: {found}"]
 
 
+def probe_web_false_beside_declared(web: Path) -> list[str]:
+    """Codex's counterexample: the desktop's expected frame is wrong (9999.0),
+    marked as a frame the web does not send, and a silence declares the web's
+    real frame, so no value of it would ever be compared."""
+    with tempfile.TemporaryDirectory() as tmp:
+        case = make_case(Path(tmp), (150000,), receives=0)
+        (case / "expected" / "wrong.json").write_text(json.dumps(
+            {**expected_quote(case), "data": {**expected_quote(case)["data"], "ltp": 9999.0}}
+        ))
+        edit_case(case, script_tail=[
+            PUSH,
+            {"step": "receive", "client": "a", "frame": "expected/wrong.json", "web": False},
+            {"step": "silence", "client": "a", "web": {"symbol": "INFY", "exchange": "NSE", "mode": 2}},
+        ])
+        found = we.diff(case, we.compute(case, web, "probe"))
+    named = [line for line in found if line.startswith("web-not-silent:")]
+    return [] if named else [f"web_false_beside_a_declared_frame: not named: {found}"]
+
+
+def probe_fold_never_reuses(web: Path) -> list[str]:
+    """One LTP and one Quote publication answer LTP and Quote once each."""
+    sub = {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}]}
+    with tempfile.TemporaryDirectory() as tmp:
+        case = make_case(Path(tmp), (150000,), receives=0)
+        edit_case(case, script_tail=[{"step": "send", "client": "a", "message": dict(sub, mode=1)}, PUSH])
+        out = we.compute(case, web, "probe")
+    point = next(p for p in out["pushes"] if p["deliveries"])
+    consumer = we.Deliveries(point)
+    answers = [consumer.market("a", "INFY", "NSE", m) for m in (1, 2, 1)]
+    modes = [a and a["mode"] for a in answers]
+    return [] if modes == [1, 2, None] else [f"fold_never_reuses: requests [1, 2, 1] got {modes}"]
+
+
 def probe_fan_out(web: Path) -> list[str]:
     """A client holding LTP also gets the web's Quote frame for the
     instrument, which answers nothing it holds."""
@@ -245,6 +283,30 @@ def with_corpus(tmp: Path, catalog: list[str]):
         pm.CORPUS, pm.brokers = corpus, brokers
 
 
+def probe_broker_json_fails_closed() -> list[str]:
+    """Missing, null or malformed `web` is a hold, not an empty obligation."""
+    good = {"ltp": True, "quote": True, "depth": [5], "orders": False}
+    offers = {"brokers": {"dhan": {"depth": [5], "orders": False, "source": "registry"}}}
+    problems = []
+    for name, meta, held in (
+        ("missing", {}, True),
+        ("null", {"web": None}, True),
+        ("not an object", {"web": "yes"}, True),
+        ("no flags", {"web": {"depth": [5], "orders": False}}, True),
+        ("bad depth", {"web": {**good, "depth": "five"}}, True),
+        ("no orders", {"web": {"ltp": True, "quote": True, "depth": [5]}}, True),
+        ("complete", {"web": good}, False),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            temporary_corpus(Path(tmp), "dhan", method="by-hand")
+            (Path(tmp) / "dhan" / "broker.json").write_text(json.dumps(meta))
+            (Path(tmp) / "web_offers.json").write_text(json.dumps(offers))
+            items = with_corpus(Path(tmp), ["dhan"]).get("uncovered", [])
+        if any("broker.json" in i for i in items) != held:
+            problems.append(f"broker_json_fails_closed: {name}: {items}")
+    return problems
+
+
 def probe_gate_web_output() -> list[str]:
     with tempfile.TemporaryDirectory() as tmp:
         temporary_corpus(Path(tmp), "zerodha", method="web-script")
@@ -285,7 +347,7 @@ def probe_offers_not_broker_json() -> list[str]:
     """broker.json saying less than the registries hides nothing."""
     with tempfile.TemporaryDirectory() as tmp:
         temporary_corpus(Path(tmp), "dhan", method="by-hand")
-        (Path(tmp) / "dhan" / "broker.json").write_text(json.dumps({"web": {"ltp": True, "quote": True, "depth": [5]}}))
+        (Path(tmp) / "dhan" / "broker.json").write_text(json.dumps({"web": {"ltp": True, "quote": True, "depth": [5], "orders": False}}))
         (Path(tmp) / "web_offers.json").write_text(json.dumps({
             "brokers": {"dhan": {"depth": [5, 20], "orders": False, "source": "registry"}}
         }))
@@ -436,6 +498,9 @@ def main() -> int:
         + probe_gate_catalog()
         + probe_value_outside_seen()
         + probe_named_classes_exact()
+        + probe_web_false_beside_declared(args.web)
+        + probe_fold_never_reuses(args.web)
+        + probe_broker_json_fails_closed()
         + probe_uncompared_ceiling()
         + probe_rule_scope()
         + probe_registries_read(args.web)

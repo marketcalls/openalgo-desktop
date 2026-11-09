@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "upstream_connected", "socket": "orders", "connection": 1, "headers": {"authorization": "Bearer jwt"}}
 {"step": "push", "frame": "frames/ack.json", "socket": "orders"}
 {"step": "silence", "client": "a", "note": "AB00 is the connection acknowledgement: nothing to relay."}

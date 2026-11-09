@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "LTP", "depth": 5, "broker": "samco"}], "message": "Subscription processing complete", "broker": "samco"}}
 {"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "-23"}]}, "request_type": "subscribe", "response_format": "json"}}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": 5, "broker": "samco"}], "message": "Subscription processing complete", "broker": "samco"}}
 {"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "-23"}]}, "request_type": "subscribe", "response_format": "json"}}}]}
 {"step": "push", "frame": "frames/index_quote.json"}
 {"step": "receive", "client": "a", "frame": "expected/index_ltp.json"}

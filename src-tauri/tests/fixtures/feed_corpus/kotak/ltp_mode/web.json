@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "kotak",
-  "inputs_sha256": "cf3858fac96ecc152b708852ee28a95dd34570833a4902415b5629afdaa5f470",
+  "inputs_sha256": "9ad9cca61101f556a9ac1affc6c86a3ba2d0a180800203332eb4bf037d4ffa88",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -20,6 +20,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "kotak"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "kotak"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 8,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "kotak"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "kotak"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

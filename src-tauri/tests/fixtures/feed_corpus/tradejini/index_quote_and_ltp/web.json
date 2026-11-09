@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradejini",
-  "inputs_sha256": "967acc9c3c636d6757c4a413fcd3f91a7c9d3df13ac4a0ad9eb42ad4b44a404d",
+  "inputs_sha256": "5fb864caa09e213f871d749efc9ee52840ded2bd060e611b7f59440944afd9e8",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -14,6 +14,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 5,

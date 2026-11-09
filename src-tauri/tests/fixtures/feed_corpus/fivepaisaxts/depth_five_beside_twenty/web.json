@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fivepaisaxts",
-  "inputs_sha256": "e5d71eb96446f356a6d4e950f7e7d22da2682456bb4cac1ef759476fa871ab72",
+  "inputs_sha256": "c6eba022b7ad60ab5ffad120780484bce3bc8ca04d5f19a36a4dbc39ae213a4f",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "fivepaisaxts"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisaxts"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 20,
+              "broker": "fivepaisaxts"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisaxts"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

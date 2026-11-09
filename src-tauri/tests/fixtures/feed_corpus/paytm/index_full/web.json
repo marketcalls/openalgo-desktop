@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "paytm",
-  "inputs_sha256": "a87b91d65314be5119a3bd7c7f3fc13805364c26112b921f1153437a75b19984",
+  "inputs_sha256": "e2ef50125bf747db3a2024d739751ffddbbadf291a53c0ee04b6094f96590e91",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -14,6 +14,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "paytm"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "paytm"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "paytm"
+            }
+          ],
+          "failed": [],
+          "broker": "paytm"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "aliceblue",
-  "inputs_sha256": "037ed6cef7023f618b87a6355581ad9bd7cf5ae9e84ff863bd2a65d9fc04ad53",
+  "inputs_sha256": "aa6a8dfc9443873d4455eace06d9f20d821a95e2b2da9e55ba0dd0fe8f80188d",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "aliceblue"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "aliceblue"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

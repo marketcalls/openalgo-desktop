@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "arrow",
-  "inputs_sha256": "d702202418ecb0b067c409fc7bf69bfb015acc7b25b135fbfc4d7a0992bbf2f6",
+  "inputs_sha256": "f30266ed78fee9c662dc9642a59b895bc53a2faee0fe9dc8c9d812f10cd22f68",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "arrow"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "arrow"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 10,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "arrow"
+            }
+          ],
+          "failed": [],
+          "broker": "arrow"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

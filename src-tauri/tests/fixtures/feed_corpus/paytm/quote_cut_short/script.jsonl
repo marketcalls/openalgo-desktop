@@ -1,8 +1,8 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "paytm"}], "message": "Subscription processing complete", "broker": "paytm"}}
 {"step": "upstream_receives", "frames": [{"json": [{"actionType": "ADD", "modeType": "QUOTE", "scripType": "EQUITY", "exchangeType": "NSE", "scripId": "2885"}]}]}
 {"step": "push", "frame": "frames/quote_and_a_cut_tail.hex", "note": "The whole packet is read; the cut second one is dropped."}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
 {"step": "push", "frame": "frames/quote_cut_short.hex"}
 {"step": "silence", "client": "a", "note": "A packet shorter than its code's size is dropped."}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "paytm"}], "failed": [], "broker": "paytm"}}
 {"step": "upstream_receives", "frames": [{"json": [{"actionType": "REMOVE", "modeType": "QUOTE", "scripType": "EQUITY", "exchangeType": "NSE", "scripId": "2885"}]}]}

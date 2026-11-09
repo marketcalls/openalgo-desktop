@@ -1,8 +1,8 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "ITC", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "fivepaisa"}], "message": "Subscription processing complete", "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "C", "ScripCode": 1660}]}}]}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "BSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "BSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "ITC", "exchange": "BSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "fivepaisa"}], "message": "Subscription processing complete", "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "B", "ExchType": "C", "ScripCode": 1660}]}}]}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC25NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "ITC25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "fivepaisa"}], "message": "Subscription processing complete", "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "D", "ScripCode": 1660}]}}]}
 {"step": "push", "frame": "frames/feed_nse.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote_nse.json"}
@@ -10,7 +10,7 @@
 {"step": "receive", "client": "a", "frame": "expected/quote_bse.json"}
 {"step": "push", "frame": "frames/feed_nfo.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote_nfo.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "ITC", "exchange": "BSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "ITC", "exchange": "BSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "ITC", "exchange": "BSE", "mode": "Quote", "status": "success", "broker": "fivepaisa"}], "failed": [], "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Unsubscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "B", "ExchType": "C", "ScripCode": 1660}]}}]}
 {"step": "push", "frame": "frames/feed_bse.json", "note": "BSE is no longer subscribed."}
 {"step": "silence", "client": "a"}

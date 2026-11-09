@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "indmoney",
-  "inputs_sha256": "d4dfee0521b9f897b4a218eeca6f08ba2aba2e91ea33932d9f758f3f09c18f97",
+  "inputs_sha256": "6154d9ec8714334e903e57c5da938b28205aa3c706d60598bacd2fbe098feb04",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

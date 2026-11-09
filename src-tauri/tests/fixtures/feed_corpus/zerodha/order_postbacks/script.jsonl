@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "push", "frame": "frames/open.json"}
 {"step": "receive", "client": "a", "frame": "expected/open.json"}
 {"step": "push", "frame": "frames/partial.json"}

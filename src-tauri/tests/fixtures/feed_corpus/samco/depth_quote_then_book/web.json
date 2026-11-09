@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "samco",
-  "inputs_sha256": "b67ceb530055b038a57b280c1e56cc3fcafdc9383446d9de195b6e0a018f1afa",
+  "inputs_sha256": "c394e07cc8a2cc917a60cfd340181e24bc1f3f424ffa6a4246738e76ee9de8c8",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "samco"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "samco"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

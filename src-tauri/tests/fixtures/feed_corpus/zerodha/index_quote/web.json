@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "zerodha",
-  "inputs_sha256": "b2d7c5b3dd9159bc62cf1452b4f4300c85df440bcf3510c3886db187b4735e32",
+  "inputs_sha256": "83f1f66783fd41690d4c713d602243cd7881240a2a0b5fb9fe9bbcd55373fc7b",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -14,6 +14,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "zerodha"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zerodha"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

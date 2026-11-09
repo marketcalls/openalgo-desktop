@@ -1,6 +1,6 @@
 {"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}]}
 {"step": "push", "frame": "frames/ck.json"}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": 5, "broker": "definedge"}], "message": "Subscription processing complete", "broker": "definedge"}}
 {"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NSE|26000"}}, {"json": {"t": "d", "k": "NSE|26000"}}]}
 {"step": "push", "frame": "frames/touchline_ack.json"}
 {"step": "receive", "client": "a", "frame": "expected/index_ack.json"}

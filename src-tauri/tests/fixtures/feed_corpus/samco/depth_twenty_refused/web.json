@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "samco",
-  "inputs_sha256": "e49a6b8f3cccd4ee5fa2269ef1a4026130505c6c2b087d33d0d25a9a3155e255",
+  "inputs_sha256": "4382fefb5e2498443b5f726eecb9cea6787eaa882fe4b62745e44574d6e1958a",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,5 +13,50 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "error",
+              "message": "Invalid depth level 20. Must be 5",
+              "broker": "samco"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "samco"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "samco"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "samco"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": []
 }

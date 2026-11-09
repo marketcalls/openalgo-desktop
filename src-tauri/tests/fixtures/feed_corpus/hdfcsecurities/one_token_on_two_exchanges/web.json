@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsecurities",
-  "inputs_sha256": "47b6024c76979f5cce99887976393b48b85271f7d235b6a505d122639546e505",
+  "inputs_sha256": "f01437e80e1334a18062362ec04b420456a38938724ed6c042ce456acda1cf3e",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -24,6 +24,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "USDINR25NOV26FUT",
+              "exchange": "CDS",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 5,

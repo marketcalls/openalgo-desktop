@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "iiflcapital",
-  "inputs_sha256": "7b16e287ea2e35cb470597d26965f438fd6544239883253a290f3a2616beca7f",
+  "inputs_sha256": "838ed0b0431ad969050178f2c858e4ca327c1e5f528462bbd55d9763eced7846",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
@@ -17,6 +17,96 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "iiflcapital"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "iiflcapital"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "iiflcapital"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "iiflcapital"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 16,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "iiflcapital"
+            }
+          ],
+          "failed": [],
+          "broker": "iiflcapital"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 21,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "iiflcapital"
+            }
+          ],
+          "failed": [],
+          "broker": "iiflcapital"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 1,

@@ -2,7 +2,7 @@
 {"step": "push", "frame": {"text": "0{\"sid\":\"s1\",\"upgrades\":[],\"pingInterval\":25000,\"pingTimeout\":20000,\"maxPayload\":1000000}"}, "note": "Engine.IO open; the feed answers with the Socket.IO connect."}
 {"step": "upstream_receives", "frames": [{"text": "40"}]}
 {"step": "push", "frame": {"text": "40{\"sid\":\"n1\"}"}, "note": "The Socket.IO connect ack accepts the session; the feed subscribes its book over REST."}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "ibulls"}], "message": "Subscription processing complete", "broker": "ibulls"}}
 {"step": "http_receives", "requests": [{"method": "POST", "path": "/apibinarymarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}]}
 {"step": "push", "frame": "frames/quote_1501_root.txt"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}

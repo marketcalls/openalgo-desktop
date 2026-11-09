@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": null, "broker": "hdfcsecurities"}], "message": "Subscription processing complete", "broker": "hdfcsecurities"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NFO_35001", "type": "ALL"}]}}], "connection": 1}
 {"step": "push", "frame": "frames/full.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}

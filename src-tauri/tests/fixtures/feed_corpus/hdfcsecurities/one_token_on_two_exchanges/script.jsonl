@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": null, "broker": "hdfcsecurities"}], "message": "Subscription processing complete", "broker": "hdfcsecurities"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]}}]}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "USDINR25NOV26FUT", "exchange": "CDS"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "USDINR25NOV26FUT", "exchange": "CDS"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "USDINR25NOV26FUT", "exchange": "CDS", "status": "success", "mode": "Quote", "depth": null, "broker": "hdfcsecurities"}], "message": "Subscription processing complete", "broker": "hdfcsecurities"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NCD_2885", "type": "ALL"}]}}]}
 {"step": "push", "frame": "frames/currency.hex"}
 {"step": "receive", "client": "a", "frame": "expected/currency.json"}

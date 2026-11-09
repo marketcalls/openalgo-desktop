@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "groww",
-  "inputs_sha256": "d1f1b08d6f41cb33d4d401e787ea6410521da441fa9701fa5c6e7b630df2a47b",
+  "inputs_sha256": "abeb4321973bc67bfd7ce368df8aba1fcc87e11b1ebb2d077a195f36e68967c3",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -12,6 +12,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 6,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "groww"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "groww"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

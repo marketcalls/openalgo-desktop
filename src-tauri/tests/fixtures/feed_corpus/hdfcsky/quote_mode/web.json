@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsky",
-  "inputs_sha256": "a9f1f21f01419ab8047a6c0c117e8c48896d0b96e80339d5dc8c7226f90557e2",
+  "inputs_sha256": "cbb11525d4b0b95521e9c67e8579c124747e6f04e47be5b2acc1a7716248c78e",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "hdfcsky"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsky"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

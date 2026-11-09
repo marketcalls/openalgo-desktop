@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "definedge",
-  "inputs_sha256": "eddd1851bfcaaf5a4c34f89f83a46227a8d5f8cb4650f33c075f2fba58b0a837",
+  "inputs_sha256": "919e89c5244ab45f21266a0df54d84ff39cecc1c6b531d9a5d3457ae640c6e1e",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "definedge"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "definedge"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 11,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "definedge"
+            }
+          ],
+          "failed": [],
+          "broker": "definedge"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

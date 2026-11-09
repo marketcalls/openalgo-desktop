@@ -7,5 +7,5 @@
 {"step": "push", "frame": {"text": "{\"type\":\"order\",\"data\":{\"order_id\":\"NXAAE00002K3\",\"status\":\"OPEN\"}}"}, "note": "An order postback on the price socket; neither side uses it."}
 {"step": "push", "frame": "frames/ltp_next.hex"}
 {"step": "receive", "client": "a", "frame": "expected/ltp_next.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "SBIN", "exchange": "NSE", "mode": "LTP", "status": "success", "broker": "rupeezy"}], "failed": [], "broker": "rupeezy"}}
 {"step": "upstream_receives", "frames": [{"json": {"ticker": "NSE:SBIN", "mode": "ltp", "message_type": "unsubscribe"}}]}

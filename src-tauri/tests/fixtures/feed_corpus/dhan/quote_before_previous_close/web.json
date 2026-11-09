@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "dhan",
-  "inputs_sha256": "533f7387843b0412faddf2b1de22b081c17dd5a4cb0f7e60970b54b3403566be",
+  "inputs_sha256": "4b077f19dc177d6bab6c74d89f000af55b7cb2ec39fb3c7dd57534790c0384d3",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "dhan"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "dhan"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

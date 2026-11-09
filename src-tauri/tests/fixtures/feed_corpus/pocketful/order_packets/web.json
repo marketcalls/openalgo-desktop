@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "pocketful",
-  "inputs_sha256": "e435662d4afd44ed50d2129e7a8d143ff37002fe995448f430a46f4b2c8ba164",
+  "inputs_sha256": "e1a62a08e01d890dfd5d898d767494bcaa5fe82980f02e79e71c627d3c211ac6",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

@@ -1,10 +1,10 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "ITC", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": 5, "broker": "fivepaisa"}], "message": "Subscription processing complete", "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "C", "ScripCode": 1660}]}}]}
 {"step": "push", "frame": "frames/feed.json"}
 {"step": "receive", "client": "a", "frame": "expected/ltp.json"}
 {"step": "push", "frame": "frames/feed_no_tick_time.json"}
 {"step": "receive", "client": "a", "frame": "expected/ltp_no_ltt.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "ITC", "exchange": "NSE", "mode": "LTP", "status": "success", "broker": "fivepaisa"}], "failed": [], "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Unsubscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "C", "ScripCode": 1660}]}}]}
 {"step": "push", "frame": "frames/feed.json", "note": "A frame 5paisa sent before it took the unsubscribe."}
 {"step": "silence", "client": "a"}

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradesmart",
-  "inputs_sha256": "81a3b1e192cac7e2df69ad23130cf768237c0e1e8b90b2b55d9176f274523e5a",
+  "inputs_sha256": "3e84142bc3c5ae0c90ae928558bac3baa7ecde2ca449ceaeb6c831775befcf64",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "tradesmart"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradesmart"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

@@ -2,7 +2,7 @@
 {"step": "push", "frame": {"text": "0{\"sid\":\"s1\",\"upgrades\":[],\"pingInterval\":25000,\"pingTimeout\":20000,\"maxPayload\":1000000}"}, "note": "Engine.IO open; the feed answers with the Socket.IO connect."}
 {"step": "upstream_receives", "frames": [{"text": "40"}]}
 {"step": "push", "frame": {"text": "40{\"sid\":\"n1\"}"}, "note": "The Socket.IO connect ack accepts the session; the feed subscribes its book over REST."}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "jainamxts"}], "message": "Subscription processing complete", "broker": "jainamxts"}}
 {"step": "http_receives", "requests": [{"method": "POST", "path": "/apibinarymarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 2, "exchangeInstrumentID": 35012}], "xtsMessageCode": 1502}}]}
 {"step": "push", "frame": "frames/future_1502.txt"}
 {"step": "receive", "client": "a", "frame": "expected/future_depth.json"}

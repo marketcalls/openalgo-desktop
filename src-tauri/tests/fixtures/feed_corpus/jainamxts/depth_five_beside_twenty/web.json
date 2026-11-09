@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "jainamxts",
-  "inputs_sha256": "8494a204eb0319552dab02969da1b6207f91196d62d8b78f00e1c55bf10acebf",
+  "inputs_sha256": "aae3eaa30c32d414b96888d8c2bcb4b271978878b01fb8cb7c224ff39a984628",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "jainamxts"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "jainamxts"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 20,
+              "broker": "jainamxts"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "jainamxts"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

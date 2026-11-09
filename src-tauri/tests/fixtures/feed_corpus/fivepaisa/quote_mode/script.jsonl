@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "ITC", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "fivepaisa"}], "message": "Subscription processing complete", "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "C", "ScripCode": 1660}]}}]}
 {"step": "push", "frame": "frames/feed.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}

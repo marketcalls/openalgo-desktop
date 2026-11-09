@@ -287,11 +287,31 @@ def web_offers() -> dict:
     return json.loads(path.read_text(encoding="utf-8"))["brokers"] if path.exists() else {}
 
 
+def web_problem(meta: dict | None) -> str | None:
+    """What is wrong with a broker.json's `web`, so a missing or malformed
+    one fails closed instead of asking for nothing."""
+    web = (meta or {}).get("web")
+    if not isinstance(web, dict):
+        return "`web` is missing or is not an object"
+    for field in ("ltp", "quote"):
+        if not isinstance(web.get(field), bool):
+            return f"`web.{field}` is not true or false"
+    depth = web.get("depth")
+    levels = depth if isinstance(depth, list) else None
+    if isinstance(depth, dict):
+        levels = [level for v in depth.values() for level in (v if isinstance(v, list) else [None])]
+    if levels is None or not all(isinstance(level, int) and not isinstance(level, bool) for level in levels):
+        return "`web.depth` is not a list of levels, or a list per exchange"
+    if "orders" not in web or web["orders"] is None:
+        return "`web.orders` is missing"
+    return None
+
+
 def capabilities(broker: str, meta: dict | None, offers: dict) -> dict | None:
     """The web's capabilities for a broker: its registries' depth levels and
     order updates, with LTP and Quote from `broker.json` (true for all 38).
     `None` where they are not recorded."""
-    if meta is None or broker not in offers:
+    if web_problem(meta) is not None or broker not in offers:
         return None
     web = meta.get("web") or {}
     return {

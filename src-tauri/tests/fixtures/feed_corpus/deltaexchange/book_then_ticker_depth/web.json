@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "deltaexchange",
-  "inputs_sha256": "5071a55227ad1ca4ffa34d012de9b10d9d5ed8df298ae99727fd21a1b103bd32",
+  "inputs_sha256": "99ccd469012aa8164186bcf8dbe0257d703aeb8058dd366c6f6f88ddff33442a",
   "instruments": [
     {
       "symbol": "BTCUSDFUT",
@@ -15,6 +15,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "BTCUSDFUT",
+              "exchange": "CRYPTO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "deltaexchange"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "deltaexchange"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

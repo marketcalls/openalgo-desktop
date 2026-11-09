@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fivepaisa",
-  "inputs_sha256": "ce1e5469cfe4eaa2881f4f0b8b82efb1c34af16e66bff624a46f4061bf636584",
+  "inputs_sha256": "0ee35dafcd01d0c316ce13ef45e5eee34b88d177ada8caafc2070998adcc6f29",
   "instruments": [
     {
       "symbol": "ITC",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "ITC",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "fivepaisa"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisa"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

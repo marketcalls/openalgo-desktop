@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradejini",
-  "inputs_sha256": "9335449973609cbbe551cc35d60dbdb067d6bf1599f31ffcd95d27f3812bc0d4",
+  "inputs_sha256": "30a14f36af168eedea528218d0933855335735b2d58ca13fe77a3d10e5ed2ba2",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 13,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "tradejini"
+            }
+          ],
+          "failed": [],
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsky",
-  "inputs_sha256": "ead93059e16d31d6d1f73db3e1e386cbc357c885874d7219c3ce2aec05778caf",
+  "inputs_sha256": "927278ef14631b31486b4aedef955f6c9aa419e4b20de889c8acc9f8da4ec410",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -14,6 +14,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "hdfcsky"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsky"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "hdfcsky"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsky"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

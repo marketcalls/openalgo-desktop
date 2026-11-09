@@ -1,15 +1,15 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "mstock"}], "message": "Subscription processing complete", "broker": "mstock"}}
 {"step": "upstream_receives", "frames": [{"text": "LOGIN:jwt"}, {"json": {"action": 1, "params": {"mode": 2, "tokenList": [{"exchangeType": 2, "tokens": ["35001"]}]}}}]}
 {"step": "push", "frame": "frames/fut_quote.hex"}
 {"step": "receive", "client": "a", "frame": "expected/fut_quote.json"}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "mstock"}], "message": "Subscription processing complete", "broker": "mstock"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": 0, "params": {"mode": 2, "tokenList": [{"exchangeType": 2, "tokens": ["35001"]}]}}}, {"json": {"action": 1, "params": {"mode": 3, "tokenList": [{"exchangeType": 2, "tokens": ["35001"]}]}}}]}
 {"step": "push", "frame": "frames/fut_full.hex"}
 {"step": "receive", "client": "a", "frame": "expected/fut_full_depth.json", "note": "One packet, one update (C08): the frame of the highest held mode goes first."}
 {"step": "receive", "client": "a", "frame": "expected/fut_full_quote.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "mode": "Depth", "status": "success", "broker": "mstock"}], "failed": [], "broker": "mstock"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": 0, "params": {"mode": 3, "tokenList": [{"exchangeType": 2, "tokens": ["35001"]}]}}}, {"json": {"action": 1, "params": {"mode": 2, "tokenList": [{"exchangeType": 2, "tokens": ["35001"]}]}}}]}
 {"step": "push", "frame": "frames/fut_quote_after.hex"}
 {"step": "receive", "client": "a", "frame": "expected/fut_quote_after.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "mode": "Quote", "status": "success", "broker": "mstock"}], "failed": [], "broker": "mstock"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": 0, "params": {"mode": 2, "tokenList": [{"exchangeType": 2, "tokens": ["35001"]}]}}}]}

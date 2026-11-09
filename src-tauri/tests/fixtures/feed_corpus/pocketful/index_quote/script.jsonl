@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": 5, "broker": "pocketful"}], "message": "Subscription processing complete", "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [[1, 26000]], "m": "marketdata"}}], "note": "An index streams on the cash exchange's code (1), from the master's brexchange NSE."}
 {"step": "push", "frame": "frames/detailed.hex"}
 {"step": "receive", "client": "a", "frame": "expected/index_quote.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "mode": "Quote", "status": "success", "broker": "pocketful"}], "failed": [], "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 26000]], "m": "marketdata"}}]}

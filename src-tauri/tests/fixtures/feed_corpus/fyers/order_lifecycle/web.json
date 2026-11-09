@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fyers",
-  "inputs_sha256": "4a15426991462c458643b4bba39b9b7c1f09041b6d8fff7dcacb3cef3c076cad",
+  "inputs_sha256": "1f65b28d627fd7aa60ac0ad980b6d5529747b46cac8276fadee64d5ac885aea4",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -14,6 +14,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

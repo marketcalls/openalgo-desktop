@@ -327,7 +327,15 @@ class in `broker/<broker>/streaming/*mapping*.py` for depth levels, and
 `services/order_update_service.py` for order updates; a broker with no such
 registry keeps the levels its `broker.json` cites (`"source": "by-hand"`). A
 capability counts as covered only with an accepted subscribe and a received
-frame of that mode. The pin also records a digest of the oracle's own code, which a test checks, so
+frame of that mode. `web.json` also records the web's reply to every send (`replies`): the web
+server's own answer, from the adapter's own `subscribe` and `unsubscribe`
+where a glue runs them, else run for its reply alone on a second instance of
+the adapter (`shadow.py`). A send neither can answer is `"from_adapter": false`
+and is counted, never compared and never taken for a success. A step's
+`reply` is compared with the web's under keys `reply.<key>` and
+`reply.subscriptions.<key>`, declared like any difference. `predicates.py
+--pin-replies` gives a new send the web's reply as its expected one. The pin
+also records a digest of the oracle's own code, which a test checks, so
 editing a glue needs `web_expected.py` run again (`--repin` moves the corpus to
 a newer web commit, deliberately). How a broker
 is run offline (`scripts/feed_corpus/web_adapters/<broker>.py`: the web

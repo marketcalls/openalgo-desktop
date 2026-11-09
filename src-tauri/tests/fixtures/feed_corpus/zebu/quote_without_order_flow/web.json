@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "zebu",
-  "inputs_sha256": "88723aac13c81fdf02358c9205e9dac72d2b11779760ab20dbb385f5d1a1162a",
+  "inputs_sha256": "01b30b139afdce1e2bad78ec39af4086de3e38cf4049a529f539a1bd69f6e903",
   "instruments": [
     {
       "symbol": "NIFTY25NOV26FUT",
@@ -16,6 +16,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "zebu"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zebu"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

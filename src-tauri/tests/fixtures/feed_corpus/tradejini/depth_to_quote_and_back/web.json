@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradejini",
-  "inputs_sha256": "cd78116452a7d05a3e9f8f36532dd73af34f283fe08fc60c9fd58617d517a480",
+  "inputs_sha256": "12023d29029e48b6a694ffc98cda4033aa6447796e1f68ad58e034b00f85af5d",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -13,6 +13,96 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 9,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "tradejini"
+            }
+          ],
+          "failed": [],
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 15,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

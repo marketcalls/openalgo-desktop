@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "SBIN", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": 5, "broker": "tradejini"}], "message": "Subscription processing complete", "broker": "tradejini"}}
 {"step": "upstream_receives", "frames": [{"json": {"type": "L1", "action": "sub", "tokens": [{"t": "3045_NSE"}]}}]}
 {"step": "push", "frame": "frames/l1_full.hex"}
 {"step": "receive", "client": "a", "frame": "expected/ltp.json"}

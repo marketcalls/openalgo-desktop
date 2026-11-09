@@ -1,16 +1,16 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "fivepaisa"}], "message": "Subscription processing complete", "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "D", "ScripCode": 35052}]}}]}
 {"step": "push", "frame": "frames/feed.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
 {"step": "push", "frame": "frames/oi_only.json"}
 {"step": "silence", "client": "a"}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "fivepaisa"}], "message": "Subscription processing complete", "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketDepthService", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "D", "ScripCode": 35052}]}}]}
 {"step": "push", "frame": "frames/depth.json"}
 {"step": "receive", "client": "a", "frame": "expected/depth.json"}
 {"step": "push", "frame": "frames/feed_next.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote_next.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "mode": "Depth", "status": "success", "broker": "fivepaisa"}], "failed": [], "broker": "fivepaisa"}}
 {"step": "upstream_receives", "frames": [{"json": {"Method": "MarketDepthService", "Operation": "Unsubscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "D", "ScripCode": 35052}]}}]}
 {"step": "push", "frame": "frames/depth.json", "note": "No Depth subscription remains."}
 {"step": "silence", "client": "a"}

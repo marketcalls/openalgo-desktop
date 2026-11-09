@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradesmart",
-  "inputs_sha256": "2d52802b6bde6a498270129857f67f4369081fca8dd3b6d4964007e2b1821ce5",
+  "inputs_sha256": "1966cf42df8ac00e37abf365275c39a37aa818a724e3b4b1e31f790f1692d1b9",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -24,6 +24,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

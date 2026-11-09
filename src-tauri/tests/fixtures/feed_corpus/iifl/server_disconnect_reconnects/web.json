@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "iifl",
-  "inputs_sha256": "965d3e994953ab33e9a59978a5f01d29cc7aa3fa98e1c8cad9558028a16f6c4c",
+  "inputs_sha256": "602aa45be1cb1bae449f73cd3a06d4b42a22820b9c33440549d001ab477a4627",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "iifl"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "iifl"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

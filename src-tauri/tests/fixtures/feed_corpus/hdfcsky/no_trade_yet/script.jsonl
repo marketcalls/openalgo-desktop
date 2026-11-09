@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": null, "broker": "hdfcsky"}], "message": "Subscription processing complete", "broker": "hdfcsky"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 5, "broker": "hdfcsky"}], "message": "Subscription processing complete", "broker": "hdfcsky"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]}}], "note": "Quote to Depth: a second subscribe at ALL, as the web's subscribe_scrips sends it."}
 {"step": "push", "frame": "frames/no_trade.hex"}
 {"step": "receive", "client": "b", "frame": "expected/book_before_trade.json", "note": "The book reaches the Depth holder, with ltp 0 as before the first quote."}

@@ -13,5 +13,28 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "error",
+              "message": "Invalid mode 3. INDmoney supports only 1 (LTP) or 2 (Quote)",
+              "broker": "indmoney"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "indmoney"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": []
 }

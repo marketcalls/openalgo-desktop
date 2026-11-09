@@ -358,7 +358,8 @@ impl Runner<'_> {
         match reply {
             Some(want) => {
                 if let Err(e) = compare::exact(want, &got, None) {
-                    bad(at, e);
+                    self.record(at, &got);
+                    self.mismatch(at, e);
                 }
             }
             None if got["status"] == "success" => {}

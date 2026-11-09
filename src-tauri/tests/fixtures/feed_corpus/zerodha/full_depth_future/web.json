@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "zerodha",
-  "inputs_sha256": "6e81138905ed77e75a08cdf1eb13a77dc8eee891c25d19977b998add7cd1e912",
+  "inputs_sha256": "4923c47f2e29274a10acb8b0b6805faaaaed9765271bdcec491e7a550ad54686",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
@@ -16,6 +16,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "zerodha"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zerodha"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

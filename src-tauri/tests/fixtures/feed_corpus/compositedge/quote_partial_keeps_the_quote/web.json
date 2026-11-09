@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "compositedge",
-  "inputs_sha256": "8430ccff6ca99a5e507155354b2a7b395c993fc12507d03d489f5cffc3797f7a",
+  "inputs_sha256": "fb64a209d1703e09f957ea021579e4292f4cd50691ebc4d8999d3b36ab5ff2f9",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "compositedge"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "compositedge"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

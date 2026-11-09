@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "rupeezy",
-  "inputs_sha256": "9f36fc53f7c042d14e3fc1c32772eea33b5197a3a994c3dc16d9b541e45d43ac",
+  "inputs_sha256": "1a9e117535516960ba328ecaeb6064df51dc53743fdfc88a782afacb7054cdd8",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": null,
+              "broker": "rupeezy"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "rupeezy"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 10,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "rupeezy"
+            }
+          ],
+          "failed": [],
+          "broker": "rupeezy"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 4,

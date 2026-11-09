@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "dhan_sandbox",
-  "inputs_sha256": "9444106a5afe2017766a691819e10e1dc5389417f3d8ef5d8aa08c1de3236e1a",
+  "inputs_sha256": "8350f2e24d8817c9424dd1bbf42575e44a6eea3ad33e45d009a088ea6d1d7f7c",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -12,6 +12,140 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "dhan_sandbox"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "dhan_sandbox"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 6,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "dhan_sandbox"
+            }
+          ],
+          "failed": [],
+          "broker": "dhan_sandbox"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "dhan_sandbox"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "dhan_sandbox"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 12,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "dhan_sandbox"
+            }
+          ],
+          "failed": [],
+          "broker": "dhan_sandbox"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 13,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "dhan_sandbox"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "dhan_sandbox"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 18,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "dhan_sandbox"
+            }
+          ],
+          "failed": [],
+          "broker": "dhan_sandbox"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

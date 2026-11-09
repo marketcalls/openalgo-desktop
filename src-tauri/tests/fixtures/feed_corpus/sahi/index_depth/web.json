@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "sahi",
-  "inputs_sha256": "a3baa9a9f2ec6535945d5d7443a2a67c3d6998784ab3df43f80a9fc951ecff78",
+  "inputs_sha256": "29f6256612829429a7f07698d7c54559087734e4c4c707f1661b576d76cd8eae",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -12,6 +12,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "sahi"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "sahi"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

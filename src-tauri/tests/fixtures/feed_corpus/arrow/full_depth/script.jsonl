@@ -8,5 +8,5 @@
 {"step": "receive", "client": "a", "frame": "expected/full_legacy.json"}
 {"step": "push", "frame": "frames/full_book_clear.hex"}
 {"step": "receive", "client": "a", "frame": "expected/full_book_clear.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Depth", "status": "success", "broker": "arrow"}], "failed": [], "broker": "arrow"}}
 {"step": "upstream_receives", "frames": [{"json": {"code": "unsub", "mode": "full", "full": [2885]}}]}

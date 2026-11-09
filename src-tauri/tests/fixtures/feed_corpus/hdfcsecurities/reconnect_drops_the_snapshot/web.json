@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsecurities",
-  "inputs_sha256": "615c78143d0745c2334efa0b1d34a665c8994cc51dae18cb34be1007115a16b3",
+  "inputs_sha256": "11357b3af9387891e463ac3815f7ead9634d979b23c410caf125943c42312e89",
   "instruments": [
     {
       "symbol": "NIFTY25NOV26FUT",
@@ -16,6 +16,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

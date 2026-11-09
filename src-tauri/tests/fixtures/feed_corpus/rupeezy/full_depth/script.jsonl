@@ -6,5 +6,5 @@
 {"step": "receive", "client": "a", "frame": "expected/full_update.json"}
 {"step": "push", "frame": "frames/full_book_clear.hex"}
 {"step": "receive", "client": "a", "frame": "expected/full_book_clear.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 3}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "SBIN", "exchange": "NSE", "mode": "Depth", "status": "success", "broker": "rupeezy"}], "failed": [], "broker": "rupeezy"}}
 {"step": "upstream_receives", "frames": [{"json": {"ticker": "NSE:SBIN", "mode": "full", "message_type": "unsubscribe"}}]}

@@ -1,16 +1,16 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "paytm"}], "message": "Subscription processing complete", "broker": "paytm"}}
 {"step": "upstream_receives", "frames": [{"json": [{"actionType": "ADD", "modeType": "QUOTE", "scripType": "FUTURE", "exchangeType": "NSE", "scripId": "35001"}]}]}
 {"step": "push", "frame": "frames/quote.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "paytm"}], "message": "Subscription processing complete", "broker": "paytm"}}
 {"step": "upstream_receives", "frames": [{"json": [{"actionType": "REMOVE", "modeType": "QUOTE", "scripType": "FUTURE", "exchangeType": "NSE", "scripId": "35001"}, {"actionType": "ADD", "modeType": "FULL", "scripType": "FUTURE", "exchangeType": "NSE", "scripId": "35001"}]}]}
 {"step": "push", "frame": "frames/full.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_from_full.json"}
 {"step": "receive", "client": "b", "frame": "expected/full.json"}
-{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3}}
+{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "mode": "Depth", "status": "success", "broker": "paytm"}], "failed": [], "broker": "paytm"}}
 {"step": "upstream_receives", "frames": [{"json": [{"actionType": "REMOVE", "modeType": "FULL", "scripType": "FUTURE", "exchangeType": "NSE", "scripId": "35001"}, {"actionType": "ADD", "modeType": "QUOTE", "scripType": "FUTURE", "exchangeType": "NSE", "scripId": "35001"}]}]}
 {"step": "push", "frame": "frames/quote_after.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_after.json", "web": false}
 {"step": "silence", "client": "b"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "mode": "Quote", "status": "success", "broker": "paytm"}], "failed": [], "broker": "paytm"}}
 {"step": "upstream_receives", "frames": [{"json": [{"actionType": "REMOVE", "modeType": "QUOTE", "scripType": "FUTURE", "exchangeType": "NSE", "scripId": "35001"}]}]}

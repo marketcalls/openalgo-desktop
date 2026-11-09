@@ -56,7 +56,7 @@ CORPUS = HERE.parent.parent / "src-tauri/tests/fixtures/feed_corpus"
 PIN = CORPUS / "web_oracle.json"
 MODES = {"ltp": 1, "quote": 2, "depth": 3}
 # The tool's own code a web.json depends on, beside web_adapters/*.py.
-TOOL_FILES = ("web_expected.py", "webkit.py", "webserver.py", "protolite.py")
+TOOL_FILES = ("web_expected.py", "webkit.py", "webserver.py", "protolite.py", "shadow.py")
 # Refused upgrades and a deliberate disconnect have no adapter counterpart
 # in the replay (harness/web.rs `UNMODELLED_STEPS`).
 UNMODELLED_STEPS = ("refuse_upgrades", "disconnect")
@@ -145,6 +145,8 @@ class Replay:
         # web.json and counted by the release gate, so none is taken for
         # compared.
         self.uncompared: list[dict] = []
+        # What the web answers each send (`WebServer.send`).
+        self.replies: list[dict] = []
 
     def run(self, script: str, answers: list) -> tuple[list, bytes]:
         """Replay `script` with the fake broker API's first `answers`
@@ -167,7 +169,7 @@ class Replay:
             client = step.get("client", "")
             self.glue.published = []
             if kind == "send":
-                self.server.send(client, step["message"])
+                self.replies.append({"line": n, **self.server.send(client, step["message"])})
                 if step["message"].get("action") == "subscribe_orders":
                     self.glue.subscribe_orders()
             elif kind == "close_client":
@@ -216,6 +218,7 @@ def compute(case_dir: Path, web: Path, sha: str) -> dict:
         "inputs_sha256": hashlib.sha256(inputs).hexdigest(),
         "instruments": case["instruments"],
         "uncompared": not_made + replay.uncompared,
+        "replies": replay.replies,
         "pushes": pushes,
     }
 
@@ -254,6 +257,8 @@ class Deliveries:
         self.last: dict | None = None
         # Frames the case says the web sends nothing for: (line, client, frame).
         self.web_false: list = []
+        # Deliveries a silence declared the desktop does not send.
+        self.declared_missing: set = set()
 
     def pub(self, d: dict) -> dict:
         return self.point["published"][d["publication"]]
@@ -271,18 +276,28 @@ class Deliveries:
             if mode in d["serves"] and (i, mode) not in self.used:
                 self.used.add((i, mode))
                 self.last = d
+                self.last_index = i
                 return self.pub(d)
-        rest = [
-            (i, d) for i, d in ds
-            if mode not in d["serves"] and d["topic_mode"] >= mode and (i, f"fold{mode}") not in self.used
-        ]
+        # A richer publication stands in only for a mode with no stream of
+        # its own at this point (harness/deliveries.rs `market_delivery`).
+        if any(mode in d["serves"] for _, d in ds):
+            return None
+        rest = [(i, d) for i, d in ds if d["topic_mode"] >= mode and (i, f"fold{mode}") not in self.used]
         rest.sort(key=lambda x: (x[1]["topic_mode"] != mode, x[1]["topic_mode"], x[0]))
         if rest:
             i, d = rest[0]
             self.used.add((i, f"fold{mode}"))
             self.last = d
+            self.last_index = i
             return self.pub(d)
         return None
+
+    def web_only(self, client: str, symbol: str, exchange: str, mode: int):
+        """The web frame a silence declares the desktop does not send."""
+        p = self.market(client, symbol, exchange, mode)
+        if p is not None:
+            self.declared_missing.add(self.last_index)
+        return p
 
     def order(self, client: str, orderid):
         ds = [
@@ -328,13 +343,15 @@ class Deliveries:
         out = []
         for line, client, frame in self.web_false:
             for i, d in enumerate(self.point["deliveries"]):
-                if d["client"] != client or self._touched(i):
+                declared = i in self.declared_missing
+                if d["client"] != client or (self._touched(i) and not declared):
                     continue
                 pub = self.pub(d)
                 same = (
                     pub["frame"].get("orderid") == frame.get("orderid") if "order" in d
                     else frame.get("type") != "order_update"
                     and pub.get("symbol") == frame.get("symbol") and pub.get("exchange") == frame.get("exchange")
+                    and (not declared or frame.get("mode") == d["mode"])
                 )
                 if same:
                     out.append(f"web-not-silent: line {line}: marked \"web\": false, but the web sends "
@@ -374,12 +391,32 @@ def frame_identity(item: dict) -> dict:
     return {"symbol": item.get("symbol"), "exchange": item.get("exchange"), "mode": item.get("mode")}
 
 
+def reply_differences(mine: dict, theirs: dict) -> list[tuple]:
+    """Where the desktop's reply to a send differs from the web's, as
+    `(key, web, desktop)` (harness/web.rs `reply_differences`): each top-level
+    key, and each key of the items of a list both sides have at one length."""
+    out = []
+    for k in sorted(set(mine) | set(theirs)):
+        m, t = side(mine, k), side(theirs, k)
+        if isinstance(m, list) and isinstance(t, list) and len(m) == len(t) and all(
+            isinstance(x, dict) for x in m + t
+        ):
+            for a, b in zip(m, t):
+                for inner in sorted(set(a) | set(b)):
+                    if json.dumps(side(a, inner), sort_keys=True) != json.dumps(side(b, inner), sort_keys=True):
+                        out.append((f"reply.{k}.{inner}", side(b, inner), side(a, inner)))
+        elif json.dumps(m, sort_keys=True) != json.dumps(t, sort_keys=True):
+            out.append((f"reply.{k}", t, m))
+    return out
+
+
 def diff(case_dir: Path, out: dict, seen: list | None = None) -> list[str]:
     """What the harness's web check would find (harness/web.rs), as lines;
     `seen`, when given, also collects each difference as data: `(key, web,
     desktop, web data)`, what a deviation's `allows` is generated from."""
     seen = [] if seen is None else seen
     points = {p["line"]: p for p in out["pushes"]}
+    replies = {r["line"]: r for r in out.get("replies", [])}
     case = json.loads((case_dir / "case.json").read_text())
     random_keys = {d["key"] for d in case.get("deviations", []) if d.get("kind") == "random-values"}
     lines = []
@@ -389,6 +426,11 @@ def diff(case_dir: Path, out: dict, seen: list | None = None) -> list[str]:
         if not line.strip():
             continue
         step = json.loads(line)
+        web_reply = replies.get(n)
+        if web_reply and web_reply["from_adapter"] and web_reply["frames"] and step.get("reply") is not None:
+            for key, web, desktop in reply_differences(step["reply"], web_reply["frames"][0]):
+                lines.append(f"{key}: line {n}: web {json.dumps(web)}, desktop {json.dumps(desktop)}")
+                seen.append((key, web, desktop, None))
         if n in points:
             if current is not None:
                 lines += current.close()
@@ -399,7 +441,7 @@ def diff(case_dir: Path, out: dict, seen: list | None = None) -> list[str]:
             continue
         if step["step"] == "silence" and "web" in step:
             w = step["web"]
-            p = current.market(step.get("client", ""), w["symbol"], w["exchange"], w["mode"])
+            p = current.web_only(step.get("client", ""), w["symbol"], w["exchange"], w["mode"])
             if p is None:
                 lines.append(f"(line {n}: the web delivers no such frame either)")
             else:

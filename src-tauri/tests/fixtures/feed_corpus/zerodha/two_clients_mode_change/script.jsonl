@@ -1,14 +1,14 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "INFY", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": 5, "broker": "zerodha"}], "message": "Subscription processing complete", "broker": "zerodha"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [408065]}}, {"json": {"a": "mode", "v": ["ltp", [408065]]}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "INFY", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "zerodha"}], "message": "Subscription processing complete", "broker": "zerodha"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "mode", "v": ["quote", [408065]]}}]}
 {"step": "push", "frame": "frames/quote.hex"}
 {"step": "receive", "client": "a", "frame": "expected/ltp_from_quote.json"}
 {"step": "receive", "client": "b", "frame": "expected/quote.json"}
-{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "INFY", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "zerodha"}], "failed": [], "broker": "zerodha"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "mode", "v": ["ltp", [408065]]}}]}
 {"step": "push", "frame": "frames/ltp.hex"}
 {"step": "receive", "client": "a", "frame": "expected/ltp.json"}
 {"step": "silence", "client": "b"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "INFY", "exchange": "NSE", "mode": "LTP", "status": "success", "broker": "zerodha"}], "failed": [], "broker": "zerodha"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [408065]}}]}

@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": 5, "broker": "samco"}], "message": "Subscription processing complete", "broker": "samco"}}
 {"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}]}
 {"step": "push", "frame": "frames/no_trade_time.json"}
 {"step": "receive", "client": "a", "frame": "expected/no_trade_time.json"}

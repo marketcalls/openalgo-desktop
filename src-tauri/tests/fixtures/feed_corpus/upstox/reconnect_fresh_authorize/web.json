@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "upstox",
-  "inputs_sha256": "871c5a55d1609755f34ef0dc0614be025f2602189d2ba2b6cd1e1fb20b16f2d7",
+  "inputs_sha256": "2a8b9965e2482f1c22f09db6512e26f1d367c780230b233a11879ac0234b93c8",
   "instruments": [
     {
       "symbol": "NIFTY25NOV26FUT",
@@ -16,6 +16,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "upstox"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "upstox"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

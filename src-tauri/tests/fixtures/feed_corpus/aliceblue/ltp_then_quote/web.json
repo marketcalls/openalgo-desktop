@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "aliceblue",
-  "inputs_sha256": "219fd51089e2143c6f9e004680c36322783c35df280dbf6a475eceffadcd69be",
+  "inputs_sha256": "6bdb4594416694c4b5edbc62bba099821432749f69272799029540a826c8232e",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,74 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "aliceblue"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "aliceblue"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "aliceblue"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "aliceblue"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 12,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "aliceblue"
+            }
+          ],
+          "failed": [],
+          "broker": "aliceblue"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "samco",
-  "inputs_sha256": "a449f94b6c5296b76ef55bdfcaa4744d8c165787d122cf78d5c44399d4698b7d",
+  "inputs_sha256": "1431d49f32607ed1eefc762542108c07e7b0770aff1d1b98788bacb827c5f89c",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -15,6 +15,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "samco"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "samco"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "samco"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "samco"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 5,

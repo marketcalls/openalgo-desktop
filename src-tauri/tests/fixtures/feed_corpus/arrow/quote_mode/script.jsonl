@@ -6,5 +6,5 @@
 {"step": "receive", "client": "a", "frame": "expected/quote_no_trade_time.json"}
 {"step": "push", "frame": "frames/quote_no_times.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_no_times.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "arrow"}], "failed": [], "broker": "arrow"}}
 {"step": "upstream_receives", "frames": [{"json": {"code": "unsub", "mode": "quote", "quote": [2885]}}]}

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "angel",
-  "inputs_sha256": "6a96de7452828509b36daeb6e5ff37bbd17fb1beabb63ebc0398f1d8a0aab8de",
+  "inputs_sha256": "d228aecd43389d87d6e50a57c8738476ed511bb921c13586ae9e44b1f35ccf09",
   "instruments": [
     {
       "symbol": "NIFTY25NOV26FUT",
@@ -16,6 +16,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "angel"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "angel"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

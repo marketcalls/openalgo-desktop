@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": null, "broker": "rupeezy"}], "message": "Subscription processing complete", "broker": "rupeezy"}}
 {"step": "upstream_receives", "frames": [{"json": {"ticker": "NSE:NIFTY", "mode": "ohlcv", "message_type": "subscribe"}}]}
 {"step": "push", "frame": "frames/ohlcv.hex"}
 {"step": "receive", "client": "a", "frame": "expected/ohlcv.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "mode": "Quote", "status": "success", "broker": "rupeezy"}], "failed": [], "broker": "rupeezy"}}
 {"step": "upstream_receives", "frames": [{"json": {"ticker": "NSE:NIFTY", "mode": "ohlcv", "message_type": "unsubscribe"}}]}

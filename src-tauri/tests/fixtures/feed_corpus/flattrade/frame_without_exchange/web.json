@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "flattrade",
-  "inputs_sha256": "c7cdc1b4a29dc4c83ada02b8ac3b4a3f122c2ec2c46dc8012f6e1ad61bb039f1",
+  "inputs_sha256": "0913334892cd0eef92bb37d0e6d5f8d69bc7266bff3705f2a4d09111f7bc3032",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -22,6 +22,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "flattrade"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "flattrade"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 8,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "USDINR25NOV26FUT",
+              "exchange": "CDS",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "flattrade"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "flattrade"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

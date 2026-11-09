@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "upstox",
-  "inputs_sha256": "3191ca50b607b30a15c6d575eca82d0cec3ab61069dd309f1a1260be566d396f",
+  "inputs_sha256": "e69c26aaabb37ac34f386bfc9857bf240dc5e2ad3677eb7333c67a9c7ca6bac8",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "upstox"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "upstox"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

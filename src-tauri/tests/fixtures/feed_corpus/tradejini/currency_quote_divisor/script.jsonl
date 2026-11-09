@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "USDINR25NOV25FUT", "exchange": "CDS"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "USDINR25NOV25FUT", "exchange": "CDS"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "USDINR25NOV25FUT", "exchange": "CDS", "status": "success", "mode": "Quote", "depth": 5, "broker": "tradejini"}], "message": "Subscription processing complete", "broker": "tradejini"}}
 {"step": "upstream_receives", "frames": [{"json": {"type": "L1", "action": "sub", "tokens": [{"t": "1123_CDS"}]}}]}
 {"step": "push", "frame": "frames/l1.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}

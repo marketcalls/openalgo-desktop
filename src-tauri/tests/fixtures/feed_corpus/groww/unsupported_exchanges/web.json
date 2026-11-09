@@ -36,6 +36,43 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "CRUDEOIL25NOVFUT",
+              "exchange": "MCX",
+              "status": "error",
+              "message": "Groww does not provide live streaming for MCX. Live prices are available for NSE, BSE, NFO, BFO and indices.",
+              "broker": "groww"
+            },
+            {
+              "symbol": "USDINR25NOVFUT",
+              "exchange": "CDS",
+              "status": "error",
+              "message": "Groww does not provide live streaming for CDS. Live prices are available for NSE, BSE, NFO, BFO and indices.",
+              "broker": "groww"
+            },
+            {
+              "symbol": "USDINR25NOVFUT",
+              "exchange": "BCD",
+              "status": "error",
+              "message": "Groww does not provide live streaming for BCD. Live prices are available for NSE, BSE, NFO, BFO and indices.",
+              "broker": "groww"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "groww"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 1,

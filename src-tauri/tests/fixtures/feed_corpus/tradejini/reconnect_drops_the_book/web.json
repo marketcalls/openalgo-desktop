@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradejini",
-  "inputs_sha256": "27454c78c8b143f7161243cb9e2d7eec9aa041f8767856785ca0e7ffadfa6e57",
+  "inputs_sha256": "5d034d8740d0ecac6c0856edbfe7c7eaa2119709f35f3c43aa87ef8e44b737fd",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "wisdom",
-  "inputs_sha256": "b38ea8f8251db2334f533caaf45901d2289dcaf2e5fa1bdfc78327ded9572dcf",
+  "inputs_sha256": "e55258da0759a095010d034e878459a550dbcf4fbb54e191f117fe352d24648b",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -20,6 +20,74 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "wisdom"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "wisdom"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "wisdom"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "wisdom"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 13,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "wisdom"
+            }
+          ],
+          "failed": [],
+          "broker": "wisdom"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

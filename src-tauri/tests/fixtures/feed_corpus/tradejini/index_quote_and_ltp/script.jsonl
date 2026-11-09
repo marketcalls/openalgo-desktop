@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": 5, "broker": "tradejini"}], "message": "Subscription processing complete", "broker": "tradejini"}}
 {"step": "upstream_receives", "frames": [{"json": {"type": "L1", "action": "sub", "tokens": [{"t": "26000_NSE"}]}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "LTP", "depth": 5, "broker": "tradejini"}], "message": "Subscription processing complete", "broker": "tradejini"}}
 {"step": "note", "text": "LTP rides the same L1 list: nothing new goes to Tradejini."}
 {"step": "push", "frame": "frames/index_l1.hex"}
 {"step": "receive", "client": "a", "frame": "expected/index_quote.json"}

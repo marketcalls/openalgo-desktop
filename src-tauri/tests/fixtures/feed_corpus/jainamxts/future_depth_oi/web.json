@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "jainamxts",
-  "inputs_sha256": "5ca63ae6974623db1061ed0eaa16d9e0fe7f2c86aa6dd3682b9fa70a8b7d9153",
+  "inputs_sha256": "61d0eaa43ece3688304ae0a88284a7ef27558e61d4925c9692da94e68226e416",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
@@ -16,6 +16,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "jainamxts"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "jainamxts"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

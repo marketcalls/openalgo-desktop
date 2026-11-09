@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "upstox"}], "message": "Subscription processing complete", "broker": "upstox"}}
 {"step": "upstream_receives", "frames": [{"binary_json": {"guid": "<any>", "method": "sub", "data": {"instrumentKeys": ["NSE_FO|52175"], "mode": "full"}}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "upstox"}], "message": "Subscription processing complete", "broker": "upstox"}}
 {"step": "note", "text": "Quote and Depth share Upstox's full mode: nothing more goes to Upstox."}
 {"step": "push", "frame": "frames/snapshot.hex"}
 {"step": "receive", "client": "a", "frame": "expected/snapshot_quote.json", "note": "Volume is vtt (1234575), not the day candle's 1234500; close is the previous close cp, not the candle's close."}

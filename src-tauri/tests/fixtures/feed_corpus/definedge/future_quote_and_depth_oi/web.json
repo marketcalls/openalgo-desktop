@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "definedge",
-  "inputs_sha256": "20dd98ac8ba15ebae4dcef7302eb862b1f33cd02468ba025ba24bfa6eb665545",
+  "inputs_sha256": "b897e411f54344f213372c36ee85bc79ffc779533e9e18b871ac61deea17d2e8",
   "instruments": [
     {
       "symbol": "NIFTY25NOV25FUT",
@@ -17,6 +17,74 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV25FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "definedge"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "definedge"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV25FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "definedge"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "definedge"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 10,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY25NOV25FUT",
+              "exchange": "NFO",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "definedge"
+            }
+          ],
+          "failed": [],
+          "broker": "definedge"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

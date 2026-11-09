@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "firstock",
-  "inputs_sha256": "f268d1c2f21fb52c67e2ceb05a96bc1a5380420b7277d767a4d3dad8775ec62c",
+  "inputs_sha256": "fef8908b41b5f54280aa7218eb9410351988ce49bab320b27b4d1791eb0acb7d",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
@@ -16,6 +16,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY24NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "firstock"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "firstock"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 1,

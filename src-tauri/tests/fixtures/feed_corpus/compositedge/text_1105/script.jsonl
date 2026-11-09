@@ -2,9 +2,9 @@
 {"step": "push", "frame": {"text": "0{\"sid\":\"s1\",\"upgrades\":[],\"pingInterval\":25000,\"pingTimeout\":20000,\"maxPayload\":1000000}"}, "note": "Engine.IO open; the feed answers with the Socket.IO connect."}
 {"step": "upstream_receives", "frames": [{"text": "40"}]}
 {"step": "push", "frame": {"text": "40{\"sid\":\"n1\"}"}, "note": "The Socket.IO connect ack accepts the session; the feed subscribes its book over REST."}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": 5, "broker": "compositedge"}], "message": "Subscription processing complete", "broker": "compositedge"}}
 {"step": "http_receives", "requests": [{"method": "POST", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1512}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "compositedge"}], "message": "Subscription processing complete", "broker": "compositedge"}}
 {"step": "http_receives", "requests": [{"method": "PUT", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1512}}, {"method": "POST", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}], "note": "The mode change: the LTP subscription let go, the Quote one made."}
 {"step": "push", "frame": "frames/text_1105.txt"}
 {"step": "receive", "client": "a", "frame": "expected/ltp_from_1105.json", "web": false}

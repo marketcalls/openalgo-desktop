@@ -3,6 +3,7 @@
   "ceilings": {
     "deep_feed_not_made": 1,
     "disconnect": 5,
+    "no_web_reply": 2,
     "refuse_upgrades": 8
   },
   "raised_by": {}

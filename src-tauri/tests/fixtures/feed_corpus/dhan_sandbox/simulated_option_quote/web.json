@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "dhan_sandbox",
-  "inputs_sha256": "9c8c33cafb5d0b3159274a7331791aa2e4963ecbb0363be22ff72e0cf9326b3a",
+  "inputs_sha256": "904d37ad7965dddb5ac2f37924492289e69b26bddaff956bcc1d352fdcb3733b",
   "instruments": [
     {
       "symbol": "NIFTY25NOV2624800CE",
@@ -56,6 +56,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV2625000CE",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "dhan_sandbox"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "dhan_sandbox"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 8,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY25NOV2625000CE",
+              "exchange": "NFO",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "dhan_sandbox"
+            }
+          ],
+          "failed": [],
+          "broker": "dhan_sandbox"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

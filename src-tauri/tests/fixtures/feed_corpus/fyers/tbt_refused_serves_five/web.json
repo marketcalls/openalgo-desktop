@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fyers",
-  "inputs_sha256": "15f4dfdbac9b230fdf8c9c190e4748d8e27472d47c8a53ba1ce943cd5277ee0a",
+  "inputs_sha256": "3121cd93a21c0e4d058c10ad212bf3ebccfbcb1c75bfd0b514b618a09de3bf7e",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -17,6 +17,30 @@
     {
       "line": 1,
       "step": "refuse_upgrades"
+    }
+  ],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 50,
+              "broker": "fyers"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fyers"
+        }
+      ],
+      "from_adapter": true
     }
   ],
   "pushes": [

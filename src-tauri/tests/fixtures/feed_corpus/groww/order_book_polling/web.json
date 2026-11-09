@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "groww",
-  "inputs_sha256": "01c21019a40926a3e2808714841c7e15792fa283f4b49a04eb009d75963a39b6",
+  "inputs_sha256": "a0564c4ae5ec9b01390a119fb41cb29ef037cb7d0bb73e36bb2a9577dd816f7b",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -18,6 +18,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

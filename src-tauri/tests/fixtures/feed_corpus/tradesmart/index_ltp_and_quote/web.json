@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradesmart",
-  "inputs_sha256": "5caad581a1bebd12aecd89eeeb93017405df9af710618c94902140621dc3096b",
+  "inputs_sha256": "14549cba574a98b2c42e252a08931fbc5c425cd00c62e8f04cd6e6f95ba67259",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -14,6 +14,74 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "tradesmart"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradesmart"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "tradesmart"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradesmart"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 13,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "tradesmart"
+            }
+          ],
+          "failed": [],
+          "broker": "tradesmart"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

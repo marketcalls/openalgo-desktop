@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "upstox",
-  "inputs_sha256": "e5642412c6eec8b23c6882c40cb236113f3a7316bb24693da60514737ec595b5",
+  "inputs_sha256": "a30916687229ecf4beb2f8a869f851b9e97d565bcef3b2792cc9f3f5ac5c6dc1",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -21,6 +21,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "upstox"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "upstox"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "upstox"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "upstox"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 5,

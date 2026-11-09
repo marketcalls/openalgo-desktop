@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "iifl",
-  "inputs_sha256": "ab41730cb7cbec2c456308454e356ef6d4a8c79e606ceeec40ea88f56eeafc50",
+  "inputs_sha256": "e4f4bac9ee53e9966f022ac0bbf29e9526a1580829679d828c7f10b8d7a8409f",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -21,6 +21,96 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "iifl"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "iifl"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "iifl"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "iifl"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 13,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "iifl"
+            }
+          ],
+          "failed": [],
+          "broker": "iifl"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 17,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "iifl"
+            }
+          ],
+          "failed": [],
+          "broker": "iifl"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

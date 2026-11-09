@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "nubra"}], "message": "Subscription processing complete", "broker": "nubra"}}
 {"step": "upstream_receives", "frames": [{"text": "batch_subscribe nubra-corpus-session index {\"instruments\":[],\"indexes\":[\"RELIANCE\"]} NSE"}, {"text": "batch_subscribe nubra-corpus-session index_bucket {\"instruments\":[],\"indexes\":[\"RELIANCE\"]} 1d NSE"}, {"text": "batch_subscribe nubra-corpus-session orderbook {\"instruments\":[2885],\"indexes\":[]}"}, {"text": "batch_subscribe nubra-corpus-session orderbook_depth 5"}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": 5, "broker": "nubra"}], "message": "Subscription processing complete", "broker": "nubra"}}
 {"step": "push", "frame": "frames/index_rel.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
 {"step": "receive", "client": "b", "frame": "expected/ltp.json"}

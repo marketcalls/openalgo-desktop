@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "angel"}], "message": "Subscription processing complete", "broker": "angel"}}
 {"step": "upstream_receives", "frames": [{"json": {"correlationID": "openalgo", "action": 1, "params": {"mode": 3, "tokenList": [{"exchangeType": 2, "tokens": ["52175"]}]}}}]}
 {"step": "push", "frame": "frames/snap.hex"}
 {"step": "receive", "client": "a", "frame": "expected/snap.json"}

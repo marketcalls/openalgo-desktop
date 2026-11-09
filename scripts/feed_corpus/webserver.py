@@ -25,6 +25,7 @@ import asyncio
 import json
 from collections import defaultdict
 
+from shadow import ShadowAdapter
 from webkit import Source, load
 
 USER = "<USER_ID>"
@@ -111,6 +112,20 @@ class AdapterShim:
         # The depth the adapter last subscribed each key at: the web
         # adapter's own record, which its unsubscribe (no depth) uses.
         self.depth: dict[tuple, int] = {}
+        self.shadow = ShadowAdapter(glue.web_root, glue.broker, glue.master)
+        # Per adapter call of a send: whether its answer is the web adapter's.
+        self.answers: list[bool] = []
+
+    def _answer(self, reply, shadow_reply) -> dict:
+        """The glue's reply if it ran the adapter's method, else the method's
+        reply on the shadow adapter. Without either the replay needs an
+        answer to go on, and the send is recorded as having no web reply."""
+        for candidate in (reply, shadow_reply):
+            if isinstance(candidate, dict):
+                self.answers.append(True)
+                return candidate
+        self.answers.append(False)
+        return {"status": "success"}
 
     def _row(self, symbol, exchange):
         return self.glue.master.by_symbol(symbol, exchange)
@@ -118,17 +133,19 @@ class AdapterShim:
     def subscribe(self, symbol, exchange, mode, depth_level):
         row = self._row(symbol, exchange)
         if row is None:
-            return {"status": "error", "message": f"{symbol} on {exchange} is not in the case's instruments"}
+            return self._answer(None, self.shadow.subscribe(symbol, exchange, mode, int(depth_level)))
         self.depth[(symbol, exchange, mode)] = int(depth_level)
         reply = self.glue.subscribe(row, mode, int(depth_level))
-        return reply if isinstance(reply, dict) else {"status": "success"}
+        shadow = None if isinstance(reply, dict) else self.shadow.subscribe(symbol, exchange, mode, int(depth_level))
+        return self._answer(reply, shadow)
 
     def unsubscribe(self, symbol, exchange, mode):
         row = self._row(symbol, exchange)
         if row is None:
-            return {"status": "error", "message": f"{symbol} on {exchange} is not in the case's instruments"}
+            return self._answer(None, self.shadow.unsubscribe(symbol, exchange, mode))
         reply = self.glue.unsubscribe(row, mode, self.depth.get((symbol, exchange, mode), 5))
-        return reply if isinstance(reply, dict) else {"status": "success"}
+        shadow = None if isinstance(reply, dict) else self.shadow.unsubscribe(symbol, exchange, mode)
+        return self._answer(reply, shadow)
 
     def unsubscribe_all(self):
         return {"status": "success"}
@@ -187,12 +204,16 @@ class WebServer:
             p.broker_adapters[USER] = self.adapter
             p.user_broker_mapping[USER] = self.glue.broker
 
-    def send(self, client: str, message: dict) -> None:
-        """A client's message, through the web server's own handler."""
+    def send(self, client: str, message: dict) -> dict:
+        """A client's message, through the web server's own handler: the
+        frames the server answers it with, and whether every adapter call
+        behind them was answered by the web adapter's own method."""
         self._connect(client)
         p = self.proxy
         action = message.get("action") or message.get("type")
         self.current = None
+        self.sent = []
+        self.adapter.answers = []
         if action == "subscribe":
             asyncio.run(p.subscribe_client(client, message))
         elif action in ("unsubscribe", "unsubscribe_all"):
@@ -201,6 +222,10 @@ class WebServer:
             asyncio.run(p.subscribe_orders_client(client, message))
         elif action == "unsubscribe_orders":
             asyncio.run(p.unsubscribe_orders_client(client, message))
+        return {
+            "frames": [m for c, index, m in self.sent if c == client and index is None],
+            "from_adapter": all(self.adapter.answers),
+        }
 
     def close(self, client: str) -> None:
         """A client leaves: the web server's `cleanup_client`."""

@@ -13,5 +13,70 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "error",
+              "message": "Invalid depth level 20. Must be 5",
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "error",
+              "message": "Invalid depth level 30. Must be 5",
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "SBIN",
+              "exchange": "NSE",
+              "status": "error",
+              "message": "Invalid depth level 50. Must be 5",
+              "broker": "tradejini"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "tradejini"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": []
 }

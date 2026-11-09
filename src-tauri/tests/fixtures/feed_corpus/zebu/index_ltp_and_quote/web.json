@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "zebu",
-  "inputs_sha256": "e3b941c756906c3e093609c7ba466638e48b6e6b21ed2deb00f21f81ee88f1fb",
+  "inputs_sha256": "17cfdbf0b58e73ecf65f92daedba86b81459e12bfb6cdb223ad75ec1d57d3b63",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -14,6 +14,74 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "zebu"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zebu"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 6,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "zebu"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zebu"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 14,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "zebu"
+            }
+          ],
+          "failed": [],
+          "broker": "zebu"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

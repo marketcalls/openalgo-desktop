@@ -1,8 +1,8 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 5, "broker": "pocketful"}], "message": "Subscription processing complete", "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [[1, 2885]], "m": "marketdata"}}, {"json": {"a": "subscribe", "v": [[1, 2885]], "m": "full_snapquote"}}], "note": "A Depth subscription also runs Pocketful's detailed stream (`marketdata`), which carries the trade price a snapquote lacks (lead decision 2026-11-09, R107-07); the web subscribes the snapquote alone."}
 {"step": "push", "frame": "frames/snapquote.hex"}
 {"step": "receive", "client": "a", "frame": "expected/depth.json"}
 {"step": "push", "frame": "frames/snapquote_clear.hex"}
 {"step": "receive", "client": "a", "frame": "expected/depth_clear.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Depth", "status": "success", "broker": "pocketful"}], "failed": [], "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "marketdata"}}, {"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "full_snapquote"}}]}

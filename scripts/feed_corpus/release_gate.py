@@ -22,8 +22,9 @@
   hand, and the corpus is exactly the 38 brokers of the catalog.
 
 The steps the web replay has no behaviour for (`web.json` `uncompared`:
-refused upgrades, a deliberate disconnect, a deep feed not made) are held to a
-ratchet per kind (`uncompared_ceiling.json`): the release is held above a
+refused upgrades, a deliberate disconnect, a deep feed not made), and the
+sends the web adapter's own method could not answer, are held to a ratchet
+per kind (`uncompared_ceiling.json`): the release is held above a
 ceiling, and while a ceiling sits above the count (`--update` lowers it, in
 the same change). With `--base-ref`, a ceiling higher than the base's needs a
 rule of approvals.json named under `raised_by`.
@@ -76,11 +77,13 @@ def catalog_holds() -> list[str]:
 
 def uncompared() -> list[str]:
     """The steps the web replay does not model, case by case."""
-    return [
-        f"{web.parent.parent.name}/{web.parent.name} line {step['line']}: {step['step']}"
-        for web in sorted(pm.CORPUS.glob("*/*/web.json"))
-        for step in json.loads(web.read_text(encoding="utf-8")).get("uncompared", [])
-    ]
+    out = []
+    for web in sorted(pm.CORPUS.glob("*/*/web.json")):
+        doc = json.loads(web.read_text(encoding="utf-8"))
+        name = f"{web.parent.parent.name}/{web.parent.name}"
+        out += [f"{name} line {step['line']}: {step['step']}" for step in doc.get("uncompared", [])]
+        out += [f"{name} line {r['line']}: no_web_reply" for r in doc.get("replies", []) if not r["from_adapter"]]
+    return out
 
 
 def ceiling_path() -> Path:
@@ -151,8 +154,12 @@ def holds(base: dict | None = None) -> dict[str, list[str]]:
         if not meta_path.exists():
             found["uncovered"].append(f"{broker}: no broker.json (what the web offers is not recorded)")
             continue
-        web = pm.capabilities(broker, json.loads(meta_path.read_text(encoding="utf-8")), offers)
-        if web is None:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        web = pm.capabilities(broker, meta, offers)
+        problem = pm.web_problem(meta)
+        if problem is not None:
+            found["uncovered"].append(f"{broker}: broker.json: {problem}")
+        elif web is None:
             found["uncovered"].append(f"{broker}: web_offers.json does not record it (run web_expected.py)")
         covered = set()
         for d in sorted(p for p in bdir.glob("*") if p.is_dir()):

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "zerodha",
-  "inputs_sha256": "b3dc4aa09feff5c37249694a96a9e7ae9300d3657f35e503b33a144d104265db",
+  "inputs_sha256": "f1fa71220808d95fec8767a7715b57d3f87457b78b46ca02b6ade7b862a7967f",
   "instruments": [
     {
       "symbol": "INFY",
@@ -16,6 +16,30 @@
     {
       "line": 3,
       "step": "refuse_upgrades"
+    }
+  ],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "INFY",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "zerodha"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "zerodha"
+        }
+      ],
+      "from_adapter": true
     }
   ],
   "pushes": [

@@ -1,8 +1,8 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": null, "broker": "hdfcsecurities"}], "message": "Subscription processing complete", "broker": "hdfcsecurities"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_INDEX_26000", "type": "ALL"}]}}]}
 {"step": "push", "frame": "frames/index.hex"}
 {"step": "receive", "client": "a", "frame": "expected/index_quote.json"}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Depth", "depth": 5, "broker": "hdfcsecurities"}], "message": "Subscription processing complete", "broker": "hdfcsecurities"}}
 {"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_INDEX_26000", "type": "ALL"}]}}], "note": "Quote to Depth: a second subscribe at ALL, as the web's subscribe_scrips sends it."}
 {"step": "push", "frame": "frames/index_next.hex"}
 {"step": "receive", "client": "a", "frame": "expected/index_quote_next.json"}

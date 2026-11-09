@@ -1,5 +1,5 @@
 {"step": "push", "frame": "frames/login_ok.json"}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": 5, "broker": "firstock"}], "message": "Subscription processing complete", "broker": "firstock"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "tokens": "NSE:26000"}}]}
 {"step": "push", "frame": "frames/index.json"}
 {"step": "receive", "client": "a", "frame": "expected/index_quote.json"}

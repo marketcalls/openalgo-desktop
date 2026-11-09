@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "shoonya",
-  "inputs_sha256": "b6363495d9bf9501b32bfcd4a5f59e70efd007afa5777106abf8a7e78010f065",
+  "inputs_sha256": "d5f6b5382bed77817e141030ec6cb1b26eea3a80b67a7d0b351ab34629464399",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "shoonya"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "shoonya"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 10,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Quote",
+              "status": "success",
+              "broker": "shoonya"
+            }
+          ],
+          "failed": [],
+          "broker": "shoonya"
+        }
+      ],
+      "from_adapter": false
+    }
+  ],
   "pushes": [
     {
       "line": 2,

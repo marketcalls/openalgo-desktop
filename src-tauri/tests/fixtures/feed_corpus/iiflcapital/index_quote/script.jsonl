@@ -1,7 +1,7 @@
 {"step": "push", "frame": {"text": "{\"openalgo_relay\":\"ready\"}"}, "note": "The relay's ready frame: the broker side is open."}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": 5, "broker": "iiflcapital"}], "message": "Subscription processing complete", "broker": "iiflcapital"}}
 {"step": "upstream_receives", "frames": [{"json": {"op": "sub", "topics": ["prod/marketfeed/index/v1/nseeq/26000"]}}]}
 {"step": "push", "frame": "frames/index.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "mode": "Quote", "status": "success", "broker": "iiflcapital"}], "failed": [], "broker": "iiflcapital"}}
 {"step": "upstream_receives", "frames": [{"json": {"op": "unsub", "topics": ["prod/marketfeed/index/v1/nseeq/26000"]}}]}

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "shoonya",
-  "inputs_sha256": "0039e7127f8887528d5a940c942a1ae93b4e3324b8c8f2caecfc64e35f5ba06f",
+  "inputs_sha256": "48cf121eb106d325322b45f3a110cdb4a95613c6d8f1534de7a379de528227fb",
   "instruments": [
     {
       "symbol": "NIFTY25NOV26FUT",
@@ -16,6 +16,52 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 4,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "shoonya"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "shoonya"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 12,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "NIFTY25NOV26FUT",
+              "exchange": "NFO",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "shoonya"
+            }
+          ],
+          "failed": [],
+          "broker": "shoonya"
+        }
+      ],
+      "from_adapter": false
+    }
+  ],
   "pushes": [
     {
       "line": 2,

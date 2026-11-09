@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fivepaisa",
-  "inputs_sha256": "bcd2cdcbe6909668f53a433933c92d1ca28af4d7f467c0ea6a16939714739ce0",
+  "inputs_sha256": "576336e99eb53f935eb3f6751b2f48f637ba5d09c637d810edee45e417ec4671",
   "instruments": [
     {
       "symbol": "ITC",
@@ -13,5 +13,50 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "ITC",
+              "exchange": "NSE",
+              "status": "error",
+              "message": "Invalid depth level 20. 5Paisa only supports 5 levels",
+              "broker": "fivepaisa"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisa"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "ITC",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "fivepaisa"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisa"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": []
 }

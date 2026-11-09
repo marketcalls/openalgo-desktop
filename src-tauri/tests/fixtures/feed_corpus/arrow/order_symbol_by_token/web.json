@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "arrow",
-  "inputs_sha256": "667335bf4de9eb9d01835cac4897d48380c056ce25e9675848ca1c8c15fc5e69",
+  "inputs_sha256": "d8204834d6d05db2146e60d3dbdbbc16398a497e8592f8f30bc4ac7860c66b91",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
@@ -18,6 +18,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 2,

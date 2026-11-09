@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "upstream_receives", "frames": [{"json": {"user": "U", "auth": "s", "format": "native_batch", "source": "NEOTRADEAPI", "platform": "Web", "version": "1.2.3", "sdk_version": 2, "sdk_date": "2026-08-07T09:41:17.667Z", "conn_req_time": "<now_ms>", "sessionValidation": false}}], "note": "The market data feed logs in on its own socket."}
 {"step": "upstream_receives", "socket": "orders", "frames": [{"json": {"type": "cn", "Authorization": "t", "Sid": "s", "src": "WEB"}}], "note": "The realtime socket's connect frame, JSON first (kotak_order_adapter.py on_open_extra)."}
 {"step": "push", "socket": "orders", "frame": {"json": {"ak": "ok", "type": "cn", "msg": "connected"}}}

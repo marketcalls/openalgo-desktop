@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "nubra",
-  "inputs_sha256": "3b2cb942a67dce893b38fb3ef9f5ad0729de9f2a4a0c9adf9bcb6810168b9539",
+  "inputs_sha256": "1137b8f1e79f078434b828b5eb4df1eaebfb15ec566b920ec54d86667f80751d",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,19 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

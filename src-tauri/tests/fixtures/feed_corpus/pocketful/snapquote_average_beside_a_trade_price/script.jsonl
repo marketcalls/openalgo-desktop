@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "pocketful"}], "message": "Subscription processing complete", "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [[1, 2885]], "m": "marketdata"}}]}
-{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 5, "broker": "pocketful"}], "message": "Subscription processing complete", "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "marketdata"}}, {"json": {"a": "subscribe", "v": [[1, 2885]], "m": "marketdata"}}, {"json": {"a": "subscribe", "v": [[1, 2885]], "m": "full_snapquote"}}], "note": "The instrument moves to Depth: A Depth subscription also runs Pocketful's detailed stream (`marketdata`), which carries the trade price a snapquote lacks (lead decision 2026-11-09, R107-07); the web subscribes the snapquote alone."}
 {"step": "push", "frame": "frames/detailed.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json", "note": "The detailed packet's trade price, 1500.25."}
@@ -8,7 +8,7 @@
 {"step": "push", "frame": "frames/snapquote.hex"}
 {"step": "receive", "client": "b", "frame": "expected/depth.json", "web": false, "note": "The book with the last real price (1500.25) and the snapquote's own average (1499.10)."}
 {"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 2}, "note": "No Quote frame from a snapquote: it has no trade price."}
-{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}}
+{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Depth", "status": "success", "broker": "pocketful"}], "failed": [], "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "marketdata"}}, {"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "full_snapquote"}}, {"json": {"a": "subscribe", "v": [[1, 2885]], "m": "marketdata"}}], "note": "Back to Quote for client a alone."}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "pocketful"}], "failed": [], "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "marketdata"}}]}

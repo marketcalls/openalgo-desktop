@@ -1,9 +1,9 @@
 {"step": "upstream_connected", "connection": 1, "headers": {"authorization": "t"}, "note": "The raw access token in Authorization, no Bearer (indWebSocket.py:293)."}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": 5, "broker": "indmoney"}], "message": "Subscription processing complete", "broker": "indmoney"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "mode": "ltp", "instruments": ["NSE:2885"]}}]}
 {"step": "push", "frame": "frames/ltp.json"}
 {"step": "receive", "client": "a", "frame": "expected/ltp.json"}
 {"step": "push", "frame": "frames/ltp_zero_bare_token.json", "note": "ltp 0 keeps the last price (indmoney_adapter.py:661); the bare token resolves to its only holder."}
 {"step": "receive", "client": "a", "frame": "expected/ltp_held.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "LTP", "status": "success", "broker": "indmoney"}], "failed": [], "broker": "indmoney"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": "unsubscribe", "mode": "ltp", "instruments": ["NSE:2885"]}}]}

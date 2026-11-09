@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "upstream_connected", "socket": "orders", "connection": 1, "note": "Connected to the signed address the portfolio-stream authorize call handed out."}
 {"step": "push", "frame": "frames/position.json", "socket": "orders"}
 {"step": "silence", "client": "a", "note": "Only order updates are relayed."}

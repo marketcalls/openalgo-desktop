@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsecurities",
-  "inputs_sha256": "138378247d366f69e3e873b64ab5a39451040ecc3b40048d58b3b443251d1099",
+  "inputs_sha256": "d3e5e5e5120bd3e8f0d369361178791023221995f91344ebf101a16edda3f4d5",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -27,6 +27,52 @@
     {
       "line": 17,
       "step": "refuse_upgrades"
+    }
+  ],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "INFY",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "hdfcsecurities"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "hdfcsecurities"
+        }
+      ],
+      "from_adapter": true
     }
   ],
   "pushes": [

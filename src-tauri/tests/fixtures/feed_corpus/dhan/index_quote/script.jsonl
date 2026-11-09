@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": 5, "broker": "dhan"}], "message": "Subscription processing complete", "broker": "dhan"}}
 {"step": "upstream_receives", "frames": [{"json": {"RequestCode": 17, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "IDX_I", "SecurityId": "13"}]}}]}
 {"step": "push", "frame": "frames/prev_close.hex"}
 {"step": "silence", "client": "a", "note": "The previous close is stored, not published on its own."}

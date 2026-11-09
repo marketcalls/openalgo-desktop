@@ -1,8 +1,8 @@
 {"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}]}
 {"step": "push", "frame": "frames/ck.json"}
-{"step": "send", "client": "q", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "q", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "definedge"}], "message": "Subscription processing complete", "broker": "definedge"}}
 {"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NSE|2885"}}, {"json": {"t": "d", "k": "NSE|2885"}}]}
-{"step": "send", "client": "d", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "d", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 5, "broker": "definedge"}], "message": "Subscription processing complete", "broker": "definedge"}}
 {"step": "upstream_receives", "frames": [{"json": {"t": "u", "k": "NSE|2885"}}]}
 {"step": "push", "frame": "frames/depth_ack.json"}
 {"step": "receive", "client": "q", "frame": "expected/quote.json"}

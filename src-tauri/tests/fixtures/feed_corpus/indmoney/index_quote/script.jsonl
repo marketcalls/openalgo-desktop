@@ -1,6 +1,6 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": 5, "broker": "indmoney"}], "message": "Subscription processing complete", "broker": "indmoney"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "mode": "quote", "instruments": ["NIDX:13"]}}]}
 {"step": "push", "frame": "frames/index_quote.json"}
 {"step": "receive", "client": "a", "frame": "expected/index_quote.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "mode": "Quote", "status": "success", "broker": "indmoney"}], "failed": [], "broker": "indmoney"}}
 {"step": "upstream_receives", "frames": [{"json": {"action": "unsubscribe", "mode": "quote", "instruments": ["NIDX:13"]}}]}

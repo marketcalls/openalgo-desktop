@@ -1,6 +1,6 @@
 {"step": "upstream_receives", "frames": [{"json": {"t": "a", "uid": "U1", "actid": "U1", "source": "API", "accesstoken": "tok"}}]}
 {"step": "push", "frame": {"json": {"t": "ak", "uid": "U1", "s": "OK"}}}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "tradesmart"}], "message": "Subscription processing complete", "broker": "tradesmart"}}
 {"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NFO|59182"}}]}
 {"step": "push", "frame": "frames/tk.json", "note": "No ap, ltq, tbq, tsq, oi or toi in the snapshot."}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}

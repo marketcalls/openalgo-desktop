@@ -1,5 +1,5 @@
 {"step": "push", "frame": {"text": "{\"openalgo_relay\":\"ready\"}"}, "note": "The relay's ready frame: the broker side is open."}
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "iiflcapital"}], "message": "Subscription processing complete", "broker": "iiflcapital"}}
 {"step": "upstream_receives", "frames": [{"json": {"op": "sub", "topics": ["prod/marketfeed/mw/v1/nsefo/35001", "prod/marketfeed/oi/v1/nsefo/35001"]}}]}
 {"step": "push", "frame": "frames/oi.hex", "note": "An OI packet: held, nothing is published."}
 {"step": "push", "frame": "frames/mw.hex"}
@@ -13,10 +13,10 @@
 {"step": "push", "frame": "frames/mw_next.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_next.json"}
 {"step": "receive", "client": "b", "frame": "expected/full_next.json"}
-{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3}}
+{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "mode": "Depth", "status": "success", "broker": "iiflcapital"}], "failed": [], "broker": "iiflcapital"}}
 {"step": "upstream_receives", "frames": [{"json": {"op": "sub", "topics": ["prod/marketfeed/mw/v1/nsefo/35001", "prod/marketfeed/oi/v1/nsefo/35001"]}}], "note": "A mode change subscribes the new mode's topics again and keeps the held OI, as the web does."}
 {"step": "push", "frame": "frames/mw_quote_only.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_only.json"}
 {"step": "silence", "client": "b"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "mode": "Quote", "status": "success", "broker": "iiflcapital"}], "failed": [], "broker": "iiflcapital"}}
 {"step": "upstream_receives", "frames": [{"json": {"op": "unsub", "topics": ["prod/marketfeed/mw/v1/nsefo/35001", "prod/marketfeed/oi/v1/nsefo/35001"]}}]}

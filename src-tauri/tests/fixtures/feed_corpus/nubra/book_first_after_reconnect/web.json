@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "nubra",
-  "inputs_sha256": "c3c4a28649002ca1107ecac1679db7ccd331e48c7aef0c5223c81c5c6c762b32",
+  "inputs_sha256": "17874748fa1b30449fcf444e68d3efcf16e31c7aef88850bb625481352705b0a",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -13,6 +13,30 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "nubra"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "nubra"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": [
     {
       "line": 3,

@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "INFY", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 5, "broker": "tradejini"}], "message": "Subscription processing complete", "broker": "tradejini"}}
 {"step": "upstream_receives", "frames": [{"json": {"type": "L1", "action": "sub", "tokens": [{"t": "1594_NSE"}]}}, {"json": {"type": "L5", "action": "sub", "tokens": [{"t": "1594_NSE"}]}}]}
 {"step": "push", "frame": "frames/l5.hex", "note": "The book before any quote: nothing to show yet (it would read LTP and OHLC as 0)."}
 {"step": "silence", "client": "a"}

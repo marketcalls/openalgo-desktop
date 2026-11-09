@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 5, "broker": "samco"}], "message": "Subscription processing complete", "broker": "samco"}}
 {"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote2", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}, {"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}]}
 {"step": "push", "frame": "frames/quote.json"}
 {"step": "silence", "client": "a", "note": "No book yet: Samco has sent no quote2, and a Depth holder hears nothing, as on the web."}

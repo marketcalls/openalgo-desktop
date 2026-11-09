@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "BTCUSDFUT", "exchange": "CRYPTO", "status": "success", "mode": "Quote", "depth": 5, "broker": "deltaexchange"}], "message": "Subscription processing complete", "broker": "deltaexchange"}}
 {"step": "upstream_receives", "frames": [{"json": {"type": "subscribe", "payload": {"channels": [{"name": "ticker", "symbols": ["BTCUSD"]}]}}}]}
 {"step": "push", "frame": "frames/ticker.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}

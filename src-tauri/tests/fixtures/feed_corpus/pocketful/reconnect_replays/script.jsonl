@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "pocketful"}], "message": "Subscription processing complete", "broker": "pocketful"}}
 {"step": "upstream_connected", "connection": 1, "path": "/ws/v1/feeds?login_id=c&access_token=t"}
 {"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [[1, 2885]], "m": "marketdata"}}], "connection": 1}
 {"step": "push", "frame": "frames/detailed.hex"}
@@ -8,5 +8,5 @@
 {"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [[1, 2885]], "m": "marketdata"}}], "connection": 2, "note": "The subscription is sent again on the new connection, as the web's _on_open queues every subscription again."}
 {"step": "push", "frame": "frames/detailed_after.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_after.json"}
-{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "pocketful"}], "failed": [], "broker": "pocketful"}}
 {"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "marketdata"}}], "connection": 2}

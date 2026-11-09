@@ -1,4 +1,4 @@
-{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
 {"step": "http_polled", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "note": "The poller has read the empty book (CASH and FNO lists): its silent baseline."}
 {"step": "http_serve", "method": "GET", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "body": "frames/list_refused.json", "note": "Groww refuses the CASH list: the poll fails (order_api.py:139-145, orders.rs raw_orders), publishes nothing and keeps its baseline."}
 {"step": "http_polled", "path": "/v1/order/list?segment=CASH&page=0&page_size=100", "note": "The refused read has happened."}

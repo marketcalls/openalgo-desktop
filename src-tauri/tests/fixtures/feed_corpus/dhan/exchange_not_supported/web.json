@@ -13,5 +13,28 @@
     }
   ],
   "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "partial",
+          "subscriptions": [
+            {
+              "symbol": "MCXCOMPDEX",
+              "exchange": "MCX_INDEX",
+              "status": "error",
+              "message": "Exchange MCX_INDEX not supported",
+              "broker": "dhan"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "dhan"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
   "pushes": []
 }
