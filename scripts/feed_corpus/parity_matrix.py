@@ -105,6 +105,9 @@ def clause_fits(
     """Is this deviation within this clause of a rule's scope?"""
     if "allows" in clause and not all(a in clause["allows"] for a in allows):
         return False
+    if "cases" in clause:
+        # A list of named cases is for the release gate's ratchet: no deviation cites it.
+        return False
     for field, value in (("brokers", broker), ("keys", key), ("kinds", kind)):
         if field in clause and not any(pattern_matches(p, value) for p in clause[field]):
             return False

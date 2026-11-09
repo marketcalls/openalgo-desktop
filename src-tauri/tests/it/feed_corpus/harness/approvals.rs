@@ -25,6 +25,7 @@ const SCOPE_FIELDS: &[&str] = &[
     "keys",
     "kinds",
     "allows",
+    "cases",
     "instrument",
     "after_step",
 ];
@@ -78,6 +79,11 @@ fn clause_fits(clause: &Value, facts: &CaseFacts, key: &str, kind: &str, allows:
         .get("after_step")
         .and_then(Value::as_str)
         .is_none_or(|s| facts.steps.contains(s));
+    // A list of named cases is for the release gate's ratchet: no deviation
+    // cites it.
+    if clause.get("cases").is_some() {
+        return false;
+    }
     let only_these = clause
         .get("allows")
         .and_then(Value::as_array)
@@ -141,7 +147,7 @@ fn clause_problems(id: &str, clause: &Value) -> Vec<String> {
         .filter(|k| !SCOPE_FIELDS.contains(&k.as_str()))
         .map(|k| format!("rule {}: \"{}\" is not a field of a scope", id, k))
         .collect();
-    for field in ["brokers", "keys", "kinds", "allows"] {
+    for field in ["brokers", "keys", "kinds", "allows", "cases"] {
         let bad_list = o.get(field).is_some_and(|v| {
             !v.as_array()
                 .is_some_and(|l| !l.is_empty() && l.iter().all(Value::is_string))

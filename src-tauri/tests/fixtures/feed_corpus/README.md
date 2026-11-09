@@ -382,7 +382,9 @@ Every case needs `web.json` unless its provenance says `by-hand`, and
 (`uncompared`: `refuse_upgrades`, `disconnect`, a deep feed not made),
 which `release_gate.py` holds to a ratchet per kind
 (`uncompared_ceiling.json`: `--update` lowers a ceiling in the same change, and
-a rise needs a rule of `approvals.json` under `raised_by`). A
+a rise needs a rule of `approvals.json` under `raised_by`; a step in a case
+such a rule names in its `scope.cases` is not counted, so only naming a case
+adds one). A
 `scripts/feed_corpus/test_oracle.py --web <tree>` holds these rules
 against the web (two packets in one frame, an unread web frame, repeated
 subscribes, a wrong `"web": false`, fan-out, the envelope, the uncompared

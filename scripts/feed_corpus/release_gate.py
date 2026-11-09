@@ -26,8 +26,9 @@ refused upgrades, a deliberate disconnect, a deep feed not made), and the
 sends the web adapter's own method could not answer, are held to a ratchet
 per kind (`uncompared_ceiling.json`): the release is held above a
 ceiling, and while a ceiling sits above the count (`--update` lowers it, in
-the same change). With `--base-ref`, a ceiling higher than the base's needs a
-rule of approvals.json named under `raised_by`.
+the same change). A step in a case the kind's rule names (`raised_by`, the
+rule's `scope.cases`) is not counted. With `--base-ref`, a ceiling higher than
+the base's needs a rule of approvals.json named under `raised_by`.
 
 A case's own result holds when its test passes (lane-test or CI); this gate
 reads the corpus's declarations and coverage, not test results. It is
@@ -102,9 +103,21 @@ def base_ceilings(ref: str) -> dict | None:
     return json.loads(done.stdout)["ceilings"] if done.returncode == 0 else None
 
 
-def uncompared_counts() -> collections.Counter:
-    """The steps the web replay does not model, per kind."""
-    return collections.Counter(line.rsplit(": ", 1)[1] for line in uncompared())
+def named_cases(kind: str, doc: dict, rules: dict) -> set[str]:
+    """The cases the rule under `raised_by` names for this kind."""
+    rule = rules.get(doc.get("raised_by", {}).get(kind), {})
+    return set(rule.get("scope", {}).get("cases", []))
+
+
+def uncompared_counts(doc: dict, rules: dict) -> collections.Counter:
+    """The steps the web replay does not model, per kind, without those in
+    a case the kind's rule names."""
+    counts: collections.Counter = collections.Counter()
+    for line in uncompared():
+        place, kind = line.rsplit(": ", 1)
+        if place.rsplit(" line ", 1)[0] not in named_cases(kind, doc, rules):
+            counts[kind] += 1
+    return counts
 
 
 def ceiling_problems(counts: dict, doc: dict, rules: dict, base: dict | None = None) -> list[str]:
@@ -129,7 +142,7 @@ def ceiling_problems(counts: dict, doc: dict, rules: dict, base: dict | None = N
 def update_ceiling() -> None:
     """Lower each ceiling to its count; a ceiling is never raised here."""
     doc = read_ceiling()
-    counts = uncompared_counts()
+    counts = uncompared_counts(doc, pm.approval_rules())
     doc["ceilings"] = {kind: min(n, counts.get(kind, 0)) for kind, n in doc["ceilings"].items()}
     ceiling_path().write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
 
@@ -146,7 +159,7 @@ def holds(base: dict | None = None) -> dict[str, list[str]]:
         "without broker": [],
         "no web output": [],
         "catalog": catalog_holds(),
-        "uncompared": ceiling_problems(uncompared_counts(), read_ceiling(), rules, base),
+        "uncompared": ceiling_problems(uncompared_counts(read_ceiling(), rules), read_ceiling(), rules, base),
     }
     for broker in pm.brokers():
         bdir = pm.CORPUS / broker

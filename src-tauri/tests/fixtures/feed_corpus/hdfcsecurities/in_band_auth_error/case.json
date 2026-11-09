@@ -73,6 +73,68 @@
       "allows": [
         "zero-left-out"
       ]
+    },
+    {
+      "key": "reply.status",
+      "kind": "desktop-decision",
+      "reason": "After the broker's fatal authentication answer the desktop has stopped this feed and refuses the subscribe with the reason; the web only logs the answer and keeps accepting subscribes.",
+      "ref": "hdfcsecurities_adapter.py; feed stop on the verified auth failure",
+      "approval": "farewell-and-auth-stop",
+      "allows": [
+        [
+          "success",
+          "partial"
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.depth",
+      "kind": "desktop-decision",
+      "reason": "After the broker's fatal authentication answer the desktop has stopped this feed and refuses the subscribe with the reason; the web only logs the answer and keeps accepting subscribes.",
+      "ref": "hdfcsecurities_adapter.py; feed stop on the verified auth failure",
+      "approval": "farewell-and-auth-stop",
+      "allows": [
+        "null-left-out"
+      ]
+    },
+    {
+      "key": "reply.subscriptions.message",
+      "kind": "desktop-decision",
+      "reason": "After the broker's fatal authentication answer the desktop has stopped this feed and refuses the subscribe with the reason; the web only logs the answer and keeps accepting subscribes.",
+      "ref": "hdfcsecurities_adapter.py; feed stop on the verified auth failure",
+      "approval": "farewell-and-auth-stop",
+      "allows": [
+        [
+          "<absent>",
+          "HDFC Securities ended the live data session. Log in to HDFC Securities again."
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.mode",
+      "kind": "desktop-decision",
+      "reason": "After the broker's fatal authentication answer the desktop has stopped this feed and refuses the subscribe with the reason; the web only logs the answer and keeps accepting subscribes.",
+      "ref": "hdfcsecurities_adapter.py; feed stop on the verified auth failure",
+      "approval": "farewell-and-auth-stop",
+      "allows": [
+        [
+          "Quote",
+          "<absent>"
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.status",
+      "kind": "desktop-decision",
+      "reason": "After the broker's fatal authentication answer the desktop has stopped this feed and refuses the subscribe with the reason; the web only logs the answer and keeps accepting subscribes.",
+      "ref": "hdfcsecurities_adapter.py; feed stop on the verified auth failure",
+      "approval": "farewell-and-auth-stop",
+      "allows": [
+        [
+          "success",
+          "error"
+        ]
+      ]
     }
   ]
 }

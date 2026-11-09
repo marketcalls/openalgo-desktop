@@ -475,6 +475,19 @@ def probe_uncompared_ceiling() -> list[str]:
         got = gate.ceiling_problems(counts, ceiling, rules, base)
         if len(got) != want:
             problems.append(f"uncompared_ceiling: {name}: {got}")
+    # A rule names its cases: those are not counted, any other case is.
+    listed = gate.uncompared
+    named_rule = {"named": {"rule": "r", "scope": {"cases": ["b/named"]}}}
+    doc = {"ceilings": {"refuse_upgrades": 1}, "raised_by": {"refuse_upgrades": "named"}}
+    gate.uncompared = lambda: ["b/named line 3: refuse_upgrades", "b/other line 4: refuse_upgrades"]
+    try:
+        one = gate.uncompared_counts(doc, named_rule)
+        gate.uncompared = lambda: ["b/other line 3: refuse_upgrades", "b/third line 4: refuse_upgrades"]
+        two = gate.uncompared_counts(doc, named_rule)
+    finally:
+        gate.uncompared = listed
+    if one["refuse_upgrades"] != 1 or two["refuse_upgrades"] != 2:
+        problems.append(f"uncompared_ceiling: named cases: {one}, {two}")
     return problems
 
 

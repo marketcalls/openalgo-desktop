@@ -94,6 +94,71 @@
           1500
         ]
       ]
+    },
+    {
+      "key": "reply.status",
+      "kind": "web-defect",
+      "reason": "Motilal's market packets carry only the scrip code, so the cash and F&O instruments on one code cannot be told apart: the desktop refuses the second while the first is held, the web accepts it.",
+      "ref": "motilal_adapter.py subscribe",
+      "approval": "indistinguishable-wire-key-refused",
+      "allows": [
+        [
+          "success",
+          "partial"
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.depth",
+      "kind": "web-defect",
+      "reason": "Motilal's market packets carry only the scrip code, so the cash and F&O instruments on one code cannot be told apart: the desktop refuses the second while the first is held, the web accepts it.",
+      "ref": "motilal_adapter.py subscribe",
+      "approval": "indistinguishable-wire-key-refused",
+      "allows": [
+        [
+          5,
+          "<absent>"
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.message",
+      "kind": "web-defect",
+      "reason": "Motilal's market packets carry only the scrip code, so the cash and F&O instruments on one code cannot be told apart: the desktop refuses the second while the first is held, the web accepts it.",
+      "ref": "motilal_adapter.py subscribe",
+      "approval": "indistinguishable-wire-key-refused",
+      "allows": [
+        [
+          "<absent>",
+          "NIFTY28OCT26FUT on NFO cannot be streamed at the same time as RELIANCE on NSE: Motilal sends both under one code"
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.mode",
+      "kind": "web-defect",
+      "reason": "Motilal's market packets carry only the scrip code, so the cash and F&O instruments on one code cannot be told apart: the desktop refuses the second while the first is held, the web accepts it.",
+      "ref": "motilal_adapter.py subscribe",
+      "approval": "indistinguishable-wire-key-refused",
+      "allows": [
+        [
+          "Quote",
+          "<absent>"
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.status",
+      "kind": "web-defect",
+      "reason": "Motilal's market packets carry only the scrip code, so the cash and F&O instruments on one code cannot be told apart: the desktop refuses the second while the first is held, the web accepts it.",
+      "ref": "motilal_adapter.py subscribe",
+      "approval": "indistinguishable-wire-key-refused",
+      "allows": [
+        [
+          "success",
+          "error"
+        ]
+      ]
     }
   ]
 }

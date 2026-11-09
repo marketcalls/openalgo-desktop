@@ -396,5 +396,72 @@
       "The refusal's code and description are made up: no recorded XTS refusal exists; 400 is what the feed reads as a definite refusal (brokers/families/xts/streaming/calls.rs subscription_call). That XTS refuses a whole batch for one instrument is the feed's own assumption (R107-03).",
       "The broker's answers are paced 0.5 s apart, so the reply may take seconds (within_ms)."
     ]
-  }
+  },
+  "deviations": [
+    {
+      "key": "reply.status",
+      "kind": "web-defect",
+      "reason": "The broker refused the subscribe over REST. The web's XTS client only logs the refusal, so its adapter answers success for an instrument that never streams; the desktop answers the item with the broker's reason.",
+      "ref": "compositedge_websocket.py:290-291, in each XTS client",
+      "approval": "broker-refusal-is-reported",
+      "allows": [
+        [
+          "success",
+          "partial"
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.depth",
+      "kind": "web-defect",
+      "reason": "The broker refused the subscribe over REST. The web's XTS client only logs the refusal, so its adapter answers success for an instrument that never streams; the desktop answers the item with the broker's reason.",
+      "ref": "compositedge_websocket.py:290-291, in each XTS client",
+      "approval": "broker-refusal-is-reported",
+      "allows": [
+        [
+          5,
+          "<absent>"
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.message",
+      "kind": "web-defect",
+      "reason": "The broker refused the subscribe over REST. The web's XTS client only logs the refusal, so its adapter answers success for an instrument that never streams; the desktop answers the item with the broker's reason.",
+      "ref": "compositedge_websocket.py:290-291, in each XTS client",
+      "approval": "broker-refusal-is-reported",
+      "allows": [
+        [
+          "<absent>",
+          "The broker refused to stream this instrument (instrument not allowed)."
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.mode",
+      "kind": "web-defect",
+      "reason": "The broker refused the subscribe over REST. The web's XTS client only logs the refusal, so its adapter answers success for an instrument that never streams; the desktop answers the item with the broker's reason.",
+      "ref": "compositedge_websocket.py:290-291, in each XTS client",
+      "approval": "broker-refusal-is-reported",
+      "allows": [
+        [
+          "LTP",
+          "<absent>"
+        ]
+      ]
+    },
+    {
+      "key": "reply.subscriptions.status",
+      "kind": "web-defect",
+      "reason": "The broker refused the subscribe over REST. The web's XTS client only logs the refusal, so its adapter answers success for an instrument that never streams; the desktop answers the item with the broker's reason.",
+      "ref": "compositedge_websocket.py:290-291, in each XTS client",
+      "approval": "broker-refusal-is-reported",
+      "allows": [
+        [
+          "success",
+          "error"
+        ]
+      ]
+    }
+  ]
 }

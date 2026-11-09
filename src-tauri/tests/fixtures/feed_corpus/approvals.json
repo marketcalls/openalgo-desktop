@@ -357,7 +357,30 @@
       "date": "2026-11-09",
       "source": ".lane/107/decisions.md",
       "rule": "Broker-facing protocol is part of parity: logout/farewell frames the web sends before a deliberate close are sent (BrokerFeed::farewell_frames, life). A desktop stopping a feed on a verified auth-failure answer (Motilal MO1001) where the web only logs: approved desktop decision (no frames either way; the trader is told).",
-      "scope": {}
+      "scope": {
+        "any_of": [
+          {
+            "brokers": [
+              "motilal"
+            ]
+          },
+          {
+            "brokers": [
+              "hdfcsecurities"
+            ],
+            "keys": [
+              "reply.status",
+              "reply.subscriptions.status",
+              "reply.subscriptions.message",
+              "reply.subscriptions.mode",
+              "reply.subscriptions.depth"
+            ],
+            "kinds": [
+              "desktop-decision"
+            ]
+          }
+        ]
+      }
     },
     "no-price-packet": {
       "by": "lead",
@@ -699,6 +722,54 @@
               "web-defect"
             ]
           }
+        ]
+      }
+    },
+    "broker-refusal-is-reported": {
+      "by": "lead",
+      "date": "2026-11-10",
+      "source": ".lane/107/decisions.md (lead, 2026-11-10)",
+      "rule": "When a broker definitely refuses a subscribe, the desktop answers that item with the broker's reason. The web's XTS client only logs a non-200 answer to its REST subscribe (compositedge_websocket.py:290-291), so the adapter reports success for an instrument that never streams: lost data.",
+      "scope": {
+        "brokers": [
+          "compositedge",
+          "fivepaisaxts",
+          "ibulls",
+          "iifl",
+          "jainamxts",
+          "rmoney",
+          "wisdom"
+        ],
+        "keys": [
+          "reply.status",
+          "reply.subscriptions.status",
+          "reply.subscriptions.message",
+          "reply.subscriptions.mode",
+          "reply.subscriptions.depth"
+        ],
+        "kinds": [
+          "web-defect"
+        ]
+      }
+    },
+    "indistinguishable-wire-key-refused": {
+      "by": "lead",
+      "date": "2026-11-10",
+      "source": ".lane/107/decisions.md (lead, 2026-11-10)",
+      "rule": "Motilal's market packets carry only the scrip code, so a cash and an F&O instrument on one code cannot be told apart. The desktop refuses the second while the first is held; the web accepts it and its prices then land on the wrong instrument: wrong numbers from the next packet.",
+      "scope": {
+        "brokers": [
+          "motilal"
+        ],
+        "keys": [
+          "reply.status",
+          "reply.subscriptions.status",
+          "reply.subscriptions.message",
+          "reply.subscriptions.mode",
+          "reply.subscriptions.depth"
+        ],
+        "kinds": [
+          "web-defect"
         ]
       }
     }
