@@ -18,7 +18,7 @@
 //! too. The live run has already shown the expected frames are the
 //! desktop's.
 
-use super::case::{bad, read_json, Action, Case, WebFrame, WebPair};
+use super::case::{bad, read_json, Action, Case, WebFrame, WebPair, MISSING_FRAME};
 use super::deliveries::{self, Consumer};
 use super::invariants;
 use serde_json::Value;
@@ -27,8 +27,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// The deviation key for a frame the web does not send at all.
 const NO_WEB_FRAME: &str = "frame";
-/// The deviation key for a web frame the desktop does not send.
-const NO_DESKTOP_FRAME: &str = "missing-frame";
 
 pub(crate) fn check(case: &Case) {
     let path = case.dir.join("web.json");
@@ -150,7 +148,7 @@ pub(crate) fn check(case: &Case) {
             &at,
             format!(
                 "web frames the case neither receives nor declares (a silence step naming each, deviation \"{}\"):\n  {}",
-                NO_DESKTOP_FRAME,
+                MISSING_FRAME,
                 unconsumed.join("\n  ")
             ),
         );
@@ -206,7 +204,7 @@ impl Comparison<'_> {
     fn web_only(&mut self, at: &str, w: &WebFrame, theirs: &Value) {
         self.keeps_invariants(at, theirs);
         self.note(
-            NO_DESKTOP_FRAME,
+            &w.deviation,
             format!(
                 "{}: the web sends {} {} at mode {} ({}), the desktop nothing",
                 at, w.exchange, w.symbol, w.mode, theirs["data"]

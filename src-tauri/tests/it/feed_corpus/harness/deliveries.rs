@@ -155,7 +155,11 @@ impl<'a> Consumer<'a> {
         let (i, d) = ds
             .iter()
             .filter(|(i, d)| {
-                d.topic_mode.is_some_and(|t| t >= mode) && !self.used.contains(&(*i, fold.clone()))
+                // A web frame that serves this mode was the search above:
+                // spent, it is never paired again.
+                !d.serves.contains(&mode)
+                    && d.topic_mode.is_some_and(|t| t >= mode)
+                    && !self.used.contains(&(*i, fold.clone()))
             })
             .min_by_key(|(i, d)| (d.topic_mode != Some(mode), d.topic_mode, *i))?;
         self.used.insert((*i, fold));

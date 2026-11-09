@@ -298,7 +298,14 @@ pub(crate) struct WebFrame {
     pub(crate) symbol: String,
     pub(crate) exchange: String,
     pub(crate) mode: u8,
+    /// The deviation that declares this frame: `missing-frame`, or
+    /// `missing-frame:<label>` where a case has web-only frames of more
+    /// than one cause, each with its own reason and approval.
+    pub(crate) deviation: String,
 }
+
+/// The deviation key for a web frame the desktop does not send.
+pub(crate) const MISSING_FRAME: &str = "missing-frame";
 
 /// Which web output a received frame is compared with (`web.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1183,7 +1190,7 @@ fn web_frame(at: &str, v: &Value) -> WebFrame {
             "\"web\" names the web's frame: {\"symbol\", \"exchange\", \"mode\"}",
         )
     });
-    allow_keys(at, o, &["symbol", "exchange", "mode"]);
+    allow_keys(at, o, &["symbol", "exchange", "mode", "deviation"]);
     let text = |k: &str| {
         o.get(k)
             .and_then(Value::as_str)
@@ -1199,6 +1206,22 @@ fn web_frame(at: &str, v: &Value) -> WebFrame {
             .filter(|m| (1..=3).contains(m))
             .and_then(|m| u8::try_from(m).ok())
             .unwrap_or_else(|| bad(at, "\"web\" \"mode\" is 1, 2 or 3")),
+        deviation: match o.get("deviation") {
+            None => MISSING_FRAME.to_string(),
+            Some(d) => d
+                .as_str()
+                .filter(|d| {
+                    d.strip_prefix(MISSING_FRAME)
+                        .is_some_and(|r| r.is_empty() || r.len() > 1 && r.starts_with(':'))
+                })
+                .map(String::from)
+                .unwrap_or_else(|| {
+                    bad(
+                        at,
+                        "\"web\" \"deviation\" is \"missing-frame\" or \"missing-frame:<label>\"",
+                    )
+                }),
+        },
     }
 }
 
