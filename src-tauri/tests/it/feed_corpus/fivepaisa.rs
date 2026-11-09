@@ -60,5 +60,6 @@ corpus_cases!(
         index_quote,
         reconnect_after_held_prices,
         order_book_polling,
+        depth_20_refused,
     ]
 );

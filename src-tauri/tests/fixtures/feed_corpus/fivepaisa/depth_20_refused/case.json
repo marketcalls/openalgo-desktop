@@ -1,0 +1,28 @@
+{
+  "broker": "fivepaisa",
+  "summary": "A Depth subscribe at 20 levels is refused as the web refuses it (5paisa streams 5 levels only), and nothing reaches 5paisa for it; the same instrument at 5 levels then subscribes.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py::WebSocketProxy.subscribe_client"
+    ],
+    "notes": [
+      "fivepaisa_adapter.py:411-414: mode 3 with depth_level not in [5] returns INVALID_DEPTH \"Invalid depth level {depth_level}. 5Paisa only supports 5 levels\" before any symbol lookup; server.py:1318-1335 answers the client a subscribe of status partial with the error item (symbol, exchange, status error, message, broker).",
+      "The refusal is in the adapter's subscribe, which the web script does not lift, so the reply is worked by hand and the case has no web.json."
+    ]
+  }
+}
