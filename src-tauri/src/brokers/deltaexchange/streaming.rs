@@ -19,7 +19,10 @@
 //!   subscriber the book again with the new prices (web `_on_data`
 //!   publishes the merged snapshot on either channel, audit P-07). The
 //!   caches hold one entry per subscribed symbol and are cleared on
-//!   unsubscribe.
+//!   unsubscribe, and both are emptied when a connection opens: what Delta
+//!   sent before a drop is not current, and the first ticker or book after
+//!   it carries only its own values (R107-05; the web keeps its merged
+//!   cache across a reconnect, a web defect).
 //! * The ticker's best bid and ask (`q`) go out as the web's `bid_price`,
 //!   `bid_qty`, `ask_price`, `ask_qty` (parity, replacing decision BF-02);
 //!   a null inside a present `q` is 0, as on the web.
@@ -312,6 +315,14 @@ impl BrokerFeed for DeltaFeed {
             .as_str()
             .into_client_request()
             .map_err(|_| AppError::Internal("Delta Exchange feed address is invalid".into()))
+    }
+
+    /// A new connection starts the merge afresh; the subscriptions stay and
+    /// the manager sends them again.
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.cache.clear();
+        self.books.clear();
+        Vec::new()
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
