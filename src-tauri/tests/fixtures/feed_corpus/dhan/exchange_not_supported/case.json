@@ -1,0 +1,27 @@
+{
+  "broker": "dhan",
+  "summary": "A subscribe on an exchange Dhan's feed has no segment for (an MCX index the master lists) is refused with the web's words after the symbol is found, and nothing goes to Dhan.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "MCXCOMPDEX",
+      "exchange": "MCX_INDEX",
+      "token": "433",
+      "brexchange": "MCX_COMM",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter.subscribe",
+      "broker/dhan/streaming/dhan_mapping.py::DhanExchangeMapper.EXCHANGE_MAP"
+    ],
+    "notes": [
+      "dhan_adapter.py:316-334: the token lookup first (SYMBOL_NOT_FOUND), then EXCHANGE_NOT_SUPPORTED, 'Exchange {exchange} not supported', for an exchange outside EXCHANGE_MAP; the web proxy hands the client the message alone."
+    ]
+  }
+}

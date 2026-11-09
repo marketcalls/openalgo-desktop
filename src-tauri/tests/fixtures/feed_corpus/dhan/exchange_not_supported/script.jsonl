@@ -1,0 +1,2 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "MCXCOMPDEX", "exchange": "MCX_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "partial", "message": "Subscription processing complete", "broker": "dhan", "subscriptions": [{"symbol": "MCXCOMPDEX", "exchange": "MCX_INDEX", "status": "error", "message": "Exchange MCX_INDEX not supported", "broker": "dhan"}]}}
+{"step": "upstream_connections", "count": 1, "ms": 300, "note": "Nothing is sent to Dhan for it."}

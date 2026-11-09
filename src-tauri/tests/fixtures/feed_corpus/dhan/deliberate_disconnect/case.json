@@ -1,0 +1,29 @@
+{
+  "broker": "dhan",
+  "summary": "A close Dhan makes is followed by a new connection and the subscription again, with no farewell; a logout sends Dhan's disconnect request, {\"RequestCode\": 12}, before the close, and the feed does not connect again.",
+  "scenarios": [
+    "reconnect",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket.disconnect",
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket.cleanup",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter.disconnect"
+    ],
+    "notes": [
+      "dhan_websocket.py:247-262: disconnect sends json.dumps({\"RequestCode\": 12}) on a socket still connected, then closes it; the adapter's disconnect runs it through cleanup on the market and 20-level sockets, with no unsubscribe first. A close the broker makes runs the reconnect loop instead, which sends no such frame."
+    ]
+  }
+}
