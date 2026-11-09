@@ -146,19 +146,6 @@ impl Desired {
 }
 
 #[derive(Default)]
-impl State {
-    /// `levels` while `key`'s Depth subscription at them streams from the
-    /// deeper socket (not fallen back to the main feed's levels).
-    fn deep_live(&self, key: &InstrumentKey, levels: Option<u8>) -> Option<u8> {
-        levels.filter(|l| {
-            matches!(
-                self.applied.get(&(key.clone(), Mode::Depth, *l)),
-                Some(Applied::Deep { .. })
-            )
-        })
-    }
-}
-
 struct State {
     desired: Desired,
     applied: HashMap<DesiredKey, Applied>,
@@ -172,6 +159,19 @@ struct State {
     generation: u64,
     /// Deep books watched for silence, and those that fell back (`deep`).
     deep_books: DeepBooks,
+}
+
+impl State {
+    /// `levels` while `key`'s Depth subscription at them streams from the
+    /// deeper socket (not fallen back to the main feed's levels).
+    fn deep_live(&self, key: &InstrumentKey, levels: Option<u8>) -> Option<u8> {
+        levels.filter(|l| {
+            matches!(
+                self.applied.get(&(key.clone(), Mode::Depth, *l)),
+                Some(Applied::Deep { .. })
+            )
+        })
+    }
 }
 
 impl State {
