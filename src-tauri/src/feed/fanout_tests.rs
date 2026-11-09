@@ -134,6 +134,9 @@ impl Feed {
         self.registry.set_identity(id, "u", self.broker);
         for m in modes {
             assert!(self.registry.subscribe(id, key, *m, 5).is_ok());
+            // The session sends the reply, and only then the prices flow.
+            self.registry
+                .acknowledged(id, *m, std::slice::from_ref(key));
         }
         self.outboxes.insert(id, o);
     }
