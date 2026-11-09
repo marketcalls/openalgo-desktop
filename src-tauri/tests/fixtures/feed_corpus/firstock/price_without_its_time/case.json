@@ -32,13 +32,15 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). On a tick with a new price and no trade time the web sends the previous trade's time from its snapshot: a trade time goes with the price it came with and never carries over to a new one (lead rule, .lane/107/decisions.md and review-fixes.md: a per-packet time never carries over; audit R107-10). The desktop sends the trade time in ms, and for the price without its time the time it made the tick, as for any packet without one.",
-      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0)); firstock_websocket.py::_on_message (merges each tick into the snapshot)"
+      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0)); firstock_websocket.py::_on_message (merges each tick into the snapshot)",
+      "approval": "inherited-omissions"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The web's Quote sends oi 0 for an equity whose tick carries no open interest (data.get(\"i_open_interest\", 0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md, web openalgo#2376). The desktop's Quote leaves it out.",
-      "ref": "firstock_adapter.py:849"
+      "ref": "firstock_adapter.py:849",
+      "approval": "leave-out-unsent"
     }
   ]
 }
