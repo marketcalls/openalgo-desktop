@@ -1196,7 +1196,9 @@ async fn sandbox_uses_its_host_token_and_chart_quotes() {
         .place_gtt(&a, &gtt_req(GttTriggerType::Single))
         .await
         .is_err());
-    assert!(b.create_feed(&a).is_err());
+    // The sandbox streams the web's simulated prices (maintainer decision
+    // 2026-11-09, `dhan_sandbox::feed`), so a feed can be made for it.
+    assert!(b.create_feed(&a).is_ok());
 }
 
 #[tokio::test]
