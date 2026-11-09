@@ -1077,3 +1077,63 @@ fn a_depth_subscription_streams_the_trade_price_beside_the_book() {
         ]
     );
 }
+
+// ---------------------------------------------------------------------------
+// REST depth: the book and the trade price beside it
+// ---------------------------------------------------------------------------
+
+/// The market data socket of one depth request: it takes the two
+/// subscribes, sends `packets` `gap` apart, and stays open until the client
+/// closes it, since a socket that ended would end the client's wait too.
+async fn depth_socket(packets: Vec<Vec<u8>>, gap: Duration) -> String {
+    use futures_util::{SinkExt, StreamExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+        let mut subscribes = 0;
+        while subscribes < 2 {
+            match ws.next().await {
+                Some(Ok(Message::Text(t))) if t.contains("\"subscribe\"") => subscribes += 1,
+                Some(Ok(_)) => {}
+                _ => return,
+            }
+        }
+        for (i, packet) in packets.into_iter().enumerate() {
+            if i > 0 {
+                tokio::time::sleep(gap).await;
+            }
+            let _ = ws.send(Message::Binary(packet)).await;
+        }
+        while let Some(Ok(_)) = ws.next().await {}
+    });
+    format!("ws://{}", addr)
+}
+
+fn depth_broker(ws: &str) -> PocketfulBroker {
+    PocketfulBroker::with_base_url(master(), "http://127.0.0.1:1", ws, "http://127.0.0.1:1")
+}
+
+fn depth_session() -> AuthToken {
+    AuthToken::new("t").with_user_id("c")
+}
+
+/// A book with no detailed packet behind it (a quiet contract) must not
+/// hold a depth panel for the whole 15 s: the web answers on the snapquote
+/// alone. It waits 2 s for the trade price and answers with what it has,
+/// ltp 0, never the snapquote's average (lead decision, review round).
+#[tokio::test]
+async fn a_book_with_no_trade_price_does_not_hold_the_depth_answer() {
+    let ws = depth_socket(vec![snapquote_packet(1, 3045)], Duration::ZERO).await;
+    let b = depth_broker(&ws);
+    let started = std::time::Instant::now();
+    let d = super::data::get_market_depth(&b, &depth_session(), &QuoteKey::new("NSE", "SBIN"))
+        .await
+        .unwrap();
+    let took = started.elapsed();
+    assert_eq!((d.ltp, d.ltq), (0.0, 0), "no trade price known");
+    assert_eq!(d.bids[0].price, 812.0, "the book it has");
+    assert!(took >= Duration::from_millis(1900), "waited: {:?}", took);
+    assert!(took < Duration::from_secs(10), "held for {:?}", took);
+}
