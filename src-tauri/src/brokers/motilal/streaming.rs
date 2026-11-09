@@ -543,11 +543,13 @@ impl MotilalFeed {
         if !depth_packet {
             out.push(FeedEvent::Tick(quote_tick(sub, d, now)));
         }
-        // No book before a traded price and a first book level (audit
-        // RB-09, web `_poll_market_data`): an empty level is not sent as
-        // one, and the book has only the levels Motilal sent.
-        let book = d.has_ltp && d.bids.iter().any(Option::is_some);
-        if sub.mode == FeedMode::Depth && (depth_packet || kind == b'A') && book {
+        // No book before Motilal has sent a level of it (audit RB-09: never
+        // an invented one), and only the levels it sent. Once one has come,
+        // a Depth holder hears every packet with that book, before the
+        // first trade too with LTP 0 and only the quote fields received
+        // (lead rulings 2026-11-09: no-price-packet, depth without a book).
+        let book = d.bids.iter().any(Option::is_some);
+        if sub.mode == FeedMode::Depth && book {
             out.push(FeedEvent::Depth(NormalizedDepth {
                 symbol: sub.symbol.clone(),
                 exchange: sub.exchange.clone(),

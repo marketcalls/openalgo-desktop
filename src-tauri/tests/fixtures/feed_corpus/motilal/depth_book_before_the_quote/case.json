@@ -1,6 +1,6 @@
 {
   "broker": "motilal",
-  "summary": "Depth mode, the book before the quote: levels 1 to 5 one packet at a time, circuit limits, day OHLC, then the first trade, the first Depth frame on both sides; then level 1 empties.",
+  "summary": "Depth mode, the book before the quote: levels 1 to 5 one packet at a time, each a Depth frame with LTP 0; then circuit limits, day OHLC and the first trade, each with the book; then level 1 empties.",
   "scenarios": [
     "depth-update",
     "book-clear",
@@ -31,6 +31,55 @@
   },
   "deviations": [
     {
+      "key": "frame",
+      "kind": "desktop-decision",
+      "reason": "A book Motilal sent before any quote packet reaches the Depth holder at once, with LTP 0 and no quote field (the 1.0.6 rule: a packet with no trade price still brings its book); the web publishes Depth only once a quote packet has also arrived (motilal_adapter.py _poll_market_data).",
+      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py:450-455",
+      "approval": "no-price-packet"
+    },
+    {
+      "key": "ltp",
+      "kind": "desktop-decision",
+      "reason": "Before the first trade the book goes out with LTP 0 (the 1.0.6 rule: a depth frame keeps ltp and timestamp before the first quote) as a double, 0.0; the web's Depth dict sends the integer 0 from quote.get('ltp', 0). Same value, the desktop's number type.",
+      "ref": "feed::bridge::render depth_update; motilal_adapter.py _normalize_depth_data",
+      "approval": "per-broker-wire-shape"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "No last-trade packet has arrived: the web's Depth dict sends volume 0 (quote.get('volume', 0)), a value it never received; the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web's Depth dict sends open, high, low and close as 0 (quote.get(k, 0)), values it never received; the desktop leaves them out until the G packet.",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web's Depth dict sends open, high, low and close as 0 (quote.get(k, 0)), values it never received; the desktop leaves them out until the G packet.",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web's Depth dict sends open, high, low and close as 0 (quote.get(k, 0)), values it never received; the desktop leaves them out until the G packet.",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web's Depth dict sends open, high, low and close as 0 (quote.get(k, 0)), values it never received; the desktop leaves them out until the G packet.",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approval": "leave-out-unsent"
+    },
+    {
       "key": "ltq",
       "kind": "web-defect",
       "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
@@ -50,13 +99,6 @@
       "reason": "Motilal sent no open interest for this cash scrip (no m packet; a cash scrip has none and its last-trade packet's OI slot is 0); the web's Depth dict sends oi 0 from a default (_normalize_depth_data: result['oi'] = 0 without an m packet); the desktop leaves it out.",
       "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs quote_tick",
       "approval": "leave-out-unsent"
-    },
-    {
-      "key": "missing-frame",
-      "kind": "web-defect",
-      "reason": "Before any trade the web's poll publishes Depth as soon as the scrip has any quote packet (circuit limits, day OHLC) and a book level, with ltp 0 (motilal_adapter.py _poll_market_data gates on the quote dict, _normalize_depth_data quote.get('ltp', 0)), a price nothing traded at; the desktop sends the book once Motilal's first trade arrives (audit RB-09).",
-      "ref": "motilal_adapter.py _poll_market_data, _normalize_depth_data",
-      "approved": true
     }
   ]
 }

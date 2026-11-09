@@ -969,10 +969,12 @@ fn a_new_connection_reports_nothing_from_before_it() {
     assert!(!t.knows(QuoteField::Open) && !t.knows(QuoteField::Close));
 }
 
-/// Audit RB-09: no Depth frame before a traded price and a first book
-/// level; web `motilal_adapter.py` `_poll_market_data` waits for both.
+/// Audit RB-09: no Depth frame before Motilal has sent a book level, and
+/// only the levels it sent. A book before the first trade still reaches a
+/// Depth holder, with LTP 0 (the 1.0.6 rule), and every packet after it
+/// carries the book.
 #[test]
-fn depth_waits_for_a_trade_and_a_book() {
+fn depth_waits_for_a_book_level() {
     let mut feed = MotilalFeed::new("wss://example.invalid/feed", "C1");
     feed.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
     let depths = |ev: Vec<FeedEvent>| -> Vec<NormalizedDepth> {
@@ -994,18 +996,19 @@ fn depth_waits_for_a_trade_and_a_book() {
         b'A',
         &[f(2410.5), i(4), i(75937), f(2405.25), i(0)].concat(),
     );
-    assert!(depths(feed.parse(&Message::Binary(trade))).is_empty());
+    assert!(depths(feed.parse(&Message::Binary(trade.clone()))).is_empty());
     let book = depths(feed.parse(&Message::Binary(pkt(b'N', 2885, b'B', &level))));
     assert_eq!(book.len(), 1);
     assert_eq!((book[0].buy.len(), book[0].ltp), (1, 2410.5));
+    let again = depths(feed.parse(&Message::Binary(trade)));
+    assert_eq!(again.len(), 1, "a trade after the book carries it");
 
     let mut cold = MotilalFeed::new("wss://example.invalid/feed", "C1");
     cold.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
-    let level_first = cold.parse(&Message::Binary(pkt(b'N', 2885, b'B', &level)));
-    assert!(
-        depths(level_first).is_empty(),
-        "a book before the first trade"
-    );
+    let ohlc = [f(2400.0), f(2420.0), f(2390.0), f(2398.0)].concat();
+    assert!(depths(cold.parse(&Message::Binary(pkt(b'N', 2885, b'G', &ohlc)))).is_empty());
+    let first = depths(cold.parse(&Message::Binary(pkt(b'N', 2885, b'B', &level))));
+    assert_eq!((first.len(), first[0].buy.len(), first[0].ltp), (1, 1, 0.0));
 }
 
 #[test]
