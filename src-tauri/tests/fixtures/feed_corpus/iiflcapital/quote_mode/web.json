@@ -15,7 +15,8 @@
   "pushes": [
     {
       "line": 1,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 4,
@@ -47,6 +48,17 @@
             "ask_quantity": 200,
             "mode": "quote"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

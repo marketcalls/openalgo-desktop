@@ -44,11 +44,22 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
       "line": 5,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 7,
@@ -75,6 +86,16 @@
             "average_price": 0.0,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     },
@@ -127,6 +148,24 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -177,6 +216,24 @@
             "average_price": 0.0,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     }

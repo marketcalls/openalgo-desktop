@@ -19,11 +19,13 @@
   "pushes": [
     {
       "line": 1,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 3,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 6,
@@ -51,6 +53,17 @@
             "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
             "subscription_mode": 2
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

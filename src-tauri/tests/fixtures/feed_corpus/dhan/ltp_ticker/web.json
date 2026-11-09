@@ -40,6 +40,17 @@
             "last_trade_time": 1794302700
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
+        }
       ]
     },
     {
@@ -60,6 +71,17 @@
             "ltt": 1794302701,
             "last_trade_time": 1794302701
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
         }
       ]
     }

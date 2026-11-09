@@ -49,11 +49,23 @@
             "open_interest": 700
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
       ]
     },
     {
       "line": 8,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 10,
@@ -87,6 +99,17 @@
             "oi": 777,
             "open_interest": 777
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
         }
       ]
     }

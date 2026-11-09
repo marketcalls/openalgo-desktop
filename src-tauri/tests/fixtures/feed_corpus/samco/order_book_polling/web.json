@@ -70,6 +70,16 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -97,6 +107,16 @@
             "average_price": 800.4,
             "rejection_reason": ""
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     },
@@ -126,6 +146,16 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -153,6 +183,16 @@
             "average_price": 0.0,
             "rejection_reason": "Insufficient funds"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     },
@@ -182,6 +222,16 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -209,6 +259,16 @@
             "average_price": 0.0,
             "rejection_reason": "RMS:Margin Exceeds,Required:40,550.00, Available:1,200.50 for entity account-<USER_ID> across exchange across segment across product"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
         }
       ]
     },
@@ -238,6 +298,16 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
@@ -266,15 +336,27 @@
             "rejection_reason": ""
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
       ]
     },
     {
       "line": 19,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 21,
-      "published": []
+      "published": [],
+      "deliveries": []
     }
   ]
 }

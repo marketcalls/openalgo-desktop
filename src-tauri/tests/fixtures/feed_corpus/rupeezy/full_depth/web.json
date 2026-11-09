@@ -104,6 +104,17 @@
             "lower_circuit": 730.35
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
@@ -197,6 +208,17 @@
             "lower_circuit": 730.35
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
@@ -289,6 +311,17 @@
             "upper_circuit": 892.65,
             "lower_circuit": 730.35
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     }

@@ -15,7 +15,8 @@
   "pushes": [
     {
       "line": 4,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 6,
@@ -240,15 +241,28 @@
             "depth_level": 20
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
       "line": 8,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 10,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 11,
@@ -472,6 +486,17 @@
             },
             "depth_level": 20
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     }

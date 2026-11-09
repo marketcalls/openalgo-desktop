@@ -281,11 +281,21 @@ web's behaviour).
 ### The web's output, and deviations
 
 `python3 scripts/feed_corpus/web_expected.py --web <path to the web tree>
-<case folder>` runs the web adapter's own decoding and normalising methods
-on the case's pushes, offline (no app imports, database or network), and
-writes `web.json`: for each push (by its script line), what the web adapter
-publishes, with the topic mode and the `data` it forwards (and, for orders,
-the `order_update` frame the web relays). It records the web commit, the
+<case folder>` replays the case's script against the web, offline (no app
+imports, database or network): the web server's own subscription, release
+and delivery methods (`websocket_proxy/server.py`'s `subscribe_client`,
+`unsubscribe_client`, `cleanup_client`, `subscribe_orders_client` and
+`zmq_listener`, lifted by `scripts/feed_corpus/webserver.py` and run with
+in-memory clients), in front of the broker's web adapter (its own decoding
+and normalising methods). So the adapter is asked on every subscribe
+request, owners are kept by symbol, exchange and mode, and the adapter
+releases a key when its last owner lets go, as the web server does. It
+writes `web.json`: for each delivery point (a push, an answer a poller
+reads, or any other step that made the adapter publish), by its script
+line, what the adapter publishes (topic, mode, the `data` it forwards, and
+for orders the `order_update` frame the web relays) and what the server
+sends each client from it (`deliveries`: the publication, the client's
+mode tag, and the held modes it answers). It records the web commit, the
 SHA-256 of the script and the pushed frame files (text files with LF line
 ends), and the instruments it used, so a stale `web.json` fails the case.
 `--diff <case folder>` prints, without writing, every key on which the
@@ -296,18 +306,30 @@ methods by name, and the state they read, built as the web's own tests
 build it), and what to do where a web adapter cannot be run, is in that
 script's docstring. CI never runs it: it has no web tree.
 
-With `web.json` present, each `receive` after a push is compared with the
-web's publish for the same instrument (the topic's exchange and symbol) and
-mode for that push (or the lowest richer mode, which is what the web proxy
-delivers to a client at that mode): the `data`
-objects key by key, or the whole frame for an `order_update`. `web_mode`
-picks another mode; `"web": false` says the web sends nothing for this
-frame, which needs a deviation with key `frame`. The other way round, a
-frame the web sends and the desktop does not is a `silence` step that
-names the web's frame, `{"step": "silence", "client": "a", "web":
-{"symbol": "BTCUSD.P", "exchange": "CRYPTO", "mode": 3}}`: the web must
-publish that frame for the latest push (by instrument, then mode or the
-lowest richer one), and it needs a deviation with key `missing-frame`. A
+With `web.json` present, each `receive` after a delivery point is compared
+with the next frame the web sends that client for the same instrument
+(`harness/deliveries.rs`): the desktop sends one frame per held mode
+(C08), so a frame at a mode consumes the next web frame answering that
+held mode, each web frame at most once per held mode and in order (two
+packets for one instrument in one broker frame are two web frames, and
+the second desktop frame is compared with the second); where no web frame
+answers the mode, it pairs with the web's fan-out of that mode or the
+lowest richer one. An `order_update` pairs with the next update to that
+client with its order id. The `data` objects are compared key by key, or
+the whole frame for an `order_update`. `web_mode` picks another mode;
+`"web": false` says the web sends nothing for this frame, which needs a
+deviation with key `frame`. Every web frame that answers a client's held
+mode (or is an order update to it) must be consumed before the next
+delivery point: by a receive, or, for a frame the web sends and the
+desktop does not, by a `silence` step that names it, one step per such
+frame, `{"step": "silence", "client": "a", "web": {"symbol": "BTCUSD.P",
+"exchange": "CRYPTO", "mode": 3}}` (a deviation with key `missing-frame`).
+A web frame no step accounts for fails the case, naming it; the web's
+fan-out to a lower-mode holder that answers none of its held modes need
+not be (the approved `one-frame-per-held-mode` rule). A
+`scripts/feed_corpus/test_oracle.py --web <tree>` holds these rules
+against the web (two packets in one frame, an unread web frame, repeated
+subscribes). A
 key of a `random-values` deviation is compared by presence and JSON type
 at every level (an object's keys, a list's length), not by value. Every
 key on which the desktop differs from the web must be declared:

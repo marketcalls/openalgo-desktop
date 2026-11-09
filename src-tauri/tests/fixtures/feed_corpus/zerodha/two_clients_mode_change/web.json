@@ -54,6 +54,33 @@
             "timestamp": "<receipt_ms>"
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 2,
+          "serves": []
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
+        }
       ]
     },
     {
@@ -73,6 +100,17 @@
             "ltt": "<receipt_ms>",
             "timestamp": "<receipt_ms>"
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "serves": [
+            1
+          ]
         }
       ]
     }

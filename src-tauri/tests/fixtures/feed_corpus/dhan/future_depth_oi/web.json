@@ -18,7 +18,8 @@
   "pushes": [
     {
       "line": 3,
-      "published": []
+      "published": [],
+      "deliveries": []
     },
     {
       "line": 5,
@@ -108,6 +109,17 @@
             "depth_level": 5,
             "prev_oi": 9000000
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     },
@@ -200,6 +212,17 @@
             "prev_oi": 9000000
           }
         }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
       ]
     },
     {
@@ -291,6 +314,17 @@
             "depth_level": 5,
             "prev_oi": 9000000
           }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
         }
       ]
     }
