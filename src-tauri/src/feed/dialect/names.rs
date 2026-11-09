@@ -700,20 +700,58 @@ const fn xts() -> Dialect {
 /// the canonical frame with a numeric `data.mode`, `oi` and
 /// `open_interest`, and `ltt` everywhere.
 pub(crate) fn dialect(broker: &str) -> Dialect {
-    use DataMode::{Absent, Label, Number};
-    match broker {
+    families(broker)
+        .or_else(|| named_modes(broker))
+        .unwrap_or_else(|| numbered_modes(broker))
+}
+
+/// The XTS and Noren families: one table per family, members apart where
+/// their web adapters differ.
+fn families(broker: &str) -> Option<Dialect> {
+    use DataMode::Number;
+    Some(match broker {
+        // The XTS adapters send `oi` in their Depth dict only, and no change
+        // on an index. Six publish one dict per packet at its code's mode;
+        // Jainam's publishes each message to every mode the symbol is held
+        // in, in that mode's dict (jainamxts_adapter.py _process_json_data).
+        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "rmoney" | "wisdom" => xts().richer(),
+        "jainamxts" => xts(),
+        // The Noren adapters' dicts (`<member>_adapter.py` normalisers): no
+        // ltt; the change only as Noren's pc (`percent_change`), never
+        // price_change*; a Depth topic only from depth packets. Shoonya
+        // names OI `open_interest` alone; Flattrade and Zebu send it only
+        // as `total_traded_value` and the desktop keeps `oi` beside it (a
+        // web defect, lead ruling 2026-11-09); TradeSmart's is `oi`.
+        "shoonya" => d(Number, SHOONYA)
+            .no_ltt()
+            .no_index_change()
+            .key(Key::Oi, Modes::NEVER)
+            .depth_needs_book(),
+        "flattrade" => d(Number, FLATTRADE)
+            .no_ltt()
+            .no_index_change()
+            .depth_needs_book(),
+        "zebu" => d(Number, ZEBU)
+            .no_ltt()
+            .no_index_change()
+            .depth_needs_book(),
+        "tradesmart" => d(Number, TRADESMART)
+            .no_ltt()
+            .no_index_change()
+            .depth_needs_book(),
+        _ => return None,
+    })
+}
+
+/// Brokers whose web `data.mode` is a label, or absent.
+fn named_modes(broker: &str) -> Option<Dialect> {
+    use DataMode::{Absent, Label};
+    Some(match broker {
         "zerodha" => d(Label, ZERODHA).open_interest().no_ltt_on_ltp_copies(),
         "sahi" => d(Label, SAHI).open_interest().index_book(),
         "iiflcapital" => d(Label, IIFLCAPITAL).open_interest().no_index_change(),
         // nubra_adapter.py `_on_index_data`: no change keys on an index.
         "nubra" => d(Label, NUBRA).no_ltt().no_index_change(),
-        // angel_adapter.py:716-736: `mode` is the token's subscription's;
-        // `_normalize_market_data`: no change keys on an index.
-        "angel" => d(Number, ANGEL)
-            .richer()
-            .mode_of_holder()
-            .no_index_change()
-            .floats(&["total_buy_quantity", "total_sell_quantity"]),
         "arrow" => d(Absent, ARROW_HDFC)
             .open_interest()
             .richer()
@@ -736,12 +774,21 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .floats(&["oi"]),
         // fyers_mapping.py: the change only under Fyers' own names.
         "fyers" => d(Absent, FYERS).no_ltt().no_index_change(),
-        // The XTS adapters send `oi` in their Depth dict only, and no change
-        // on an index. Six publish one dict per packet at its code's mode;
-        // Jainam's publishes each message to every mode the symbol is held
-        // in, in that mode's dict (jainamxts_adapter.py _process_json_data).
-        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "rmoney" | "wisdom" => xts().richer(),
-        "jainamxts" => xts(),
+        _ => return None,
+    })
+}
+
+/// Brokers whose web `data.mode` is a number, and the default.
+fn numbered_modes(broker: &str) -> Dialect {
+    use DataMode::Number;
+    match broker {
+        // angel_adapter.py:716-736: `mode` is the token's subscription's;
+        // `_normalize_market_data`: no change keys on an index.
+        "angel" => d(Number, ANGEL)
+            .richer()
+            .mode_of_holder()
+            .no_index_change()
+            .floats(&["total_buy_quantity", "total_sell_quantity"]),
         // definedge_adapter.py _QUOTE_FIELDS: the change only as `pc`
         // (change_percent, percent_change), on an index too.
         "definedge" => d(Number, DEFINEDGE).depth_needs_book().no_index_change(),
@@ -771,29 +818,6 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         // fivepaisa_adapter.py `_quote_fields`: ChgPcnt as `percent_change`
         // only, on an index too (no `price_change`).
         "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book().no_index_change(),
-        // The Noren adapters' dicts (`<member>_adapter.py` normalisers): no
-        // ltt; the change only as Noren's pc (`percent_change`), never
-        // price_change*; a Depth topic only from depth packets. Shoonya
-        // names OI `open_interest` alone; Flattrade and Zebu send it only
-        // as `total_traded_value` and the desktop keeps `oi` beside it (a
-        // web defect, lead ruling 2026-11-09); TradeSmart's is `oi`.
-        "shoonya" => d(Number, SHOONYA)
-            .no_ltt()
-            .no_index_change()
-            .key(Key::Oi, Modes::NEVER)
-            .depth_needs_book(),
-        "flattrade" => d(Number, FLATTRADE)
-            .no_ltt()
-            .no_index_change()
-            .depth_needs_book(),
-        "zebu" => d(Number, ZEBU)
-            .no_ltt()
-            .no_index_change()
-            .depth_needs_book(),
-        "tradesmart" => d(Number, TRADESMART)
-            .no_ltt()
-            .no_index_change()
-            .depth_needs_book(),
         // groww_protobuf.py reads tsInMillis and volume as doubles.
         "groww" => d(Number, GROWW).floats(&["ltt", "volume"]),
         "indmoney" => d(Number, INDMONEY).richer().no_index_change(),
