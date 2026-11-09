@@ -2,13 +2,20 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsecurities",
-  "inputs_sha256": "92b974cfa9c002204447fa56dd14b1901a652925c8b4836347dd4f0a93efcd45",
+  "inputs_sha256": "344866e109668eb101f856493e4e61e54321312be13473b030dc87a472818d5f",
   "instruments": [
     {
       "symbol": "RELIANCE",
       "exchange": "NSE",
       "token": "2885",
       "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
       "brexchange": "NSE"
     }
   ],
