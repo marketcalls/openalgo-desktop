@@ -1,0 +1,32 @@
+{
+  "broker": "groww",
+  "summary": "A deliberate close of Groww's market feed while a Quote and a Depth client hold SBIN: the feed unsubscribes every live sid, one UNSUB frame each in subscribe order, before the socket closes, as the web's NATS client does on a disconnect, and does not reconnect.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/nats_websocket.py::GrowwNATSWebSocket.disconnect"
+    ],
+    "notes": [
+      "Worked from nats_websocket.py:1097-1112: on a disconnect the web sends create_unsubscribe(sid) for every sid in nats_sids, one ws.send each, waits 0.2 s, then closes. The desktop sends the farewell frames within the manager's farewell bound (1 s) and then closes, with no pause between the last UNSUB and the close frame; both go out on one ordered stream, so Groww reads the UNSUBs first (accepted by the lead).",
+      "The web keeps a Quote subscription's sid on the price subject when a Depth subscription arrives and subscribes it again (approved web defect, quote_and_depth_book_first), so its farewell would also unsubscribe that sid; the desktop holds one sid per subject.",
+      "One frame per SUB and UNSUB, a Depth's book before its price, as the web sends them (3f2b049f).",
+      "web.json: the web adapter publishes nothing for the INFO and +OK pushes (the case pushes no market data), and the farewell is a frame to Groww, not a publish; --diff shows no difference."
+    ]
+  },
+  "deviations": []
+}

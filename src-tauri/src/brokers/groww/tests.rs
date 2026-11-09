@@ -1616,6 +1616,29 @@ fn feed_frames_and_ticks() {
     ));
 }
 
+/// Web nats_websocket.py:1097-1112: a deliberate disconnect unsubscribes
+/// every live sid, one frame each, in subscribe order; nothing is left to
+/// unsubscribe once the instruments are released or the connection is new.
+#[test]
+fn a_deliberate_close_unsubscribes_every_live_sid() {
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.subscribe_frames(&[
+        sub("SBIN", "NSE", "3045", FeedMode::Quote),
+        sub("NIFTY28OCT2524500CE", "NFO", "35001", FeedMode::Depth),
+    ]);
+    let bye: Vec<String> = f.farewell_frames().iter().map(text).collect();
+    assert_eq!(bye, ["UNSUB 1\r\n", "UNSUB 2\r\n", "UNSUB 3\r\n"]);
+    f.unsubscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Quote)]);
+    let bye: Vec<String> = f.farewell_frames().iter().map(text).collect();
+    assert_eq!(bye, ["UNSUB 2\r\n", "UNSUB 3\r\n"]);
+    f.on_connected();
+    assert!(f.farewell_frames().is_empty());
+}
+
 #[test]
 fn index_ticks_carry_ltp() {
     let mut f = GrowwFeed::new(

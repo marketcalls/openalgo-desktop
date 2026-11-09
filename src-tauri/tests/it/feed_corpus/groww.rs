@@ -55,6 +55,7 @@ corpus_cases!(
         derivative_quote_without_oi,
         reconnect_starts_afresh,
         unsupported_exchanges,
+        deliberate_disconnect_unsubscribes,
         order_book_polling,
     ]
 );

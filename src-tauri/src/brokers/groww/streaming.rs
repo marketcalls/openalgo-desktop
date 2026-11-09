@@ -855,4 +855,17 @@ impl BrokerFeed for GrowwFeed {
     fn supported_depth_levels(&self) -> &'static [u8] {
         &[5]
     }
+
+    /// Before a deliberate close the web's client unsubscribes every live
+    /// sid, one frame each, in the order it subscribed them
+    /// (nats_websocket.py:1097-1112). The web then waits 0.2 s; the manager
+    /// sends these within its farewell bound and then closes the socket, so
+    /// the close follows them in order.
+    fn farewell_frames(&self) -> Vec<Message> {
+        let mut sids: Vec<u64> = self.sids.keys().copied().collect();
+        sids.sort_unstable();
+        sids.into_iter()
+            .map(|sid| Message::Text(format!("UNSUB {}\r\n", sid)))
+            .collect()
+    }
 }

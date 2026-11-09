@@ -1,0 +1,24 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "groww",
+  "inputs_sha256": "ddaa25f0d851cf66f075b68578895911c42a61265ca0e80f4c1d69b3c917564b",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 4,
+      "published": []
+    }
+  ]
+}
