@@ -5,8 +5,8 @@
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3}}
 {"step": "http_receives", "requests": [{"method": "POST", "path": "/apibinarymarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 2, "exchangeInstrumentID": 35012}], "xtsMessageCode": 1502}}]}
 {"step": "push", "frame": "frames/oi_1510.txt", "note": "The future's open interest, no trade."}
-{"step": "silence", "client": "a"}
+{"step": "silence", "client": "a", "web": {"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "mode": 3}, "note": "The web's Depth frame for the 1510: an LTP of 0, only its OI right."}
 {"step": "push", "frame": "frames/candle_1505.txt", "note": "A one-minute bar, not the day's quote."}
-{"step": "silence", "client": "a"}
+{"step": "silence", "client": "a", "web": {"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "mode": 3}, "note": "The web's Depth frame for the 1505: an LTP of 0, the bar's open, high, low and close as the day's."}
 {"step": "push", "frame": "frames/future_1502.txt", "note": "No OpenInterest in this 1502."}
 {"step": "receive", "client": "a", "frame": "expected/future_depth.json"}

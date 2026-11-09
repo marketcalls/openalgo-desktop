@@ -58,12 +58,6 @@
   },
   "deviations": [
     {
-      "key": "ltq",
-      "kind": "desktop-decision",
-      "reason": "ltq is this web adapter's LTP name for the last quantity; the desktop sends a web key from the lowest mode it appears in upward (feed/dialect/names.rs rules), so Quote and Depth frames carry ltq beside last_quantity, where the web's Quote and Depth dicts name it last_quantity only.",
-      "ref": "feed/dialect/names.rs XTS; jainamxts_adapter.py _normalize_market_data"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The event carries no trade time; the web sends ltt 0 (.get('LastTradedTime', 0)), the desktop leaves ltt out (docs: a field the stream does not carry is left out; never a receipt time passed off as a trade time).",

@@ -1,0 +1,58 @@
+{
+  "broker": "compositedge",
+  "summary": "Depth 30 and Depth 50 on an NSE equity: refused before any subscription, in this member's web adapter's words (Invalid depth level N. Must be 5 or 20), and nothing is subscribed over REST.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/compositedge/streaming/compositedge_websocket.py::CompositedgeWebSocketClient._setup_socketio",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._process_json_data",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._normalize_market_data",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter.subscribe"
+    ],
+    "notes": [
+      "Every XTS web adapter refuses a Depth level other than 5 or 20 before it looks the symbol up (if mode == 3 and depth_level not in [5, 20]); the desktop refuses at admission with the same words (feed/refusals.rs depths_accepted), so no REST call is made.",
+      "Depth 20 on NSE and NFO is served (depth_twenty); elsewhere the registry's fallback names 5 (XtsBroker::feed_depth_levels)."
+    ]
+  }
+}

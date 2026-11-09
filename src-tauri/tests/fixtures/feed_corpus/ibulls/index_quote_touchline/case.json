@@ -107,18 +107,6 @@
       "ref": "ibulls_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901"
     },
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends an index's change worked out from its previous close; this web adapter sends none, and the lead's rule (index price_change per adapter) leaves it out. The dialect has no switch for an index's change yet (feed/dialect/names.rs Dialect::instrument_change covers other instruments only): asked of lane wire through the lead.",
-      "ref": "feed/protocol/market.rs shown_quote; feed/bridge/snapshot.rs derive_change"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends an index's change worked out from its previous close; this web adapter sends none, and the lead's rule (index price_change per adapter) leaves it out. The dialect has no switch for an index's change yet (feed/dialect/names.rs Dialect::instrument_change covers other instruments only): asked of lane wire through the lead.",
-      "ref": "feed/protocol/market.rs shown_quote; feed/bridge/snapshot.rs derive_change"
-    },
-    {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends total_buy_quantity as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",

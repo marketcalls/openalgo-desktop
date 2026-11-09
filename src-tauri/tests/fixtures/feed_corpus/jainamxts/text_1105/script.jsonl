@@ -8,4 +8,4 @@
 {"step": "http_receives", "requests": [{"method": "PUT", "path": "/apibinarymarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1512}}, {"method": "POST", "path": "/apibinarymarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}], "note": "The mode change: the LTP subscription let go, the Quote one made."}
 {"step": "push", "frame": "frames/text_1105.txt"}
 {"step": "receive", "client": "a", "frame": "expected/ltp_from_1105.json"}
-{"step": "silence", "client": "b"}
+{"step": "receive", "client": "b", "frame": "expected/quote_from_1105.json"}

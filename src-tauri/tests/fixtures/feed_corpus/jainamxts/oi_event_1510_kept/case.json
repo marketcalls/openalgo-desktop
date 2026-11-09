@@ -57,11 +57,17 @@
       "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._process_json_data"
     ],
     "notes": [
-      "Jainam's web client listens for 1505 and 1510 events and its adapter publishes each to every mode the symbol's subscriptions hold, normalised as a market message: the 1510 as a Depth frame with an LTP of 0 and only its OI right, the 1505 bar's open, high, low and close as the day's with an LTP of 0. The desktop keeps the 1510's OI for the next priced message (feed/bridge.rs: a packet without a trade only updates the snapshot) and reads no 1505 (XtsHooks::oi_events). The silences are frames the web sends and the desktop does not; the harness compares only the frames a desktop client receives.",
+      "Jainam's web client listens for 1505 and 1510 events and its adapter publishes each to every mode the symbol's subscriptions hold, normalised as a market message: the 1510 as a Depth frame with an LTP of 0 and only its OI right, the 1505 bar's open, high, low and close as the day's with an LTP of 0. The desktop keeps the 1510's OI for the next priced message (feed/bridge.rs: a packet without a trade only updates the snapshot) and reads no 1505 (XtsHooks::oi_events). The silences name the web's two frames, declared as missing frames (web-defect: an invented LTP of 0).",
       "Jainam's web subscribes 1512, 1501 and 1502 only; whether XTS sends 1510 or 1505 events without their own subscription is for a live capture. The 1505 payload's keys follow the XTS candle message."
     ]
   },
   "deviations": [
+    {
+      "key": "missing-frame",
+      "kind": "web-defect",
+      "reason": "Jainam's adapter publishes the 1510 open-interest event and the 1505 candle to every held mode as market frames: a Depth frame with an LTP of 0 for each, the 1510's carrying only its OI right, the 1505's the one-minute bar's open, high, low and close as the day's. An LTP of 0 is a price nobody traded (rules: no zero LTP), so the desktop sends no frame for a message without a trade; the 1510's OI goes with the next priced message (feed/bridge.rs convert).",
+      "ref": "jainamxts_websocket.py _process_xts_data; jainamxts_adapter.py _process_json_data, _normalize_market_data"
+    },
     {
       "key": "average_price",
       "kind": "web-defect",
@@ -73,12 +79,6 @@
       "kind": "web-defect",
       "reason": "XTS sent last_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
       "ref": "jainamxts_adapter.py _normalize_market_data (mode 3)"
-    },
-    {
-      "key": "ltq",
-      "kind": "desktop-decision",
-      "reason": "ltq is this web adapter's LTP name for the last quantity; the desktop sends a web key from the lowest mode it appears in upward (feed/dialect/names.rs rules), so Quote and Depth frames carry ltq beside last_quantity, where the web's Quote and Depth dicts name it last_quantity only.",
-      "ref": "feed/dialect/names.rs XTS; jainamxts_adapter.py _normalize_market_data"
     },
     {
       "key": "ltt",

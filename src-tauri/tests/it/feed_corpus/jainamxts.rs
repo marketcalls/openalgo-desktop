@@ -13,6 +13,7 @@ corpus_cases!(
     feeds,
     [
         depth_five_and_clear,
+        depth_thirty_and_fifty_refused,
         depth_twenty,
         depth_zero_slots_kept,
         event_name_supplies_the_code,

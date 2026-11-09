@@ -77,18 +77,6 @@
       "ref": "wisdom_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
     },
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends an index's change worked out from its previous close; this web adapter sends none, and the lead's rule (index price_change per adapter) leaves it out. The dialect has no switch for an index's change yet (feed/dialect/names.rs Dialect::instrument_change covers other instruments only): asked of lane wire through the lead.",
-      "ref": "feed/protocol/market.rs shown_quote; feed/bridge/snapshot.rs derive_change"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends an index's change worked out from its previous close; this web adapter sends none, and the lead's rule (index price_change per adapter) leaves it out. The dialect has no switch for an index's change yet (feed/dialect/names.rs Dialect::instrument_change covers other instruments only): asked of lane wire through the lead.",
-      "ref": "feed/protocol/market.rs shown_quote; feed/bridge/snapshot.rs derive_change"
-    },
-    {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "An index has no total_buy_quantity; the web sends XTS's 0 for it, the desktop's index frames leave the trade-size and book fields out (feed/protocol/market.rs shown_quote; lead decision, night of 9 Nov: web zeros for values an index stream does not have are left out).",

@@ -92,12 +92,6 @@
       "ref": "iifl_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901"
     },
     {
-      "key": "ltq",
-      "kind": "desktop-decision",
-      "reason": "ltq is this web adapter's LTP name for the last quantity; the desktop sends a web key from the lowest mode it appears in upward (feed/dialect/names.rs rules), so Quote and Depth frames carry ltq beside last_quantity, where the web's Quote and Depth dicts name it last_quantity only.",
-      "ref": "feed/dialect/names.rs XTS; iifl_adapter.py _normalize_market_data"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "With the 1501 quote nested in Touchline (the shape of this case) this web adapter reads 1501 at the message root ('data is at root level', :775) and sends ltt as 0: a wrong value, lost data. The desktop reads Touchline when the message has one, else the root, so it is right whichever shape XTS sends (quote_root and index_quote_root pin the root shape, which matches). Which shape a real 1501-json-full has is for the maintainer's market-hours check; this deviation holds when XTS nests the quote (lead ruling 2026-11-09).",

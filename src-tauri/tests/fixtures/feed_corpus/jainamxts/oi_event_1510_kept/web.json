@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "jainamxts",
-  "inputs_sha256": "43224abe1251c1f98354ed5eb9e7a5bcb31f1ea4d52f2763ec8f877d5f9f20a8",
+  "inputs_sha256": "7cee0fc9808bc24991e4b0582cb7d63f5c928c9c0f4c4b7fd8f5b268497cce2f",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
