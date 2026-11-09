@@ -15,6 +15,15 @@ pub(super) fn opened(from: SessionId) -> Packet {
     Packet {
         from,
         kind: PacketKind::Opened,
+        events_before: 0,
+    }
+}
+
+pub(super) fn closed(from: SessionId) -> Packet {
+    Packet {
+        from,
+        kind: PacketKind::Closed,
+        events_before: 0,
     }
 }
 
@@ -22,6 +31,7 @@ pub(super) fn packet(from: SessionId, events: Vec<FeedEvent>) -> Packet {
     Packet {
         from,
         kind: PacketKind::Events(events.into_iter().map(MarketEvent::new).collect()),
+        events_before: 0,
     }
 }
 
@@ -102,6 +112,7 @@ fn a_reconnect_forgets_only_its_own_connections_quotes() {
 fn a_deep_reconnect_forgets_the_deep_books_only() {
     let (b, mut rx) = bridge(&["SBIN"]);
     b.set_deep_levels(Some(20));
+    drop(b.subscribe(&InstrumentKey::new("SBIN", "NSE"), Mode::Depth, 20));
     b.relay_packet(&packet(sid(0, 1), vec![tick("SBIN")]), false);
     b.relay_packet(&packet(sid(0, 1), vec![book("SBIN", 20)]), true);
     b.relay_packet(&packet(sid(0, 1), vec![tick("SBIN")]), false);

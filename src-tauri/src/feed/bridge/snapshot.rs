@@ -158,6 +158,29 @@ pub(in crate::feed) fn forget_session(
     }
 }
 
+/// The deeper socket's session `from` ended: until its next one opens no
+/// book of it is current, however long the socket stays down.
+pub(in crate::feed) fn forget_deep_session(
+    snapshots: &mut HashMap<InstrumentKey, Snapshot>,
+    from: SessionId,
+) {
+    for s in snapshots.values_mut() {
+        if s.deep_book.as_ref().is_some_and(|b| b.from == from) {
+            s.deep_book = None;
+        }
+    }
+}
+
+/// Nothing holds `key` at the deeper socket's levels any more.
+pub(in crate::feed) fn forget_deep_book(
+    snapshots: &mut HashMap<InstrumentKey, Snapshot>,
+    key: &InstrumentKey,
+) {
+    if let Some(s) = snapshots.get_mut(key) {
+        s.deep_book = None;
+    }
+}
+
 /// Keep `book` as `key`'s last book (`deep`: from the deeper socket): on its
 /// snapshot, or on a snapshot with no quote yet when the book came first.
 pub(in crate::feed) fn keep_book(

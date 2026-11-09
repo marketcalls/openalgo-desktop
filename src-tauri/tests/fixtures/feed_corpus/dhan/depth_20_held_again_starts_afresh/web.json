@@ -1,0 +1,744 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "dhan",
+  "inputs_sha256": "f3846afc3fa5de71a4b29400423534dc0786d5f93a2e3b24287a4a05f6533067",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 5,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>",
+            "mode": 3,
+            "ltp": 1300.5,
+            "ltt": 1761700000,
+            "last_trade_time": 1761700000,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "last_quantity": 25,
+            "average_price": 1298.25,
+            "total_buy_quantity": 9000,
+            "total_sell_quantity": 7000,
+            "close": 1280.5,
+            "oi": 150,
+            "oi_high": 160,
+            "oi_low": 140,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1300.0,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 1299.0,
+                  "quantity": 11,
+                  "orders": 1
+                },
+                {
+                  "price": 1298.0,
+                  "quantity": 12,
+                  "orders": 1
+                },
+                {
+                  "price": 1297.0,
+                  "quantity": 13,
+                  "orders": 1
+                },
+                {
+                  "price": 1296.0,
+                  "quantity": 14,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1301.0,
+                  "quantity": 20,
+                  "orders": 2
+                },
+                {
+                  "price": 1302.0,
+                  "quantity": 21,
+                  "orders": 2
+                },
+                {
+                  "price": 1303.0,
+                  "quantity": 22,
+                  "orders": 2
+                },
+                {
+                  "price": 1304.0,
+                  "quantity": 23,
+                  "orders": 2
+                },
+                {
+                  "price": 1305.0,
+                  "quantity": 24,
+                  "orders": 2
+                }
+              ]
+            },
+            "depth_level": 5,
+            "prev_oi": 120
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 11,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>",
+            "depth": {
+              "buy": [
+                {
+                  "price": 1300.0,
+                  "quantity": 100,
+                  "orders": 1
+                },
+                {
+                  "price": 1299.95,
+                  "quantity": 110,
+                  "orders": 2
+                },
+                {
+                  "price": 1299.9,
+                  "quantity": 120,
+                  "orders": 3
+                },
+                {
+                  "price": 1299.85,
+                  "quantity": 130,
+                  "orders": 4
+                },
+                {
+                  "price": 1299.8,
+                  "quantity": 140,
+                  "orders": 5
+                },
+                {
+                  "price": 1299.75,
+                  "quantity": 150,
+                  "orders": 6
+                },
+                {
+                  "price": 1299.7,
+                  "quantity": 160,
+                  "orders": 7
+                },
+                {
+                  "price": 1299.65,
+                  "quantity": 170,
+                  "orders": 8
+                },
+                {
+                  "price": 1299.6,
+                  "quantity": 180,
+                  "orders": 9
+                },
+                {
+                  "price": 1299.55,
+                  "quantity": 190,
+                  "orders": 10
+                },
+                {
+                  "price": 1299.5,
+                  "quantity": 200,
+                  "orders": 11
+                },
+                {
+                  "price": 1299.45,
+                  "quantity": 210,
+                  "orders": 12
+                },
+                {
+                  "price": 1299.4,
+                  "quantity": 220,
+                  "orders": 13
+                },
+                {
+                  "price": 1299.35,
+                  "quantity": 230,
+                  "orders": 14
+                },
+                {
+                  "price": 1299.3,
+                  "quantity": 240,
+                  "orders": 15
+                },
+                {
+                  "price": 1299.25,
+                  "quantity": 250,
+                  "orders": 16
+                },
+                {
+                  "price": 1299.2,
+                  "quantity": 260,
+                  "orders": 17
+                },
+                {
+                  "price": 1299.15,
+                  "quantity": 270,
+                  "orders": 18
+                },
+                {
+                  "price": 1299.1,
+                  "quantity": 280,
+                  "orders": 19
+                },
+                {
+                  "price": 1299.05,
+                  "quantity": 290,
+                  "orders": 20
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1300.1,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 1300.15,
+                  "quantity": 160,
+                  "orders": 3
+                },
+                {
+                  "price": 1300.2,
+                  "quantity": 170,
+                  "orders": 4
+                },
+                {
+                  "price": 1300.25,
+                  "quantity": 180,
+                  "orders": 5
+                },
+                {
+                  "price": 1300.3,
+                  "quantity": 190,
+                  "orders": 6
+                },
+                {
+                  "price": 1300.35,
+                  "quantity": 200,
+                  "orders": 7
+                },
+                {
+                  "price": 1300.4,
+                  "quantity": 210,
+                  "orders": 8
+                },
+                {
+                  "price": 1300.45,
+                  "quantity": 220,
+                  "orders": 9
+                },
+                {
+                  "price": 1300.5,
+                  "quantity": 230,
+                  "orders": 10
+                },
+                {
+                  "price": 1300.55,
+                  "quantity": 240,
+                  "orders": 11
+                },
+                {
+                  "price": 1300.6,
+                  "quantity": 250,
+                  "orders": 12
+                },
+                {
+                  "price": 1300.65,
+                  "quantity": 260,
+                  "orders": 13
+                },
+                {
+                  "price": 1300.7,
+                  "quantity": 270,
+                  "orders": 14
+                },
+                {
+                  "price": 1300.75,
+                  "quantity": 280,
+                  "orders": 15
+                },
+                {
+                  "price": 1300.8,
+                  "quantity": 290,
+                  "orders": 16
+                },
+                {
+                  "price": 1300.85,
+                  "quantity": 300,
+                  "orders": 17
+                },
+                {
+                  "price": 1300.9,
+                  "quantity": 310,
+                  "orders": 18
+                },
+                {
+                  "price": 1300.95,
+                  "quantity": 320,
+                  "orders": 19
+                },
+                {
+                  "price": 1301.0,
+                  "quantity": 330,
+                  "orders": 20
+                },
+                {
+                  "price": 1301.05,
+                  "quantity": 340,
+                  "orders": 21
+                }
+              ]
+            },
+            "depth_level": 20
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 18,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>",
+            "mode": 3,
+            "ltp": 1300.5,
+            "ltt": 1761700000,
+            "last_trade_time": 1761700000,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "last_quantity": 25,
+            "average_price": 1298.25,
+            "total_buy_quantity": 9000,
+            "total_sell_quantity": 7000,
+            "close": 1280.5,
+            "oi": 150,
+            "oi_high": 160,
+            "oi_low": 140,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1300.0,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 1299.0,
+                  "quantity": 11,
+                  "orders": 1
+                },
+                {
+                  "price": 1298.0,
+                  "quantity": 12,
+                  "orders": 1
+                },
+                {
+                  "price": 1297.0,
+                  "quantity": 13,
+                  "orders": 1
+                },
+                {
+                  "price": 1296.0,
+                  "quantity": 14,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1301.0,
+                  "quantity": 20,
+                  "orders": 2
+                },
+                {
+                  "price": 1302.0,
+                  "quantity": 21,
+                  "orders": 2
+                },
+                {
+                  "price": 1303.0,
+                  "quantity": 22,
+                  "orders": 2
+                },
+                {
+                  "price": 1304.0,
+                  "quantity": 23,
+                  "orders": 2
+                },
+                {
+                  "price": 1305.0,
+                  "quantity": 24,
+                  "orders": 2
+                }
+              ]
+            },
+            "depth_level": 5,
+            "prev_oi": 120
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 21,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 22,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>",
+            "depth": {
+              "buy": [
+                {
+                  "price": 1300.0,
+                  "quantity": 100,
+                  "orders": 1
+                },
+                {
+                  "price": 1299.95,
+                  "quantity": 110,
+                  "orders": 2
+                },
+                {
+                  "price": 1299.9,
+                  "quantity": 120,
+                  "orders": 3
+                },
+                {
+                  "price": 1299.85,
+                  "quantity": 130,
+                  "orders": 4
+                },
+                {
+                  "price": 1299.8,
+                  "quantity": 140,
+                  "orders": 5
+                },
+                {
+                  "price": 1299.75,
+                  "quantity": 150,
+                  "orders": 6
+                },
+                {
+                  "price": 1299.7,
+                  "quantity": 160,
+                  "orders": 7
+                },
+                {
+                  "price": 1299.65,
+                  "quantity": 170,
+                  "orders": 8
+                },
+                {
+                  "price": 1299.6,
+                  "quantity": 180,
+                  "orders": 9
+                },
+                {
+                  "price": 1299.55,
+                  "quantity": 190,
+                  "orders": 10
+                },
+                {
+                  "price": 1299.5,
+                  "quantity": 200,
+                  "orders": 11
+                },
+                {
+                  "price": 1299.45,
+                  "quantity": 210,
+                  "orders": 12
+                },
+                {
+                  "price": 1299.4,
+                  "quantity": 220,
+                  "orders": 13
+                },
+                {
+                  "price": 1299.35,
+                  "quantity": 230,
+                  "orders": 14
+                },
+                {
+                  "price": 1299.3,
+                  "quantity": 240,
+                  "orders": 15
+                },
+                {
+                  "price": 1299.25,
+                  "quantity": 250,
+                  "orders": 16
+                },
+                {
+                  "price": 1299.2,
+                  "quantity": 260,
+                  "orders": 17
+                },
+                {
+                  "price": 1299.15,
+                  "quantity": 270,
+                  "orders": 18
+                },
+                {
+                  "price": 1299.1,
+                  "quantity": 280,
+                  "orders": 19
+                },
+                {
+                  "price": 1299.05,
+                  "quantity": 290,
+                  "orders": 20
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1300.1,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 1300.15,
+                  "quantity": 160,
+                  "orders": 3
+                },
+                {
+                  "price": 1300.2,
+                  "quantity": 170,
+                  "orders": 4
+                },
+                {
+                  "price": 1300.25,
+                  "quantity": 180,
+                  "orders": 5
+                },
+                {
+                  "price": 1300.3,
+                  "quantity": 190,
+                  "orders": 6
+                },
+                {
+                  "price": 1300.35,
+                  "quantity": 200,
+                  "orders": 7
+                },
+                {
+                  "price": 1300.4,
+                  "quantity": 210,
+                  "orders": 8
+                },
+                {
+                  "price": 1300.45,
+                  "quantity": 220,
+                  "orders": 9
+                },
+                {
+                  "price": 1300.5,
+                  "quantity": 230,
+                  "orders": 10
+                },
+                {
+                  "price": 1300.55,
+                  "quantity": 240,
+                  "orders": 11
+                },
+                {
+                  "price": 1300.6,
+                  "quantity": 250,
+                  "orders": 12
+                },
+                {
+                  "price": 1300.65,
+                  "quantity": 260,
+                  "orders": 13
+                },
+                {
+                  "price": 1300.7,
+                  "quantity": 270,
+                  "orders": 14
+                },
+                {
+                  "price": 1300.75,
+                  "quantity": 280,
+                  "orders": 15
+                },
+                {
+                  "price": 1300.8,
+                  "quantity": 290,
+                  "orders": 16
+                },
+                {
+                  "price": 1300.85,
+                  "quantity": 300,
+                  "orders": 17
+                },
+                {
+                  "price": 1300.9,
+                  "quantity": 310,
+                  "orders": 18
+                },
+                {
+                  "price": 1300.95,
+                  "quantity": 320,
+                  "orders": 19
+                },
+                {
+                  "price": 1301.0,
+                  "quantity": 330,
+                  "orders": 20
+                },
+                {
+                  "price": 1301.05,
+                  "quantity": 340,
+                  "orders": 21
+                }
+              ]
+            },
+            "depth_level": 20
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    }
+  ]
+}

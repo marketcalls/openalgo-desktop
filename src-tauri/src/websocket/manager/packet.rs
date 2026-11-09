@@ -5,10 +5,10 @@
 //! so a reader never sees half a packet, nor another connection's events
 //! in between: the bridge pairs a quote with its book inside the packet,
 //! never by peeking at what happens to be queued. Each connection's
-//! sessions are numbered across the manager, and a session that opens is
-//! announced, so state that came from the session it replaced can be told
-//! apart from state of the manager's other connections (a pool's new
-//! connection replaces nothing).
+//! sessions are numbered across the manager, and a session that opens or
+//! ends is announced, so state that came from the session it replaced can
+//! be told apart from state of the manager's other connections (a pool's
+//! new connection replaces nothing).
 //!
 //! The same events still go out one by one on the manager's tick channel
 //! for readers that want single events (scalping, strategies, sandbox).
@@ -18,13 +18,20 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
+/// A connection task's sessions take the low bits of their numbers, the
+/// task's place in the order of tasks started the high ones.
+const TASK_SHIFT: u32 = 32;
+
 /// One session of one of a manager's connections.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct SessionId {
     /// The manager's connection (0: the first).
     pub conn: usize,
-    /// The session's number, unique across the manager's connections and
-    /// growing with each session opened.
+    /// The session's number, unique across the manager's connections. A
+    /// connection task's sessions grow as they open, and all of them lie
+    /// above those of every task started before it: a task being stopped
+    /// can still finish connecting after its replacement has opened, and
+    /// must not outrank it.
     pub session: u64,
 }
 
@@ -34,6 +41,9 @@ pub enum PacketKind {
     /// The session `from` opened: anything an earlier session of the same
     /// connection said is no longer current.
     Opened,
+    /// The session `from` ended (dropped, refused or stopped): nothing it
+    /// said is kept current any more, and the connection may stay down.
+    Closed,
     /// The market events of one broker message, in order.
     Events(Vec<MarketEvent>),
 }
@@ -42,6 +52,21 @@ pub enum PacketKind {
 pub struct Packet {
     pub from: SessionId,
     pub kind: PacketKind,
+    /// How many market events the manager had published before this packet:
+    /// a reader that fell behind compares it with what it has read to know
+    /// the events it missed (`RecvError::Lagged` counts packets).
+    pub events_before: u64,
+}
+
+impl Packet {
+    /// How many market events the manager had published up to and
+    /// including this packet.
+    pub fn events_through(&self) -> u64 {
+        match &self.kind {
+            PacketKind::Events(events) => self.events_before + events.len() as u64,
+            PacketKind::Opened | PacketKind::Closed => self.events_before,
+        }
+    }
 }
 
 pub type MarketPacket = Arc<Packet>;
@@ -50,7 +75,10 @@ pub type MarketPacket = Arc<Packet>;
 #[derive(Clone)]
 pub(super) struct PacketOut {
     tx: broadcast::Sender<MarketPacket>,
-    sessions: Arc<AtomicU64>,
+    /// Connection tasks started so far.
+    tasks: Arc<AtomicU64>,
+    /// Market events published so far.
+    events: Arc<AtomicU64>,
 }
 
 impl Default for PacketOut {
@@ -63,7 +91,8 @@ impl PacketOut {
     pub(super) fn with_capacity(capacity: usize) -> Self {
         Self {
             tx: broadcast::channel(capacity.max(1)).0,
-            sessions: Arc::default(),
+            tasks: Arc::default(),
+            events: Arc::default(),
         }
     }
 
@@ -71,31 +100,57 @@ impl PacketOut {
         self.tx.subscribe()
     }
 
-    /// A new session of connection `conn` opened: number it and say so.
-    pub(super) fn open(&self, conn: usize) -> SessionId {
-        let session = self.sessions.fetch_add(1, Ordering::Relaxed) + 1;
-        let from = SessionId { conn, session };
-        let _ = self.tx.send(Arc::new(Packet {
-            from,
-            kind: PacketKind::Opened,
-        }));
+    /// A task starts for connection `conn`: where its sessions' numbers
+    /// begin.
+    pub(super) fn task_started(&self, conn: usize) -> SessionId {
+        let task = self.tasks.fetch_add(1, Ordering::Relaxed) + 1;
+        SessionId {
+            conn,
+            session: task << TASK_SHIFT,
+        }
+    }
+
+    /// The session after `last` on its connection task opened: number it
+    /// and say so.
+    pub(super) fn open(&self, last: SessionId) -> SessionId {
+        let from = SessionId {
+            session: last.session + 1,
+            ..last
+        };
+        let before = self.events.load(Ordering::Relaxed);
+        self.publish(from, PacketKind::Opened, before);
         from
     }
 
-    /// The latest session number given out (tests).
+    /// The session `from` ended: say so.
+    pub(super) fn close(&self, from: SessionId) {
+        let before = self.events.load(Ordering::Relaxed);
+        self.publish(from, PacketKind::Closed, before);
+    }
+
+    /// A number no session opened so far exceeds and no later task's
+    /// reaches (tests).
     #[cfg(test)]
     pub(super) fn latest(&self) -> u64 {
-        self.sessions.load(Ordering::Relaxed)
+        ((self.tasks.load(Ordering::Relaxed) + 1) << TASK_SHIFT) - 1
     }
 
     /// One message's market events, together (none: nothing is sent; no
     /// receiver yet is normal and nothing is retained).
     pub(super) fn send(&self, from: SessionId, events: Vec<MarketEvent>) {
         if !events.is_empty() {
-            let _ = self.tx.send(Arc::new(Packet {
-                from,
-                kind: PacketKind::Events(events),
-            }));
+            let before = self
+                .events
+                .fetch_add(events.len() as u64, Ordering::Relaxed);
+            self.publish(from, PacketKind::Events(events), before);
         }
+    }
+
+    fn publish(&self, from: SessionId, kind: PacketKind, events_before: u64) {
+        let _ = self.tx.send(Arc::new(Packet {
+            from,
+            kind,
+            events_before,
+        }));
     }
 }

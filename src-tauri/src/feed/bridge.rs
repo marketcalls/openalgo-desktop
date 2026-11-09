@@ -398,36 +398,50 @@ impl BrokerBridge {
     async fn relay(&self, mut rx: broadcast::Receiver<MarketPacket>, from: &WebSocketManager) {
         // The deep-book socket's books keep its instruments watched (P-10).
         let deep = std::ptr::eq(from, self.depth_manager.as_ref());
-        let mut skipped: u64 = 0;
-        let mut lagged = |n: u64| {
-            skipped += n;
-            from.stats().note_skipped(Reader::FeedClients, n);
-            tracing::warn!(
-                "Market data relay fell behind the broker feed; skipped {} events ({} total)",
-                n,
-                skipped
-            );
-        };
+        // What was read and skipped, in the manager's events as every other
+        // reader counts them (`Lagged` says how many packets went by, and
+        // one packet can hold hundreds of instruments).
+        let (mut read_through, mut fell_behind, mut skipped) = (0u64, false, 0u64);
         loop {
             match rx.recv().await {
-                Ok(packet) => self.relay_packet(&packet, deep),
-                Err(RecvError::Lagged(n)) => lagged(n),
+                Ok(packet) => {
+                    if std::mem::take(&mut fell_behind) {
+                        let missed = packet.events_before.saturating_sub(read_through);
+                        skipped += missed;
+                        from.stats().note_skipped(Reader::FeedClients, missed);
+                        tracing::warn!(
+                            "Market data relay fell behind the broker feed; skipped {} events ({} total)",
+                            missed,
+                            skipped
+                        );
+                    }
+                    read_through = read_through.max(packet.events_through());
+                    self.relay_packet(&packet, deep);
+                }
+                Err(RecvError::Lagged(_)) => fell_behind = true,
                 Err(RecvError::Closed) => return,
             }
         }
     }
 
     /// One packet of a manager (`deep`: the deeper socket's): a session's
-    /// opening forgets what its connection's earlier session said, and a
-    /// broker message's events go out in order, a full tick and its book
-    /// right behind it in the packet as one update (`pairing`).
+    /// opening forgets what its connection's earlier session said, the end
+    /// of a deeper-socket session forgets its books (nothing keeps them
+    /// current while it is down), and a broker message's events go out in
+    /// order, a full tick and its book right behind it in the packet as one
+    /// update (`pairing`).
     fn relay_packet(&self, packet: &Packet, deep: bool) {
         let _turn = self.relay_turn.lock();
         if !self.note_session(packet.from, deep) {
             return;
         }
-        let PacketKind::Events(events) = &packet.kind else {
-            return;
+        let events = match &packet.kind {
+            PacketKind::Events(events) => events,
+            PacketKind::Closed if deep => {
+                snapshot::forget_deep_session(&mut self.state.lock().last_tick, packet.from);
+                return;
+            }
+            PacketKind::Opened | PacketKind::Closed => return,
         };
         let events: Vec<&FeedEvent> = events.iter().map(|e| e.as_ref()).collect();
         for step in pairing::steps(&events) {
@@ -545,6 +559,13 @@ impl BrokerBridge {
                 if !st.holds(&key) {
                     return None;
                 }
+                // A late book of a deep subscription already let go: kept,
+                // the next holder at those levels would be shown it as its
+                // own.
+                let wanted = |l| st.desired.contains(&(key.clone(), Mode::Depth, l));
+                if deep && !deep_levels.is_some_and(wanted) {
+                    return None;
+                }
                 let last = st.last_tick.get(&key);
                 let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
                 let (token, broker_symbol) = match last.filter(|s| s.token().is_some()) {
@@ -603,14 +624,19 @@ impl MarketDataSource for BrokerBridge {
     /// because the bridge stopped is a release: it let go of everything.
     fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp {
         let k = (key.clone(), mode, depth);
+        let deep_levels = *self.deep.lock();
         let released = {
             let mut st = self.state.lock();
             st.desired.remove(&k);
             // Once nothing names the instrument, its quote goes at once, so
             // a book subscribed again merges only a quote of its own (web
-            // openalgo#2376, `forget_quote`).
+            // openalgo#2376, `forget_quote`). Once nothing holds it at the
+            // deeper socket's levels, that socket's book goes: nothing keeps
+            // it current, and it must not come back as a later holder's.
             if !st.desired.holds(key) {
                 st.last_tick.remove(key);
+            } else if mode == Mode::Depth && deep_levels == Some(depth) {
+                snapshot::forget_deep_book(&mut st.last_tick, key);
             }
             st.ops.unwanted(&k, FEED_STOPPED);
             if !st.applied.contains_key(&k) && !st.ops.releasing(&k) {
@@ -676,23 +702,40 @@ mod tests {
 
     /// NEW-REL-05: what the relay to the apps' feed skipped because it fell
     /// behind is counted against the broker feed it reads (it was a log
-    /// line only).
+    /// line only), in events as the other readers count them, however many
+    /// instruments a broker message held (review F4).
     #[tokio::test]
     async fn events_the_relay_skips_are_counted_against_its_feed() {
-        let manager = Arc::new(WebSocketManager::new());
+        let manager = Arc::new(WebSocketManager::with_config(
+            crate::websocket::FeedConfig {
+                event_capacity: 2,
+                ..Default::default()
+            },
+        ));
         let bridge = BrokerBridge::new(manager.clone(), SymbolResolver::new());
-        let (tx, rx) = broadcast::channel::<MarketPacket>(2);
+        let rx = manager.subscribe_packets();
+        let tick = Arc::new(FeedEvent::Tick(full_tick("SBIN", "NSE")));
         for _ in 0..5 {
-            let tick = Arc::new(FeedEvent::Tick(full_tick("SBIN", "NSE")));
-            let _ = tx.send(Arc::new(Packet {
-                from: SessionId::default(),
-                kind: PacketKind::Events(vec![tick]),
-            }));
+            manager.emit_packet(vec![tick.clone(); 184]);
         }
-        drop(tx);
-        bridge.relay(rx, &manager).await;
-        let s = manager.stats().since_connect();
-        assert!(s.skipped.contains(&(Reader::FeedClients, 3)), "{:?}", s);
+        let relay = {
+            let manager = manager.clone();
+            tokio::spawn(async move { bridge.relay(rx, &manager).await })
+        };
+        let skipped = || {
+            let s = manager.stats().since_connect();
+            let feed_clients = s.skipped.iter().find(|(r, _)| *r == Reader::FeedClients);
+            feed_clients.map_or(0, |(_, n)| *n)
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while skipped() == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the relay counts what it skipped");
+        relay.abort();
+        assert_eq!(skipped(), 3 * 184);
     }
 
     /// A tick is relayed while any reference names its instrument, in any

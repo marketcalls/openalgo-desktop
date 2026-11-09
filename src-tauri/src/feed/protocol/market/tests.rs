@@ -1026,6 +1026,30 @@ fn a_lower_holder_names_the_levels_of_the_book_it_is_shown() {
     assert_eq!(depth["data"]["depth_level"], 5);
 }
 
+/// Review F3: a Depth frame with no book names no levels: not Fyers' 50-level
+/// keys and ticker, not `depth_level` (each web adapter writes them beside a
+/// book).
+#[test]
+fn a_frame_without_a_book_names_no_levels() {
+    let mut bookless = update(equity());
+    bookless.depth = None;
+    bookless.token = Some(std::sync::Arc::from("10100000003045"));
+    bookless.broker_symbol = Some(std::sync::Arc::from("NSE:SBIN-EQ"));
+    let data = |depth: u8, broker: &str| -> Value {
+        let frame = market_data(&bookless, Mode::Depth, depth, broker);
+        serde_json::from_str::<Value>(&frame).unwrap()["data"].clone()
+    };
+    let fyers = data(50, "fyers");
+    assert!(
+        fyers.get("is_50_depth").is_none() && fyers.get("depth_levels").is_none(),
+        "{}",
+        fyers
+    );
+    assert_eq!(fyers["token"], "3045", "{}", fyers);
+    let dhan = data(20, "dhan");
+    assert!(dhan.get("depth_level").is_none(), "{}", dhan);
+}
+
 /// Fyers' `token` is the exchange's token (the fytoken less its first ten
 /// digits) on HSM frames and the ticker on TBT 50-level frames, and none on
 /// an index (the web's `""` placeholder, declared by the Fyers lane).

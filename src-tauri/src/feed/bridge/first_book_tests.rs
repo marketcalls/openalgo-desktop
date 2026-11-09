@@ -5,7 +5,7 @@
 //! for the reconnect). A frame with no `depth` key broke clients reading
 //! `data['depth']` and left a blank book for up to 30 s on a quiet contract.
 
-use super::packet_tests::{book, bridge, drain, opened, packet, sid, tick};
+use super::packet_tests::{book, bridge, closed, drain, opened, packet, sid, tick};
 use super::render::tests::full_tick;
 use super::*;
 use crate::feed::protocol;
@@ -141,6 +141,48 @@ fn after_a_fallback_the_deeper_holder_gets_the_main_book() {
     b.relay_packet(&packet(from, vec![book("SBIN", 5)]), false);
     let after: Vec<Heard> = drain(&mut rx).iter().filter_map(|u| heard(u, 20)).collect();
     assert_eq!(after, [FIVE, FIVE]);
+}
+
+/// Review F1: a 20 holder that leaves and comes back hours later, with a 5
+/// holder there throughout, is not shown the book from before it left, not
+/// even one that was still on its way when it left.
+#[test]
+fn a_book_from_before_the_last_deep_holder_left_is_not_a_later_holders() {
+    let (b, mut rx) = bridge(&["SBIN"]);
+    streams_deep(&b, "SBIN", 20);
+    let key = InstrumentKey::new("SBIN", "NSE");
+    let from = sid(0, 1);
+    b.relay_packet(&packet(from, vec![book("SBIN", 20)]), true);
+    drop(b.unsubscribe(&key, Mode::Depth, 20));
+    b.relay_packet(&packet(from, vec![book("SBIN", 20)]), true);
+    drain(&mut rx);
+    drop(b.subscribe(&key, Mode::Depth, 20));
+    b.relay_packet(&packet(from, vec![tick("SBIN"), book("SBIN", 5)]), false);
+    let after: Vec<Heard> = drain(&mut rx).iter().filter_map(|u| heard(u, 20)).collect();
+    assert_eq!(after, [FIVE]);
+}
+
+/// Review F1: the deeper socket's session ended and it may stay down
+/// (backoff, a refused login): its last book is nobody's own any more. The
+/// main feed's session ending takes nothing from it.
+#[test]
+fn a_deeper_sockets_book_goes_when_its_session_ends() {
+    let (b, mut rx) = bridge(&["SBIN"]);
+    streams_deep(&b, "SBIN", 20);
+    let from = sid(0, 1);
+    let full = || packet(from, vec![tick("SBIN"), book("SBIN", 5)]);
+    let mut relay = |p: Packet, deep: bool| {
+        b.relay_packet(&p, deep);
+        drain(&mut rx)
+            .iter()
+            .filter_map(|u| heard(u, 20))
+            .collect::<Vec<Heard>>()
+    };
+    assert_eq!(relay(packet(from, vec![book("SBIN", 20)]), true), [TWENTY]);
+    relay(closed(from), false);
+    assert_eq!(relay(full(), false), [TWENTY], "only the main feed closed");
+    relay(closed(from), true);
+    assert_eq!(relay(full(), false), [FIVE]);
 }
 
 /// Fyers 50 beside 5: before the first TBT book the 50 holder gets the main

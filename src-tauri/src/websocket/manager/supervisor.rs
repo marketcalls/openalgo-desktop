@@ -82,7 +82,8 @@ pub(super) struct Supervisor {
     /// The same events, one broker message per packet, with the session
     /// that sent them (`packet`).
     pub(super) packets: PacketOut,
-    /// This connection's current session (numbered when it opens).
+    /// This connection's latest session; until the first opens, where this
+    /// task's numbers begin (`PacketOut::task_started`).
     pub(super) session: SessionId,
     pub(super) status: watch::Sender<FeedStatus>,
     pub(super) config: FeedConfig,
@@ -282,9 +283,10 @@ impl Supervisor {
             }
         };
         self.stats.opened();
-        self.session = self.packets.open(self.conn);
+        self.session = self.packets.open(self.session);
         let (mut write, mut read) = ws.split();
         let end = self.session(broker, &mut write, &mut read).await;
+        self.packets.close(self.session);
         if matches!(end, SessionEnd::Stopped) {
             self.farewell(&mut write).await;
         }
