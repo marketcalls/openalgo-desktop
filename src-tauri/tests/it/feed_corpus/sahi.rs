@@ -17,10 +17,9 @@ fn feeds(env: &Env) -> Feeds {
         format!("{}/master", env.http_url()),
         env.url("main"),
     ));
-    let feed = broker
-        .create_feed(&AuthToken::new("t"))
-        .expect("Sahi's market feed");
-    Feeds::boxed(feed).with_broker(broker)
+    let auth = AuthToken::new("t");
+    let feed = broker.create_feed(&auth).expect("Sahi's market feed");
+    Feeds::boxed(feed).with_broker(broker, &auth)
 }
 
 corpus_cases!(

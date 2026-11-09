@@ -27,9 +27,8 @@ fn feeds(env: &Env) -> Feeds {
             orders_ws: env.url("orders"),
         },
     ));
-    let market = broker
-        .create_feed(&AuthToken::new("t"))
-        .expect("INDmoney's price feed");
+    let auth = AuthToken::new("t");
+    let market = broker.create_feed(&auth).expect("INDmoney's price feed");
     let mut ids = OrderIdMap::default();
     for id in KNOWN_ORDERS {
         ids.remember(id);
@@ -40,7 +39,7 @@ fn feeds(env: &Env) -> Feeds {
             "t",
             Arc::new(Mutex::new(ids)),
         ))
-        .with_broker(broker)
+        .with_broker(broker, &auth)
 }
 
 corpus_cases!(

@@ -32,7 +32,7 @@ fn feeds(env: &Env) -> Feeds {
     );
     let auth = AuthToken::new("login-token");
     let feeds = Feeds::boxed(broker.create_feed(&auth).expect("Groww's market feed"))
-        .with_broker(broker.clone());
+        .with_broker(broker.clone(), &auth);
     if !env.orders() {
         return feeds;
     }
