@@ -1,0 +1,12 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "mode": 2, "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}, {"symbol": "NIFTY28OCT26FUT", "exchange": "NFO"}]}, "reply": {"type": "subscribe", "status": "partial", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "motilal"}, {"symbol": "NIFTY28OCT26FUT", "exchange": "NFO", "status": "error", "message": "NIFTY28OCT26FUT on NFO cannot be streamed at the same time as RELIANCE on NSE: Motilal sends both under one code", "broker": "motilal"}], "message": "Subscription processing complete", "broker": "motilal"}, "note": "NSE cash RELIANCE and an NFO contract with the same scrip code, in one subscribe: Motilal's packets cannot tell them apart, so the second is refused."}
+{"step": "upstream_receives", "frames": ["frames/register.hex"], "note": "Only the first is registered at the broker."}
+{"step": "push", "frame": "frames/ltp.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": ["frames/unregister_cash.hex"]}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28OCT26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": ["frames/register_fo.hex"], "note": "The code is free: the NFO contract registers (segment D)."}
+{"step": "push", "frame": "frames/ltp_fo.hex", "note": "Now the scrip's packets are the NFO contract's."}
+{"step": "receive", "client": "a", "frame": "expected/quote_fo.json", "web": false}

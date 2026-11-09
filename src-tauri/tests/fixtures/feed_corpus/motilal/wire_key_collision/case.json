@@ -1,0 +1,80 @@
+{
+  "broker": "motilal",
+  "summary": "NSE cash and an NFO contract sharing Motilal's wire key ('N', 2885): asked together, the second is refused with the reason; once the cash one goes, the NFO contract subscribes and streams.",
+  "scenarios": [
+    "subscription-lifecycle",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY28OCT26FUT",
+      "exchange": "NFO",
+      "token": "2885",
+      "brsymbol": "NIFTY 28-Oct-2026 FUT",
+      "brexchange": "NSEFO",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "expiry": "28-OCT-26",
+      "tick_size": 0.1
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_binary_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._poll_market_data",
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket.register_scrip",
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket.unregister_scrip",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter.subscribe"
+    ],
+    "notes": [
+      "The web publishes every subscription from its packet stores every 500 ms (motilal_adapter.py _poll_market_data); web.json holds the poll after each push, the desktop sends a frame when a packet changes what a subscription reports.",
+      "A conditional identity risk shared with the web: only a cash and an F&O contract with the same scrip code meet it. The web accepts both in one subscribe and registers both (motilal_websocket.py:942-966, first registration wins the packets), so live the NFO contract's prices are published as RELIANCE's; the desktop refuses the second while the first holds the code (motilal/wire_keys.rs). The two acknowledgements are not compared with the web here (web.json holds publishes only)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "Motilal's packet header names only the exchange character and the scrip (motilal_websocket.py:456-484), so NSE cash and NSE F&O share ('N', 2885). The web registered both when they were asked together, and once the cash one goes its packets resolve by the lossy 'N' -> NSE fallback and are stored under NSE:2885 (unregister_scrip drops the (wire, scrip) route), so the NFO contract the client still holds publishes nothing: lost data. The desktop refused the second instrument while the first held the code, then streams it once the first went.",
+      "ref": "motilal_websocket.py:105-114, :584-593, :1036-1046",
+      "approval": "never-copy-web-defect"
+    }
+  ]
+}

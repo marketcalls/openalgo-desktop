@@ -34,6 +34,7 @@
 //! `orderstatus` and `uniqueorderid` with rupee prices.
 
 use super::mapping::{self, token_text, vf, vi, vs};
+use super::wire_keys::{WireKey, WireKeys};
 use super::MotilalSession;
 use crate::brokers::common::streaming::{
     now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
@@ -477,6 +478,8 @@ pub struct MotilalFeed {
     state: FeedState,
     subs: HashMap<(String, i32), SubInfo>,
     announced: bool,
+    /// The session's wire keys, shared with its subscribe step.
+    wire_keys: WireKeys,
 }
 
 impl MotilalFeed {
@@ -487,7 +490,15 @@ impl MotilalFeed {
             state: FeedState::default(),
             subs: HashMap::new(),
             announced: false,
+            wire_keys: WireKeys::default(),
         }
+    }
+
+    /// The feed of a session whose subscribe step refuses a second
+    /// instrument on a wire key (`MotilalBroker::feed_presubscribe`).
+    pub(crate) fn sharing(mut self, wire_keys: WireKeys) -> Self {
+        self.wire_keys = wire_keys;
+        self
     }
 
     /// Instruments currently registered (tests and hygiene).
@@ -510,8 +521,10 @@ impl MotilalFeed {
             let ex = feed_exchange(&s.exchange).to_string();
             let segment = mapping::segment(&s.exchange);
             let key = (ex.clone(), scrip);
+            let wire = (exchange_char(&ex), scrip);
             if add {
                 self.state.register(&ex, scrip);
+                self.wire_keys.registered(wire, &s.symbol, &s.exchange);
                 self.subs.insert(
                     key,
                     SubInfo {
@@ -523,11 +536,29 @@ impl MotilalFeed {
                 );
             } else {
                 self.state.unregister(&ex, scrip);
+                self.wire_keys.released(wire, &s.symbol, &s.exchange);
                 self.subs.remove(&key);
+                self.hand_over(wire);
             }
             out.push(Message::Binary(register_packet(&ex, segment, scrip, add)));
         }
         out
+    }
+
+    /// A wire key let go of goes to an instrument still registered on it
+    /// (NSE cash and F&O share `'N'`): the broker keeps streaming that one
+    /// (its register packet named its own segment), so its packets are
+    /// routed to it again rather than dropped.
+    fn hand_over(&mut self, wire: WireKey) {
+        let other = self
+            .subs
+            .iter()
+            .find(|((ex, scrip), _)| (exchange_char(ex), *scrip) == wire)
+            .map(|((ex, scrip), sub)| (ex.clone(), *scrip, sub.clone()));
+        if let Some((ex, scrip, sub)) = other {
+            self.state.register(&ex, scrip);
+            self.wire_keys.registered(wire, &sub.symbol, &sub.exchange);
+        }
     }
 
     fn events(&self, ex: &str, scrip: i32, kind: u8) -> Vec<FeedEvent> {
@@ -578,6 +609,17 @@ impl MotilalFeed {
             out.extend(self.events(&ex, scrip, kind));
         }
         out
+    }
+}
+
+/// A feed that goes (a logout, the session ending) frees the wire keys it
+/// held, so the next session's subscribe step does not refuse against it.
+impl Drop for MotilalFeed {
+    fn drop(&mut self) {
+        for ((ex, scrip), sub) in &self.subs {
+            self.wire_keys
+                .released((exchange_char(ex), *scrip), &sub.symbol, &sub.exchange);
+        }
     }
 }
 

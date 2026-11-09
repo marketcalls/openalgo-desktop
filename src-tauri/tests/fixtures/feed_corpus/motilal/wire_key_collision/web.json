@@ -1,0 +1,62 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "motilal",
+  "inputs_sha256": "e9ae8f5b361d6961d5e0d95f978eb25cbf6432ae5a45e5638cbecba618a95585",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY28OCT26FUT",
+      "exchange": "NFO",
+      "token": "2885",
+      "brsymbol": "NIFTY 28-Oct-2026 FUT",
+      "brexchange": "NSEFO",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "expiry": "28-OCT-26",
+      "tick_size": 0.1
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1300.5,
+            "ltq": 25,
+            "volume": 40000,
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": 0,
+            "average_price": 1298.25,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": []
+    }
+  ]
+}

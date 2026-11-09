@@ -44,5 +44,6 @@ corpus_cases!(
         depth_20_refused,
         market_logout,
         mode_change,
+        wire_key_collision,
     ]
 );
