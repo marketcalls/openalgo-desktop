@@ -7,29 +7,29 @@ use super::render::tests::full_tick;
 use super::*;
 use crate::brokers::common::streaming::{MarketEvent, NormalizedDepth};
 
-fn sid(conn: usize, session: u64) -> SessionId {
+pub(super) fn sid(conn: usize, session: u64) -> SessionId {
     SessionId { conn, session }
 }
 
-fn opened(from: SessionId) -> Packet {
+pub(super) fn opened(from: SessionId) -> Packet {
     Packet {
         from,
         kind: PacketKind::Opened,
     }
 }
 
-fn packet(from: SessionId, events: Vec<FeedEvent>) -> Packet {
+pub(super) fn packet(from: SessionId, events: Vec<FeedEvent>) -> Packet {
     Packet {
         from,
         kind: PacketKind::Events(events.into_iter().map(MarketEvent::new).collect()),
     }
 }
 
-fn tick(symbol: &str) -> FeedEvent {
+pub(super) fn tick(symbol: &str) -> FeedEvent {
     FeedEvent::Tick(full_tick(symbol, "NSE"))
 }
 
-fn book(symbol: &str, levels: usize) -> FeedEvent {
+pub(super) fn book(symbol: &str, levels: usize) -> FeedEvent {
     FeedEvent::Depth(NormalizedDepth {
         symbol: symbol.into(),
         exchange: "NSE".into(),
@@ -40,7 +40,9 @@ fn book(symbol: &str, levels: usize) -> FeedEvent {
 }
 
 /// A bridge holding `symbols` at Depth, and its updates.
-fn bridge(symbols: &[&str]) -> (Arc<BrokerBridge>, broadcast::Receiver<Arc<MarketUpdate>>) {
+pub(super) fn bridge(
+    symbols: &[&str],
+) -> (Arc<BrokerBridge>, broadcast::Receiver<Arc<MarketUpdate>>) {
     let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
     for s in symbols {
         drop(bridge.subscribe(&InstrumentKey::new(*s, "NSE"), Mode::Depth, 5));
@@ -49,7 +51,7 @@ fn bridge(symbols: &[&str]) -> (Arc<BrokerBridge>, broadcast::Receiver<Arc<Marke
     (bridge, rx)
 }
 
-fn drain(rx: &mut broadcast::Receiver<Arc<MarketUpdate>>) -> Vec<Arc<MarketUpdate>> {
+pub(super) fn drain(rx: &mut broadcast::Receiver<Arc<MarketUpdate>>) -> Vec<Arc<MarketUpdate>> {
     std::iter::from_fn(|| rx.try_recv().ok()).collect()
 }
 

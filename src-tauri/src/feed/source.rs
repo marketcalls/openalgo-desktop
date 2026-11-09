@@ -199,12 +199,12 @@ pub struct MarketUpdate {
     /// a TBT book by it, `NSE:SBIN-EQ`).
     pub broker_symbol: Option<Arc<str>>,
     /// The deeper socket's levels while the instrument's subscription at
-    /// them streams from that socket (Dhan 20, Fyers 50): a holder at that
-    /// depth then gets only `deep_book`, never the main feed's shallower
-    /// book in between (`protocol::book_for`).
+    /// them streams from that socket (Dhan 20, Fyers 50): once `deep_book`
+    /// has come a holder at that depth gets only it, never the main feed's
+    /// shallower book in between (`protocol::book_for`).
     pub deep_live: Option<u8>,
-    /// The instrument's book from the deeper socket, for holders at its
-    /// levels.
+    /// The instrument's latest book from the deeper socket on its current
+    /// connection, for holders at its levels (none before the first).
     pub deep_book: Option<DepthBook>,
 }
 

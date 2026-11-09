@@ -195,6 +195,11 @@ pub struct BrokerBridge {
     symbols: SymbolResolver,
     tx: broadcast::Sender<Arc<MarketUpdate>>,
     state: Arc<Mutex<State>>,
+    /// Held while a packet's updates are built and sent, so the main feed's
+    /// and the deeper socket's leave in the order they were built: an update
+    /// built before an instrument's first deep book must not follow that
+    /// book out, or its holder's book would flip back to the shallower one.
+    relay_turn: Mutex<()>,
     changed: Arc<Notify>,
     depths: Mutex<DepthCapability>,
     /// The exchanges the connected broker's feed refuses (none by default).
@@ -235,6 +240,7 @@ impl BrokerBridge {
             symbols,
             tx,
             state: Arc::new(Mutex::new(State::default())),
+            relay_turn: Mutex::new(()),
             changed: Arc::new(Notify::new()),
             depths: Mutex::new(Arc::new(|_| vec![DEFAULT_DEPTH])),
             refusal: Mutex::new(None),
@@ -416,6 +422,7 @@ impl BrokerBridge {
     /// broker message's events go out in order, a full tick and its book
     /// right behind it in the packet as one update (`pairing`).
     fn relay_packet(&self, packet: &Packet, deep: bool) {
+        let _turn = self.relay_turn.lock();
         if !self.note_session(packet.from, deep) {
             return;
         }
@@ -657,6 +664,8 @@ impl MarketDataSource for BrokerBridge {
     }
 }
 
+#[cfg(test)]
+mod first_book_tests;
 #[cfg(test)]
 mod packet_tests;
 #[cfg(test)]
