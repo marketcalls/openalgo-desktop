@@ -61,5 +61,6 @@ corpus_cases!(
         reconnect_after_held_prices,
         order_book_polling,
         depth_20_refused,
+        sparse_feed_keeps_quantities,
     ]
 );

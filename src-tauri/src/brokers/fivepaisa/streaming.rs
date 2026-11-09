@@ -221,6 +221,21 @@ fn quote_tick(sub: &SubInfo, m: &Value) -> NormalizedTick {
     if t.last_trade_time_ms <= 0 {
         t.mark_absent(QuoteField::LastTradeTime);
     }
+    // A quantity the frame does not carry (a frame repeating only what
+    // changed, the price) is not a 0: the bridge keeps the known one until
+    // 5paisa sends another, and a 0 it sends replaces it (review R107-08;
+    // the web reads it as 0).
+    let quantities = [
+        ("TotalQty", QuoteField::Volume),
+        ("LastQty", QuoteField::LastQuantity),
+        ("TBidQ", QuoteField::TotalBuyQuantity),
+        ("TOffQ", QuoteField::TotalSellQuantity),
+    ];
+    for (key, field) in quantities {
+        if m.get(key).is_none_or(Value::is_null) {
+            t.mark_absent(field);
+        }
+    }
     let prices = [
         (QuoteField::Ltp, t.ltp),
         (QuoteField::Open, t.open),
@@ -252,6 +267,11 @@ fn quote_tick(sub: &SubInfo, m: &Value) -> NormalizedTick {
     t.derive_change();
     if m.get("ChgPcnt").is_some_and(|v| !v.is_null()) {
         t.change_percent = num(m, "ChgPcnt");
+    } else {
+        // The web's `percent_change` only forwards 5paisa's ChgPcnt
+        // (`_quote_fields`): without one there is none, not a change the
+        // desktop works out (lead rule no-derived-change).
+        t.mark_absent(QuoteField::Change);
     }
     // The best bid and ask the web's Quote publishes (`bid_price`,
     // `bid_quantity`, `ask_price`, `ask_quantity`), each only when the
