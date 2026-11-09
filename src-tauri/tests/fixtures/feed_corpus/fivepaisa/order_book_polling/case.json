@@ -1,0 +1,74 @@
+{
+  "broker": "fivepaisa",
+  "summary": "Order updates by polling 5paisa's order book (web PollingOrderUpdateAdapter, desktop common::order_poll::OrderPoller): the first read (an empty book) is a silent baseline, then an order open, 40 of 100 filled, complete, a manual MARKET order first seen in the book (its row priced) and filled, a rejection with 5paisa's full RMS text, and an SL order open then cancelled.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter._poll_loop",
+      "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter._publish_order",
+      "services/orderbook_service.py::get_orderbook_with_auth",
+      "services/orderbook_service.py::format_order_data",
+      "broker/fivepaisa/mapping/order_data.py::map_order_data",
+      "broker/fivepaisa/mapping/order_data.py::transform_order_data",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "web.json is computed through scripts/feed_corpus/web_adapters/polling.py: the web's own PollingOrderUpdateAdapter._poll_loop and _publish_order, services/orderbook_service.py get_orderbook and format_order_data, and 5paisa's map_order_data, calculate_order_statistics and transform_order_data, each served book as the poller's next read.",
+      "OrderBook rows follow 5paisa's V3 OrderBook fields (BrokerOrderId, OrderStatus, Qty, TradedQty, PendingQty, Rate, AveragePrice, SLTriggerRate, AtMarket, DelvIntra, Reason). The Reason on the cancelled order is illustrative."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "The web's 5paisa book (transform_order_data) has no filled_quantity, so the poller's (order_status, filled_quantity) never changes on a partial fill and the web publishes nothing for it; the desktop reads TradedQty and publishes the fill.",
+      "ref": "broker/fivepaisa/mapping/order_data.py:transform_order_data; websocket_proxy/order_adapter.py:465",
+      "approved": true
+    },
+    {
+      "key": "filled_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends 0 for every 5paisa order (its book has no filled_quantity), a completed one included; the desktop sends TradedQty.",
+      "ref": "order_adapter.py:511",
+      "approved": true
+    },
+    {
+      "key": "pending_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends 0 for every 5paisa order (its book has no pending_quantity); the desktop sends PendingQty.",
+      "ref": "order_adapter.py:512",
+      "approved": true
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "The web sends 0.0 for every 5paisa order (its book has no average_price); the desktop sends AveragePrice.",
+      "ref": "order_adapter.py:513",
+      "approved": true
+    },
+    {
+      "key": "rejection_reason",
+      "kind": "web-defect",
+      "reason": "The web's 5paisa book carries 5paisa's Reason as reason, and the poller reads rejection_reason, so a rejected order goes out with an empty reason; the desktop sends 5paisa's RMS text. Lost data on the web.",
+      "ref": "broker/fivepaisa/mapping/order_data.py:243; websocket_proxy/order_adapter.py:514-516",
+      "approved": true
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "broker": "samco",
+  "summary": "A Depth subscription whose first frame is a quote (no book yet), then a five-level quote2 book, a thinner book with numeric zero totals, and a cleared book.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present",
+      "test/test_samco_quote_feed.py::test_depth_frame_totals_tbq_taq_published",
+      "test/test_samco_quote_feed.py::test_a_zero_depth_total_is_kept_not_replaced_by_the_quote_total"
+    ],
+    "notes": [
+      "The web publishes to Depth subscribers only on quote2 frames (samco_adapter.py _on_data: target_modes [3] for subscription_mode 3, [1, 2] otherwise).",
+      "The thin book sends tbq/taq as the numbers 0: real zero totals (web _first_present, openalgo#2397)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "When Samco clears the book (both sides empty) the web's Depth frame has no depth key (samcoWebSocket._normalize_market_data adds it only when a side has levels). After a book existed, an empty book is the information that it emptied; the web's missing key loses it, and a client cannot tell no book in this frame from the book is now empty. The desktop keeps depth with empty buy and sell sides. Before Samco's first book the desktop sends no Depth frame, as the web.",
+      "ref": "samcoWebSocket.py _normalize_market_data (if depth_buy or depth_sell); lead ruling 2026-11-09 (book clear approved)"
+    },
+    {
+      "kind": "web-defect",
+      "reason": "Samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, Quote and Depth included (lost data); the desktop sends it, and no OI Samco did not send.",
+      "ref": "samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data; decisions 2026-11-09 (data a web adapter drops is kept)",
+      "key": "oi",
+      "approved": true
+    }
+  ]
+}

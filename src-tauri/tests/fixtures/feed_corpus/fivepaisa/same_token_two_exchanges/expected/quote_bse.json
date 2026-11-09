@@ -1,0 +1,31 @@
+{
+  "type": "market_data",
+  "symbol": "ITC",
+  "exchange": "BSE",
+  "mode": 2,
+  "broker": "fivepaisa",
+  "data": {
+    "symbol": "ITC",
+    "exchange": "BSE",
+    "mode": 2,
+    "ltp": 440.35,
+    "ltt": 1759900056000,
+    "timestamp": "<receipt_ms>",
+    "volume": 48200,
+    "last_quantity": 12,
+    "average_price": 441.45,
+    "total_buy_quantity": 9100,
+    "total_sell_quantity": 12800,
+    "open": 444.9,
+    "high": 447.1,
+    "low": 439.6,
+    "close": 442.85,
+    "last_trade_quantity": 12,
+    "percent_change": -0.5668,
+    "last_trade_time": 1759900056000,
+    "bid_price": 440.3,
+    "bid_quantity": 40,
+    "ask_price": 440.4,
+    "ask_quantity": 55
+  }
+}

@@ -36,8 +36,8 @@
 use super::mapping::{self, token_text, vf, vi, vs};
 use super::MotilalSession;
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -204,6 +204,7 @@ pub struct ScripData {
     pub has_ltp: bool,
     pub has_ohlc: bool,
     pub has_oi: bool,
+    pub has_circuit: bool,
     pub bids: [Option<DepthLevel>; 5],
     pub asks: [Option<DepthLevel>; 5],
 }
@@ -239,6 +240,12 @@ impl ScripData {
 
     pub fn levels(levels: &[Option<DepthLevel>; 5]) -> Vec<DepthLevel> {
         levels.iter().map(|l| l.unwrap_or_default()).collect()
+    }
+
+    /// The levels Motilal has sent, best first, without a stand-in for one
+    /// that has not arrived (web `get_market_depth` drops those too).
+    pub(crate) fn received(levels: &[Option<DepthLevel>; 5]) -> Vec<DepthLevel> {
+        levels.iter().flatten().copied().collect()
     }
 }
 
@@ -287,6 +294,12 @@ impl FeedState {
                 true
             }
         }
+    }
+
+    /// Drop every scrip's data and keep the registrations (a new
+    /// connection registers them again).
+    pub(crate) fn forget_data(&mut self) {
+        self.data.clear();
     }
 
     pub fn unregister(&mut self, exchange: &str, scrip: i32) {
@@ -372,6 +385,7 @@ impl FeedState {
                 b'W' => {
                     d.upper_circuit = r2(f32_at(b, 0));
                     d.lower_circuit = r2(f32_at(b, 4));
+                    d.has_circuit = true;
                 }
                 _ => continue,
             }
@@ -392,6 +406,68 @@ struct SubInfo {
     mode: FeedMode,
     /// Registered Motilal exchange.
     mo_exchange: String,
+}
+
+/// What `d`'s packets have delivered for `sub` so far, as one quote (the
+/// web's `last_quotes` for the scrip). Motilal sends each field group in a
+/// packet of its own, so a field is marked absent until its packet has
+/// arrived, and a frame leaves it out instead of sending 0 (audit C03, web
+/// openalgo#2376): the price until the first last-trade packet (A) or, for
+/// an index, index packet (H), with nothing published before it; the day
+/// volume, last quantity and average price until an A packet; open, high,
+/// low and the previous close until the day OHLC packet (G). Motilal sends
+/// no book totals, no trade time and no change (the web adapter publishes
+/// none), so those are never known. Open interest is the m packet's, or
+/// the A packet's own for a derivative (a cash scrip has none; its A slot
+/// is 0).
+fn quote_tick(sub: &SubInfo, d: &ScripData, now: i64) -> NormalizedTick {
+    use QuoteField as F;
+    let mut t = NormalizedTick {
+        symbol: sub.symbol.clone(),
+        exchange: sub.exchange.clone(),
+        mode: FeedMode::Quote.code(),
+        ltp: d.ltp,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.prev_close,
+        volume: d.volume,
+        average_price: d.avg_price,
+        last_quantity: d.ltq,
+        oi: d.oi,
+        timestamp_ms: now,
+        absent: AbsentFields::of(&[
+            F::TotalBuyQuantity,
+            F::TotalSellQuantity,
+            F::LastTradeTime,
+            F::Change,
+        ]),
+        ..Default::default()
+    };
+    if !d.has_ltp && d.index_rate.is_none() {
+        t.mark_absent(F::Ltp);
+    }
+    if !d.has_ltp {
+        for f in [F::Volume, F::LastQuantity, F::AveragePrice] {
+            t.mark_absent(f);
+        }
+    }
+    if !d.has_ohlc {
+        for f in [F::Open, F::High, F::Low, F::Close] {
+            t.mark_absent(f);
+        }
+    }
+    let derivative = mapping::segment(&sub.exchange) == "DERIVATIVES";
+    if d.has_oi || (derivative && d.has_ltp) {
+        t.mark_carried(F::OpenInterest);
+    }
+    // The W packet's price band, which the web's Depth dict carries
+    // (audit C06); none before Motilal has sent one.
+    if d.has_circuit {
+        t.extras.upper_circuit = Some(d.upper_circuit);
+        t.extras.lower_circuit = Some(d.lower_circuit);
+    }
+    t
 }
 
 /// The broadcast feed for the shared `WebSocketManager`.
@@ -464,40 +540,25 @@ impl MotilalFeed {
         let now = now_ms();
         let depth_packet = (b'B'..=b'F').contains(&kind);
         let mut out = Vec::new();
-        if !depth_packet || sub.mode == FeedMode::Depth {
-            let mut t = NormalizedTick {
-                symbol: sub.symbol.clone(),
-                exchange: sub.exchange.clone(),
-                mode: sub.mode.code(),
-                ltp: d.ltp,
-                timestamp_ms: now,
-                ..Default::default()
-            };
-            if sub.mode >= FeedMode::Quote {
-                t.open = d.open;
-                t.high = d.high;
-                t.low = d.low;
-                t.close = d.prev_close;
-                t.volume = d.volume;
-                t.average_price = d.avg_price;
-                t.last_quantity = d.ltq;
-                t.oi = d.oi;
-                t.derive_change();
-            }
-            if !depth_packet {
-                out.push(FeedEvent::Tick(t));
-            }
+        if !depth_packet {
+            out.push(FeedEvent::Tick(quote_tick(sub, d, now)));
         }
-        if sub.mode == FeedMode::Depth && (depth_packet || kind == b'A') {
+        // No book before a traded price and a first book level (audit
+        // RB-09, web `_poll_market_data`): an empty level is not sent as
+        // one, and the book has only the levels Motilal sent.
+        let book = d.has_ltp && d.bids.iter().any(Option::is_some);
+        if sub.mode == FeedMode::Depth && (depth_packet || kind == b'A') && book {
             out.push(FeedEvent::Depth(NormalizedDepth {
                 symbol: sub.symbol.clone(),
                 exchange: sub.exchange.clone(),
                 ltp: d.ltp,
-                buy: ScripData::levels(&d.bids),
-                sell: ScripData::levels(&d.asks),
-                total_buy_quantity: 0,
-                total_sell_quantity: 0,
+                buy: ScripData::received(&d.bids),
+                sell: ScripData::received(&d.asks),
                 timestamp_ms: now,
+                absent: AbsentFields::of(&[
+                    QuoteField::TotalBuyQuantity,
+                    QuoteField::TotalSellQuantity,
+                ]),
                 ..Default::default()
             }));
         }
@@ -532,8 +593,11 @@ impl BrokerFeed for MotilalFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         // A new socket: nothing is registered on it yet and the login has
-        // not been answered.
+        // not been answered. What the old one delivered is not current, so
+        // no pre-outage OHLC, book or circuit is reported as today's (the
+        // web keeps it; the desktop starts afresh, as for Upstox).
         self.announced = false;
+        self.state.forget_data();
         vec![Message::Binary(login_packet(&self.client_code))]
     }
 
@@ -589,6 +653,19 @@ impl BrokerFeed for MotilalFeed {
     fn supported_depth_levels(&self) -> &'static [u8] {
         &[5]
     }
+
+    /// The web's logout before a deliberate close (motilal_websocket.py
+    /// `disconnect`, :272-287). The web marks it an unverified frame,
+    /// copied from the trade socket's doc 34; it goes out only on a socket
+    /// being closed anyway (lead decision 2026-11-09).
+    fn farewell_frames(&self) -> Vec<Message> {
+        vec![logout_frame(&self.client_code)]
+    }
+}
+
+/// Motilal's logout action (doc 34), the farewell of both sockets.
+fn logout_frame(client_code: &str) -> Message {
+    Message::Text(json!({"clientid": client_code, "action": "logout"}).to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -746,5 +823,11 @@ impl BrokerFeed for MotilalOrderFeed {
             ORDER_HEARTBEAT,
             Message::Text(json!({"clientid": self.client_code, "action": "heartbeat"}).to_string()),
         ))
+    }
+
+    /// Doc 34's logout before a deliberate close (web
+    /// `MotilalOrderUpdateAdapter.disconnect`, motilal_order_adapter.py:131-139).
+    fn farewell_frames(&self) -> Vec<Message> {
+        vec![logout_frame(&self.client_code)]
     }
 }

@@ -80,15 +80,23 @@ fn a_depth_message_carries_the_full_quote_and_the_trade_time() {
     assert_eq!(quote["open"], 1382.6);
     assert_eq!(quote["average_price"], 1391.24);
     assert_eq!(quote["last_quantity"], 7);
-    assert_eq!(quote["ltq"], 7);
+    // The web's Quote names it last_quantity only; ltq is Depth's.
+    assert!(quote.get("ltq").is_none(), "{}", quote);
     assert_eq!(ist_seconds_of_day(&quote["ltt"]), AT_14_25_31);
+    assert_eq!(quote["last_trade_time"], "14:25:31");
+    assert!(quote.get("ltt_time").is_none(), "{}", quote);
 
     let depth = last(frames.at(&ev, Mode::Depth));
     assert_eq!(depth["average_price"], 1391.24);
     assert_eq!(depth["total_buy_quantity"], 120_952);
     assert_eq!(depth["total_sell_quantity"], 131_730);
     assert_eq!(depth["last_quantity"], 7);
+    assert_eq!(depth["ltq"], 7);
     assert_eq!(ist_seconds_of_day(&depth["ltt"]), AT_14_25_31);
+    // The web passes the clock through as text: last_trade_time and, in
+    // Depth, ltt_time.
+    assert_eq!(depth["last_trade_time"], "14:25:31");
+    assert_eq!(depth["ltt_time"], "14:25:31");
     assert_eq!(depth["depth"]["buy"][0]["price"], 1395.4);
 
     assert_eq!(last(frames.at(&ev, Mode::Ltp))["ltp"], 1395.5);
@@ -252,16 +260,21 @@ fn moving_between_quote_and_depth_keeps_the_depth_feed() {
 }
 
 /// Web `test_a_dash_ltp_does_not_stop_the_other_modes`: no price, nothing
-/// on LTP; the Quote still carries what came.
+/// on LTP. The web's Quote then goes out without `ltp`; the desktop's
+/// frame always carries one and never sends 0 for a price it has not
+/// received (a packet without a trade price publishes nothing), so the
+/// Quote waits for the first price and then carries what came.
 #[test]
-fn a_dash_price_sends_no_ltp_and_still_a_quote() {
+fn a_dash_price_sends_nothing_until_a_price_comes() {
     let dashed = TOUCHLINE.replace(r#""lp":"1395.40""#, r#""lp":"-""#);
     assert!(feed(FeedMode::Ltp).parse_text(&dashed).is_empty());
-    let ev = feed(FeedMode::Quote).parse_text(&dashed);
-    assert_eq!(
-        last(Frames::new("definedge").at(&ev, Mode::Quote))["open"],
-        1382.6
-    );
+    let mut f = feed(FeedMode::Quote);
+    let mut frames = Frames::new("definedge");
+    assert!(frames.at(&f.parse_text(&dashed), Mode::Quote).is_empty());
+    let ev = f.parse_text(r#"{"t":"tf","e":"NSE","tk":"2885","lp":"1395.60"}"#);
+    let quote = last(frames.at(&ev, Mode::Quote));
+    assert_eq!(quote["ltp"], 1395.6);
+    assert_eq!(quote["open"], 1382.6);
 }
 
 /// Web `test_a_level_one_only_depth_message_publishes_depth`.
@@ -294,4 +307,32 @@ fn a_trade_clock_is_placed_on_the_day_it_was_heard() {
         Some(after_midnight - 6_000)
     );
     assert_eq!(clock_on_day_of("2:25 PM", heard), None);
+}
+
+/// Web `_QUOTE_FIELDS` sends `oi` in Quote whenever Definedge sent it: a
+/// Quote packet carries its OI (the packet's mode, not the
+/// subscription's), so a Quote holder never keeps an older OI.
+#[test]
+fn a_quote_carries_the_oi_definedge_sent() {
+    let mut f = DefinedgeFeed::new("wss://x/NorenWSTRTP/", "UID1", "suser");
+    f.subscribe_frames(&[sub(
+        "NIFTY25NOV25FUT",
+        "NFO",
+        "NFO",
+        "52345",
+        FeedMode::Quote,
+    )]);
+    let ev = f.parse_text(r#"{"t":"tf","e":"NFO","tk":"52345","lp":"24415.00","oi":"14262000"}"#);
+    let quote = last(Frames::new("definedge").at(&ev, Mode::Quote));
+    assert_eq!(quote["oi"], 14_262_000);
+}
+
+/// A message without a price publishes nothing, never an LTP of 0 (the
+/// web leaves `ltp` out of such a Quote; the desktop's frame always has
+/// one, so it waits for the first price).
+#[test]
+fn a_quote_without_a_price_publishes_nothing() {
+    let mut f = feed(FeedMode::Quote);
+    let ev = f.parse_text(r#"{"t":"tk","e":"NSE","tk":"2885","o":"1382.60","c":"1391.00"}"#);
+    assert!(Frames::new("definedge").at(&ev, Mode::Quote).is_empty());
 }

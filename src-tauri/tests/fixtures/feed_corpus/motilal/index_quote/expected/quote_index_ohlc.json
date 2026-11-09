@@ -1,0 +1,18 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "broker": "motilal",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "ltp": 25012.75,
+    "timestamp": "<receipt_ms>",
+    "open": 24950.0,
+    "high": 25050.0,
+    "low": 24900.0,
+    "close": 24800.0,
+    "mode": 2
+  }
+}

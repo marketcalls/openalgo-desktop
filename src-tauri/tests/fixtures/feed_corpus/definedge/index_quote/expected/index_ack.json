@@ -1,0 +1,21 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "broker": "definedge",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "mode": 2,
+    "ltp": 24350.5,
+    "ltt": 1730784000000,
+    "timestamp": "<receipt_ms>",
+    "open": 24210.0,
+    "high": 24380.25,
+    "low": 24190.1,
+    "close": 24200.0,
+    "change_percent": 0.62,
+    "percent_change": 0.62
+  }
+}

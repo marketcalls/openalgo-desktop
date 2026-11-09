@@ -31,14 +31,14 @@
 //! each price tick sends its Depth view again (web openalgo#2341).
 
 use crate::brokers::common::streaming::{
-    now_ms, round2, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
     NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use crate::security::secret::Secret;
 use serde_json::json;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Read;
 use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -416,6 +416,9 @@ pub struct TradejiniFeed {
     /// and its totals, so a price tick sends the Depth view again with it
     /// (web openalgo#2341).
     books: HashMap<String, L5>,
+    /// Instruments whose book went with a dropped Depth: their next tick
+    /// clears the book totals the bridge still keeps (bounded by `subs`).
+    totals_gone: HashSet<String>,
 }
 
 impl TradejiniFeed {
@@ -429,6 +432,7 @@ impl TradejiniFeed {
             subs: BTreeMap::new(),
             l1: HashMap::new(),
             books: HashMap::new(),
+            totals_gone: HashSet::new(),
         }
     }
 
@@ -473,7 +477,9 @@ impl TradejiniFeed {
     /// The tick of a merged L1 quote. The book totals come only on L5, so
     /// they are left out until a book for the instrument has come (web
     /// openalgo#2383: L1 never carries them and they read 0), and so is
-    /// `ltt` until Tradejini has sent a trade time.
+    /// `ltt` until Tradejini has sent a trade time. L1 is a quote packet
+    /// whatever mode holds the instrument, and its OI goes in Quote frames
+    /// too, as the web's Quote dict carries it (`tradejini_adapter.py:828`).
     fn tick(&self, sub: &SubInfo, q: &L1) -> NormalizedTick {
         let totals = self
             .books
@@ -492,7 +498,7 @@ impl TradejiniFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
+            mode: FeedMode::Quote.code(),
             ltp: q.ltp.unwrap_or(0.0),
             open: q.open.unwrap_or(0.0),
             high: q.high.unwrap_or(0.0),
@@ -511,11 +517,19 @@ impl TradejiniFeed {
             absent,
             ..Default::default()
         };
+        // Tradejini's own change goes out as sent, as the web passes it (a
+        // currency's carries four decimals: 0.7625, not 0.76). Without one
+        // there is none: the web's change keys only forward `chng`
+        // (`tradejini_adapter.py:829-830`, `:858-866`), so the desktop does
+        // not work one out from the previous close (lead ruling 2026-11-09).
         if q.chng.is_none() {
-            t.derive_change();
-        } else {
-            t.change = round2(t.change);
+            t.mark_absent(QuoteField::Change);
         }
+        leave_out_what_was_never_sent(&mut t, q);
+        // The price band, which the web's Depth dict carries
+        // (`tradejini_adapter.py:852-853`).
+        t.extras.upper_circuit = q.ucl;
+        t.extras.lower_circuit = q.lcl;
         t
     }
 
@@ -556,7 +570,14 @@ impl TradejiniFeed {
         });
         entry.merge(d);
         let snapshot = entry.clone();
-        out.push(FeedEvent::Tick(self.tick(&sub, &snapshot)));
+        let mut t = self.tick(&sub, &snapshot);
+        // The book's totals went with Depth: the web prunes the L5 half
+        // (`_prune_tick_cache`), so its Quote shows none from then on.
+        if !self.books.contains_key(&key) && self.totals_gone.remove(&key) {
+            t.mark_cleared(QuoteField::TotalBuyQuantity);
+            t.mark_cleared(QuoteField::TotalSellQuantity);
+        }
+        out.push(FeedEvent::Tick(t));
         if sub.mode == FeedMode::Depth {
             if let Some(book) = self.books.get(&key) {
                 out.push(FeedEvent::Depth(self.depth(&sub, book)));
@@ -591,14 +612,20 @@ impl TradejiniFeed {
         out.push(FeedEvent::Depth(self.depth(&sub, book)));
     }
 
-    /// The Depth view of a book, priced from the instrument's L1 quote.
+    /// The Depth view of a book, priced from the instrument's L1 quote: the
+    /// levels Tradejini sent, up to five a side, and an empty side as an
+    /// empty one. The web sends the levels as they came but pads an empty
+    /// side with five zero levels (`_extract_depth_data`), a book that was
+    /// never there.
     fn depth(&self, sub: &SubInfo, book: &L5) -> NormalizedDepth {
+        let side =
+            |levels: &[DepthLevel]| -> Vec<DepthLevel> { levels.iter().take(5).copied().collect() };
         NormalizedDepth {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
             ltp: self.l1.get(&book.key()).and_then(|q| q.ltp).unwrap_or(0.0),
-            buy: pad5(&book.bids),
-            sell: pad5(&book.asks),
+            buy: side(&book.bids[..]),
+            sell: side(&book.asks[..]),
             total_buy_quantity: book.tot_buy_qty,
             total_sell_quantity: book.tot_sell_qty,
             timestamp_ms: now_ms(),
@@ -607,7 +634,36 @@ impl TradejiniFeed {
     }
 }
 
-/// Five levels, padded with empty ones (web `_extract_depth_data`).
+/// Mark absent each quote field the instrument's L1 has never carried, so
+/// a frame leaves it out rather than sending 0 (web openalgo#2376). The web
+/// fills them from `message.get(k, 0)` (`tradejini_adapter.py:820-833`,
+/// `:845-853`): an index's volume, an equity's OI and a first L1 without a
+/// price would read 0 there. A merged L1 without a price is not published.
+/// OI, beyond a quote packet's own fields, is carried when Tradejini sent it.
+fn leave_out_what_was_never_sent(t: &mut NormalizedTick, q: &L1) {
+    use QuoteField as F;
+    let sent = [
+        (F::Ltp, q.ltp.is_some()),
+        (F::Open, q.open.is_some()),
+        (F::High, q.high.is_some()),
+        (F::Low, q.low.is_some()),
+        (F::Close, q.close.is_some()),
+        (F::Volume, q.vol.is_some()),
+        (F::AveragePrice, q.atp.is_some()),
+        (F::LastQuantity, q.ltq.is_some()),
+    ];
+    for (field, carried) in sent {
+        if !carried {
+            t.mark_absent(field);
+        }
+    }
+    if q.oi.is_some() {
+        t.mark_carried(F::OpenInterest);
+    }
+}
+
+/// Five levels, padded with empty ones, for the REST depth (web
+/// `api/data.py` `_format_depth`).
 pub fn pad5(levels: &[DepthLevel]) -> Vec<DepthLevel> {
     let mut v: Vec<DepthLevel> = levels.iter().take(5).copied().collect();
     while v.len() < 5 {
@@ -633,6 +689,7 @@ impl BrokerFeed for TradejiniFeed {
         // through `subscribe_frames`, which re-sends each feed's full list.
         self.l1.clear();
         self.books.clear();
+        self.totals_gone.clear();
         Vec::new()
     }
 
@@ -665,6 +722,7 @@ impl BrokerFeed for TradejiniFeed {
             }
             self.l1.remove(&k);
             self.books.remove(&k);
+            self.totals_gone.remove(&k);
         }
         if subs.is_empty() {
             return Vec::new();
@@ -682,8 +740,14 @@ impl BrokerFeed for TradejiniFeed {
         if new.mode != FeedMode::Depth {
             // The book goes with Depth, so Depth held again later cannot
             // send the old book before a fresh one comes (web
-            // openalgo#2359); the L1 quote stays.
-            self.books.remove(&k);
+            // openalgo#2359); the L1 quote stays, and its next tick clears
+            // the totals the book brought.
+            if self.books.remove(&k).is_some() {
+                self.totals_gone.insert(k.clone());
+            }
+        } else {
+            // A fresh book brings its own totals.
+            self.totals_gone.remove(&k);
         }
         self.subs.insert(
             k,

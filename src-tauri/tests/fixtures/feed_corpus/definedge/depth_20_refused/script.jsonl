@@ -1,0 +1,7 @@
+{"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}]}
+{"step": "push", "frame": "frames/ck.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 20}, "reply": {"type": "subscribe", "status": "partial", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "error", "message": "Invalid depth level 20. Must be 5", "broker": "definedge"}], "message": "Subscription processing complete", "broker": "definedge"}}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "d", "k": "NSE|2885"}}], "note": "Only the Depth 5 subscribe reaches the broker."}
+{"step": "push", "frame": "frames/depth_ack.json"}
+{"step": "receive", "client": "a", "frame": "expected/depth_ack.json"}

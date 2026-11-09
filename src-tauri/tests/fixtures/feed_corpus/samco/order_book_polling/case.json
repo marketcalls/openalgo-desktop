@@ -1,6 +1,6 @@
 {
   "broker": "samco",
-  "summary": "Order updates by polling Samco's order book: the first read is a silent baseline, then an order open, partly filled and complete, one rejected with its reason and one cancelled, each change as an order_update frame.",
+  "summary": "Order updates by polling Samco's order book: the first read is a silent baseline, then an order open, partly filled and complete, one rejected with its reason and one with Samco's full RMS text, one cancelled, a manual order first seen executed, an MCX order on Samco's MFO segment, and one whose prices carry thousands commas, opened and cancelled.",
   "scenarios": [
     "order-open",
     "order-partial-fill",
@@ -15,21 +15,80 @@
       "token": "3045",
       "brsymbol": "SBIN-EQ",
       "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY24NOV2624600CE",
+      "exchange": "NFO",
+      "token": "41015",
+      "brsymbol": "NIFTY26NOV24600CE",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "CE",
+      "strike": 24600.0
+    },
+    {
+      "symbol": "NATURALGAS24NOV26FUT",
+      "exchange": "MCX",
+      "token": "464926",
+      "brsymbol": "NATURALGAS26NOVFUT",
+      "brexchange": "MFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 1250,
+      "instrumenttype": "FUT"
+    },
+    {
+      "symbol": "CRUDEOIL19NOV26FUT",
+      "exchange": "MCX",
+      "token": "464925",
+      "brsymbol": "CRUDEOIL26NOVFUT",
+      "brexchange": "MFO",
+      "expiry": "19-NOV-26",
+      "lotsize": 100,
+      "instrumenttype": "FUT"
     }
   ],
   "provenance": {
     "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
-    "method": "by-hand",
+    "method": "web-script",
     "sources": [
       "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter._poll_loop",
       "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter._publish_order",
       "broker/samco/api/order_api.py::get_order_book",
-      "subscribers/wsproxy_subscriber.py::on_order_update"
+      "subscribers/wsproxy_subscriber.py::on_order_update",
+      "services/orderbook_service.py::get_orderbook_with_auth",
+      "services/orderbook_service.py::format_order_data",
+      "broker/samco/mapping/order_data.py::map_order_data",
+      "broker/samco/mapping/order_data.py::transform_order_data"
     ],
     "notes": [
       "Worked by hand from order_adapter.py:434-520: the first poll seeds the snapshot silently, later polls publish every order whose (order_status, filled_quantity) changed or that is new.",
       "Samco's book rows as orderBookDetails (the desktop's brokers/samco/mapping.rs order_book reads the same keys as the web's mapping).",
-      "Lane bk-c: the web glue (web_adapters/samco.py) and web.json are yours to add."
+      "web.json from scripts/feed_corpus/web_adapters/samco.py: each served book is the web adapter's next poll, through the web's order book path and PollingOrderUpdateAdapter._publish_order.",
+      "The manual order (251109000000105) was placed in Samco's own app: the poller first sees it already executed and publishes it, as the web does."
     ]
-  }
+  },
+  "deviations": [
+    {
+      "key": "exchange",
+      "kind": "web-defect",
+      "reason": "Samco books MCX contracts on its MFO segment; the web relays MFO and the broker's trading symbol because its symbol lookup asks the master for exchange MFO, which holds no row, so the update names no OpenAlgo contract. The desktop maps MFO to MCX and the symbol to the OpenAlgo one (brokers/samco/mapping.rs oa_exchange).",
+      "ref": "broker/samco/mapping/order_data.py map_order_data (get_oa_symbol(trading_symbol, exchange))",
+      "approved": true
+    },
+    {
+      "key": "symbol",
+      "kind": "web-defect",
+      "reason": "As exchange: the web sends Samco's trading symbol NATURALGAS26NOVFUT for an MCX order, not the OpenAlgo symbol.",
+      "ref": "broker/samco/mapping/order_data.py map_order_data",
+      "approved": true
+    },
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "The web publishes no update for an order whose price carries Samco's thousands comma (5,412.00): the order book path leaves orderPrice as Samco's text and PollingOrderUpdateAdapter._publish_order's float() raises, which it logs and drops; the desktop parses the price and sends the update (open, then cancelled).",
+      "ref": "websocket_proxy/order_adapter.py _publish_order (float of the price); broker/samco/mapping/order_data.py transform_order_data (price left as text)",
+      "approved": true
+    }
+  ]
 }

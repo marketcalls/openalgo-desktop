@@ -1,0 +1,7 @@
+{"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}], "note": "The market data feed's connect frame."}
+{"step": "push", "frame": "frames/ck_market.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}], "socket": "orders"}
+{"step": "push", "frame": "frames/ck_refused.json", "socket": "orders"}
+{"step": "upstream_connections", "socket": "orders", "count": 1, "ms": 500, "note": "No order subscription, no second connection."}
+{"step": "silence", "client": "a"}

@@ -1,0 +1,28 @@
+{
+  "type": "market_data",
+  "symbol": "USDINR25NOV26FUT",
+  "exchange": "CDS",
+  "mode": 2,
+  "broker": "mstock",
+  "data": {
+    "symbol": "USDINR25NOV26FUT",
+    "exchange": "CDS",
+    "mode": 2,
+    "ltp": 84.25,
+    "ltt": 1791002705000,
+    "timestamp": "<receipt_ms>",
+    "volume": 52000,
+    "last_quantity": 10,
+    "average_price": 84.2,
+    "total_buy_quantity": 1800,
+    "total_sell_quantity": 2100,
+    "open": 84.1,
+    "high": 84.3,
+    "low": 84.05,
+    "close": 84.15,
+    "last_trade_time": 1791002705000,
+    "prev_close": 84.15,
+    "last_trade_quantity": 10,
+    "exchange_timestamp": 1791002705000
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "type": "market_data",
+  "symbol": "USDINR25NOV25FUT",
+  "exchange": "CDS",
+  "mode": 2,
+  "broker": "tradejini",
+  "data": {
+    "symbol": "USDINR25NOV25FUT",
+    "exchange": "CDS",
+    "mode": 2,
+    "ltp": 83.85125,
+    "ltt": 1762332990000,
+    "timestamp": "<receipt_ms>",
+    "volume": 25000,
+    "last_quantity": 5,
+    "average_price": 83.825,
+    "open": 83.8,
+    "high": 83.9,
+    "low": 83.75,
+    "close": 83.775,
+    "oi": 150000,
+    "change": 0.7625,
+    "change_percent": 0.09,
+    "percent_change": 0.09,
+    "last_trade_time": "2025-11-05 14:26:30"
+  }
+}

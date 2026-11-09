@@ -1,0 +1,22 @@
+650000000100  # frame length 101, version 1, compression 0 (none)
+# L1: SBIN (3045, NSE) full quote
+5f000a  # packet length 95, type 10
+1a01  # 26 exchSeg = 1
+1be50b0000  # 27 token = 3045
+1d9a3c0100  # 29 ltp = 81050
+1e80380100  # 30 open = 80000
+1f5c3e0100  # 31 high = 81500
+20b8370100  # 32 low = 79800
+21743a0100  # 33 close = 80500
+2226020000  # 34 chng = 550
+2344000000  # 35 chngPer (x100) = 68
+24b43b0100  # 36 atp = 80820
+270f000000  # 39 ltq = 15
+2840e20100  # 40 vol = 123456
+2ae6590100  # 42 ucl (upper circuit) = 88550
+2b021b0100  # 43 lcl (lower circuit) = 72450
+2e03110b69  # 46 ltt (epoch seconds) = 1762332931
+31903c0100  # 49 bidPrice = 81040
+320a000000  # 50 bid qty = 10
+34a43c0100  # 52 askPrice = 81060
+350c000000  # 53 ask qty = 12

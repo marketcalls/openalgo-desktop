@@ -1,0 +1,13 @@
+# The 114-byte login, struct =cHB15sB30sBBBB10sBBBBB45s
+# (web MotilalWebSocket.on_open; desktop streaming::login_packet).
+51                      # 'Q': login
+6f00                    # 111
+02                      # length of the client code
+433120202020202020202020202020  # client code C1, space-padded to 15
+02                      # length again
+433120202020202020202020202020202020202020202020202020202020  # client code, space-padded to 30
+010101                  # flags 1, 1, 1
+05                      # length of the version
+312e302e302020202020    # version 1.0.0, space-padded to 10
+0000000001              # flags 0, 0, 0, 0, 1
+202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020  # 45 spaces

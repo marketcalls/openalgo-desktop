@@ -1,0 +1,7 @@
+# 1: heartbeat. The first binary frame after the login authenticates the
+# session (web MotilalWebSocket.on_message; desktop FeedEvent::AuthOk).
+4e                      # exchange character N
+00000000                # scrip 0
+c037fd46                # packet time
+31                      # type 1: heartbeat
+0000000000000000000000000000000000000000# no body

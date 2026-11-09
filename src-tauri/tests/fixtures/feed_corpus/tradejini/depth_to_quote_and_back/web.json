@@ -1,0 +1,181 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "tradejini",
+  "inputs_sha256": "cd78116452a7d05a3e9f8f36532dd73af34f283fe08fc60c9fd58617d517a480",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 3,
+          "data": {
+            "ltp": 810.5,
+            "ltt": "2025-11-05 14:25:31",
+            "volume": 123456,
+            "open": 800.0,
+            "high": 815.0,
+            "low": 798.0,
+            "close": 805.0,
+            "oi": 0,
+            "upper_circuit": 885.5,
+            "lower_circuit": 724.5,
+            "total_buy_quantity": 5000,
+            "total_sell_quantity": 7000,
+            "average_price": 808.2,
+            "last_quantity": 15,
+            "change": 5.5,
+            "change_percent": 0.68,
+            "percent_change": 0.68,
+            "last_trade_time": "2025-11-05 14:25:31",
+            "depth": {
+              "buy": [
+                {
+                  "price": 810.4,
+                  "quantity": 10,
+                  "orders": 2
+                },
+                {
+                  "price": 810.35,
+                  "quantity": 20,
+                  "orders": 3
+                },
+                {
+                  "price": 810.3,
+                  "quantity": 30,
+                  "orders": 4
+                },
+                {
+                  "price": 810.25,
+                  "quantity": 40,
+                  "orders": 5
+                },
+                {
+                  "price": 810.2,
+                  "quantity": 50,
+                  "orders": 6
+                }
+              ],
+              "sell": [
+                {
+                  "price": 810.6,
+                  "quantity": 12,
+                  "orders": 3
+                },
+                {
+                  "price": 810.65,
+                  "quantity": 22,
+                  "orders": 4
+                },
+                {
+                  "price": 810.7,
+                  "quantity": 32,
+                  "orders": 5
+                },
+                {
+                  "price": 810.75,
+                  "quantity": 42,
+                  "orders": 6
+                },
+                {
+                  "price": 810.8,
+                  "quantity": 52,
+                  "orders": 7
+                }
+              ]
+            },
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": []
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 2,
+          "data": {
+            "ltp": 811.0,
+            "ltt": "2025-11-05 14:25:32",
+            "volume": 123476,
+            "open": 800.0,
+            "high": 815.0,
+            "low": 798.0,
+            "close": 805.0,
+            "last_quantity": 20,
+            "average_price": 808.25,
+            "oi": 0,
+            "change": 6.0,
+            "change_percent": 0.75,
+            "percent_change": 0.75,
+            "last_trade_time": "2025-11-05 14:25:32",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 17,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 2,
+          "data": {
+            "ltp": 810.75,
+            "ltt": "2025-11-05 14:25:32",
+            "volume": 123476,
+            "open": 800.0,
+            "high": 815.0,
+            "low": 798.0,
+            "close": 805.0,
+            "last_quantity": 20,
+            "average_price": 808.25,
+            "oi": 0,
+            "change": 6.0,
+            "change_percent": 0.75,
+            "percent_change": 0.75,
+            "last_trade_time": "2025-11-05 14:25:32",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

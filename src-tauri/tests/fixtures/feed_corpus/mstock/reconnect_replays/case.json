@@ -1,0 +1,36 @@
+{
+  "broker": "mstock",
+  "summary": "mStock drops the socket: the feed reconnects, sends LOGIN again and subscribes the instrument again, and packets on the new connection reach the client.",
+  "scenarios": [
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) over the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one, and then sends the last OI the instrument's full packet carried on this connection (feed/bridge/snapshot.rs merges by presence), never a 0 it was not sent.",
+      "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376",
+      "approved": true
+    }
+  ]
+}

@@ -61,11 +61,22 @@ fn depth_frame(data: Value) -> Message {
     ))
 }
 
-/// RELIANCE (2885 on NSE) held at Depth, so every mode's frame is made.
+/// RELIANCE (2885 on NSE) held at Depth, its book (without totals)
+/// already sent, so every mode's frame is made.
 fn reliance() -> SamcoFeed {
     let (mut f, _) = feed();
     f.subscribe_frames(&[sub("RELIANCE", "NSE", "NSE", "2885", FeedMode::Depth)]);
+    f.parse(&a_book("2885_NSE"));
     f
+}
+
+/// A one-level book without totals for `symbol`.
+fn a_book(symbol: &str) -> Message {
+    depth_frame(json!({
+        "symbol": symbol,
+        "bidValues": [{"price": "44554", "qty": "1", "no": "1"}],
+        "askValues": [{"price": "44561", "qty": "1", "no": "1"}],
+    }))
 }
 
 fn quote_sub(symbol: &str, exchange: &str, token: &str) -> FeedSubscription {
@@ -165,11 +176,14 @@ fn a_depth_frame_publishes_its_tbq_and_taq_totals() {
 
 /// Web test_fields_not_sent_are_left_out: a stream that has not reported
 /// the average price, the totals or a trade time publishes none of them,
-/// in Quote or Depth, rather than 0 or the receive time.
+/// in Quote or Depth, rather than 0 or the receive time. Nor the volume,
+/// OHLC or last quantity it has not reported (the web sends those as 0, a
+/// value it never received; the desktop did too).
 #[test]
 fn fields_samco_did_not_send_are_left_out() {
     let (mut f, _) = feed();
     f.subscribe_frames(&[sub("ONE", "NSE", "NSE", "1", FeedMode::Depth)]);
+    f.parse(&a_book("1_NSE"));
     let events = f.parse(&Message::Text(
         json!({"sym": "1_NSE", "ltp": "10", "streaming_type": "quote"}).to_string(),
     ));
@@ -182,11 +196,17 @@ fn fields_samco_did_not_send_are_left_out() {
             "total_sell_quantity",
             "ltt",
             "last_trade_time",
+            "volume",
+            "open",
+            "high",
+            "low",
+            "close",
+            "last_quantity",
+            "last_trade_quantity",
         ] {
             assert!(d.get(k).is_none(), "{:?} {}: {}", mode, k, d);
         }
         assert_eq!(d["ltp"], 10.0, "{}", d);
-        assert_eq!(d["volume"], 0, "volume is on Samco's stream: {}", d);
     }
 }
 
@@ -203,10 +223,222 @@ fn a_zero_depth_total_is_kept_not_replaced_by_the_quote_total() {
     let d = Frames::new("samco").at(&events, Mode::Depth).pop().unwrap();
     assert_eq!(d["total_buy_quantity"], 0, "{}", d);
     assert_eq!(d["total_sell_quantity"], 0, "{}", d);
+    // A Quote holder hears of them with Samco's next quote, as on the web
+    // (the book frame itself reaches Depth holders only).
+    events.extend(f.parse(&tick("2885_NSE")));
     let d = Frames::new("samco").at(&events, Mode::Quote).pop().unwrap();
     assert_eq!(
         d["total_buy_quantity"], 0,
         "the quote reads the same: {}",
+        d
+    );
+}
+
+/// Web `samco_adapter._on_data`: a book (quote2) frame reaches Depth
+/// subscribers only. One that comes before Samco's first quote made a
+/// tick of its own, and a Quote holder of the same instrument was shown an
+/// LTP of 0 and an OHLC of zeros Samco never sent.
+#[test]
+fn a_book_frame_reaches_only_the_depth_holders() {
+    let mut f = reliance();
+    let events = f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE", "tbq": "5", "taq": "6",
+        "bidValues": [{"price": "44554", "qty": "1", "no": "1"}], "askValues": [],
+    })));
+    assert!(
+        events.iter().all(|e| matches!(e, FeedEvent::Depth(_))),
+        "{:?}",
+        events
+    );
+    assert!(Frames::new("samco").at(&events, Mode::Quote).is_empty());
+    let d = Frames::new("samco").at(&events, Mode::Depth).pop().unwrap();
+    assert_eq!(d["ltp"], 0.0, "no quote yet: {}", d);
+    for k in ["open", "volume", "last_quantity", "oi", "ltt"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+}
+
+/// Web `samcoWebSocket._normalize_market_data`: a Depth holder gets no
+/// frame until Samco has sent a book, and then the levels Samco sent,
+/// none invented. The desktop sent five zero levels a side for a quote
+/// before the first book, and padded every book to five levels.
+#[test]
+fn no_book_is_sent_before_samco_sends_one_and_none_is_padded() {
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "NSE", "2885", FeedMode::Depth)]);
+    let events = f.parse(&quote(doc_quote()));
+    assert!(
+        Frames::new("samco").at(&events, Mode::Depth).is_empty(),
+        "{:?}",
+        events
+    );
+    let events = f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE",
+        "bidValues": [{"price": "44554", "qty": "1", "no": "1"}],
+        "askValues": [],
+    })));
+    let d = Frames::new("samco").at(&events, Mode::Depth).pop().unwrap();
+    assert_eq!(d["depth"]["buy"].as_array().map(Vec::len), Some(1), "{}", d);
+    assert_eq!(d["depth"]["sell"], json!([]), "{}", d);
+}
+
+/// When the last Depth holder leaves, the book stream's fields go with it
+/// (the web's client drops the symbol's merged fields on that
+/// unsubscribe): a Quote holder was then shown quote2's totals over the
+/// quote stream's fresh tBQ/tSQ, the totals of a book no longer streamed.
+#[test]
+fn leaving_depth_drops_the_book_streams_totals() {
+    let mut f = reliance();
+    f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE", "tbq": "5", "taq": "6", "bidValues": [], "askValues": [],
+    })));
+    let depth = sub("RELIANCE", "NSE", "NSE", "2885", FeedMode::Depth);
+    f.mode_change_frames(&depth, &depth.with_mode(FeedMode::Quote));
+    let events = f.parse(&quote(doc_quote()));
+    let d = Frames::new("samco").at(&events, Mode::Quote).pop().unwrap();
+    assert_eq!(
+        (&d["total_buy_quantity"], &d["total_sell_quantity"]),
+        (&json!(973), &json!(610)),
+        "{}",
+        d
+    );
+}
+
+/// Samco streams OI (`oI`) on its quote stream. The web reads it and then
+/// drops it from every mode (lost data, decisions 2026-11-09); the desktop
+/// sends it to Quote holders as to Depth ones, and no OI Samco did not
+/// send. A Quote holder got none: the tick took the subscription's mode.
+#[test]
+fn samcos_oi_reaches_quote_holders() {
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[quote_sub("FUT", "NFO", "35001")]);
+    let events = f.parse(&Message::Text(
+        json!({"sym": "35001_NFO", "ltp": "24610.4", "oI": "10650225", "streaming_type": "quote"})
+            .to_string(),
+    ));
+    let d = Frames::new("samco").at(&events, Mode::Quote).pop().unwrap();
+    assert_eq!(d["oi"], 10_650_225, "{}", d);
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[quote_sub("FUT", "NFO", "35001")]);
+    let d = Frames::new("samco")
+        .at(&f.parse(&tick("35001_NFO")), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert!(d.get("oi").is_none(), "{}", d);
+}
+
+/// Web `samcoWebSocket._normalize_market_data`: a Quote frame carries the
+/// best bid and ask (best_bid_price, best_bid_quantity, best_ask_price,
+/// best_ask_quantity): the book's first level once Samco has sent one,
+/// else the quote's bPr/bSz and aPr/aSz, and none Samco sent neither of
+/// (the web sends 0). The desktop sent none of them.
+#[test]
+fn the_best_bid_and_ask_are_published_at_quote() {
+    let best = |d: &Value| {
+        [
+            "best_bid_price",
+            "best_bid_quantity",
+            "best_ask_price",
+            "best_ask_quantity",
+        ]
+        .map(|k| d.get(k).cloned())
+    };
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[quote_sub("RELIANCE", "NSE", "2885")]);
+    let d = Frames::new("samco")
+        .at(&f.parse(&quote(doc_quote())), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(
+        best(&d),
+        [json!(44554.0), json!(1), json!(44561.0), json!(1)].map(Some),
+        "{}",
+        d
+    );
+    let mut f = reliance();
+    f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE",
+        "bidValues": [{"price": "44550", "qty": "7", "no": "2"}],
+        "askValues": [{"price": "44560.5", "qty": "9", "no": "3"}],
+    })));
+    let d = Frames::new("samco")
+        .at(&f.parse(&quote(doc_quote())), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(
+        best(&d),
+        [json!(44550.0), json!(7), json!(44560.5), json!(9)].map(Some),
+        "the book's first level: {}",
+        d
+    );
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[quote_sub("RELIANCE", "NSE", "2885")]);
+    let d = Frames::new("samco")
+        .at(&f.parse(&tick("2885_NSE")), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(best(&d), [None, None, None, None], "{}", d);
+}
+
+/// The book stream's totals are dropped when the last Depth holder
+/// leaves, and from what the bridge keeps for the instrument too: a quote
+/// stream that sends no tBQ/tSQ then shows no totals, as the web's (its
+/// client drops the merged fields), not the book's last ones.
+#[test]
+fn leaving_depth_clears_the_book_totals_the_bridge_kept() {
+    let mut f = reliance();
+    let mut frames = Frames::new("samco");
+    let mut events = f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE", "tbq": "5", "taq": "6", "bidValues": [], "askValues": [],
+    })));
+    events.extend(f.parse(&tick("2885_NSE")));
+    let d = frames.at(&events, Mode::Quote).pop().unwrap();
+    assert_eq!(d["total_buy_quantity"], 5, "{}", d);
+    let depth = sub("RELIANCE", "NSE", "NSE", "2885", FeedMode::Depth);
+    f.mode_change_frames(&depth, &depth.with_mode(FeedMode::Quote));
+    let d = frames
+        .at(&f.parse(&tick("2885_NSE")), Mode::Quote)
+        .pop()
+        .unwrap();
+    for k in ["total_buy_quantity", "total_sell_quantity"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+}
+
+/// An index has no trades of its own: a last quantity or volume of 0 on an
+/// index means the field does not apply and is left out (the web sends 0;
+/// lead ruling 2026-11-09); one Samco sends that is not 0 goes out under
+/// last_quantity and last_trade_quantity.
+#[test]
+fn an_index_zero_last_quantity_is_left_out() {
+    let (mut f, ids) = feed();
+    ids.lock().insert("NSE_INDEX", "NIFTY", "-23");
+    f.subscribe_frames(&[sub(
+        "NIFTY",
+        "NSE_INDEX",
+        "NSE",
+        "NIFTY_50",
+        FeedMode::Quote,
+    )]);
+    let index = |ltq: &str| {
+        Message::Text(
+            json!({"sym": "-23", "ltp": "24500.15", "ltq": ltq, "vol": "0", "streaming_type": "quote"})
+                .to_string(),
+        )
+    };
+    let mut frames = Frames::new("samco");
+    let d = frames.at(&f.parse(&index("0")), Mode::Quote).pop().unwrap();
+    for k in ["last_quantity", "last_trade_quantity", "volume"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+    let d = frames
+        .at(&f.parse(&index("25")), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(
+        (&d["last_quantity"], &d["last_trade_quantity"]),
+        (&json!(25), &json!(25)),
+        "{}",
         d
     );
 }

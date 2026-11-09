@@ -1,0 +1,61 @@
+{
+  "broker": "motilal",
+  "summary": "Depth mode, a last-trade packet before any book level: no Depth frame until the book's first level arrives, as the web waits for a book (audit RB-09); that frame carries the one level received.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_binary_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._poll_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._normalize_depth_data"
+    ],
+    "notes": [
+      "The web publishes every subscription from its packet stores every 500 ms (motilal_adapter.py _poll_market_data); web.json holds the poll after each push, the desktop sends a frame when a packet changes what a subscription reports.",
+      "motilal_adapter.py:450-455: the web publishes Depth only when a quote and at least one received book level exist."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltq",
+      "kind": "web-defect",
+      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Motilal sent no open interest for this cash scrip (no m packet; a cash scrip has none and its last-trade packet's OI slot is 0); the web's Depth dict sends oi 0 from a default (_normalize_depth_data: result['oi'] = 0 without an m packet); the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "Motilal has sent book level 1 only; the web pads the four levels that never arrived with integer zeros ({\"price\": 0, \"quantity\": 0, \"orders\": 0}, _normalize_depth_data), invented levels; the desktop sends the level received (lead decision 2026-11-09: no invented level).",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
+    }
+  ]
+}

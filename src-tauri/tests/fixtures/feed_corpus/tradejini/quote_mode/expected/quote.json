@@ -1,0 +1,26 @@
+{
+  "type": "market_data",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "tradejini",
+  "data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "mode": 2,
+    "ltp": 810.5,
+    "ltt": 1762332931000,
+    "timestamp": "<receipt_ms>",
+    "volume": 123456,
+    "last_quantity": 15,
+    "average_price": 808.2,
+    "open": 800.0,
+    "high": 815.0,
+    "low": 798.0,
+    "close": 805.0,
+    "change": 5.5,
+    "change_percent": 0.68,
+    "percent_change": 0.68,
+    "last_trade_time": "2025-11-05 14:25:31"
+  }
+}

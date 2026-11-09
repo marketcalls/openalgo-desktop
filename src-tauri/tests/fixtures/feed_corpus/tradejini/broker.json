@@ -1,0 +1,49 @@
+{
+  "broker": "tradejini",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "CDS": [
+        5
+      ],
+      "BCD": [
+        5
+      ],
+      "MCD": [
+        5
+      ],
+      "NCO": [
+        5
+      ],
+      "BCO": [
+        5
+      ]
+    },
+    "orders": false
+  },
+  "sources": [
+    "broker/tradejini/streaming/tradejini_mapping.py::TradejiniCapabilityRegistry",
+    "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter.subscribe",
+    "services/order_update_service.py:36-98 (no Tradejini order-update adapter, not a polling broker)"
+  ],
+  "notes": [
+    "Depth 5 only: the web adapter refuses any other depth in Depth mode (\"Invalid depth level\"), before its capability registry's fallback is reached.",
+    "L1 carries the quote and L5 the book; a Depth subscription rides both."
+  ]
+}

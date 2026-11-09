@@ -1,0 +1,30 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "definedge",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 2,
+    "ltp": 1395.5,
+    "ltt": 1730784001000,
+    "timestamp": "<receipt_ms>",
+    "volume": 11238650,
+    "last_quantity": 7,
+    "average_price": 1391.25,
+    "total_buy_quantity": 120952,
+    "total_sell_quantity": 131730,
+    "open": 1382.6,
+    "high": 1398.0,
+    "low": 1378.5,
+    "close": 1391.0,
+    "change_percent": 0.32,
+    "percent_change": 0.32,
+    "bid": 1395.4,
+    "bid_qty": 10,
+    "ask": 1395.6,
+    "ask_qty": 12
+  }
+}

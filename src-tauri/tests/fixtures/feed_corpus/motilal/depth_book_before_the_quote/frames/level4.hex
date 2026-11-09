@@ -1,0 +1,11 @@
+# E: book level 4 (web _parse_depth_level_packet)
+4e                      # exchange character N (NSE and NSEFO share it)
+450b0000                # scrip 2885
+c037fd46                # packet time, read by neither the web nor the desktop
+45                      # type E
+0020a244                # bid 1297.0
+0d000000                # bid quantity 13
+0100                    # bid orders 1
+0000a344                # ask 1304.0
+17000000                # ask quantity 23
+0200                    # ask orders 2

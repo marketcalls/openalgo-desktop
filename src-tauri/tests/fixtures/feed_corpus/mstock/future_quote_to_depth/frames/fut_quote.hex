@@ -1,0 +1,17 @@
+# mStock Quote packet for NIFTY25NOV26FUT (NFO token 35001, exchange type 2):
+# the Quote packet carries no open interest.
+02                      # subscription mode 2
+02                      # exchange type 2
+33353030310000000000000000000000000000000000000000 # token "35001", NUL-padded to 25 bytes
+0b00000000000000        # sequence number
+687c1400a1010000        # exchange timestamp 1791002705000
+283f250000000000        # ltp 24410.00 in paise
+4b00000000000000        # last traded quantity 75
+aa3a250000000000        # average price 24398.50 in paise
+7874130000000000        # volume 1275000
+0000000040771b41        # total buy quantity 450000.0 (double)
+0000000060e31641        # total sell quantity 375000.0 (double)
+7033250000000000        # open 24380.00 in paise
+0445250000000000        # high 24425.00 in paise
+a02b250000000000        # low 24360.00 in paise
+4c39250000000000        # close 24395.00 in paise

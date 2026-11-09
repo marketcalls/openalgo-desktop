@@ -1,0 +1,37 @@
+{
+  "type": "market_data",
+  "symbol": "INFY",
+  "exchange": "NSE",
+  "mode": 3,
+  "broker": "tradejini",
+  "data": {
+    "symbol": "INFY",
+    "exchange": "NSE",
+    "mode": 3,
+    "ltp": 1155.0,
+    "timestamp": "<receipt_ms>",
+    "volume": 1100000,
+    "total_buy_quantity": 543853,
+    "total_sell_quantity": 600000,
+    "open": 1191.9,
+    "high": 1194.5,
+    "low": 1151.0,
+    "close": 1185.0,
+    "depth": {
+      "buy": [
+        {
+          "price": 1154.8,
+          "quantity": 123,
+          "orders": 3
+        }
+      ],
+      "sell": [
+        {
+          "price": 1155.0,
+          "quantity": 50,
+          "orders": 1
+        }
+      ]
+    }
+  }
+}

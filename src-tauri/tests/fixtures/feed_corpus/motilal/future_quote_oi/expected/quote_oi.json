@@ -1,0 +1,18 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY28OCT26FUT",
+  "exchange": "NFO",
+  "mode": 2,
+  "broker": "motilal",
+  "data": {
+    "symbol": "NIFTY28OCT26FUT",
+    "exchange": "NFO",
+    "ltp": 25010.5,
+    "timestamp": "<receipt_ms>",
+    "volume": 150000,
+    "average_price": 25000.25,
+    "oi": 1600,
+    "ltq": 75,
+    "mode": 2
+  }
+}

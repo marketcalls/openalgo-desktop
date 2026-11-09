@@ -1,0 +1,35 @@
+{
+  "broker": "samco",
+  "summary": "An LTP subscription: a frame with no trade time sends no ltt, a frame with only lttUTC is read as UTC, a numeric lTrdT in epoch seconds is sent in ms.",
+  "scenarios": [
+    "first-full-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present",
+      "test/test_samco_quote_feed.py::test_utc_trade_time_used_when_ist_fields_absent",
+      "test/test_samco_quote_feed.py::test_ltt_omitted_when_samco_sends_no_trade_time"
+    ],
+    "notes": [
+      "Audit RB-06 (trade time): the web and the desktop read lTrdT, ltt (IST) and lttUTC (UTC) the same way since web openalgo#2396."
+    ]
+  },
+  "deviations": []
+}

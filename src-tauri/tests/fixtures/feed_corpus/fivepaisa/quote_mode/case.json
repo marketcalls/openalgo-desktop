@@ -1,0 +1,34 @@
+{
+  "broker": "fivepaisa",
+  "summary": "Quote on NSE cash: the web test's MarketFeedV3 frame gives the full quote; a frame reporting 0 for LastRate keeps the last traded price while its quantities follow the frame.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-test",
+    "sources": [
+      "broker/fivepaisa/streaming/fivepaisa_websocket.py::FivePaisaWebSocket._on_message",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_data",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._update_snapshot",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._normalize_market_data",
+      "test/test_fivepaisa_quote_feed.py::test_depth_frame_is_not_published_to_quote_subscription",
+      "test/test_fivepaisa_quote_feed.py::test_zero_price_holds_last_value_but_quantities_follow_the_feed"
+    ],
+    "notes": [
+      "The second frame is FEED with LastRate 0, LastQty 0 and TotalQty 1300, as the web test sends it.",
+      "A MarketDepthService frame for the same scrip reaches no Quote subscriber on either side (test_depth_frame_is_not_published_to_quote_subscription)."
+    ]
+  },
+  "deviations": []
+}

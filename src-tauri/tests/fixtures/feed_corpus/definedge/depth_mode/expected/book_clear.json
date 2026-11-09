@@ -1,0 +1,93 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 3,
+  "broker": "definedge",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 3,
+    "ltp": 1395.45,
+    "ltt": 1730784005000,
+    "timestamp": "<receipt_ms>",
+    "volume": 11238800,
+    "last_quantity": 3,
+    "average_price": 1391.25,
+    "total_buy_quantity": 0,
+    "total_sell_quantity": 0,
+    "open": 1382.6,
+    "high": 1398.0,
+    "low": 1378.5,
+    "close": 1391.0,
+    "ltq": 3,
+    "change_percent": 0.32,
+    "percent_change": 0.32,
+    "depth": {
+      "buy": [
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ],
+      "sell": [
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ]
+    },
+    "total_buy_qty": 0,
+    "total_sell_qty": 0,
+    "bid": 0.0,
+    "bid_qty": 0,
+    "ask": 0.0,
+    "ask_qty": 0,
+    "lower_circuit": 1251.9,
+    "upper_circuit": 1530.1,
+    "52w_high": 1608.8,
+    "52w_low": 1114.85
+  }
+}

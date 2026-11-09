@@ -41,6 +41,18 @@ use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 
+/// The fields only the book stream (quote2) carries.
+const BOOK_FIELDS: &[&str] = &["bidValues", "askValues", "tbq", "taq"];
+
+/// Samco's two streams on the socket: `quote` (price, OHLC, volume, OI,
+/// best bid and ask) and `quote2` / `marketDepth` (the book and its
+/// totals).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Stream {
+    Quote,
+    Book,
+}
+
 #[derive(Debug, Clone)]
 struct SubInfo {
     symbol: String,
@@ -112,6 +124,11 @@ impl SamcoFeed {
     /// Streaming key for a subscription (web `subscribe`).
     fn key(&self, s: &FeedSubscription) -> Option<String> {
         if matches!(s.exchange.as_str(), "NSE_INDEX" | "BSE_INDEX") {
+            // The live feed's step puts the listing id in the token (RB-05);
+            // without it, the ids a REST index quote learnt.
+            if s.token.starts_with('-') {
+                return Some(s.token.clone());
+            }
             let id = self.listing_ids.lock().get(&s.exchange, &s.symbol);
             if id.is_none() {
                 tracing::warn!(
@@ -153,7 +170,15 @@ impl SamcoFeed {
         out
     }
 
-    fn event(&mut self, data: &Map<String, Value>) -> Vec<FeedEvent> {
+    /// What one frame of `stream` makes. As the web routes them
+    /// (`samco_adapter._on_data`), a quote frame is a tick for the LTP and
+    /// Quote holders and a book (quote2) frame reaches Depth holders only,
+    /// so a book that comes before Samco's first quote never shows a Quote
+    /// holder an LTP of 0. No book is sent before Samco has sent one (the
+    /// web sends a Depth holder nothing until then); after that a quote
+    /// frame sends the book again with the new price (an approved
+    /// difference: the web leaves it as it was until the next book).
+    fn event(&mut self, stream: Stream, data: &Map<String, Value>) -> Vec<FeedEvent> {
         let symbol = {
             let k = text(data.get("symbol"));
             if k.is_empty() {
@@ -166,10 +191,13 @@ impl SamcoFeed {
             return Vec::new();
         };
         let merged = self.merge(key, data);
-        let tick = quote_tick(&sub, &merged, now_ms());
-        let mut out = vec![FeedEvent::Tick(tick.clone())];
-        if sub.mode == FeedMode::Depth {
-            out.push(FeedEvent::Depth(book(&sub, &merged, &tick)));
+        let now = now_ms();
+        let mut out = Vec::new();
+        if stream == Stream::Quote {
+            out.push(FeedEvent::Tick(quote_tick(&sub, &merged, now)));
+        }
+        if sub.mode == FeedMode::Depth && has_book(&merged) {
+            out.push(FeedEvent::Depth(book(&sub, &merged, now)));
         }
         out
     }
@@ -230,10 +258,13 @@ impl SamcoFeed {
                 ),
                 None => (text(v.get("streaming_type")), v.as_object().cloned()),
             };
-            if matches!(stype.as_str(), "quote" | "quote2" | "marketDepth") {
-                if let Some(p) = payload {
-                    out.extend(self.event(&p));
-                }
+            let stream = match stype.as_str() {
+                "quote" => Stream::Quote,
+                "quote2" | "marketDepth" => Stream::Book,
+                _ => continue,
+            };
+            if let Some(p) = payload {
+                out.extend(self.event(stream, &p));
             }
         }
         out
@@ -291,17 +322,37 @@ fn epoch_ms(value: &str) -> Option<i64> {
     }
 }
 
-/// The tick for `sub` from the merged fields. Average price, the book
-/// totals and the trade time are marked absent until Samco sends them, so
-/// a client is not shown an invented 0 or the receive time (web
-/// openalgo#2396).
+/// The tick for `sub` from the merged fields: a quote packet, whatever
+/// the subscription, with Samco's OI when it sent one (the web reads `oI`
+/// and then drops it from every mode: lost data, kept here). Every field
+/// Samco has not sent yet (the price, OHLC, volume, last quantity, average
+/// price, book totals, trade time) is marked absent, so a client is not
+/// shown an invented 0 or the receive time (web openalgo#2396; the web
+/// still sends 0 for some).
 fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> NormalizedTick {
     let g = |k: &str| merged.get(k);
     let tbq = first_present(merged, &["tbq", "tBQ"]);
     let tsq = first_present(merged, &["taq", "tSQ"]);
     let ltt = trade_time_ms(merged);
+    // On an index a volume or last quantity of 0 means the field does not
+    // apply (an index has no trades of its own): left out, as one not sent.
+    let index = matches!(sub.exchange.as_str(), "NSE_INDEX" | "BSE_INDEX");
+    let none_on_index = |k: &str| index && int(g(k)) == 0;
     let mut absent = AbsentFields::default();
     for (missing, field) in [
+        (g("ltp").is_none(), QuoteField::Ltp),
+        (g("o").is_none(), QuoteField::Open),
+        (g("h").is_none(), QuoteField::High),
+        (g("l").is_none(), QuoteField::Low),
+        (g("c").is_none(), QuoteField::Close),
+        (
+            g("vol").is_none() || none_on_index("vol"),
+            QuoteField::Volume,
+        ),
+        (
+            g("ltq").is_none() || none_on_index("ltq"),
+            QuoteField::LastQuantity,
+        ),
         (g("avgPr").is_none(), QuoteField::AveragePrice),
         (tbq.is_none(), QuoteField::TotalBuyQuantity),
         (tsq.is_none(), QuoteField::TotalSellQuantity),
@@ -314,7 +365,7 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
     let mut tick = NormalizedTick {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
-        mode: sub.mode.code(),
+        mode: FeedMode::Quote.code(),
         ltp: num(g("ltp")),
         open: num(g("o")),
         high: num(g("h")),
@@ -333,16 +384,72 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
         absent,
         ..Default::default()
     };
-    if tick.change == 0.0 && tick.change_percent == 0.0 {
+    // Totals Samco's streams no longer hold (the book stream's go when the
+    // last Depth holder leaves) are cleared from what the bridge keeps for
+    // the instrument, not left standing in for the quote stream's.
+    for (missing, field) in [
+        (tbq.is_none(), QuoteField::TotalBuyQuantity),
+        (tsq.is_none(), QuoteField::TotalSellQuantity),
+    ] {
+        if missing {
+            tick.mark_cleared(field);
+        }
+    }
+    if g("oI").is_some() {
+        tick.mark_carried(QuoteField::OpenInterest);
+    }
+    let (bid_price, bid_quantity) = best_level(merged, "bidValues", "bPr", "bSz");
+    let (ask_price, ask_quantity) = best_level(merged, "askValues", "aPr", "aSz");
+    tick.extras.bid_price = bid_price;
+    tick.extras.bid_quantity = bid_quantity;
+    tick.extras.ask_price = ask_price;
+    tick.extras.ask_quantity = ask_quantity;
+    // Samco's own change, a 0 included; else the one the previous close
+    // gives (none without a close).
+    if g("ch").is_some() || g("chPer").is_some() {
+        tick.mark_carried(QuoteField::Change);
+    } else {
         tick.derive_change();
     }
     tick
 }
 
-/// The five-level book for a depth subscriber, from the merged ladder.
-fn book(sub: &SubInfo, merged: &Map<String, Value>, tick: &NormalizedTick) -> NormalizedDepth {
+/// The best level of a book side, as the web's `best_bid_price` and
+/// `best_bid_quantity` (`samcoWebSocket._normalize_market_data`): the
+/// book's first level once Samco has sent one, else the quote's own
+/// (`bPr`/`bSz`, `aPr`/`aSz`); `None` for what Samco has sent neither of
+/// (the web sends 0).
+fn best_level(
+    merged: &Map<String, Value>,
+    side: &str,
+    price: &str,
+    quantity: &str,
+) -> (Option<f64>, Option<i64>) {
+    let top = merged
+        .get(side)
+        .and_then(Value::as_array)
+        .and_then(|levels| levels.first());
+    match top {
+        Some(l) => (Some(num(l.get("price"))), Some(int(l.get("qty")))),
+        None => (
+            merged.get(price).map(|v| num(Some(v))),
+            merged.get(quantity).map(|v| int(Some(v))),
+        ),
+    }
+}
+
+/// Whether Samco has sent the instrument's book (a quote2 frame).
+fn has_book(merged: &Map<String, Value>) -> bool {
+    merged.contains_key("bidValues") || merged.contains_key("askValues")
+}
+
+/// The book for a depth subscriber, from the merged ladder: the levels
+/// Samco sent and no others (a cleared side is empty, never five zero
+/// levels), its totals once Samco has sent them, and no price of its own
+/// (quote2 carries none: the frame takes the instrument's last trade).
+fn book(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> NormalizedDepth {
     let levels = |k: &str| -> Vec<DepthLevel> {
-        let mut v: Vec<DepthLevel> = merged
+        merged
             .get(k)
             .and_then(Value::as_array)
             .map(|a| {
@@ -354,20 +461,29 @@ fn book(sub: &SubInfo, merged: &Map<String, Value>, tick: &NormalizedTick) -> No
                     })
                     .collect()
             })
-            .unwrap_or_default();
-        v.truncate(5);
-        v.resize(5, DepthLevel::default());
-        v
+            .unwrap_or_default()
     };
+    let tbq = first_present(merged, &["tbq", "tBQ"]);
+    let tsq = first_present(merged, &["taq", "tSQ"]);
+    let mut absent = AbsentFields::of(&[QuoteField::Ltp]);
+    if tbq.is_none() {
+        absent = absent.with(QuoteField::TotalBuyQuantity);
+    }
+    if tsq.is_none() {
+        absent = absent.with(QuoteField::TotalSellQuantity);
+    }
     NormalizedDepth {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
-        ltp: tick.ltp,
+        ltp: 0.0,
         buy: levels("bidValues"),
         sell: levels("askValues"),
-        total_buy_quantity: tick.total_buy_quantity,
-        total_sell_quantity: tick.total_sell_quantity,
-        timestamp_ms: tick.timestamp_ms,
+        total_buy_quantity: int(tbq),
+        total_sell_quantity: int(tsq),
+        timestamp_ms: ts,
+        absent,
+        // Samco's book carries no broker-only fields and no feed time of its
+        // own: the quote's time is the frame's.
         ..Default::default()
     }
 }
@@ -462,6 +578,14 @@ impl BrokerFeed for SamcoFeed {
                 "unsubscribe",
                 std::slice::from_ref(&k),
             ));
+            // The book stream's fields go with it: its totals would
+            // otherwise stand in for the quote stream's fresh ones (the
+            // web's client drops the symbol's merged fields here).
+            if let Some(st) = self.state.get_mut(&k) {
+                for field in BOOK_FIELDS {
+                    st.remove(*field);
+                }
+            }
         }
         self.subs.insert(
             k,

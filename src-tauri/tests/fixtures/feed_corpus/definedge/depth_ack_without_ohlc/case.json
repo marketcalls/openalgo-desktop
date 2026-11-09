@@ -1,0 +1,91 @@
+{
+  "broker": "definedge",
+  "summary": "A depth acknowledgement with a book but no open, high, low or close (no trade yet): the desktop frames the book with the quote fields it lacks left out; the web drops the acknowledgement uncached, so its next Depth frame has only that update's fields and a book of zeros around them.",
+  "scenarios": [
+    "absent-field",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_websocket.py::DefinedGeWebSocket._on_message",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._on_depth_data",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._normalize_raw_depth_data"
+    ],
+    "notes": [
+      "The web returns before caching a dk that carries none of o, h, l, c (definedge_adapter.py:809-821).",
+      "No frame carries the depth feed's `ltt` (an IST HH:MM:SS): the desktop reads it on the IST day the tick arrives (streaming.rs clock_on_day_of), so its epoch-ms value depends on the day the case runs and cannot be pinned here; brokers::definedge::tests::quote_feed::a_depth_message_carries_the_full_quote_and_the_trade_time pins it. Without it both sides take the feed time `ft` (epoch seconds) as the trade time."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "The web drops a depth acknowledgement without OHLC before caching it, so a Depth subscriber gets nothing for the book Definedge sent; the desktop frames it.",
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
+    },
+    {
+      "key": "ask",
+      "kind": "web-defect",
+      "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best ask price; the desktop keeps it.",
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
+    },
+    {
+      "key": "ask_qty",
+      "kind": "web-defect",
+      "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best ask quantity; the desktop keeps it.",
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
+    },
+    {
+      "key": "bid",
+      "kind": "web-defect",
+      "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best bid price; the desktop keeps it.",
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821), so it builds the next Depth frame from the update alone: every level but the one updated quantity reads 0 (price 0.0 at level one), zeros Definedge never sent. The desktop keeps the acknowledged book and applies the update to it.",
+      "ref": "definedge_adapter.py:809-821, :1148-1193",
+      "approved": true
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
+      "approved": true
+    },
+    {
+      "key": "total_sell_qty",
+      "kind": "web-defect",
+      "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the sell total (its Depth name); the desktop keeps it.",
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the sell total; the desktop keeps it.",
+      "ref": "definedge_adapter.py:809-821",
+      "approved": true
+    }
+  ]
+}

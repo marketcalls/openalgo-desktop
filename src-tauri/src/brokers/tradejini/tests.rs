@@ -899,7 +899,8 @@ fn feed_ticks_depth_and_auth() {
     assert_eq!(ev[0], FeedEvent::AuthOk);
     let FeedEvent::Tick(t) = &ev[1] else { panic!() };
     assert_eq!(t.symbol, "RELIANCE");
-    assert_eq!(t.mode, 3);
+    // L1 is a quote packet, whatever mode holds the instrument.
+    assert_eq!(t.mode, 2);
     assert_eq!(t.ltp, 1424.6);
     assert_eq!(t.close, 1418.0);
     assert_eq!(t.change, 6.6);
@@ -912,7 +913,8 @@ fn feed_ticks_depth_and_auth() {
     assert_eq!(d.ltp, 1424.6);
     assert_eq!(d.buy[0].price, 1424.55);
     assert_eq!(d.sell[0].orders, 2);
-    assert_eq!(d.buy.len(), 5);
+    // The one level Tradejini sent, not padded to five.
+    assert_eq!(d.buy.len(), 1);
     assert_eq!(d.total_sell_quantity, 20);
     // A delta carrying only ltp keeps the cached open/close.
     let delta = build::frame(
@@ -924,7 +926,7 @@ fn feed_ticks_depth_and_auth() {
     );
     let ev = f.parse(&Message::Binary(delta));
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
-    assert_eq!((t.symbol.as_str(), t.ltp, t.mode), ("SBIN", 801.5, 1));
+    assert_eq!((t.symbol.as_str(), t.ltp, t.mode), ("SBIN", 801.5, 2));
     let ev = f.parse(&Message::Binary(build::frame(&[build::auth(0)], false)));
     assert!(matches!(ev[0], FeedEvent::AuthFailed(_)));
     assert!(f.cached() <= 3);

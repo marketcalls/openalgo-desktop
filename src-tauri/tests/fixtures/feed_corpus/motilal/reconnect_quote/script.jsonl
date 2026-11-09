@@ -1,0 +1,15 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": ["frames/register.hex"], "connection": 1}
+{"step": "push", "frame": "frames/ohlc.hex"}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 2}, "note": "No trade yet: the web publishes LTP 0."}
+{"step": "push", "frame": "frames/ltp.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2}
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "connection": 2}
+{"step": "push", "frame": "frames/hello.hex", "note": "The new session's first binary frame authenticates it."}
+{"step": "upstream_receives", "frames": ["frames/register.hex"], "connection": 2, "note": "The registration is sent again on the new socket."}
+{"step": "push", "frame": "frames/ltp_after.hex", "note": "A trade after the reconnect, before Motilal sends the day OHLC again."}
+{"step": "receive", "client": "a", "frame": "expected/quote_after.json"}

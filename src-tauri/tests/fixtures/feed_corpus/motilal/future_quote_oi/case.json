@@ -1,0 +1,72 @@
+{
+  "broker": "motilal",
+  "summary": "Quote mode on an NFO future: the last trade with its open interest, an open interest packet, then day OHLC; the Quote frame keeps the OI Motilal sent (audit C05).",
+  "scenarios": [
+    "derivative-oi",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY28OCT26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY 28-Oct-2026 FUT",
+      "brexchange": "NSEFO",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "expiry": "28-OCT-26",
+      "tick_size": 0.1
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_binary_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._poll_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._normalize_quote_data",
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_oi_packet"
+    ],
+    "notes": [
+      "The web publishes every subscription from its packet stores every 500 ms (motilal_adapter.py _poll_market_data); web.json holds the poll after each push, the desktop sends a frame when a packet changes what a subscription reports."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Motilal's last-trade packet and its m packet carry this future's open interest; the web's Quote dict drops it from every Quote frame (motilal_adapter.py _normalize_quote_data has no oi): lost data (audit C05). The desktop's Quote frame keeps it, as oi, the name the web's Depth dict uses.",
+      "ref": "motilal_adapter.py _normalize_quote_data; audit C05",
+      "approved": true
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+150000000100  # frame length 21, version 1, compression 0 (none)
+# L1: INFY price only (the web test's ltp=1156.0)
+0f000a  # packet length 15, type 10
+1a01  # 26 exchSeg = 1
+1b3a060000  # 27 token = 1594
+1d90c30100  # 29 ltp = 115600

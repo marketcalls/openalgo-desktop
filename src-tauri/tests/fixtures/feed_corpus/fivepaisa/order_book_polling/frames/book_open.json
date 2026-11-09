@@ -1,0 +1,45 @@
+{
+  "head": {
+    "responseCode": "5POrdBkV3",
+    "status": "0",
+    "statusDescription": "Success"
+  },
+  "body": {
+    "Message": "Success",
+    "OrderBookDetail": [
+      {
+        "AtMarket": "N",
+        "AveragePrice": 0,
+        "BrokerOrderId": 1100000002,
+        "BrokerOrderTime": "/Date(1762660815000+0530)/",
+        "BuySell": "B",
+        "DelvIntra": "D",
+        "DisClosedQty": 0,
+        "Exch": "N",
+        "ExchOrderID": "1100000000012345",
+        "ExchOrderTime": "/Date(1762660815000+0530)/",
+        "ExchType": "C",
+        "MarketLot": 1,
+        "OldorderQty": 0,
+        "OrderRequesterCode": "<USER_ID>",
+        "OrderStatus": "Pending",
+        "OrderValidUpto": "Today",
+        "OrderValidity": 0,
+        "PendingQty": 100,
+        "Qty": 100,
+        "Rate": 440.1,
+        "Reason": "",
+        "RemoteOrderID": "OA1100000002",
+        "RequestType": "P",
+        "SLTrigger": "N",
+        "SLTriggerRate": 0.0,
+        "ScripCode": 1660,
+        "ScripName": "ITC",
+        "TerminalId": 0,
+        "TradedQty": 0,
+        "WithSL": "N"
+      }
+    ],
+    "Status": 0
+  }
+}

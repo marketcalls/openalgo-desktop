@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "definedge",
+  "orderid": "25110900000123",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 10,
+  "price": 1395.0,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "CNC",
+  "order_status": "open",
+  "filled_quantity": 4,
+  "pending_quantity": 6,
+  "average_price": 1394.95,
+  "rejection_reason": ""
+}

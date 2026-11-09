@@ -1,0 +1,46 @@
+{
+  "broker": "definedge",
+  "summary": "Depth on the depth feed alone: the depth ack's full book with the quote fields, an update that changes level one, and a book that empties to zeros.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_websocket.py::DefinedGeWebSocket._on_message",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._on_depth_data",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._publish_to_subscribers",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._normalize_raw_depth_data"
+    ],
+    "notes": [
+      "The depth ack carries Definedge's circuit limits and 52-week range (lc, uc, 52h, 52l), which the web's Depth payload forwards.",
+      "No frame carries the depth feed's `ltt` (an IST HH:MM:SS): the desktop reads it on the IST day the tick arrives (streaming.rs clock_on_day_of), so its epoch-ms value depends on the day the case runs and cannot be pinned here; brokers::definedge::tests::quote_feed::a_depth_message_carries_the_full_quote_and_the_trade_time pins it. Without it both sides take the feed time `ft` (epoch seconds) as the trade time."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
+      "approved": true
+    }
+  ]
+}

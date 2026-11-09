@@ -1,0 +1,105 @@
+{
+  "broker": "motilal",
+  "summary": "One client takes RELIANCE from LTP to Quote to Depth and back down: one registration at the broker for all of it and one unregistration at the end, and after each change the frames of the mode held.",
+  "scenarios": [
+    "mode-change",
+    "subscription-lifecycle",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_binary_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._poll_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter.subscribe",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter.unsubscribe",
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket.unregister_scrip"
+    ],
+    "notes": [
+      "The web publishes every subscription from its packet stores every 500 ms (motilal_adapter.py _poll_market_data); web.json holds the poll after each push, the desktop sends a frame when a packet changes what a subscription reports.",
+      "The web's adapter registers the scrip again for each new mode and unregisters it when any one mode is let go (MotilalWebSocketAdapter.unsubscribe calls unregister_scrip, which also drops the scrip's stores), so live the broker stops streaming a mode the client still holds; the glue keeps pushing, so web.json shows what the web publishes from the packets that follow. The desktop keeps one registration while any mode holds the scrip (feed::bridge, MotilalFeed::mode_change_frames)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "ltq",
+      "kind": "web-defect",
+      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Motilal sent no open interest for this cash scrip (no m packet; a cash scrip has none and its last-trade packet's OI slot is 0); the web's Depth dict sends oi 0 from a default (_normalize_depth_data: result['oi'] = 0 without an m packet); the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "Motilal has sent book level 1 only; the web pads the four levels that never arrived with integer zeros ({\"price\": 0, \"quantity\": 0, \"orders\": 0}, _normalize_depth_data), invented levels; the desktop sends the level received (lead decision 2026-11-09: no invented level).",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "web-defect",
+      "reason": "No circuit packet (W) has arrived: the web sends the limit as 0 (quote.get('upper_circuit', 0)), an invented price band; the desktop sends a circuit limit only once Motilal has sent it.",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "web-defect",
+      "reason": "No circuit packet (W) has arrived: the web sends the limit as 0 (quote.get('upper_circuit', 0)), an invented price band; the desktop sends a circuit limit only once Motilal has sent it.",
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
+    }
+  ]
+}

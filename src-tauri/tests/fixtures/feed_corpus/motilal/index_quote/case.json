@@ -1,0 +1,83 @@
+{
+  "broker": "motilal",
+  "summary": "NIFTY on NSE_INDEX, one client in Quote and one in LTP: an index packet carries the value only, then the index's day OHLC; no change, as the web adapter sends none.",
+  "scenarios": [
+    "index",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_binary_market_data",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._poll_market_data",
+      "broker/motilal/api/motilal_websocket.py::MotilalWebSocket._parse_index_packet",
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter._normalize_quote_data"
+    ],
+    "notes": [
+      "The web publishes every subscription from its packet stores every 500 ms (motilal_adapter.py _poll_market_data); web.json holds the poll after each push, the desktop sends a frame when a packet changes what a subscription reports.",
+      "The index's master row has brexchange NSE: the web registers it as NSE, CASH (motilal_mapping.py get_exchange_segment), as the desktop does."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltq",
+      "kind": "web-defect",
+      "reason": "An index has no trades: Motilal's index packet (H) carries no last quantity, and the web sends ltq 0 from a default (quote.get(..., 0)); the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_quote_data, _normalize_ltp_data",
+      "approved": true
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "An index has no trades: Motilal's index packet (H) carries no average price, and the web sends average_price 0 from a default (quote.get(..., 0)); the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_quote_data, _normalize_ltp_data",
+      "approved": true
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "An index has no trades: Motilal's index packet (H) carries no volume, and the web sends volume 0 from a default (quote.get(..., 0)); the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_quote_data, _normalize_ltp_data",
+      "approved": true
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
+      "ref": "motilal_adapter.py _normalize_quote_data",
+      "approved": true
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
+      "ref": "motilal_adapter.py _normalize_quote_data",
+      "approved": true
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
+      "ref": "motilal_adapter.py _normalize_quote_data",
+      "approved": true
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
+      "ref": "motilal_adapter.py _normalize_quote_data",
+      "approved": true
+    }
+  ]
+}

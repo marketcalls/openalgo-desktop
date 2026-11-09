@@ -1,0 +1,53 @@
+{
+  "broker": "fivepaisa",
+  "summary": "One scrip code on three instruments (audit RB-03): ITC on NSE cash, BSE cash and an NSE future all carry 1660, and each frame reaches only the instrument its Exch, ExchType and Token name; unsubscribing BSE releases only BSE, and NSE still holds its own last price.",
+  "scenarios": [
+    "subscription-lifecycle",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "ITC",
+      "exchange": "BSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "BSE"
+    },
+    {
+      "symbol": "ITC25NOV26FUT",
+      "exchange": "NFO",
+      "token": "1660",
+      "brsymbol": "ITC 25 Nov 2026",
+      "brexchange": "NFO",
+      "name": "ITC",
+      "expiry": "25-NOV-26",
+      "lotsize": 1600,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-test",
+    "sources": [
+      "broker/fivepaisa/streaming/fivepaisa_websocket.py::FivePaisaWebSocket._on_message",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_data",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._update_snapshot",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._normalize_market_data",
+      "test/test_fivepaisa_quote_feed.py::test_frames_routed_by_exchange_and_segment",
+      "test/test_fivepaisa_quote_feed.py::test_same_exchange_other_segment_is_not_routed",
+      "test/test_fivepaisa_quote_feed.py::test_unsubscribe_releases_scrip_snapshot"
+    ],
+    "notes": [
+      "The NSE frames are the web test's FEED (and FEED with LastRate 0); the BSE and NFO frames are worked here with their own prices, so a price borrowed across instruments shows.",
+      "One token on NSE cash, BSE cash and NSE F&O is the audit's scenario; real scrip codes differ per exchange more often than not."
+    ]
+  },
+  "deviations": []
+}

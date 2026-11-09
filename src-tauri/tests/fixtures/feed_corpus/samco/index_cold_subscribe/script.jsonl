@@ -1,0 +1,5 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "BANKNIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "http_receives", "requests": [{"method": "GET", "path": "/quote/indexQuote?indexName=NIFTY%20BANK"}], "note": "The streaming id is looked up as the web does when subscribing."}
+{"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "-25"}]}, "request_type": "subscribe", "response_format": "json"}}}]}
+{"step": "push", "frame": "frames/index_quote.json"}
+{"step": "receive", "client": "a", "frame": "expected/index_quote.json"}

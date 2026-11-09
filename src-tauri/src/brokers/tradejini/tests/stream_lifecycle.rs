@@ -180,3 +180,26 @@ fn dropping_depth_keeps_the_quote_but_not_the_book() {
     assert!(ev.is_empty(), "{:?}", ev);
     assert_eq!(f.cached(), 1, "a book in flight is not cached again");
 }
+
+/// The book's totals go with the book (web `_prune_tick_cache` drops the L5
+/// half, so its Quote then has none): the first tick after Depth is dropped
+/// clears them from what the bridge keeps, where a tick that only lacked
+/// them would let the dropped book's totals ride on every later Quote.
+#[test]
+fn the_book_totals_go_when_depth_is_dropped() {
+    let mut f = depth_feed();
+    let mut frames = Frames::new("tradejini");
+    let mut ev = parse(&mut f, l1_tick(115_500));
+    ev.extend(parse(&mut f, l5_tick()));
+    let quote = frames.at(&ev, Mode::Quote).pop().expect("a Quote frame");
+    assert_eq!(quote["total_buy_quantity"], 543_853);
+
+    f.mode_change_frames(&infy(FeedMode::Depth), &infy(FeedMode::Quote));
+    for ltp in [115_600, 115_700] {
+        let ev = parse(&mut f, l1_tick(ltp));
+        let quote = frames.at(&ev, Mode::Quote).pop().expect("a Quote frame");
+        for k in ["total_buy_quantity", "total_sell_quantity"] {
+            assert!(quote.get(k).is_none(), "{}: {}", k, quote);
+        }
+    }
+}

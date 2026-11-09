@@ -108,7 +108,7 @@ fn a_depth_frame_carries_the_latest_quote_fields() {
     assert_eq!(d["volume"], 1200, "{}", d);
     assert_eq!(
         (&d["open"], &d["high"], &d["low"], &d["close"]),
-        (&json!(445.0), &json!(447.2), &json!(439.5), &json!(442.9)),
+        (&json!(445), &json!(447.2), &json!(439.5), &json!(442.9)),
         "{}",
         d
     );
@@ -294,8 +294,9 @@ fn a_frame_that_is_neither_feed_nor_depth_makes_nothing() {
     assert!(ev.is_empty(), "{:?}", ev);
 }
 
-/// `ChgPcnt` is 5paisa's own percent change: an index publishes it as
-/// `price_change_percent` and, as on the web, `percent_change`.
+/// `ChgPcnt` is 5paisa's own percent change: an index publishes it as the
+/// web does, as `percent_change` only, without `price_change` or
+/// `price_change_percent`.
 #[test]
 fn the_change_percent_is_chgpcnt_under_its_web_name() {
     let mut f = feed_with(&[on("NIFTY", "NSE_INDEX", "NSE_INDEX", FeedMode::Quote)]);
@@ -304,6 +305,211 @@ fn the_change_percent_is_chgpcnt_under_its_web_name() {
         .at(&events, Mode::Quote)
         .pop()
         .unwrap();
-    assert_eq!(d["price_change_percent"], -0.6321969, "{}", d);
     assert_eq!(d["percent_change"], -0.6321969, "{}", d);
+    assert!(
+        d.get("price_change").is_none() && d.get("price_change_percent").is_none(),
+        "{}",
+        d
+    );
+}
+
+/// 5paisa sends 0 for a price it does not have. With nothing held for the
+/// instrument a frame without a traded price publishes nothing (no zero
+/// LTP), and a zero OHLC or average price is left out, not sent as 0; the
+/// quantities are the frame's.
+#[test]
+fn a_price_5paisa_does_not_have_is_left_out_not_sent_as_zero() {
+    let no_trade = json!({"LastRate": 0, "LastQty": 0});
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let events = send(&mut f, with(feed_frame(), no_trade));
+    assert!(matches!(events.as_slice(), [FeedEvent::Tick(_)]));
+    assert!(Frames::new("fivepaisa").at(&events, Mode::Quote).is_empty());
+
+    let unpriced = json!({"OpenRate": 0, "High": 0, "Low": 0, "PClose": 0, "AvgRate": 0});
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let events = send(&mut f, with(feed_frame(), unpriced));
+    let quotes = Frames::new("fivepaisa").at(&events, Mode::Quote);
+    let [d] = quotes.as_slice() else {
+        panic!("one quote frame: {:?}", quotes)
+    };
+    assert_eq!(
+        (&d["ltp"], &d["volume"]),
+        (&json!(440.1), &json!(1200)),
+        "{}",
+        d
+    );
+    for k in ["open", "high", "low", "close", "average_price"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+}
+
+/// A new connection holds nothing: the first frame after a reconnect that
+/// reports 0 for every price publishes nothing, and the next priced one
+/// carries only what the new connection has sent. The web keeps its
+/// snapshot across the reconnect and sends the pre-outage prices as
+/// current (a web defect).
+#[test]
+fn prices_held_before_a_reconnect_are_not_sent_after_it() {
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let before = Frames::new("fivepaisa").at(&send(&mut f, feed_frame()), Mode::Quote);
+    assert_eq!(before.len(), 1);
+    f.on_connected();
+    let unpriced = json!({"OpenRate": 0, "High": 0, "Low": 0, "PClose": 0, "AvgRate": 0});
+    let mut frames = Frames::new("fivepaisa");
+    let zero = with(with(feed_frame(), json!({"LastRate": 0})), unpriced.clone());
+    assert!(frames.at(&send(&mut f, zero), Mode::Quote).is_empty());
+    let priced = with(with(feed_frame(), json!({"LastRate": 440.3})), unpriced);
+    let d = frames.at(&send(&mut f, priced), Mode::Quote).pop().unwrap();
+    assert_eq!(d["ltp"], 440.3, "{}", d);
+    for k in ["open", "high", "low", "close", "average_price"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+}
+
+/// A MarketFeedV3 frame is a Quote packet whatever the subscription; an
+/// LTP subscriber gets the price and its trade time only.
+#[test]
+fn an_ltp_frame_is_cut_from_the_quote_packet() {
+    let mut f = feed_with(&[itc(FeedMode::Ltp)]);
+    let events = send(&mut f, feed_frame());
+    assert!(matches!(events.as_slice(), [FeedEvent::Tick(t)] if t.mode == 2));
+    let ltp = Frames::new("fivepaisa").at(&events, Mode::Ltp);
+    assert_eq!(
+        crate::feed::testkit::keys(&ltp[0]),
+        [
+            "exchange",
+            "last_trade_time",
+            "ltp",
+            "ltt",
+            "mode",
+            "symbol",
+            "timestamp"
+        ]
+    );
+}
+
+/// The web's Quote publishes 5paisa's best bid and ask (`BidRate`,
+/// `BidQty`, `OffRate`, `OffQty`); a price of 0 keeps the last one held,
+/// and with none held, or the key missing, is left out. A quantity of 0 is
+/// sent.
+#[test]
+fn the_best_bid_and_ask_are_the_frames_own() {
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let mut frames = Frames::new("fivepaisa");
+    let d = frames
+        .at(&send(&mut f, feed_frame()), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(
+        (
+            &d["bid_price"],
+            &d["bid_quantity"],
+            &d["ask_price"],
+            &d["ask_quantity"]
+        ),
+        (&json!(440.0), &json!(10), &json!(440.2), &json!(12)),
+        "{}",
+        d
+    );
+    let thin = with(feed_frame(), json!({"BidRate": 0, "BidQty": 0}));
+    let d = frames.at(&send(&mut f, thin), Mode::Quote).pop().unwrap();
+    assert_eq!(
+        (&d["bid_price"], &d["bid_quantity"]),
+        (&json!(440.0), &json!(0)),
+        "{}",
+        d
+    );
+
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let mut first = with(feed_frame(), json!({"BidRate": 0}));
+    if let Some(o) = first.as_object_mut() {
+        o.remove("OffRate");
+        o.remove("OffQty");
+    }
+    let d = Frames::new("fivepaisa")
+        .at(&send(&mut f, first), Mode::Quote)
+        .pop()
+        .unwrap();
+    for k in ["bid_price", "ask_price", "ask_quantity"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+    assert_eq!(d["bid_quantity"], 10, "{}", d);
+}
+
+/// An empty book is two empty sides, not rows of zeros (web
+/// `_extract_depth_data`), and a one-level side is one level; the depth
+/// frame's price is the latest quote's.
+#[test]
+fn a_book_has_the_levels_5paisa_sent() {
+    let mut f = feed_with(&[itc(FeedMode::Depth)]);
+    let mut events = send(&mut f, feed_frame());
+    events.extend(send(&mut f, depth_frame()));
+    let empty = json!({"Details": [], "TBidQ": 0, "TOffQ": 0});
+    events.extend(send(&mut f, with(depth_frame(), empty)));
+    let books = Frames::new("fivepaisa").at(&events, Mode::Depth);
+    let [one, cleared] = books.as_slice() else {
+        panic!("two depth frames: {:?}", books)
+    };
+    assert_eq!(
+        one["depth"],
+        json!({
+            "buy": [{"price": 440.0, "quantity": 50, "orders": 2}],
+            "sell": [{"price": 440.2, "quantity": 25, "orders": 1}]
+        }),
+        "{}",
+        one
+    );
+    assert_eq!(
+        cleared["depth"],
+        json!({"buy": [], "sell": []}),
+        "{}",
+        cleared
+    );
+    assert_eq!(cleared["ltp"], 440.1, "{}", cleared);
+}
+
+/// The web passes 5paisa's JSON numbers on as they came: the web test's
+/// `"OpenRate": 445` goes out as 445, a price with a fraction as a double,
+/// and a held price keeps the form 5paisa first wrote it in.
+#[test]
+fn a_whole_price_goes_out_as_5paisa_wrote_it() {
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let mut frames = Frames::new("fivepaisa");
+    let d = frames
+        .at(&send(&mut f, feed_frame()), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert!(d["open"].is_i64() && d["open"] == 445, "{}", d);
+    assert!(d["high"].is_f64() && d["bid_price"].is_f64(), "{}", d);
+    let held = with(feed_frame(), json!({"OpenRate": 0, "High": 448}));
+    let d = frames.at(&send(&mut f, held), Mode::Quote).pop().unwrap();
+    assert!(d["open"].is_i64() && d["open"] == 445, "held: {}", d);
+    assert!(d["high"].is_i64() && d["high"] == 448, "{}", d);
+}
+
+/// 5paisa fills an index's last quantity and book totals with 0: the tick
+/// says it does not carry them, so no frame sends them, whatever a key
+/// table would allow; an equity's 0 is a real quantity.
+#[test]
+fn an_index_carries_no_quantity_5paisa_fills_with_zero() {
+    let zeros = json!({"LastQty": 0, "TBidQ": 0, "TOffQ": 0});
+    let index = on("NIFTY", "NSE_INDEX", "NSE_INDEX", FeedMode::Quote);
+    let mut f = feed_with(&[index]);
+    let events = send(&mut f, with(feed_frame(), zeros.clone()));
+    let [FeedEvent::Tick(t)] = events.as_slice() else {
+        panic!("one tick: {:?}", events)
+    };
+    for q in [
+        QuoteField::LastQuantity,
+        QuoteField::TotalBuyQuantity,
+        QuoteField::TotalSellQuantity,
+    ] {
+        assert!(!t.knows(q), "{:?}: {:?}", q, t);
+    }
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let events = send(&mut f, with(feed_frame(), zeros));
+    let [FeedEvent::Tick(t)] = events.as_slice() else {
+        panic!("one tick: {:?}", events)
+    };
+    assert!(t.knows(QuoteField::LastQuantity) && t.knows(QuoteField::TotalBuyQuantity));
 }

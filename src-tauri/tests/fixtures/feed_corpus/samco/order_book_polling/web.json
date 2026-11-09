@@ -1,0 +1,280 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "samco",
+  "inputs_sha256": "c1286d5fbac3b2993712860960fc1665493c8ef71ed1d66bd79bb60529f4c49a",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY24NOV2624600CE",
+      "exchange": "NFO",
+      "token": "41015",
+      "brsymbol": "NIFTY26NOV24600CE",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "CE",
+      "strike": 24600.0
+    },
+    {
+      "symbol": "NATURALGAS24NOV26FUT",
+      "exchange": "MCX",
+      "token": "464926",
+      "brsymbol": "NATURALGAS26NOVFUT",
+      "brexchange": "MFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 1250,
+      "instrumenttype": "FUT"
+    },
+    {
+      "symbol": "CRUDEOIL19NOV26FUT",
+      "exchange": "MCX",
+      "token": "464925",
+      "brsymbol": "CRUDEOIL26NOVFUT",
+      "brexchange": "MFO",
+      "expiry": "19-NOV-26",
+      "lotsize": 100,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "samco",
+            "orderid": "251109000000101",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 800.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 10,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "samco",
+            "orderid": "251109000000101",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 800.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 4,
+            "pending_quantity": 6,
+            "average_price": 800.4,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "samco",
+            "orderid": "251109000000101",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 800.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "complete",
+            "filled_quantity": 10,
+            "pending_quantity": 0,
+            "average_price": 800.45,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "samco",
+            "orderid": "251109000000102",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 500,
+            "price": 801.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "rejected",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": "Insufficient funds"
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "samco",
+            "orderid": "251109000000103",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 5,
+            "price": 790.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "cancelled",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "samco",
+            "orderid": "251109000000104",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 50,
+            "price": 811.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "rejected",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": "RMS:Margin Exceeds,Required:40,550.00, Available:1,200.50 for entity account-<USER_ID> across exchange across segment across product"
+          }
+        }
+      ]
+    },
+    {
+      "line": 15,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "samco",
+            "orderid": "251109000000105",
+            "symbol": "NIFTY24NOV2624600CE",
+            "exchange": "NFO",
+            "action": "SELL",
+            "quantity": 75,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "MARKET",
+            "product": "NRML",
+            "order_status": "complete",
+            "filled_quantity": 75,
+            "pending_quantity": 0,
+            "average_price": 101.9,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 17,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "samco",
+            "orderid": "251109000000106",
+            "symbol": "NATURALGAS26NOVFUT",
+            "exchange": "MFO",
+            "action": "BUY",
+            "quantity": 1250,
+            "price": 312.5,
+            "trigger_price": 312.0,
+            "pricetype": "SL",
+            "product": "MIS",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 1250,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 19,
+      "published": []
+    },
+    {
+      "line": 21,
+      "published": []
+    }
+  ]
+}

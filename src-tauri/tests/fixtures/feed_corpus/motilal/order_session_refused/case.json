@@ -1,0 +1,28 @@
+{
+  "broker": "motilal",
+  "summary": "The order socket refuses the session with MO1001 (Invalid User Id Or Auth Token): no order update on either side, and the desktop stops the order feed instead of retrying a dead session.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/motilal/streaming/motilal_order_adapter.py::MotilalOrderUpdateAdapter.normalize",
+      "broker/motilal/streaming/motilal_order_adapter.py:29 (doc 34: MO1001 Invalid User Id Or Auth Token)"
+    ],
+    "notes": [
+      "Desktop decision (lead, 2026-11-09): MO1001 means the session is not valid (doc 34, motilal_order_adapter.py _WS_ERROR_CODES), so the desktop ends the order feed through its auth-failure path (FeedEvent::AuthFailed) instead of keeping a socket that can carry no order update; no frame differs from the web."
+    ]
+  },
+  "deviations": []
+}

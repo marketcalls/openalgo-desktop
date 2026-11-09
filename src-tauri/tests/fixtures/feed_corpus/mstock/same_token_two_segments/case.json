@@ -1,0 +1,49 @@
+{
+  "broker": "mstock",
+  "summary": "Token 1594 on NSE and on BSE are two instruments: each is subscribed under its own exchange type, a packet reaches only the instrument of its exchange type and token, and a header-prefixed frame is split into its packets.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "OTHER",
+      "exchange": "BSE",
+      "token": "1594",
+      "brsymbol": "OTHER",
+      "brexchange": "BSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data",
+      "test/test_mstock_quote_feed.py::test_tick_routes_on_exchange_type_and_token",
+      "test/test_mstock_quote_feed.py::test_same_token_on_two_exchanges_is_subscribed_for_both",
+      "test/test_mstock_websocket.py::test_multi_packet_frame_keeps_every_token"
+    ],
+    "notes": [
+      "One symbol per subscribe, so each subscribe is one frame whatever the bridge's batching."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) over the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one, and then sends the last OI the instrument's full packet carried on this connection (feed/bridge/snapshot.rs merges by presence), never a 0 it was not sent.",
+      "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376",
+      "approved": true
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "broker": "mstock",
+  "summary": "A Depth subscription: a full packet's ltt is its last trade time, not its exchange time (audit RB-07); a later full packet clears the book and has no trade, so it carries five empty levels and no ltt.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data",
+      "test/test_mstock_quote_feed.py::test_full_packet_without_a_trade_publishes_no_trade_time"
+    ],
+    "notes": [
+      "Times from audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md RB-07 (exchange 1791002705000, trade 1791002699000)."
+    ]
+  },
+  "deviations": []
+}

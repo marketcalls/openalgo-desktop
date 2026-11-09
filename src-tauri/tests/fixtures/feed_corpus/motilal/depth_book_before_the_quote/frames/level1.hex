@@ -1,0 +1,11 @@
+# B: book level 1 (web _parse_depth_level_packet)
+4e                      # exchange character N (NSE and NSEFO share it)
+450b0000                # scrip 2885
+c037fd46                # packet time, read by neither the web nor the desktop
+42                      # type B
+0080a244                # bid 1300.0
+0a000000                # bid quantity 10
+0100                    # bid orders 1
+00a0a244                # ask 1301.0
+14000000                # ask quantity 20
+0200                    # ask orders 2

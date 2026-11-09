@@ -16,6 +16,7 @@
 //! the cause is fixed. `OrderPoller::stop` and `Drop` abort the task; the
 //! adapter keeps it and stops it in `Broker::on_logout`.
 
+use crate::brokers::common::mpp::py_round;
 use crate::brokers::common::streaming::OrderUpdate;
 use crate::brokers::types::Order;
 use crate::error::{AppError, Result};
@@ -146,7 +147,32 @@ impl Drop for OrderPoller {
     }
 }
 
-/// Normalised order update from an order-book row.
+/// A row's price as the web's order book shows it, and so its polled
+/// order updates (`services/orderbook_service.py` `format_order_data`): a
+/// MARKET order's as 0.0 whatever limit the broker booked it at (Samco's
+/// market-protected limit), any other rounded as Python's `round(x, 2)`.
+pub fn book_price(o: &Order) -> f64 {
+    if o.order_type.eq_ignore_ascii_case("MARKET") {
+        0.0
+    } else {
+        py_round(o.price, 2)
+    }
+}
+
+/// The reason a polled update carries: a rejected order's, nothing for any
+/// other (web `PollingOrderUpdateAdapter._publish_order`), so a cancelled
+/// order's remark is never sent as a rejection reason.
+fn rejection_reason(o: &Order) -> String {
+    if o.status.eq_ignore_ascii_case("rejected") {
+        o.rejection_reason.clone().unwrap_or_default()
+    } else {
+        String::new()
+    }
+}
+
+/// Normalised order update from an order-book row, with the prices the
+/// web's polled update carries: its order book's (`format_order_data`,
+/// two decimals), not the broker's raw ones.
 pub fn to_update(o: &Order) -> OrderUpdate {
     OrderUpdate {
         orderid: o.order_id.clone(),
@@ -154,15 +180,15 @@ pub fn to_update(o: &Order) -> OrderUpdate {
         exchange: o.exchange.clone(),
         action: o.side.clone(),
         quantity: i64::from(o.quantity),
-        price: o.price,
-        trigger_price: o.trigger_price,
+        price: book_price(o),
+        trigger_price: py_round(o.trigger_price, 2),
         pricetype: o.order_type.clone(),
         product: o.product.clone(),
         order_status: o.status.clone(),
         filled_quantity: i64::from(o.filled_quantity),
         pending_quantity: i64::from(o.pending_quantity),
-        average_price: o.average_price,
-        rejection_reason: o.rejection_reason.clone().unwrap_or_default(),
+        average_price: py_round(o.average_price, 2),
+        rejection_reason: rejection_reason(o),
     }
 }
 
@@ -212,6 +238,40 @@ mod tests {
             exchange_timestamp: None,
             rejection_reason: None,
             order_tag: None,
+        }
+    }
+
+    /// Web `PollingOrderUpdateAdapter` publishes rows of its order book
+    /// (`services/orderbook_service.py` `format_order_data`): a MARKET
+    /// order's price as 0.0, not the limit the broker booked it at, and
+    /// every price to two decimals. The desktop sent the book's raw ones.
+    #[test]
+    fn an_update_carries_the_order_books_prices() {
+        let mut o = order("1", "complete", 10);
+        o.order_type = "MARKET".into();
+        o.price = 102.35;
+        o.average_price = 101.9033;
+        let u = to_update(&o);
+        assert_eq!((u.price, u.average_price), (0.0, 101.9));
+        o.order_type = "SL".into();
+        o.price = 812.456;
+        o.trigger_price = 812.004;
+        let u = to_update(&o);
+        assert_eq!((u.price, u.trigger_price), (812.46, 812.0));
+    }
+
+    /// Web `PollingOrderUpdateAdapter._publish_order`: `rejection_reason`
+    /// only for a rejected order. The desktop sent a cancelled order's
+    /// remark (5paisa's `Reason`) as its rejection reason.
+    #[test]
+    fn only_a_rejected_order_carries_a_rejection_reason() {
+        let mut o = order("1", "rejected", 0);
+        o.rejection_reason = Some("RMS:Margin Exceeds".into());
+        assert_eq!(to_update(&o).rejection_reason, "RMS:Margin Exceeds");
+        for status in ["cancelled", "open", "complete"] {
+            o.status = status.into();
+            o.rejection_reason = Some("Cancelled by user".into());
+            assert_eq!(to_update(&o).rejection_reason, "", "{}", status);
         }
     }
 

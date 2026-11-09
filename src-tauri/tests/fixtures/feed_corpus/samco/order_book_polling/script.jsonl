@@ -10,3 +10,13 @@
 {"step": "receive", "client": "a", "frame": "expected/book_rejected.json"}
 {"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_cancelled.json"}
 {"step": "receive", "client": "a", "frame": "expected/book_cancelled.json"}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_rms_rejected.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_rms_rejected.json"}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_manual.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_manual.json"}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_mcx.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_mcx.json"}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_comma_prices.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_comma_prices.json", "web": false}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_comma_cancelled.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_comma_cancelled.json", "web": false}

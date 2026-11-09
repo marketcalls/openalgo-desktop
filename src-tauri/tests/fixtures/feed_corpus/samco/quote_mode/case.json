@@ -1,0 +1,44 @@
+{
+  "broker": "samco",
+  "summary": "A Quote subscription on an NSE stock: Samco's documented quote frame, then a partial one merged into it (the trade time from lTrdT, the totals and average price kept); after the unsubscribe a late frame reaches nobody.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present",
+      "test/test_samco_quote_feed.py::test_exchange_trade_time_is_published_as_ltt",
+      "test/test_samco_quote_feed.py::test_average_price_and_totals_published_in_quote_and_depth"
+    ],
+    "notes": [
+      "The first frame is DOC_QUOTE of web test/test_samco_quote_feed.py (Samco docs 13-streaming-data.md)."
+    ]
+  },
+  "deviations": [
+    {
+      "kind": "web-defect",
+      "reason": "Samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, Quote and Depth included (lost data); the desktop sends it, and no OI Samco did not send.",
+      "ref": "samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data; decisions 2026-11-09 (data a web adapter drops is kept)",
+      "key": "oi",
+      "approved": true
+    }
+  ]
+}

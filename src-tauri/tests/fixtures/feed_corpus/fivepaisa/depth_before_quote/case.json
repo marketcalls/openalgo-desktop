@@ -1,0 +1,41 @@
+{
+  "broker": "fivepaisa",
+  "summary": "Depth on NSE cash, the book first (audit RB-04): a MarketDepthService frame before any MarketFeedV3 frame gives the book and its totals and no quote field; after the quote, the next book carries it.",
+  "scenarios": [
+    "absent-field",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-test",
+    "sources": [
+      "broker/fivepaisa/streaming/fivepaisa_websocket.py::FivePaisaWebSocket._on_message",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_data",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._update_snapshot",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._normalize_market_data",
+      "test/test_fivepaisa_quote_feed.py::test_depth_before_any_feed_frame_publishes_no_quote_zeros",
+      "test/test_fivepaisa_quote_feed.py::test_a_depth_subscriber_still_keeps_the_feed_snapshot"
+    ],
+    "notes": [
+      "DEPTH and FEED are the web test's frames."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltp",
+      "kind": "desktop-decision",
+      "reason": "A depth frame keeps ltp and timestamp before the instrument's first quote, for every broker (1.0.6 decision: the SDK's Depth callback reads them); the 5paisa web adapter leaves ltp out of a MarketDepthService frame that comes before any MarketFeedV3 frame (audit RB-04). The other quote fields are left out on both.",
+      "ref": "CLAUDE.md (a depth frame before its instrument's first tick); feed/bridge.rs depth_update; fivepaisa_adapter.py:_normalize_market_data mode 3",
+      "approved": true
+    }
+  ]
+}

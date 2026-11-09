@@ -1,0 +1,29 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY25NOV26FUT",
+  "exchange": "NFO",
+  "mode": 2,
+  "broker": "mstock",
+  "data": {
+    "symbol": "NIFTY25NOV26FUT",
+    "exchange": "NFO",
+    "mode": 2,
+    "ltp": 24411.0,
+    "ltt": 1791002715000,
+    "timestamp": "<receipt_ms>",
+    "volume": 1277250,
+    "last_quantity": 75,
+    "average_price": 24398.5,
+    "total_buy_quantity": 450000,
+    "total_sell_quantity": 375000,
+    "open": 24380.0,
+    "high": 24425.0,
+    "low": 24360.0,
+    "close": 24395.0,
+    "oi": 12500000,
+    "last_trade_time": 1791002715000,
+    "prev_close": 24395.0,
+    "last_trade_quantity": 75,
+    "exchange_timestamp": 1791002715000
+  }
+}

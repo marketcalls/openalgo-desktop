@@ -1,0 +1,17 @@
+# mStock Quote packet for NIFTY with an average price filled in
+# (the other order-flow fields still 0).
+02                      # subscription mode 2
+01                      # exchange type 1
+32363030300000000000000000000000000000000000000000 # token "26000", NUL-padded to 25 bytes
+0200000000000000        # sequence number
+60e2c4fa92010000        # exchange timestamp 1730784060000
+b228250000000000        # ltp 24352.50 in paise
+0000000000000000        # last traded quantity 0
+bc14250000000000        # average price 24301.40 in paise
+0000000000000000        # volume 0
+0000000000000000        # total buy quantity 0.0 (double)
+0000000000000000        # total sell quantity 0.0 (double)
+20ed240000000000        # open 24200.00 in paise
+723b250000000000        # high 24400.50 in paise
+b1d9240000000000        # low 24150.25 in paise
+a800250000000000        # close 24250.00 in paise

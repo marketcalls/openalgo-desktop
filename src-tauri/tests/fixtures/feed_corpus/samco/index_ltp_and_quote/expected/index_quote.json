@@ -1,0 +1,22 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "broker": "samco",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "mode": 2,
+    "ltp": 24500.15,
+    "ltt": 1791002701000,
+    "timestamp": "<receipt_ms>",
+    "open": 24400.0,
+    "high": 24550.5,
+    "low": 24390.25,
+    "close": 24450.0,
+    "last_trade_time": 1791002701000,
+    "change": 50.15,
+    "change_percentage": 0.21
+  }
+}

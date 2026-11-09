@@ -1,0 +1,15 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "motilal",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "ltp": 1302.5,
+    "timestamp": "<receipt_ms>",
+    "volume": 40050,
+    "mode": 1
+  }
+}

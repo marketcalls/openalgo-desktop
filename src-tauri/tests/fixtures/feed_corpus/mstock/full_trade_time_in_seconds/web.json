@@ -1,0 +1,109 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "mstock",
+  "inputs_sha256": "1430968eaa9d8138761ec4097ea0e3594a08e18e4d89c3dfa3f578e34c9c374c",
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_DEPTH",
+          "exchange": "NSE",
+          "symbol": "INFY",
+          "mode": 3,
+          "data": {
+            "ltp": 1500.5,
+            "last_trade_time": 1730783990,
+            "ltt": 1730783990,
+            "exchange_timestamp": 1730784000000,
+            "open": 1490.0,
+            "high": 1505.0,
+            "low": 1485.0,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "volume": 1000,
+            "oi": 0,
+            "last_trade_quantity": 25,
+            "last_quantity": 25,
+            "average_price": 1498.0,
+            "total_buy_quantity": 10,
+            "total_sell_quantity": 20,
+            "depth": {
+              "buy": [
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            },
+            "upper_circuit": 0.0,
+            "lower_circuit": 0.0,
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

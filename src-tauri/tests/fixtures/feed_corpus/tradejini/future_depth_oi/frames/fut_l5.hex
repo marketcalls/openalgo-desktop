@@ -1,0 +1,38 @@
+b20000000100  # frame length 178, version 1, compression 0 (none)
+# L5: the future, five levels
+ac000b  # packet length 172, type 11
+1a03  # 26 exchSeg = 3
+1bc8cb0000  # 27 token = 52168
+2fd0dd0600  # 47 totBuyQty = 450000
+3040ef0700  # 48 totSellQty = 520000
+3705  # 55 nDepth (bid levels) = 5
+31a6752500  # 49 bid 1 price = 2454950
+324b000000  # 50 bid 1 qty = 75
+3301000000  # 51 bid 1 orders = 1
+3174752500  # 49 bid 2 price = 2454900
+3296000000  # 50 bid 2 qty = 150
+3302000000  # 51 bid 2 orders = 2
+3142752500  # 49 bid 3 price = 2454850
+32e1000000  # 50 bid 3 qty = 225
+3303000000  # 51 bid 3 orders = 3
+3110752500  # 49 bid 4 price = 2454800
+322c010000  # 50 bid 4 qty = 300
+3304000000  # 51 bid 4 orders = 4
+31de742500  # 49 bid 5 price = 2454750
+3277010000  # 50 bid 5 qty = 375
+3305000000  # 51 bid 5 orders = 5
+340a762500  # 52 ask 1 price = 2455050
+3596000000  # 53 ask 1 qty = 150
+3602000000  # 54 ask 1 orders = 2
+343c762500  # 52 ask 2 price = 2455100
+35e1000000  # 53 ask 2 qty = 225
+3603000000  # 54 ask 2 orders = 3
+346e762500  # 52 ask 3 price = 2455150
+352c010000  # 53 ask 3 qty = 300
+3604000000  # 54 ask 3 orders = 4
+34a0762500  # 52 ask 4 price = 2455200
+3577010000  # 53 ask 4 qty = 375
+3605000000  # 54 ask 4 orders = 5
+34d2762500  # 52 ask 5 price = 2455250
+35c2010000  # 53 ask 5 qty = 450
+3606000000  # 54 ask 5 orders = 6

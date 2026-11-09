@@ -1,0 +1,193 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "fivepaisa",
+  "inputs_sha256": "29193337d7cc2db6e3f46a65b6691cfc99edbe7fab7121e8854c0f0dfbce6b21",
+  "instruments": [
+    {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "token": "1660",
+      "brsymbol": "ITC",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_DEPTH",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 3,
+          "data": {
+            "ltp": 440.1,
+            "volume": 1200,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 5,
+            "last_quantity": 5,
+            "average_price": 441.3,
+            "percent_change": -0.6321969,
+            "ltt": 1759900055000,
+            "last_trade_time": 1759900055000,
+            "total_buy_quantity": 86225,
+            "total_sell_quantity": 135100,
+            "depth": {
+              "buy": [
+                {
+                  "price": 440.0,
+                  "quantity": 50,
+                  "orders": 2
+                }
+              ],
+              "sell": [
+                {
+                  "price": 440.2,
+                  "quantity": 25,
+                  "orders": 1
+                }
+              ]
+            },
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_DEPTH",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 3,
+          "data": {
+            "ltp": 440.1,
+            "volume": 1200,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 5,
+            "last_quantity": 5,
+            "average_price": 441.3,
+            "percent_change": -0.6321969,
+            "ltt": 1759900055000,
+            "last_trade_time": 1759900055000,
+            "total_buy_quantity": 90000,
+            "total_sell_quantity": 140000,
+            "depth": {
+              "buy": [
+                {
+                  "price": 440.0,
+                  "quantity": 50,
+                  "orders": 2
+                },
+                {
+                  "price": 439.95,
+                  "quantity": 120,
+                  "orders": 3
+                },
+                {
+                  "price": 439.9,
+                  "quantity": 300,
+                  "orders": 5
+                },
+                {
+                  "price": 439.85,
+                  "quantity": 75,
+                  "orders": 1
+                },
+                {
+                  "price": 439.8,
+                  "quantity": 410,
+                  "orders": 6
+                }
+              ],
+              "sell": [
+                {
+                  "price": 440.2,
+                  "quantity": 25,
+                  "orders": 1
+                },
+                {
+                  "price": 440.25,
+                  "quantity": 90,
+                  "orders": 2
+                },
+                {
+                  "price": 440.3,
+                  "quantity": 260,
+                  "orders": 4
+                },
+                {
+                  "price": 440.35,
+                  "quantity": 140,
+                  "orders": 3
+                },
+                {
+                  "price": 440.4,
+                  "quantity": 500,
+                  "orders": 7
+                }
+              ]
+            },
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_DEPTH",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 3,
+          "data": {
+            "ltp": 440.1,
+            "volume": 1200,
+            "open": 445,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 5,
+            "last_quantity": 5,
+            "average_price": 441.3,
+            "percent_change": -0.6321969,
+            "ltt": 1759900055000,
+            "last_trade_time": 1759900055000,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "depth": {
+              "buy": [],
+              "sell": []
+            },
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": ["frames/register.hex"]}
+{"step": "push", "frame": "frames/level1.hex"}
+{"step": "push", "frame": "frames/level2.hex"}
+{"step": "push", "frame": "frames/level3.hex"}
+{"step": "push", "frame": "frames/level4.hex"}
+{"step": "push", "frame": "frames/level5.hex"}
+{"step": "silence", "client": "a", "note": "Five book levels and no trade yet: no Depth frame on either side."}
+{"step": "push", "frame": "frames/circuit.hex"}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "A book and the circuit limits, no trade: the web publishes Depth with LTP 0."}
+{"step": "push", "frame": "frames/ohlc.hex"}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}}
+{"step": "push", "frame": "frames/ltp.hex", "note": "The first trade: now both sides publish the book with its quote."}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}
+{"step": "push", "frame": "frames/level1_empty.hex", "note": "Level 1 empties on both sides: the book clears it."}
+{"step": "receive", "client": "a", "frame": "expected/book_cleared.json"}

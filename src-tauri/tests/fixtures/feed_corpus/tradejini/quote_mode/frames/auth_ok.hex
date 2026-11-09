@@ -1,0 +1,4 @@
+0b0000000100  # frame length 11, version 1, compression 0 (none)
+# auth acknowledgement
+05000d  # packet length 5, type 13
+1901  # 25 auth_status = 1

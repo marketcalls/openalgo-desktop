@@ -10,7 +10,9 @@ use super::orders::*;
 use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth, QuoteField,
+};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use serde_json::{json, Value};
 
@@ -898,19 +900,42 @@ fn live_feed_frames_and_events() {
     let last = ticks.last().unwrap();
     assert_eq!(
         (last.symbol.as_str(), last.exchange.as_str(), last.mode),
-        ("RELIANCE", "NSE", 3)
+        ("RELIANCE", "NSE", 2)
     );
     assert_eq!(
         (last.ltp, last.open, last.close, last.oi),
         (2410.5, 2400.0, 2398.0, 1200)
     );
-    assert_eq!(last.change, 12.5);
+    // The m packet's OI counts for a cash scrip too; Motilal sends no
+    // change, book totals or trade time.
+    assert!(last.knows(QuoteField::OpenInterest));
+    for field in [
+        QuoteField::Change,
+        QuoteField::TotalBuyQuantity,
+        QuoteField::LastTradeTime,
+    ] {
+        assert!(!last.knows(field), "{:?}", field);
+    }
+    // The W packet's price band (audit C06).
+    assert_eq!(
+        (last.extras.upper_circuit, last.extras.lower_circuit),
+        (Some(2600.0), Some(2200.0))
+    );
     let d = depths.last().unwrap();
-    assert_eq!((d.buy.len(), d.sell.len(), d.buy[0].price), (5, 5, 2410.0));
+    // Only the level Motilal sent, and no book totals it never sends.
+    assert_eq!((d.buy.len(), d.sell.len(), d.buy[0].price), (1, 1, 2410.0));
+    assert!(d.absent.contains(QuoteField::TotalBuyQuantity));
 
-    // A second frame does not announce the session again.
+    // A second frame does not announce the session again. A last trade
+    // before the day OHLC packet carries no open, high, low or close; a
+    // derivative's A packet carries its OI.
     let ev = feed.parse(&Message::Binary(pkt(b'N', 35001, b'A', &f(101.0))));
-    assert!(matches!(&ev[0], FeedEvent::Tick(t) if t.mode == 1 && t.ltp == 101.0 && t.open == 0.0));
+    let FeedEvent::Tick(t) = &ev[0] else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!(t.ltp, 101.0);
+    assert!(t.knows(QuoteField::Ltp) && t.knows(QuoteField::OpenInterest));
+    assert!(!t.knows(QuoteField::Open) && !t.knows(QuoteField::Close));
 
     // Mode change is local; unsubscribe drops state.
     let old = sub("NIFTY28OCT26FUT", "NFO", "35001", FeedMode::Ltp);
@@ -919,6 +944,68 @@ fn live_feed_frames_and_events() {
     let un = feed.unsubscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth), new]);
     assert!(matches!(&un[0], Message::Binary(b) if b[9] == 0));
     assert_eq!((feed.registered(), feed.cached()), (0, 0));
+}
+
+/// A new connection keeps the registrations and forgets the scrip data
+/// the old one delivered (the Upstox ruling; the web keeps
+/// `last_quotes` across `on_close`).
+#[test]
+fn a_new_connection_reports_nothing_from_before_it() {
+    let mut feed = MotilalFeed::new("wss://example.invalid/feed", "C1");
+    feed.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Quote)]);
+    let ohlc = [f(2400.0), f(2420.0), f(2390.0), f(2398.0)].concat();
+    feed.parse(&Message::Binary(pkt(b'N', 2885, b'G', &ohlc)));
+    let trade = pkt(b'N', 2885, b'A', &f(2410.5));
+    let before = feed.parse(&Message::Binary(trade.clone()));
+    assert!(matches!(&before[0], FeedEvent::Tick(t) if t.knows(QuoteField::Open)));
+
+    feed.on_connected();
+    assert_eq!((feed.registered(), feed.cached()), (1, 0));
+    let after = feed.parse(&Message::Binary(trade));
+    let Some(FeedEvent::Tick(t)) = after.iter().find(|e| matches!(e, FeedEvent::Tick(_))) else {
+        panic!("{:?}", after)
+    };
+    assert_eq!(t.ltp, 2410.5);
+    assert!(!t.knows(QuoteField::Open) && !t.knows(QuoteField::Close));
+}
+
+/// Audit RB-09: no Depth frame before a traded price and a first book
+/// level; web `motilal_adapter.py` `_poll_market_data` waits for both.
+#[test]
+fn depth_waits_for_a_trade_and_a_book() {
+    let mut feed = MotilalFeed::new("wss://example.invalid/feed", "C1");
+    feed.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
+    let depths = |ev: Vec<FeedEvent>| -> Vec<NormalizedDepth> {
+        ev.into_iter()
+            .filter_map(|e| match e {
+                FeedEvent::Depth(d) => Some(d),
+                _ => None,
+            })
+            .collect()
+    };
+    // Level 1: bid 2410.0 x 100 (3 orders); the ask side left at 0.
+    let mut level = Vec::new();
+    level.extend(f(2410.0));
+    level.extend(i(100));
+    level.extend(3i16.to_le_bytes());
+    let trade = pkt(
+        b'N',
+        2885,
+        b'A',
+        &[f(2410.5), i(4), i(75937), f(2405.25), i(0)].concat(),
+    );
+    assert!(depths(feed.parse(&Message::Binary(trade))).is_empty());
+    let book = depths(feed.parse(&Message::Binary(pkt(b'N', 2885, b'B', &level))));
+    assert_eq!(book.len(), 1);
+    assert_eq!((book[0].buy.len(), book[0].ltp), (1, 2410.5));
+
+    let mut cold = MotilalFeed::new("wss://example.invalid/feed", "C1");
+    cold.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
+    let level_first = cold.parse(&Message::Binary(pkt(b'N', 2885, b'B', &level)));
+    assert!(
+        depths(level_first).is_empty(),
+        "a book before the first trade"
+    );
 }
 
 #[test]
@@ -1003,6 +1090,22 @@ fn order_stream_frames_and_updates() {
         json!({"errorcode":"MO1001","message":"x"}).to_string(),
     ));
     assert!(matches!(&ev[0], FeedEvent::AuthFailed(_)));
+}
+
+/// Both sockets say Motilal's logout before a deliberate close (web
+/// `motilal_order_adapter.py:131-139` and `motilal_websocket.py:272-287`).
+#[test]
+fn both_sockets_log_out_before_a_deliberate_close() {
+    let logout = json!({"clientid": "<USER_ID>", "action": "logout"});
+    let s = MotilalSession::parse(&auth()).unwrap();
+    let orders = MotilalOrderFeed::new("wss://example.invalid/ws", &s, master());
+    let market = MotilalFeed::new("wss://example.invalid/feed", "<USER_ID>");
+    for frames in [orders.farewell_frames(), market.farewell_frames()] {
+        let [Message::Text(t)] = frames.as_slice() else {
+            panic!("{:?}", frames)
+        };
+        assert_eq!(serde_json::from_str::<Value>(t).unwrap(), logout);
+    }
 }
 
 #[test]

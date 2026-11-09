@@ -1,0 +1,38 @@
+{
+  "broker": "definedge",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "CDS": [
+        5
+      ]
+    },
+    "orders": "order updates on a second NorenWSTRTP connection (t=o after the ck acknowledgement)"
+  },
+  "sources": [
+    "broker/definedge/streaming/definedge_mapping.py::DefinedgeCapabilityRegistry",
+    "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter.subscribe",
+    "broker/definedge/streaming/definedge_order_adapter.py",
+    "services/order_update_service.py:44"
+  ],
+  "notes": [
+    "The web refuses a Depth subscribe at any level but 5 (INVALID_DEPTH, definedge_adapter.py:400-404); the capability registry's fallback is never reached for Definedge.",
+    "Index exchanges (NSE_INDEX, BSE_INDEX) stream on their cash exchange's scrip key (definedge_mapping.py:5-14); the registry lists no depth for them and falls back to 5."
+  ]
+}

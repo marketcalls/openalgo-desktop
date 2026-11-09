@@ -4,11 +4,9 @@
 //! the real decoder and come out as the 8765 frames the bridge makes of
 //! them (`feed::testkit`).
 //!
-//! What has no counterpart: the web's `change`, `change_percent` and
-//! `percent_change` on an equity (the desktop sends the change fields for
-//! indices only, with Tradejini's names), and its `last_trade_time`, the
-//! trade time as the web server's local date text; the desktop sends that
-//! time as `ltt`, in epoch milliseconds.
+//! What has no counterpart yet: the web's `last_trade_time`, the trade
+//! time as local date text (the desktop sends that time as `ltt`, in epoch
+//! milliseconds; the text copy waits for the carrier's text source).
 
 use super::*;
 use crate::feed::testkit::Frames;
@@ -119,6 +117,43 @@ fn a_depth_frame_keeps_the_l1_quote_fields() {
 
     let quote = last(frames.at(&ev, Mode::Quote));
     assert_eq!(quote["total_buy_quantity"], 5000);
+}
+
+/// What Tradejini has not sent for the instrument is left out of the
+/// frames, never sent as 0: the web reads each field with
+/// `message.get(k, 0)`, so a first L1 with only a price shows OHLC,
+/// volume, average price and last quantity as 0 there (openalgo#2376).
+/// An L1 without a price publishes nothing.
+#[test]
+fn a_field_tradejini_never_sent_is_left_out() {
+    let mut f = feed(FeedMode::Depth);
+    let mut frames = Frames::new("tradejini");
+    let ev = parse(
+        &mut f,
+        build::packet(10, &[(26, V::U8(1)), (27, V::I32(3045)), (40, V::U32(9))]),
+    );
+    assert!(frames.at(&ev, Mode::Quote).is_empty(), "no price: {:?}", ev);
+    let ev = parse(
+        &mut f,
+        build::packet(
+            10,
+            &[(26, V::U8(1)), (27, V::I32(3045)), (29, V::I32(81_050))],
+        ),
+    );
+    let quote = last(frames.at(&ev, Mode::Quote));
+    assert_eq!(quote["ltp"], 810.5);
+    assert_eq!(quote["volume"], 9);
+    for k in [
+        "open",
+        "high",
+        "low",
+        "close",
+        "average_price",
+        "last_quantity",
+        "oi",
+    ] {
+        assert!(quote.get(k).is_none(), "{}: {}", k, quote);
+    }
 }
 
 /// A quote without a trade time from Tradejini sends no `ltt` (web

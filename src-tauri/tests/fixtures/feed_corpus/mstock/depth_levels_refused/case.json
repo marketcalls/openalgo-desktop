@@ -1,0 +1,28 @@
+{
+  "broker": "mstock",
+  "summary": "A Depth subscribe at 20 or 50 levels is refused in the web adapter's own words, before the symbol is looked up, and nothing reaches mStock; Depth 5 is subscribed.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py:1286-1340"
+    ],
+    "notes": [
+      "mstock_adapter.py:239-242 answers INVALID_DEPTH with this message before the symbol lookup; the proxy puts the message alone in the failed item and answers status partial (server.py:1318-1340). The desktop refuses it at admission (feed::refusals)."
+    ]
+  },
+  "deviations": []
+}

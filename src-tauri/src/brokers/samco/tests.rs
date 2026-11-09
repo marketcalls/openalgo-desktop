@@ -8,7 +8,9 @@ use super::master_contract::{self, convert_date};
 use super::streaming::{request_frame, unquote, SamcoFeed};
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use crate::brokers::common::symbols::SymToken;
 use serde_json::json;
 
@@ -747,7 +749,7 @@ fn quote_frames_decode_and_merge_with_depth() {
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
     assert_eq!(
         (t.symbol.as_str(), t.exchange.as_str(), t.mode),
-        ("SBIN", "NSE", 3)
+        ("SBIN", "NSE", 2)
     );
     assert_eq!(
         (t.ltp, t.open, t.close, t.volume),
@@ -761,7 +763,8 @@ fn quote_frames_decode_and_merge_with_depth() {
         (t.total_buy_quantity, t.total_sell_quantity),
         (120000, 95000)
     );
-    // Wrapped quote2 frame merges the ladder over the cached quote fields.
+    // Wrapped quote2 frame merges the ladder over the cached quote fields;
+    // it is a book for the Depth holder only (web `_on_data`).
     let ev = f.parse(&Message::Text(format!(
         "{}\n",
         json!({"response":{"streaming_type":"quote2","data":{
@@ -770,19 +773,19 @@ fn quote_frames_decode_and_merge_with_depth() {
             "askValues":[{"price":"812.45","qty":"300","no":"2"}],
             "tbq":"121000","taq":"96000"}}})
     )));
-    assert_eq!(ev.len(), 2);
-    let FeedEvent::Tick(t) = &ev[0] else { panic!() };
-    assert_eq!(t.ltp, 812.4, "ltp survives from the quote stream");
-    assert_eq!(t.total_buy_quantity, 121000);
-    let FeedEvent::Depth(d) = &ev[1] else {
+    assert_eq!(ev.len(), 1);
+    let FeedEvent::Depth(d) = &ev[0] else {
         panic!()
     };
-    assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
+    // No price of its own: the frame takes the quote stream's.
+    assert!(d.absent.contains(QuoteField::Ltp), "{:?}", d);
+    assert_eq!(d.total_buy_quantity, 121000);
+    // The levels Samco sent, none padded.
+    assert_eq!((d.buy.len(), d.sell.len()), (2, 1));
     assert_eq!(
         (d.buy[0].price, d.buy[0].quantity, d.buy[0].orders),
         (812.35, 500, 4)
     );
-    assert_eq!(d.sell[1].price, 0.0);
     // Unknown symbols and other messages are ignored.
     assert!(f
         .parse(&Message::Text(
@@ -801,7 +804,7 @@ fn ltp_subscriber_gets_ticks_only_and_change_is_derived() {
     ));
     assert_eq!(ev.len(), 1);
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
-    assert_eq!((t.mode, t.change, t.change_percent), (1, 10.0, 1.25));
+    assert_eq!((t.mode, t.change, t.change_percent), (2, 10.0, 1.25));
 }
 
 #[test]

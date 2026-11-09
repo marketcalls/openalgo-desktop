@@ -1,0 +1,82 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "mstock",
+  "inputs_sha256": "3e37bbc2017cda5a4c2402a862a7e2d3ef5f7abbfd65f08fbd9bc0495f00d4d8",
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_QUOTE",
+          "exchange": "NSE",
+          "symbol": "INFY",
+          "mode": 2,
+          "data": {
+            "ltp": 1500.5,
+            "last_trade_time": 1730784000000,
+            "ltt": 1730784000000,
+            "exchange_timestamp": 1730784000000,
+            "open": 1490.0,
+            "high": 1505.0,
+            "low": 1485.0,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "volume": 1000,
+            "oi": 0,
+            "last_trade_quantity": 25,
+            "last_quantity": 25,
+            "average_price": 1498.0,
+            "total_buy_quantity": 10,
+            "total_sell_quantity": 20,
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_QUOTE",
+          "exchange": "NSE",
+          "symbol": "INFY",
+          "mode": 2,
+          "data": {
+            "ltp": 1500.5,
+            "open": 1490.0,
+            "high": 1505.0,
+            "low": 1485.0,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "volume": 1000,
+            "oi": 0,
+            "last_trade_quantity": 25,
+            "last_quantity": 25,
+            "average_price": 1498.0,
+            "total_buy_quantity": 10,
+            "total_sell_quantity": 20,
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

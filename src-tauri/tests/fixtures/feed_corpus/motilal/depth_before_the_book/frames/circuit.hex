@@ -1,0 +1,8 @@
+# W: circuit limits (web _parse_dpr_packet)
+4e                      # exchange character N (NSE and NSEFO share it)
+450b0000                # scrip 2885
+c037fd46                # packet time, read by neither the web nor the desktop
+57                      # type W
+00d0b244                # upper circuit 1430.5
+00509244                # lower circuit 1170.5
+000000000000000000000000# unused

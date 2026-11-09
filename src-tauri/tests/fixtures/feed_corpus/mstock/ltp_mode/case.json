@@ -1,0 +1,32 @@
+{
+  "broker": "mstock",
+  "summary": "An LTP subscription: the LOGIN frame on connect, the subscribe, a 51-byte LTP packet with the exchange time as the trade time, and nothing after the unsubscribe.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data",
+      "test/test_mstock_quote_feed.py::_quote_packet"
+    ],
+    "notes": [
+      "The feed's address carries API_KEY and ACCESS_TOKEN (brokers/mstock/streaming.rs feed_url; web mstockwebsocket.py _build_ws_url)."
+    ]
+  },
+  "deviations": []
+}

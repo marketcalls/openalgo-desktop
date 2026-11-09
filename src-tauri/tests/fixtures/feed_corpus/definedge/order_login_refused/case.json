@@ -1,0 +1,30 @@
+{
+  "broker": "definedge",
+  "summary": "The order-update connection's ck refuses the session: the desktop sends no order subscription and does not connect again with the refused token; the web sends none either and publishes nothing.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_order_adapter.py::DefinedgeOrderUpdateAdapter.normalize"
+    ],
+    "notes": [
+      "RB-12: the web subscribes order updates only on ck with s=Ok (definedge_order_adapter.py:98-105); a refused ck is logged and nothing is sent. The desktop reports the refusal (AuthFailed) and waits for a new login (websocket::manager)."
+    ]
+  },
+  "deviations": []
+}

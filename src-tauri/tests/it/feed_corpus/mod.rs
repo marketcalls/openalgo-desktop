@@ -20,24 +20,34 @@ mod harness;
 mod inventory;
 
 mod angel;
+mod definedge;
 mod deltaexchange;
 mod dhan;
 mod dhan_sandbox;
+mod fivepaisa;
 mod fyers;
+mod motilal;
+mod mstock;
 mod nubra;
 mod samco;
+mod tradejini;
 mod upstox;
 mod zerodha;
 
 /// Every broker with cases, and its cases (the folder names).
 const BROKERS: &[(&str, &[&str])] = &[
     ("angel", angel::CASES),
+    ("definedge", definedge::CASES),
     ("deltaexchange", deltaexchange::CASES),
     ("dhan", dhan::CASES),
     ("dhan_sandbox", dhan_sandbox::CASES),
+    ("fivepaisa", fivepaisa::CASES),
     ("fyers", fyers::CASES),
+    ("motilal", motilal::CASES),
+    ("mstock", mstock::CASES),
     ("nubra", nubra::CASES),
     ("samco", samco::CASES),
+    ("tradejini", tradejini::CASES),
     ("upstox", upstox::CASES),
     ("zerodha", zerodha::CASES),
 ];

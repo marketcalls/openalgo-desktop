@@ -1,0 +1,8 @@
+1f0000000100  # frame length 31, version 1, compression 0 (none)
+# L1: NIFTY 50 delta
+19000a  # packet length 25, type 10
+1a01  # 26 exchSeg = 1
+1b90650000  # 27 token = 26000
+1d38662500  # 29 ltp = 2451000
+2208520000  # 34 chng = 21000
+2356000000  # 35 chngPer (x100) = 86

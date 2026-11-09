@@ -1,0 +1,38 @@
+b20000000100  # frame length 178, version 1, compression 0 (none)
+# L5: SBIN five levels
+ac000b  # packet length 172, type 11
+1a01  # 26 exchSeg = 1
+1be50b0000  # 27 token = 3045
+2f88130000  # 47 totBuyQty = 5000
+30581b0000  # 48 totSellQty = 7000
+3705  # 55 nDepth (bid levels) = 5
+31903c0100  # 49 bid 1 price = 81040
+320a000000  # 50 bid 1 qty = 10
+3302000000  # 51 bid 1 orders = 2
+318b3c0100  # 49 bid 2 price = 81035
+3214000000  # 50 bid 2 qty = 20
+3303000000  # 51 bid 2 orders = 3
+31863c0100  # 49 bid 3 price = 81030
+321e000000  # 50 bid 3 qty = 30
+3304000000  # 51 bid 3 orders = 4
+31813c0100  # 49 bid 4 price = 81025
+3228000000  # 50 bid 4 qty = 40
+3305000000  # 51 bid 4 orders = 5
+317c3c0100  # 49 bid 5 price = 81020
+3232000000  # 50 bid 5 qty = 50
+3306000000  # 51 bid 5 orders = 6
+34a43c0100  # 52 ask 1 price = 81060
+350c000000  # 53 ask 1 qty = 12
+3603000000  # 54 ask 1 orders = 3
+34a93c0100  # 52 ask 2 price = 81065
+3516000000  # 53 ask 2 qty = 22
+3604000000  # 54 ask 2 orders = 4
+34ae3c0100  # 52 ask 3 price = 81070
+3520000000  # 53 ask 3 qty = 32
+3605000000  # 54 ask 3 orders = 5
+34b33c0100  # 52 ask 4 price = 81075
+352a000000  # 53 ask 4 qty = 42
+3606000000  # 54 ask 4 orders = 6
+34b83c0100  # 52 ask 5 price = 81080
+3534000000  # 53 ask 5 qty = 52
+3607000000  # 54 ask 5 orders = 7

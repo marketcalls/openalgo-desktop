@@ -1,0 +1,6 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The market data socket logs in as it opens; no market data is asked for."}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "upstream_receives", "frames": [{"json": {"clientid": "C1", "authtoken": "at", "apikey": "k"}}, {"json": {"clientid": "C1", "action": "OrderSubscribe"}}], "socket": "orders"}
+{"step": "push", "frame": "frames/mo1001.json", "socket": "orders", "note": "Motilal refuses the session: MO1001, Invalid User Id Or Auth Token (doc 34)."}
+{"step": "silence", "client": "a", "note": "No order update on either side."}
+{"step": "upstream_connections", "socket": "orders", "count": 1, "ms": 500, "note": "The desktop stops the order feed until the trader logs in again, rather than retry a dead session; the web logs the error and keeps the socket."}

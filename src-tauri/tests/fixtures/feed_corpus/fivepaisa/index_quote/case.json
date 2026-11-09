@@ -1,0 +1,81 @@
+{
+  "broker": "fivepaisa",
+  "summary": "Quote on NIFTY (NSE_INDEX, scrip 999920000, Exch N, ExchType C): ltp, OHLC, ChgPcnt and the trade time.",
+  "scenarios": [
+    "index"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "999920000",
+      "brsymbol": "NIFTY",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fivepaisa/streaming/fivepaisa_websocket.py::FivePaisaWebSocket._on_message",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_data",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._update_snapshot",
+      "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "Frame worked here in 5paisa's MarketFeedV3 shape for an index (no traded quantity, no book: zeros), as the master names indices (scrip codes above 999900 on N/C and B/C)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa fills an index's traded quantity and book totals with 0 (an index has no trades and no book); the web passes the zeros on (_quote_fields feed.get(\"LastQty\", 0), feed.get(\"TBidQ\", 0)), the desktop's index frame leaves them out. Web sends zero; docs say leave out.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote",
+      "approved": true
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa fills an index's traded quantity and book totals with 0 (an index has no trades and no book); the web passes the zeros on (_quote_fields feed.get(\"LastQty\", 0), feed.get(\"TBidQ\", 0)), the desktop's index frame leaves them out. Web sends zero; docs say leave out.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote",
+      "approved": true
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "5paisa sends an index's average price as 0, a price it does not have; the web passes the 0 on (_quote_fields feed.get(\"AvgRate\", 0)), the desktop leaves out a price 0 with nothing held, as for every instrument. An invented zero on the web.",
+      "ref": "fivepaisa_adapter.py:_quote_fields; brokers/fivepaisa/streaming.rs quote_tick",
+      "approved": true
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa fills an index's traded quantity and book totals with 0 (an index has no trades and no book); the web passes the zeros on (_quote_fields feed.get(\"LastQty\", 0), feed.get(\"TBidQ\", 0)), the desktop's index frame leaves them out. Web sends zero; docs say leave out.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote",
+      "approved": true
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "5paisa fills an index's traded quantity and book totals with 0 (an index has no trades and no book); the web passes the zeros on (_quote_fields feed.get(\"LastQty\", 0), feed.get(\"TBidQ\", 0)), the desktop's index frame leaves them out. Web sends zero; docs say leave out.",
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote",
+      "approved": true
+    },
+    {
+      "key": "bid_price",
+      "kind": "web-defect",
+      "reason": "5paisa sends an index's best bid and ask price as 0, prices it does not have; the web passes the 0 on (_normalize_market_data feed.get(\"BidRate\", 0)), the desktop leaves out a price 0 with nothing held. An invented zero on the web; the quantities (0, sent) match.",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; brokers/fivepaisa/streaming.rs price_of",
+      "approved": true
+    },
+    {
+      "key": "ask_price",
+      "kind": "web-defect",
+      "reason": "5paisa sends an index's best bid and ask price as 0, prices it does not have; the web passes the 0 on (_normalize_market_data feed.get(\"BidRate\", 0)), the desktop leaves out a price 0 with nothing held. An invented zero on the web; the quantities (0, sent) match.",
+      "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2; brokers/fivepaisa/streaming.rs price_of",
+      "approved": true
+    }
+  ]
+}

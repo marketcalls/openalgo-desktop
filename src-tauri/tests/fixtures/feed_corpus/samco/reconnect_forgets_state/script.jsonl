@@ -1,0 +1,11 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote2", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}, {"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}], "connection": 1}
+{"step": "push", "frame": "frames/book.json"}
+{"step": "receive", "client": "a", "frame": "expected/book.json"}
+{"step": "push", "frame": "frames/quote.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote_refresh.json", "web": false}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "headers": {"x-session-token": "sess+token"}}
+{"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote2", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}, {"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}], "connection": 2}
+{"step": "push", "frame": "frames/book_after.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_after.json"}

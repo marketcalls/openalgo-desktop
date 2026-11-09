@@ -1,0 +1,14 @@
+3a0000000100  # frame length 58, version 1, compression 0 (none)
+# L5: INFY (1594, NSE), the web test's L5_TICK
+34000b  # packet length 52, type 11
+1a01  # 26 exchSeg = 1
+1b3a060000  # 27 token = 1594
+2f6d4c0800  # 47 totBuyQty = 543853
+30c0270900  # 48 totSellQty = 600000
+3701  # 55 nDepth (bid levels) = 1
+3118c30100  # 49 bid 1 price = 115480
+327b000000  # 50 bid 1 qty = 123
+3303000000  # 51 bid 1 orders = 3
+342cc30100  # 52 ask 1 price = 115500
+3532000000  # 53 ask 1 qty = 50
+3601000000  # 54 ask 1 orders = 1

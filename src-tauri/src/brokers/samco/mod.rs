@@ -21,6 +21,7 @@ mod funds;
 pub mod mapping;
 pub mod master_contract;
 mod orders;
+mod presubscribe;
 pub mod streaming;
 #[cfg(test)]
 mod tests;
@@ -30,7 +31,7 @@ use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::order_poll::{self, PollError};
 use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
 use crate::brokers::common::redact;
-use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate, Presubscribe};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -511,6 +512,13 @@ impl Broker for SamcoBroker {
 
     async fn download_master_contract(&self, auth: &AuthToken) -> Result<Vec<SymbolData>> {
         master_contract::download(self, auth).await
+    }
+
+    /// An index streams under Samco's listingId, looked up over REST as
+    /// the web does when it subscribes (audit RB-05), so a cold index
+    /// streams without a REST quote first.
+    fn feed_presubscribe(&self, auth: &AuthToken) -> Option<Presubscribe> {
+        Some(presubscribe::step(self, auth))
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {

@@ -10,6 +10,7 @@
 use super::core::{
     analyze_mode, analyzer_logged, broker_handle, float, round2, s, BrokerHandle, Reply, UNEXPECTED,
 };
+use crate::brokers::common::order_poll;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::{ExactRow, Funds, Holding, Order, Position, Trade};
 use crate::state::AppState;
@@ -42,13 +43,12 @@ fn handle(ctx: &AppState) -> Result<BrokerHandle, Reply> {
 
 /// Web orderbook row (`transform_order_data` + `format_order_data`).
 pub fn order_row(o: &Order) -> Value {
-    let market = o.order_type.eq_ignore_ascii_case("MARKET");
     let mut row = json!({
         "symbol": o.symbol,
         "exchange": o.exchange,
         "action": o.side,
         "quantity": o.quantity,
-        "price": if market { 0.0 } else { round2(o.price) },
+        "price": order_poll::book_price(o),
         "trigger_price": round2(o.trigger_price),
         "pricetype": o.order_type,
         "product": o.product,

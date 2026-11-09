@@ -1,0 +1,10 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28OCT26FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": ["frames/register.hex"]}
+{"step": "push", "frame": "frames/ltp.hex", "note": "The last trade, with the future's open interest."}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "push", "frame": "frames/oi.hex", "note": "The open interest packet moves OI to 1600."}
+{"step": "receive", "client": "a", "frame": "expected/quote_oi.json"}
+{"step": "push", "frame": "frames/ohlc.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_ohlc.json"}

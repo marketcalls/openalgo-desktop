@@ -81,6 +81,7 @@ fn a_quote_carries_the_exchange_time_and_the_last_quantity() {
     assert_eq!(d["last_trade_quantity"], 25);
     assert_eq!(d["ltt"], 1_730_784_000_000_i64);
     assert_eq!(d["last_trade_time"], 1_730_784_000_000_i64);
+    assert_eq!(d["exchange_timestamp"], 1_730_784_000_000_i64);
 }
 
 /// Web `test_full_packet_prefers_last_traded_timestamp`: the trade time,
@@ -90,6 +91,7 @@ fn a_full_packet_carries_its_last_traded_timestamp() {
     let d = &quote_frames(quote_packet(3, "1594", EXCHANGE_TIME, 1_730_783_990))[0];
     assert_eq!(d["ltt"], 1_730_783_990_000_i64);
     assert_eq!(d["last_trade_time"], 1_730_783_990_000_i64);
+    assert_eq!(d["exchange_timestamp"], 1_730_784_000_000_i64);
 }
 
 /// Web `test_no_time_published_when_feed_sends_none`.
@@ -97,7 +99,9 @@ fn a_full_packet_carries_its_last_traded_timestamp() {
 fn no_time_is_published_when_the_packet_has_none() {
     let d = &quote_frames(quote_packet(2, "1594", 0, 0))[0];
     assert!(
-        d.get("ltt").is_none() && d.get("last_trade_time").is_none(),
+        d.get("ltt").is_none()
+            && d.get("last_trade_time").is_none()
+            && d.get("exchange_timestamp").is_none(),
         "{}",
         d
     );
@@ -121,6 +125,7 @@ fn a_full_packet_without_a_trade_has_no_trade_time() {
         d
     );
     assert_eq!(d["ltp"], 1500.5);
+    assert_eq!(d["exchange_timestamp"], 1_730_784_000_000_i64);
 }
 
 /// Web `test_same_token_on_two_exchanges_is_subscribed_for_both`.

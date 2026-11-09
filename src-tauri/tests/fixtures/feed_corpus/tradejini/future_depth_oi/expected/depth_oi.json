@@ -1,0 +1,87 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY25NOV25FUT",
+  "exchange": "NFO",
+  "mode": 3,
+  "broker": "tradejini",
+  "data": {
+    "symbol": "NIFTY25NOV25FUT",
+    "exchange": "NFO",
+    "mode": 3,
+    "ltp": 24555.0,
+    "ltt": 1762333000000,
+    "timestamp": "<receipt_ms>",
+    "volume": 1500150,
+    "last_quantity": 150,
+    "average_price": 24500.5,
+    "open": 24400.0,
+    "high": 24600.0,
+    "low": 24350.0,
+    "close": 24380.0,
+    "oi": 12075000,
+    "total_buy_quantity": 450000,
+    "total_sell_quantity": 520000,
+    "upper_circuit": 26818.0,
+    "lower_circuit": 21942.0,
+    "depth": {
+      "buy": [
+        {
+          "price": 24549.5,
+          "quantity": 75,
+          "orders": 1
+        },
+        {
+          "price": 24549.0,
+          "quantity": 150,
+          "orders": 2
+        },
+        {
+          "price": 24548.5,
+          "quantity": 225,
+          "orders": 3
+        },
+        {
+          "price": 24548.0,
+          "quantity": 300,
+          "orders": 4
+        },
+        {
+          "price": 24547.5,
+          "quantity": 375,
+          "orders": 5
+        }
+      ],
+      "sell": [
+        {
+          "price": 24550.5,
+          "quantity": 150,
+          "orders": 2
+        },
+        {
+          "price": 24551.0,
+          "quantity": 225,
+          "orders": 3
+        },
+        {
+          "price": 24551.5,
+          "quantity": 300,
+          "orders": 4
+        },
+        {
+          "price": 24552.0,
+          "quantity": 375,
+          "orders": 5
+        },
+        {
+          "price": 24552.5,
+          "quantity": 450,
+          "orders": 6
+        }
+      ]
+    },
+    "change": 170.0,
+    "change_percent": 0.7,
+    "percent_change": 0.7,
+    "last_trade_time": "2025-11-05 14:26:40"
+  }
+}

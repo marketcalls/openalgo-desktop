@@ -1,0 +1,33 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 3,
+  "broker": "motilal",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "ltp": 1301.5,
+    "timestamp": "<receipt_ms>",
+    "volume": 40015,
+    "average_price": 1298.75,
+    "ltq": 5,
+    "depth": {
+      "buy": [
+        {
+          "price": 1300.0,
+          "quantity": 10,
+          "orders": 1
+        }
+      ],
+      "sell": [
+        {
+          "price": 1301.0,
+          "quantity": 20,
+          "orders": 2
+        }
+      ]
+    },
+    "mode": 3
+  }
+}

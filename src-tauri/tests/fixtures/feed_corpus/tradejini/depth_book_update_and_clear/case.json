@@ -1,0 +1,59 @@
+{
+  "broker": "tradejini",
+  "summary": "SBIN Depth: the quote alone shows nothing; a five-level book, a moved book, a price tick that re-sends the cached book, and an empty book (five empty levels a side); nothing after the unsubscribe.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"type\":\"PING\"}\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__on_message",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL1PKT",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL2PKT",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._on_data",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._normalize_market_data",
+      "test/test_tradejini_quote_feed.py::test_depth_keeps_l1_quote_fields"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",
+      "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:815, :820, :845",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get(\"OI\", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data).",
+      "ref": "tradejini_adapter.py:851",
+      "approved": true
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "Tradejini sent an empty book (nDepth 0, no levels); the web pads each empty side with five zero levels (_extract_depth_data), a book that was never there. The desktop sends an empty side as an empty array (lead decision 2026-11-09: zero-padded levels or sides are a web defect).",
+      "ref": "tradejini_adapter.py:888-915 _extract_depth_data",
+      "approved": true
+    }
+  ]
+}

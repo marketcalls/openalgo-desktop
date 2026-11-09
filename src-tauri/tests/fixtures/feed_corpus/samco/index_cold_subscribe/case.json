@@ -1,0 +1,107 @@
+{
+  "broker": "samco",
+  "summary": "BANKNIFTY at Quote before any REST index quote: the feed looks its streaming id (-25) up over REST as it subscribes, as the web does, and streams it (audit RB-05).",
+  "scenarios": [
+    "index",
+    "subscription-lifecycle",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "BANKNIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "NIFTY_BANK",
+      "brsymbol": "NIFTY BANK",
+      "brexchange": "NSE",
+      "name": "Nifty Bank",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "http": [
+    {
+      "path": "/quote/indexQuote",
+      "body": {
+        "json": {
+          "status": "Success",
+          "statusMessage": "Index Details retrieved successfully",
+          "indexDetails": [
+            {
+              "indexName": "NIFTY BANK",
+              "listingId": "-25",
+              "lastTradedPrice": "52100.60"
+            }
+          ]
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._unwrap_tick",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._normalize_market_data",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._parse_trade_time",
+      "broker/samco/streaming/samcoWebSocket.py::SamcoWebSocket._first_present",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter.subscribe",
+      "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._get_index_listing_id"
+    ],
+    "notes": [
+      "The web's adapter fetches the listingId at subscribe (samco_adapter.py _get_index_listing_id, BrokerData.get_index_listing_id over /quote/indexQuote); the glue answers it with the same id. The desktop's step is Broker::feed_presubscribe (brokers/samco/presubscribe.rs)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "best_ask_price",
+      "kind": "web-defect",
+      "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628",
+      "approved": true
+    },
+    {
+      "key": "best_ask_quantity",
+      "kind": "web-defect",
+      "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628",
+      "approved": true
+    },
+    {
+      "key": "best_bid_price",
+      "kind": "web-defect",
+      "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628",
+      "approved": true
+    },
+    {
+      "key": "best_bid_quantity",
+      "kind": "web-defect",
+      "reason": "For an index the web sends a best bid and ask of 0 that Samco never sent (an index has no book; the frame has no bPr/aPr); the desktop leaves them out.",
+      "ref": "samcoWebSocket.py _normalize_market_data (best_bid_price from bPr, default 0); samco_adapter.py:625-628",
+      "approved": true
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no trades of its own: Samco sends no ltq, or an ltq of 0, which means the field does not apply; the desktop leaves last_quantity and last_trade_quantity out; the web sends them as 0 (web sends zero; docs say leave out).",
+      "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09",
+      "approved": true
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no trades of its own: Samco sends no ltq, or an ltq of 0, which means the field does not apply; the desktop leaves last_quantity and last_trade_quantity out; the web sends them as 0 (web sends zero; docs say leave out).",
+      "ref": "samco_adapter.py _normalize_market_data (last_traded_quantity default 0); lead ruling 2026-11-09",
+      "approved": true
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "An index has no volume of its own: Samco's index quote carries no vol (a vol of 0 would mean the same); the desktop leaves volume out; the web sends 0 (web sends zero; docs say leave out).",
+      "ref": "samcoWebSocket.py _normalize_market_data; decisions 2026-11-09 (web zeros for values the stream did not send)",
+      "approved": true
+    }
+  ]
+}

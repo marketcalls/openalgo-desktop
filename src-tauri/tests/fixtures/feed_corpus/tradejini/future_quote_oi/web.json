@@ -1,0 +1,85 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "tradejini",
+  "inputs_sha256": "6d9bbc1a8bdf330984108102fb0933d94d00b53d318e1f959b1387d321163430",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV25FUT",
+      "exchange": "NFO",
+      "token": "52168",
+      "brsymbol": "NIFTY25NOVFUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "25-NOV-25",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
+          "mode": 2,
+          "data": {
+            "ltp": 24550.0,
+            "ltt": "2025-11-05 14:26:05",
+            "volume": 1500000,
+            "open": 24400.0,
+            "high": 24600.0,
+            "low": 24350.0,
+            "close": 24380.0,
+            "last_quantity": 75,
+            "average_price": 24500.5,
+            "oi": 12000000,
+            "change": 170.0,
+            "change_percent": 0.7,
+            "percent_change": 0.7,
+            "last_trade_time": "2025-11-05 14:26:05",
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV25FUT",
+          "mode": 2,
+          "data": {
+            "ltp": 24555.0,
+            "ltt": "2025-11-05 14:26:40",
+            "volume": 1500150,
+            "open": 24400.0,
+            "high": 24600.0,
+            "low": 24350.0,
+            "close": 24380.0,
+            "last_quantity": 150,
+            "average_price": 24500.5,
+            "oi": 12075000,
+            "change": 170.0,
+            "change_percent": 0.7,
+            "percent_change": 0.7,
+            "last_trade_time": "2025-11-05 14:26:40",
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+6a0000000100  # frame length 106, version 1, compression 0 (none)
+# L1: NIFTY 25 Nov 2025 future (52168, NFO) full quote with OI
+64000a  # packet length 100, type 10
+1a03  # 26 exchSeg = 3
+1bc8cb0000  # 27 token = 52168
+1dd8752500  # 29 ltp = 2455000
+1e403b2500  # 30 open = 2440000
+1f60892500  # 31 high = 2460000
+20b8272500  # 32 low = 2435000
+2170332500  # 33 close = 2438000
+2268420000  # 34 chng = 17000
+2346000000  # 35 chngPer (x100) = 70
+2482622500  # 36 atp = 2450050
+274b000000  # 39 ltq = 75
+2860e31600  # 40 vol = 1500000
+2c001bb700  # 44 OI = 12000000
+2ac8eb2800  # 42 ucl (upper circuit) = 2681800
+2b187b2100  # 43 lcl (lower circuit) = 2194200
+2e25110b69  # 46 ltt (epoch seconds) = 1762332965
+31a6752500  # 49 bidPrice = 2454950
+324b000000  # 50 bid qty = 75
+340a762500  # 52 askPrice = 2455050
+3596000000  # 53 ask qty = 150

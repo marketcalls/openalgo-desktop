@@ -1,0 +1,110 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "tradejini",
+  "inputs_sha256": "967acc9c3c636d6757c4a413fcd3f91a7c9d3df13ac4a0ad9eb42ad4b44a404d",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50_26000_NSE",
+      "brexchange": "NSE",
+      "name": "Nifty 50"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 2,
+          "data": {
+            "ltp": 24500.1,
+            "ltt": null,
+            "volume": 0,
+            "open": 24450.0,
+            "high": 24600.0,
+            "low": 24400.0,
+            "close": 24300.0,
+            "last_quantity": 0,
+            "average_price": 0,
+            "oi": 0,
+            "change": 200.1,
+            "change_percent": 0.82,
+            "percent_change": 0.82,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_LTP",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 1,
+          "data": {
+            "ltp": 24500.1,
+            "ltt": "",
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 2,
+          "data": {
+            "ltp": 24510.0,
+            "ltt": null,
+            "volume": 0,
+            "open": 24450.0,
+            "high": 24600.0,
+            "low": 24400.0,
+            "close": 24300.0,
+            "last_quantity": 0,
+            "average_price": 0,
+            "oi": 0,
+            "change": 210.0,
+            "change_percent": 0.86,
+            "percent_change": 0.86,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_LTP",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 1,
+          "data": {
+            "ltp": 24510.0,
+            "ltt": "",
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

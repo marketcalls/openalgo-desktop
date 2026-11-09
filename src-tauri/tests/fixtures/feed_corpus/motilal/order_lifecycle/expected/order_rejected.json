@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "motilal",
+  "orderid": "1300000000000002",
+  "symbol": "NIFTY28OCT26FUT",
+  "exchange": "NFO",
+  "action": "SELL",
+  "quantity": 75,
+  "price": 0.0,
+  "trigger_price": 25000.0,
+  "pricetype": "SL-M",
+  "product": "NRML",
+  "order_status": "rejected",
+  "filled_quantity": 0,
+  "pending_quantity": 75,
+  "average_price": 0.0,
+  "rejection_reason": "RMS: insufficient margin"
+}

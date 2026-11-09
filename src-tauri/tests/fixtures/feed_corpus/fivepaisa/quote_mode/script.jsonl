@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "C", "ScripCode": 1660}]}}]}
+{"step": "push", "frame": "frames/feed.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "push", "frame": "frames/depth.json", "note": "A book frame: not for a Quote subscriber."}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/feed_zero_price.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote_held_price.json"}

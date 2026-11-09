@@ -375,8 +375,10 @@ const ALICEBLUE: &[WebName] = &[
     n("total_oi", S::Oi, Q),
 ];
 
+/// Definedge sends `ltq` in Depth only (`_DEPTH_EXTRA_FIELDS`); Quote's
+/// last quantity is `last_quantity` alone.
 const DEFINEDGE: &[WebName] = &[
-    n("ltq", S::LastQuantity, Q),
+    n("ltq", S::LastQuantity, D),
     n("last_trade_time", S::TradeTimeMarked, Q),
     n("ltt_time", S::TradeTimeMarked, D),
     n("change_percent", S::ChangePercent, Q),
@@ -424,14 +426,16 @@ const FIRSTOCK: &[WebName] = &[
     n("lower_circuit", S::Extra(E::LowerCircuit), Q),
 ];
 
+/// fivepaisa_adapter.py `_normalize_market_data`: the best bid and ask in
+/// the Quote dict only (its Depth dict is `_quote_fields` and the book).
 const FIVEPAISA: &[WebName] = &[
     n("last_trade_quantity", S::LastQuantity, Q),
     n("percent_change", S::ChangePercent, Q),
     n("last_trade_time", S::TradeTime(Unit::Millis), L),
-    n("bid_price", S::Extra(E::BidPrice), Q),
-    n("bid_quantity", S::Extra(E::BidQuantity), Q),
-    n("ask_price", S::Extra(E::AskPrice), Q),
-    n("ask_quantity", S::Extra(E::AskQuantity), Q),
+    nt("bid_price", S::Extra(E::BidPrice), Q, Q),
+    nt("bid_quantity", S::Extra(E::BidQuantity), Q, Q),
+    nt("ask_price", S::Extra(E::AskPrice), Q, Q),
+    nt("ask_quantity", S::Extra(E::AskQuantity), Q, Q),
 ];
 
 /// The Noren family's depth keys (Shoonya, Flattrade, TradeSmart, Zebu).
@@ -612,13 +616,15 @@ const SAHI: &[WebName] = &[
 
 const SAMCO: &[WebName] = &[
     n("last_trade_time", S::TradeTime(Unit::Millis), L),
-    n("last_trade_quantity", S::LastQuantity, Q),
+    // The web's Depth dict names it last_quantity only.
+    nt("last_trade_quantity", S::LastQuantity, Q, Q),
     n("change", S::Change, Q),
     n("change_percentage", S::ChangePercent, Q),
-    n("best_bid_price", S::Extra(E::BidPrice), Q),
-    n("best_bid_quantity", S::Extra(E::BidQuantity), Q),
-    n("best_ask_price", S::Extra(E::AskPrice), Q),
-    n("best_ask_quantity", S::Extra(E::AskQuantity), Q),
+    // samco_adapter.py sends the best bid and ask in its Quote dict only.
+    nt("best_bid_price", S::Extra(E::BidPrice), Q, Q),
+    nt("best_bid_quantity", S::Extra(E::BidQuantity), Q, Q),
+    nt("best_ask_price", S::Extra(E::AskPrice), Q, Q),
+    nt("best_ask_quantity", S::Extra(E::AskQuantity), Q, Q),
 ];
 
 const TRADEJINI: &[WebName] = &[
@@ -711,7 +717,9 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             d(Number, XTS).richer()
         }
         "jainamxts" => d(Number, XTS).richer().mode_of_holder(),
-        "definedge" => d(Number, DEFINEDGE).depth_needs_book(),
+        // definedge_adapter.py _QUOTE_FIELDS: the change only as `pc`
+        // (change_percent, percent_change), on an index too.
+        "definedge" => d(Number, DEFINEDGE).depth_needs_book().no_index_change(),
         // delta_adapter.py:470-484: one dict per subscription, with its
         // mode; `_normalise_ticker`: `float(oi)`; the book's totals only as
         // `totalbuyqty` / `totalsellqty`.
@@ -735,19 +743,27 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .index_key(Key::TotalSellQuantity, Modes::QUOTE_UP)
             .index_key(Key::Depth, Modes::DEPTH),
         "firstock" => d(Number, FIRSTOCK).no_index_change(),
-        "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book(),
+        // fivepaisa_adapter.py `_quote_fields`: ChgPcnt as `percent_change`
+        // only, on an index too (no `price_change`).
+        "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book().no_index_change(),
         "shoonya" => d(Number, SHOONYA).no_ltt(),
         "flattrade" => d(Number, FLATTRADE).no_ltt(),
         "zebu" => d(Number, ZEBU).no_ltt(),
         "tradesmart" => d(Number, TRADESMART).no_ltt(),
         "groww" => d(Number, GROWW).floats(&["volume"]),
         "indmoney" => d(Number, INDMONEY).richer(),
-        "motilal" => d(Number, MOTILAL).no_ltt(),
+        // motilal_adapter.py: the last quantity as `ltq` only, no change.
+        "motilal" => d(Number, MOTILAL)
+            .no_ltt()
+            .no_index_change()
+            .instrument_key(Key::LastQuantity, Modes::NEVER),
         // mstock_adapter.py:186-202: one dict per subscription, with its
-        // mode; :362-375: the fixed packet carries an index's order flow too.
+        // mode; :362-375: the fixed packet carries an index's order flow too;
+        // :340-433: no change on any instrument.
         "mstock" => d(Number, MSTOCK)
             .richer()
             .mode_of_holder()
+            .no_index_change()
             .index_key(Key::LastQuantity, Modes::QUOTE_UP)
             .index_key(Key::AveragePrice, Modes::QUOTE_UP)
             .index_key(Key::TotalBuyQuantity, Modes::QUOTE_UP)
@@ -761,7 +777,11 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .mode_of_holder()
             .no_index_change()
             .instrument_key(Key::LastQuantity, Modes::NEVER),
-        "samco" => d(Number, SAMCO).no_index_change(),
+        // An index's last quantity when Samco sends one (samco_adapter.py
+        // sends last_quantity for every instrument at Quote and Depth).
+        "samco" => d(Number, SAMCO)
+            .no_index_change()
+            .index_key(Key::LastQuantity, Modes::QUOTE_UP),
         "tradejini" => d(Number, TRADEJINI).no_index_change().depth_needs_book(),
         _ => Dialect {
             keys: Keys::V106,

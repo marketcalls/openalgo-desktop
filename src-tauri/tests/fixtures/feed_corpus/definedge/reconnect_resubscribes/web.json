@@ -1,0 +1,137 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "definedge",
+  "inputs_sha256": "2c1e85023f381371a354448cdb3ea02e8c9a7db83c004fbf6661607a01de461a",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1395.4,
+            "volume": 11238602,
+            "open": 1382.6,
+            "high": 1398.0,
+            "low": 1378.5,
+            "close": 1391.0,
+            "change_percent": 0.32,
+            "average_price": 1391.24,
+            "ltt": "1730784000",
+            "percent_change": 0.32,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": []
+    },
+    {
+      "line": 12,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1396.05,
+            "volume": 11238602,
+            "open": 1382.6,
+            "high": 1398.0,
+            "low": 1378.5,
+            "close": 1391.0,
+            "change_percent": 0.32,
+            "average_price": 1391.24,
+            "ltt": "1730784099",
+            "percent_change": 0.32,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 14,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1396.1,
+            "volume": 11300000,
+            "open": 1382.6,
+            "high": 1398.0,
+            "low": 1378.5,
+            "close": 1391.0,
+            "change_percent": 0.37,
+            "average_price": 1391.4,
+            "ltt": "1730784100",
+            "percent_change": 0.37,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 16,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1396.2,
+            "volume": 11300000,
+            "open": 1382.6,
+            "high": 1398.0,
+            "low": 1378.5,
+            "close": 1391.0,
+            "change_percent": 0.37,
+            "average_price": 1391.4,
+            "ltt": "1730784101",
+            "percent_change": 0.37,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

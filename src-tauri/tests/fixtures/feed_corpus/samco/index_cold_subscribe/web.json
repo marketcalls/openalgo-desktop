@@ -1,0 +1,53 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "samco",
+  "inputs_sha256": "e0453549a7f98c2f4904f519bf6787ecbe422ab130c6e05f4603bbaaa6151f87",
+  "instruments": [
+    {
+      "symbol": "BANKNIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "NIFTY_BANK",
+      "brsymbol": "NIFTY BANK",
+      "brexchange": "NSE",
+      "name": "Nifty Bank",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 4,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_BANKNIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "BANKNIFTY",
+          "mode": 2,
+          "data": {
+            "ltp": 52100.6,
+            "ltt": 1791002701000,
+            "last_trade_time": 1791002701000,
+            "volume": 0,
+            "open": 52000.0,
+            "high": 52150.0,
+            "low": 51980.35,
+            "close": 52050.0,
+            "last_trade_quantity": 0,
+            "change": 50.6,
+            "change_percentage": 0.1,
+            "best_bid_price": 0.0,
+            "best_bid_quantity": 0,
+            "best_ask_price": 0.0,
+            "best_ask_quantity": 0,
+            "last_quantity": 0,
+            "symbol": "BANKNIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

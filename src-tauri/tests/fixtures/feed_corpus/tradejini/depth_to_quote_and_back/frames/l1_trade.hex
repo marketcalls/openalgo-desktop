@@ -1,0 +1,12 @@
+330000000100  # frame length 51, version 1, compression 0 (none)
+# L1: SBIN delta, a trade
+2d000a  # packet length 45, type 10
+1a01  # 26 exchSeg = 1
+1be50b0000  # 27 token = 3045
+1dcc3c0100  # 29 ltp = 81100
+2258020000  # 34 chng = 600
+234b000000  # 35 chngPer (x100) = 75
+24b93b0100  # 36 atp = 80825
+2714000000  # 39 ltq = 20
+2854e20100  # 40 vol = 123476
+2e04110b69  # 46 ltt (epoch seconds) = 1762332932

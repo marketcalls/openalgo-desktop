@@ -22,14 +22,15 @@
 //!   the touchline never carries the trade time, last quantity or the book
 //!   totals, which the depth acknowledgement does.
 //! * heartbeat `{"t":"h"}` every 30 s (`definedge_websocket.py:484-528`).
-//! * order updates: same URL and connect, then `{"t":"o","actid"}`; frames
-//!   `t == "om"` (`definedge_order_adapter.py:9-15,74-137`).
+//! * order updates: same URL and connect, then `{"t":"o","actid"}` once
+//!   `ck` accepts the session; frames `t == "om"`
+//!   (`definedge_order_adapter.py:9-15,74-137`).
 
 use super::mapping;
 use super::DefinedgeSession;
 use crate::brokers::common::streaming::{
     now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
+    NormalizedDepth, NormalizedTick, QuoteExtras, QuoteField, TimeText, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::streaming::merge;
@@ -99,6 +100,35 @@ fn i(v: &Value, k: &str) -> i64 {
     super::int(v, k)
 }
 
+/// A price Definedge has sent, `None` until it has.
+fn price_of(d: &Map<String, Value>, v: &Value, k: &str) -> Option<f64> {
+    sent(d, k).then(|| f(v, k))
+}
+
+/// A quantity Definedge has sent, `None` until it has.
+fn qty_of(d: &Map<String, Value>, v: &Value, k: &str) -> Option<i64> {
+    sent(d, k).then(|| i(v, k))
+}
+
+/// The fields beyond the canonical quote that the web's Definedge
+/// payloads carry (`_QUOTE_FIELDS`, `_DEPTH_EXTRA_FIELDS`), each only once
+/// Definedge has sent it.
+fn extras(d: &Map<String, Value>, v: &Value) -> QuoteExtras {
+    QuoteExtras {
+        bid_price: price_of(d, v, "bp1"),
+        bid_quantity: qty_of(d, v, "bq1"),
+        ask_price: price_of(d, v, "sp1"),
+        ask_quantity: qty_of(d, v, "sq1"),
+        previous_oi: qty_of(d, v, "poi"),
+        total_oi: qty_of(d, v, "toi"),
+        upper_circuit: price_of(d, v, "uc"),
+        lower_circuit: price_of(d, v, "lc"),
+        high_52_week: price_of(d, v, "52h"),
+        low_52_week: price_of(d, v, "52l"),
+        ..Default::default()
+    }
+}
+
 /// Whether Definedge has sent `k` (web `_present_fields`: a blank or `-`
 /// is not a value).
 fn sent(d: &Map<String, Value>, k: &str) -> bool {
@@ -117,8 +147,10 @@ const DEPTH_ONLY_KEYS: [&str; 8] = ["tbq", "tsq", "bp2", "sp2", "bq2", "sq2", "l
 /// A Quote is built once the snapshot holds a price, OHLC or volume.
 const QUOTE_KEYS: [&str; 6] = ["lp", "o", "h", "l", "c", "v"];
 
-/// The quote fields and the raw keys that carry them.
-const QUOTE_SOURCES: [(QuoteField, &str); 10] = [
+/// The quote fields and the raw keys that carry them. A message without a
+/// price (`lp`) publishes nothing: no LTP of 0.
+const QUOTE_SOURCES: [(QuoteField, &str); 11] = [
+    (QuoteField::Ltp, "lp"),
     (QuoteField::Open, "o"),
     (QuoteField::High, "h"),
     (QuoteField::Low, "l"),
@@ -152,12 +184,18 @@ fn absent(d: &Map<String, Value>, trade_time: Option<i64>) -> AbsentFields {
 /// `HH:MM:SS` of the day the tick came), else the feed time `ft` (epoch
 /// seconds), as web `_last_trade_time`; `None` when neither was sent.
 fn trade_time_ms(snapshot: &Value, received_ms: i64) -> Option<i64> {
-    let clock = snapshot.get("ltt").and_then(Value::as_str).map(str::trim);
-    if let Some(ms) = clock.and_then(|c| clock_on_day_of(c, received_ms)) {
-        return Some(ms);
-    }
-    let feed_time = i(snapshot, "ft");
-    (feed_time > 0).then_some(feed_time * 1000)
+    clock_ms(snapshot, received_ms).or_else(|| {
+        let feed_time = i(snapshot, "ft");
+        (feed_time > 0).then_some(feed_time * 1000)
+    })
+}
+
+/// The depth feed's own trade time of day (`ltt`), epoch ms on the day it
+/// came: the text the web passes through as `last_trade_time` and
+/// `ltt_time`, which it never sends for the feed time `ft`.
+fn clock_ms(snapshot: &Value, received_ms: i64) -> Option<i64> {
+    let clock = snapshot.get("ltt").and_then(Value::as_str).map(str::trim)?;
+    clock_on_day_of(clock, received_ms)
 }
 
 /// `HH:MM:SS` IST on the IST day of `received_ms`, or the day before when
@@ -285,7 +323,12 @@ impl DefinedgeFeed {
     /// The tick for a subscriber at `sub.mode`, from what the snapshot
     /// holds; `None` when that mode has nothing to send yet (LTP without a
     /// price, a Quote before any price, OHLC or volume; web
-    /// `_normalize_raw_data`).
+    /// `_normalize_raw_data`). Its mode is the packet's, not the
+    /// subscription's: every touchline and depth message carries the quote
+    /// (Quote), and OI rides it whenever Definedge sent one, as the web's
+    /// Quote sends `oi` (`_QUOTE_FIELDS`). With the subscription's mode a
+    /// Quote packet carried no OI, and the bridge kept a Depth packet's
+    /// stale OI once the Depth holder left.
     fn tick(sub: &SubInfo, d: &Map<String, Value>) -> Option<NormalizedTick> {
         let ready = match sub.mode {
             FeedMode::Ltp => sent(d, "lp"),
@@ -300,7 +343,7 @@ impl DefinedgeFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
+            mode: FeedMode::Quote.code(),
             ltp: f(&v, "lp"),
             open: f(&v, "o"),
             high: f(&v, "h"),
@@ -317,8 +360,15 @@ impl DefinedgeFeed {
             last_trade_time_ms: trade_time.unwrap_or(0),
             timestamp_ms: received,
             absent: absent(d, trade_time),
+            extras: extras(d, &v),
             ..Default::default()
         };
+        if sent(d, "oi") {
+            t.mark_carried(QuoteField::OpenInterest);
+        }
+        if clock_ms(&v, received).is_some() {
+            t.time_text = Some(TimeText::TimeOfDay);
+        }
         let pc = t.change_percent;
         t.derive_change();
         if t.change == 0.0 && pc != 0.0 {
@@ -457,10 +507,10 @@ impl BrokerFeed for DefinedgeFeed {
     }
 }
 
-/// Order-update feed: the connect frame and the order subscription
-/// `{"t":"o","actid"}` go out together (Noren processes frames in order;
-/// the shared manager sends no subscribe frames on a feed without
-/// instruments), so no reply channel is needed.
+/// Order-update feed: the connect frame, then the order subscription
+/// `{"t":"o","actid"}` once `ck` has accepted the session, as the web's
+/// order adapter sends it (`definedge_order_adapter.py` `normalize` on
+/// `ck`, audit RB-12); a refused `ck` sends no subscription.
 pub struct DefinedgeOrderFeed {
     url: String,
     uid: String,
@@ -507,10 +557,17 @@ impl BrokerFeed for DefinedgeOrderFeed {
     }
 
     fn on_connected(&mut self) -> Vec<Message> {
-        vec![
-            connect_frame(&self.uid, self.token.expose()),
-            Message::Text(json!({"t": "o", "actid": self.uid}).to_string()),
-        ]
+        vec![connect_frame(&self.uid, self.token.expose())]
+    }
+
+    fn awaits_auth_ack(&self) -> bool {
+        true
+    }
+
+    fn on_authenticated(&mut self) -> Vec<Message> {
+        vec![Message::Text(
+            json!({"t": "o", "actid": self.uid}).to_string(),
+        )]
     }
 
     fn subscribe_frames(&mut self, _subs: &[FeedSubscription]) -> Vec<Message> {

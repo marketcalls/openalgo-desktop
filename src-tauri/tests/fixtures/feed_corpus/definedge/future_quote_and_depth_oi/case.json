@@ -1,0 +1,49 @@
+{
+  "broker": "definedge",
+  "summary": "A future held at Quote by one client and at Depth by another: the desktop subscribes the depth feed alone while Depth is held (the touchline goes) and both frames carry OI; once Depth is released the touchline comes back and the Quote frame carries the OI just sent.",
+  "scenarios": [
+    "derivative-oi",
+    "mode-change",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV25FUT",
+      "exchange": "NFO",
+      "token": "52345",
+      "brsymbol": "NIFTY25NOV25F",
+      "brexchange": "NFO",
+      "instrumenttype": "FUT",
+      "lotsize": 75,
+      "expiry": "25-NOV-25",
+      "name": "NIFTY"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_websocket.py::DefinedGeWebSocket._on_message",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._on_depth_data",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._publish_to_subscribers",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._normalize_raw_data",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._normalize_raw_depth_data"
+    ],
+    "notes": [
+      "The desktop subscribes one effective mode per instrument (websocket::manager Entry::effective) and the feeds that mode needs (streaming.rs feeds, mode_change_frames); the web counts references per feed and keeps the touchline for the Quote client. The public frames do not depend on it: the depth feed carries every touchline field.",
+      "No frame carries the depth feed's `ltt` (an IST HH:MM:SS): the desktop reads it on the IST day the tick arrives (streaming.rs clock_on_day_of), so its epoch-ms value depends on the day the case runs and cannot be pinned here; brokers::definedge::tests::quote_feed::a_depth_message_carries_the_full_quote_and_the_trade_time pins it. Without it both sides take the feed time `ft` (epoch seconds) as the trade time."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
+      "approved": true
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "broker": "motilal",
+  "summary": "Depth mode at 20 levels is refused with the web adapter's own words, and nothing is registered at the broker; Depth at 5 levels then subscribes.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/motilal/streaming/motilal_adapter.py::MotilalWebSocketAdapter.subscribe",
+      "feed/refusals.rs (motilal)"
+    ],
+    "notes": [
+      "motilal_adapter.py:242-246: mode 3 with a depth_level other than 5 returns INVALID_DEPTH, 'Invalid depth level {depth_level}. Motilal only supports 5-level depth', and the web proxy hands the client the message."
+    ]
+  },
+  "deviations": []
+}

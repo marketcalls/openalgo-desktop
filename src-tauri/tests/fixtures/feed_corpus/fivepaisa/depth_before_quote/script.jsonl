@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "ITC", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"Method": "MarketDepthService", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "C", "ScripCode": 1660}]}}, {"json": {"Method": "MarketFeedV3", "Operation": "Subscribe", "ClientCode": "c", "MarketFeedData": [{"Exch": "N", "ExchType": "C", "ScripCode": 1660}]}}]}
+{"step": "push", "frame": "frames/depth.json"}
+{"step": "receive", "client": "a", "frame": "expected/depth_no_quote.json"}
+{"step": "push", "frame": "frames/feed.json"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/depth.json"}
+{"step": "receive", "client": "a", "frame": "expected/depth_with_quote.json"}

@@ -1,0 +1,36 @@
+# A header-prefixed frame with two Quote packets for token 1594: exchange
+# type 3 (BSE, OTHER, subscribed) and type 4 (BFO, not subscribed).
+0200                    # packets in this frame 2
+7b00                    # packet size 123
+# packet 1
+02                      # subscription mode 2
+03                      # exchange type 3
+31353934000000000000000000000000000000000000000000 # token "1594", NUL-padded to 25 bytes
+0700000000000000        # sequence number
+00f8c3fa92010000        # exchange timestamp 1730784000000
+8c49020000000000        # ltp 1499.00 in paise
+0a00000000000000        # last traded quantity 10
+f648020000000000        # average price 1497.50 in paise
+9001000000000000        # volume 400
+0000000000002440        # total buy quantity 10.0 (double)
+0000000000003440        # total sell quantity 20.0 (double)
+0846020000000000        # open 1490.00 in paise
+e44b020000000000        # high 1505.00 in paise
+1444020000000000        # low 1485.00 in paise
+fc47020000000000        # close 1495.00 in paise
+# packet 2
+02                      # subscription mode 2
+04                      # exchange type 4
+31353934000000000000000000000000000000000000000000 # token "1594", NUL-padded to 25 bytes
+0800000000000000        # sequence number
+00f8c3fa92010000        # exchange timestamp 1730784000000
+7922000000000000        # ltp 88.25 in paise
+3200000000000000        # last traded quantity 50
+5622000000000000        # average price 87.90 in paise
+2823000000000000        # volume 9000
+0000000000002440        # total buy quantity 10.0 (double)
+0000000000003440        # total sell quantity 20.0 (double)
+3421000000000000        # open 85.00 in paise
+2823000000000000        # high 90.00 in paise
+0221000000000000        # low 84.50 in paise
+9821000000000000        # close 86.00 in paise

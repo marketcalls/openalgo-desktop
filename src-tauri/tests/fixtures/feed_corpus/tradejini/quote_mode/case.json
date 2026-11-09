@@ -1,0 +1,54 @@
+{
+  "broker": "tradejini",
+  "summary": "SBIN Quote: a full L1 quote, then a zlib-compressed L1 trade delta merged into it; the book totals are left out (they come only on L5), and a tick after the unsubscribe reaches nobody.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"type\":\"PING\"}\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__on_message",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL1PKT",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL2PKT",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._on_data",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._normalize_market_data",
+      "test/test_tradejini_quote_feed.py::test_quote_omits_totals_without_a_book"
+    ],
+    "notes": [
+      "Field values follow the web test's L1 (SBIN 810.5, chngPer 0.68), sent as Tradejini's binary L1 packet.",
+      "last_trade_time: the web formats the trade time in its server's local zone (nxtradstream.py datefmt, datetime.fromtimestamp); the desktop always formats it in IST (lead ruling 2026-11-09, IST everywhere), and the glue pins IST, so the two match here. A web server not set to IST sends another text for the same trade: a web defect (the time depends on where the server runs)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",
+      "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:815, :820, :845",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "An equity's L1 carries no OI; the web sends oi 0 in Quote (message.get(\"OI\", 0)). The desktop leaves out a field the stream did not carry (web openalgo#2376).",
+      "ref": "tradejini_adapter.py:828",
+      "approved": true
+    }
+  ]
+}

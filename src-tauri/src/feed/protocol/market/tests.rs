@@ -135,8 +135,14 @@ fn each_alias_carries_its_canonical_value() {
                 continue;
             }
             for mode in [Mode::Quote, Mode::Depth] {
-                let depth_only = ["totalbuyqty", "total_traded_value"].contains(&alias);
+                let depth_only = ["totalbuyqty", "total_traded_value"].contains(&alias)
+                    || (broker, alias) == ("definedge", "ltq");
                 if depth_only && mode == Mode::Quote {
+                    continue;
+                }
+                // Samco's web Depth dict names it last_quantity only.
+                let quote_only = (broker, alias) == ("samco", "last_trade_quantity");
+                if quote_only && mode == Mode::Depth {
                     continue;
                 }
                 let d = data_at(key.clone(), mode, broker);
@@ -452,6 +458,12 @@ fn shared_fields_go_out_under_the_brokers_names() {
     let samco = render(&u, Mode::Quote, "samco");
     assert_eq!(samco["best_bid_price"], 101.2);
     assert_eq!(samco["best_ask_quantity"], 50);
+    let samco = render(&u, Mode::Depth, "samco");
+    assert!(
+        samco.get("best_bid_price").is_none(),
+        "Quote only: {}",
+        samco
+    );
     let paytm = render(&at_quote, Mode::Quote, "paytm");
     assert_eq!(paytm["52_week_high"], 130.0);
     assert!(paytm.get("oi_change").is_none(), "Depth only");
