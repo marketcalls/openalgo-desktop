@@ -1664,7 +1664,8 @@ fn a_book_before_the_first_price_publishes_no_quote() {
 
 /// An LTP subscriber gets the quote the web's Groww adapter sends it (its
 /// Quote normalisation of the tick, groww_adapter.py:918-919, :975): the
-/// OHLC and volume beside the price and its time.
+/// OHLC and volume beside the price and its time, the volume a double as
+/// groww_protobuf.py reads it.
 #[test]
 fn an_ltp_frame_carries_the_quote_the_web_sends() {
     use crate::feed::testkit::Frames;
@@ -1687,6 +1688,7 @@ fn an_ltp_frame_carries_the_quote_the_web_sends() {
     );
     assert_eq!(d["close"], 808.0);
     assert_eq!(d["volume"].as_f64(), Some(5_123_400.0));
+    assert!(d["volume"].is_f64(), "volume: {}", d["volume"]);
 }
 
 /// The web's merged cache keeps Groww's traded value with the quote

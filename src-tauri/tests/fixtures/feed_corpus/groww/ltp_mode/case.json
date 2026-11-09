@@ -32,12 +32,5 @@
       "The feed sends Groww what the web sends: its CONNECT text, one frame per SUB and UNSUB, a Depth's book before its price, and one PING after a batch of SUBs. Text PING frames are not recorded (upstream_ignore: the 10 s heartbeat is the same frame), so the batch's PING is pinned by brokers::groww's unit tests."
     ]
   },
-  "deviations": [
-    {
-      "key": "volume",
-      "kind": "open",
-      "reason": "The web sends an LTP subscriber Groww's volume as a float (1200000.0). The desktop's LTP frame carries it as a Groww web name, and the renderer applies Dialect::floats to the canonical keys only (feed/protocol/market.rs value()), so it goes out as an integer: a renderer change asked of the lead.",
-      "ref": "groww_adapter.py:1113-1114; feed/protocol/market.rs::value"
-    }
-  ]
+  "deviations": []
 }
