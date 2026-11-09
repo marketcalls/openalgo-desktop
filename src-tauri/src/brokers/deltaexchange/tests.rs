@@ -8,7 +8,9 @@ use super::master_contract::{canonical_symbol, expiry, instrument_type, parse_pr
 use super::streaming::DeltaFeed;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Validity};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
@@ -719,6 +721,36 @@ fn feed_decodes_ticker_and_book_frames_and_merges_them() {
     f.unsubscribe_frames(&[sub("BTCUSDFUT", "BTCUSD", FeedMode::Depth)]);
     assert_eq!(f.cached(), 1);
     assert!(f.parse(&Message::Text(lines[3].into())).is_empty());
+}
+
+/// R107-05: a new connection starts the merge afresh. The ticker's OHLC and
+/// OI and the book from before a drop are not current, so the first ticker
+/// after it carries only its mark price, and no book goes out with it.
+#[test]
+fn a_reconnect_forgets_the_last_ticker_and_book() {
+    let mut f = DeltaFeed::new(WS_PUBLIC_URL);
+    f.subscribe_frames(&[sub("BTCUSDFUT", "BTCUSD", FeedMode::Depth)]);
+    let lines: Vec<&str> = fixture!("ws_frames.jsonl").lines().collect();
+    f.parse(&Message::Text(lines[1].into()));
+    f.parse(&Message::Text(lines[3].into()));
+    assert!(f.on_connected().is_empty());
+    f.subscribe_frames(&[sub("BTCUSDFUT", "BTCUSD", FeedMode::Depth)]);
+    let mark_only = r#"{"type":"ticker","sy":"BTCUSD","d":[{"s":"BTCUSD","m":"63840.5"}]}"#;
+    let ev = f.parse(&Message::Text(mark_only.into()));
+    let [FeedEvent::Tick(t)] = &ev[..] else {
+        panic!("a tick alone, no book from before: {:?}", ev)
+    };
+    assert_eq!(t.ltp, 63840.5);
+    for field in [
+        QuoteField::Open,
+        QuoteField::High,
+        QuoteField::Low,
+        QuoteField::Close,
+        QuoteField::OpenInterest,
+    ] {
+        assert!(!t.knows(field), "{:?} from before the drop", field);
+    }
+    assert_eq!(t.extras.bid_price, None);
 }
 
 #[test]
