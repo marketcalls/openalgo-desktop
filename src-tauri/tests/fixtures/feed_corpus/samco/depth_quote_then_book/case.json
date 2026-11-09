@@ -43,16 +43,11 @@
       "ref": "samcoWebSocket.py _normalize_market_data (if depth_buy or depth_sell); lead ruling 2026-11-09 (book clear approved)"
     },
     {
-      "key": "last_trade_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends Samco's web name for last_quantity (last_trade_quantity, which the web's Quote frames carry) in Depth frames too, beside last_quantity; the web's Depth frames carry last_quantity only.",
-      "ref": "feed::dialect (WS-05): aliases in Quote and Depth alike"
-    },
-    {
       "kind": "web-defect",
       "reason": "Samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, Quote and Depth included (lost data); the desktop sends it, and no OI Samco did not send.",
       "ref": "samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data; decisions 2026-11-09 (data a web adapter drops is kept)",
-      "key": "oi"
+      "key": "oi",
+      "approved": true
     }
   ]
 }

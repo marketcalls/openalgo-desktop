@@ -73,19 +73,22 @@
       "key": "exchange",
       "kind": "web-defect",
       "reason": "Samco books MCX contracts on its MFO segment; the web relays MFO and the broker's trading symbol because its symbol lookup asks the master for exchange MFO, which holds no row, so the update names no OpenAlgo contract. The desktop maps MFO to MCX and the symbol to the OpenAlgo one (brokers/samco/mapping.rs oa_exchange).",
-      "ref": "broker/samco/mapping/order_data.py map_order_data (get_oa_symbol(trading_symbol, exchange))"
+      "ref": "broker/samco/mapping/order_data.py map_order_data (get_oa_symbol(trading_symbol, exchange))",
+      "approved": true
     },
     {
       "key": "symbol",
       "kind": "web-defect",
       "reason": "As exchange: the web sends Samco's trading symbol NATURALGAS26NOVFUT for an MCX order, not the OpenAlgo symbol.",
-      "ref": "broker/samco/mapping/order_data.py map_order_data"
+      "ref": "broker/samco/mapping/order_data.py map_order_data",
+      "approved": true
     },
     {
       "key": "frame",
       "kind": "web-defect",
       "reason": "The web publishes no update for an order whose price carries Samco's thousands comma (5,412.00): the order book path leaves orderPrice as Samco's text and PollingOrderUpdateAdapter._publish_order's float() raises, which it logs and drops; the desktop parses the price and sends the update (open, then cancelled).",
-      "ref": "websocket_proxy/order_adapter.py _publish_order (float of the price); broker/samco/mapping/order_data.py transform_order_data (price left as text)"
+      "ref": "websocket_proxy/order_adapter.py _publish_order (float of the price); broker/samco/mapping/order_data.py transform_order_data (price left as text)",
+      "approved": true
     }
   ]
 }

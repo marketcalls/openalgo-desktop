@@ -37,7 +37,8 @@
       "kind": "web-defect",
       "reason": "Samco streams OI (oI) on its quote stream and the web's client reads it as open_interest, but the adapter's normaliser forwards it in no mode, Quote and Depth included (lost data); the desktop sends it, and no OI Samco did not send.",
       "ref": "samcoWebSocket.py _normalize_market_data (open_interest); samco_adapter.py _normalize_market_data; decisions 2026-11-09 (data a web adapter drops is kept)",
-      "key": "oi"
+      "key": "oi",
+      "approved": true
     }
   ]
 }

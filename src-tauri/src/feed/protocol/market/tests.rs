@@ -136,6 +136,11 @@ fn each_alias_carries_its_canonical_value() {
                 if depth_only && mode == Mode::Quote {
                     continue;
                 }
+                // Samco's web Depth dict names it last_quantity only.
+                let quote_only = (broker, alias) == ("samco", "last_trade_quantity");
+                if quote_only && mode == Mode::Depth {
+                    continue;
+                }
                 let d = data_at(key.clone(), mode, broker);
                 assert_eq!(
                     d.get(alias),

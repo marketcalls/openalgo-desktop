@@ -591,7 +591,8 @@ const SAHI: &[WebName] = &[
 
 const SAMCO: &[WebName] = &[
     n("last_trade_time", S::TradeTime(Unit::Millis), L),
-    n("last_trade_quantity", S::LastQuantity, Q),
+    // The web's Depth dict names it last_quantity only.
+    nt("last_trade_quantity", S::LastQuantity, Q, Q),
     n("change", S::Change, Q),
     n("change_percentage", S::ChangePercent, Q),
     // samco_adapter.py sends the best bid and ask in its Quote dict only.
