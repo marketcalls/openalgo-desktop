@@ -212,9 +212,7 @@
     "ltp": 0.0,
     "mode": 3,
     "symbol": "RELIANCE",
-    "timestamp": "<receipt_ms>",
-    "total_buy_quantity": 3900,
-    "total_sell_quantity": 4900
+    "timestamp": "<receipt_ms>"
   },
   "exchange": "NSE",
   "mode": 3,

@@ -40,15 +40,15 @@
     },
     {
       "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "The desktop sends the sum of the 20 visible bid quantities as the total buy quantity; Dhan's 20-level packet carries no total and the web sends none. A sum of the visible levels is not the exchange's total.",
-      "ref": "audit C03; brokers/dhan/streaming.rs Dhan20DepthFeed::parse_binary"
+      "kind": "desktop-decision",
+      "reason": "A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web.",
+      "ref": "decisions.md (Kept: depth frame keeps ltp + timestamp + latest quote); feed::bridge::depth_update"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "As total_buy_quantity, for the asks.",
-      "ref": "audit C03"
+      "kind": "desktop-decision",
+      "reason": "A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web.",
+      "ref": "decisions.md (Kept: depth frame keeps ltp + timestamp + latest quote); feed::bridge::depth_update"
     },
     {
       "key": "ltt",

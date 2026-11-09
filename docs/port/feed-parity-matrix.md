@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 43. Open gaps: 32. Deviations pending approval: 96.
+Cases: 43. Open gaps: 30. Deviations pending approval: 98.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Cases: 43. Open gaps: 32. Deviations pending approval: 96.
 | compositedge | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | definedge | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | deltaexchange | open gap: `ticker_quote_ltp_mode_change` | open gap: `ticker_quote_ltp_mode_change` | open gap: `book_then_ticker_depth`, `ticker_quote_ltp_mode_change` | not offered by the web | not offered by the web | not offered by the web | not offered by the web |
-| dhan | deviation pending approval: `ltp_ticker` | open gap: `index_quote`, `quote_before_previous_close`, `quote_previous_close`, `quote_to_depth_mode_change`, `reconnect_forgets_previous_close` | deviation pending approval: `full_depth`, `future_depth_oi`, `quote_to_depth_mode_change` | open gap: `depth_20_before_and_after_the_quote` | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
+| dhan | deviation pending approval: `ltp_ticker` | open gap: `index_quote`, `quote_before_previous_close`, `quote_previous_close`, `quote_to_depth_mode_change`, `reconnect_forgets_previous_close` | deviation pending approval: `full_depth`, `future_depth_oi`, `quote_to_depth_mode_change` | deviation pending approval: `depth_20_before_and_after_the_quote` | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
 | dhan_sandbox | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | firstock | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | fivepaisa | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -84,8 +84,8 @@ Cases: 43. Open gaps: 32. Deviations pending approval: 96.
 | deltaexchange | `ticker_quote_ltp_mode_change` | `oi_change` | web-defect | no | The web sends a constant oi_change of 0 on every ticker (_normalise_ticker's defaults), although Delta's ticker carries the OI change as oi[1]; the desktop sends no invented change. |
 | deltaexchange | `ticker_quote_ltp_mode_change` | `oi` | open | no | The web's Quote frames carry the ticker's OI; the desktop's Quote frames carry OI only in Depth mode (audit C05, lane wire quote OI). |
 | dhan | `depth_20_before_and_after_the_quote` | `ltp` | desktop-decision | no | A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote, its last traded price after; the web's 20-level frame has no ltp. |
-| dhan | `depth_20_before_and_after_the_quote` | `total_buy_quantity` | open | no | The desktop sends the sum of the 20 visible bid quantities as the total buy quantity; Dhan's 20-level packet carries no total and the web sends none. A sum of the visible levels is not the exchange's total. |
-| dhan | `depth_20_before_and_after_the_quote` | `total_sell_quantity` | open | no | As total_buy_quantity, for the asks. |
+| dhan | `depth_20_before_and_after_the_quote` | `total_buy_quantity` | desktop-decision | no | A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web. |
+| dhan | `depth_20_before_and_after_the_quote` | `total_sell_quantity` | desktop-decision | no | A 20-level packet has no totals, so the book frame takes them from the instrument's latest quote on the market feed (1.0.6 decision, kept: the depth frame carries the latest quote); before any quote they are left out, as on the web. |
 | dhan | `depth_20_before_and_after_the_quote` | `ltt` | desktop-decision | no | The desktop's Depth frame carries the instrument's latest quote, its trade time included (1.0.6 decision, kept for 1.0.7: the depth frame keeps ltp, timestamp and the latest quote); the web's Dhan 20-level frame carries the book alone. |
 | dhan | `depth_20_before_and_after_the_quote` | `volume` | desktop-decision | no | The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone. |
 | dhan | `depth_20_before_and_after_the_quote` | `last_quantity` | desktop-decision | no | The desktop's depth frame carries the instrument's latest quote from the market feed (feed::bridge::depth_update), as the web's Fyers adapter borrows it (openalgo#2318); the web's Dhan 20-level frame carries the book alone. |

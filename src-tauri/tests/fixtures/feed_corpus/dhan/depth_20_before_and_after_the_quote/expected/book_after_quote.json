@@ -220,8 +220,8 @@
     "open": 1290.0,
     "symbol": "RELIANCE",
     "timestamp": "<receipt_ms>",
-    "total_buy_quantity": 3900,
-    "total_sell_quantity": 4900,
+    "total_buy_quantity": 9000,
+    "total_sell_quantity": 7000,
     "volume": 40000
   },
   "exchange": "NSE",
