@@ -249,6 +249,12 @@ pub trait MarketDataSource: Send + Sync + 'static {
     /// its own.
     fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp;
 
+    /// The broker refused the release of a key and its owner holds it
+    /// still: keep streaming it for them. A release that comes back refused
+    /// with no owner left is not followed by this, and the source lets go
+    /// on its own (review B1).
+    fn keep(&self, _key: &InstrumentKey, _mode: Mode, _depth: u8) {}
+
     /// A receiver of every normalized update (ticks and depth snapshots).
     fn updates(&self) -> broadcast::Receiver<Arc<MarketUpdate>>;
 
@@ -317,9 +323,9 @@ type ActiveKey = (InstrumentKey, Mode, u8);
 struct Script {
     /// Subscribes of these instruments are refused with this reason.
     refused: HashMap<InstrumentKey, String>,
-    /// The next unsubscribes of a key: `Some(why)` refuses it, `None`
-    /// never answers. Either way the key stays active.
-    releases: HashMap<(InstrumentKey, Mode), VecDeque<Option<String>>>,
+    /// The next unsubscribes of a key, refused with these reasons; the key
+    /// stays active.
+    releases: HashMap<(InstrumentKey, Mode), VecDeque<String>>,
     /// Most instruments active at once (the broker connection's room).
     capacity: Option<usize>,
     /// Keys whose last unsubscribe was not done (an owner joining again
@@ -338,7 +344,7 @@ struct Script {
 /// In-memory source for tests and the soak harness. Counts active
 /// subscriptions and flags a double subscribe or an unsubscribe of
 /// something not subscribed. Answers success at once unless a test
-/// scripted a refusal (`refuse`, `fail_release`, `hold_release`,
+/// scripted a refusal (`refuse`, `fail_release`,
 /// `set_capacity`).
 pub struct FakeSource {
     tx: broadcast::Sender<Arc<MarketUpdate>>,
@@ -401,18 +407,7 @@ impl FakeSource {
             .releases
             .entry((key, mode))
             .or_default()
-            .push_back(Some(why.to_string()));
-    }
-
-    /// Never answer the next unsubscribe of `key` at `mode` (a broker that
-    /// does not reply); the key stays active.
-    pub fn hold_release(&self, key: InstrumentKey, mode: Mode) {
-        self.script
-            .lock()
-            .releases
-            .entry((key, mode))
-            .or_default()
-            .push_back(None);
+            .push_back(why.to_string());
     }
 
     /// Answer the next unsubscribe of `key` at `mode` only once
@@ -569,10 +564,8 @@ impl MarketDataSource for FakeSource {
             }
             next
         };
-        match scripted {
-            Some(Some(why)) => return answered(Err(why)),
-            Some(None) => return Box::pin(std::future::pending()),
-            None => {}
+        if let Some(why) = scripted {
+            return answered(Err(why));
         }
         self.script.lock().unreleased.remove(&k);
         match active.get_mut(&k) {

@@ -80,18 +80,34 @@ fn a_refused_release_keeps_the_owner_and_a_retry_releases_it_once() {
 }
 
 /// Web test_invalid_or_exceptional_broker_response_preserves_exact_ownership:
-/// a release the source never answers keeps the owner (the session gives
-/// up waiting), and the next unsubscribe asks again.
+/// a release the source has not answered keeps the owner (the session gives
+/// up waiting), and asking again joins that release: the same answer, never
+/// a success before it (review B1), and one call to the broker.
 #[test]
-fn an_unanswered_release_keeps_the_owner() {
+fn an_unanswered_release_keeps_the_owner_and_a_retry_joins_it() {
     let src = FakeSource::new([reliance()]);
     let r = registry(&src, &[7]);
     subscribe(&r, 7, &reliance(), Mode::Ltp, 5).unwrap();
-    src.hold_release(reliance(), Mode::Ltp);
+    src.delay_release(reliance(), Mode::Ltp);
 
-    assert_eq!(unsubscribe(&r, 7, &reliance(), Mode::Ltp), None);
+    let Release::Waiting { answer, ticket } = r.begin_unsubscribe(7, &reliance(), Mode::Ltp) else {
+        panic!("the last owner waits for the source")
+    };
+    assert!(answer.clone().now_or_never().is_none());
     assert_eq!((holds(&r), r.stats().source_keys), (1, 1));
-    assert_eq!(unsubscribe(&r, 7, &reliance(), Mode::Ltp), Some(Ok(())));
+    let Release::Waiting {
+        ticket: again,
+        answer: joined,
+    } = r.begin_unsubscribe(7, &reliance(), Mode::Ltp)
+    else {
+        panic!("the retry joins the release")
+    };
+    assert_eq!(again, ticket, "the same release");
+    assert!(joined.now_or_never().is_none(), "not answered yet");
+
+    src.answer_release(&reliance(), Mode::Ltp, Ok(()));
+    let outcome = answer.now_or_never().expect("answered");
+    r.finish_unsubscribe(7, &reliance(), Mode::Ltp, ticket, &outcome);
     assert_eq!(
         r.stats(),
         RegistryStats {
@@ -99,6 +115,41 @@ fn an_unanswered_release_keeps_the_owner() {
             ..Default::default()
         }
     );
+    let releases = src
+        .calls()
+        .into_iter()
+        .filter(|c| matches!(c, SourceCall::Unsubscribe(..)))
+        .count();
+    assert_eq!(releases, 1, "one release, asked about twice");
+}
+
+/// Review B1: a joiner that fails or leaves is no longer an owner: its join
+/// is retired, and the release is the last owner's again.
+#[test]
+fn a_joiner_that_leaves_leaves_the_release_to_its_owner() {
+    let src = FakeSource::new([reliance()]);
+    let r = registry(&src, &[7, 8]);
+    subscribe(&r, 7, &reliance(), Mode::Quote, 5).unwrap();
+    src.delay_release(reliance(), Mode::Quote);
+    let Release::Waiting { ticket, .. } = r.begin_unsubscribe(7, &reliance(), Mode::Quote) else {
+        panic!("the last owner waits for the source")
+    };
+    let admission = r.subscribe(8, &reliance(), Mode::Quote, 5).expect("held");
+    r.settle_subscribe(
+        8,
+        &reliance(),
+        Mode::Quote,
+        5,
+        admission.replacing(),
+        &Err("not taken in time".to_string()),
+    );
+    assert_eq!(holds(&r), 1, "only the owner of the release is left");
+
+    let Release::Waiting { ticket: again, .. } = r.begin_unsubscribe(7, &reliance(), Mode::Quote)
+    else {
+        panic!("the owner's retry joins its release")
+    };
+    assert_eq!(again, ticket);
 }
 
 /// Web test_multi_client_unsubscribe_removes_only_the_caller_until_the_last_ack:

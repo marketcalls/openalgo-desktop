@@ -14,18 +14,23 @@
 //!   hold the key again.
 //! * One release is one operation (review R107-01, R107-02): it carries a
 //!   ticket, and only the answer to the latest release settles the owner,
-//!   whenever it comes (a reply deadline is not an answer). The same
-//!   client asking again while its release is with the source (a duplicate
-//!   item in one batch, a retry after the deadline) starts a release that
-//!   supersedes it, never a shared owner's removal; the client subscribing
-//!   the key again meanwhile asks the source to hold it, and the release
-//!   then leaves it in place.
+//!   whenever it comes (a reply deadline is not an answer). The owner
+//!   asking again while its release is with the source (a duplicate item
+//!   in one batch, a retry after the deadline) joins that release's
+//!   answer, never a shared owner's removal and never a success before
+//!   the broker answered (review B1); the client subscribing the key again
+//!   meanwhile asks the source to hold it, and the release then leaves it
+//!   in place.
+//! * Who may decide a release is who holds the key now, not who once did
+//!   (review B1): an owner that joins during a release counts while it
+//!   holds on, and is forgotten when its subscribe fails or it leaves.
 //! * A disconnect (`Registry::remove_client`) drops its owners whatever
 //!   the source answers; a release it starts is the source's to finish.
 
 use super::{source_depth, ClientId, Inner, Registry, SourceKey};
 use crate::feed::source::{answered, InstrumentKey, Mode, SourceOp, SourceOutcome};
 use futures_util::future::{FutureExt, Shared};
+use std::collections::HashSet;
 
 /// The source's answer to an operation, which everyone waiting on that
 /// operation shares.
@@ -33,6 +38,8 @@ pub type Answer = Shared<SourceOp>;
 
 /// The last owner's release while it is with the source.
 struct Releasing {
+    /// The owner it is for.
+    owner: ClientId,
     /// Which release it is (`Release::Waiting`).
     ticket: u64,
     answer: Answer,
@@ -45,9 +52,10 @@ pub(super) struct SourceRef {
     admission: Answer,
     /// The last owner's release, while it is with the source.
     releasing: Option<Releasing>,
-    /// An owner joined while that release was with the source, and asked
-    /// the source to hold the key again.
-    rejoined: bool,
+    /// The owners that joined while that release was with the source, the
+    /// first of whom asked the source to hold the key again. Only those
+    /// that hold on count (review B1).
+    joined: HashSet<ClientId>,
     /// The releasing owner itself subscribed the key again meanwhile, and
     /// asked the source to hold it: the release leaves it in place.
     reclaimed: bool,
@@ -100,6 +108,7 @@ impl Registry {
     pub(super) fn acquire(
         &self,
         inner: &mut Inner,
+        id: ClientId,
         key: &InstrumentKey,
         mode: Mode,
         depth: u8,
@@ -115,7 +124,7 @@ impl Registry {
                         owners: 1,
                         admission: admission.clone(),
                         releasing: None,
-                        rejoined: false,
+                        joined: HashSet::new(),
                         reclaimed: false,
                     },
                 );
@@ -123,9 +132,12 @@ impl Registry {
             }
             Some(r) => {
                 r.owners += 1;
-                let releasing = r.releasing.is_some();
-                if (releasing && !r.rejoined && !r.reclaimed) || r.refused() {
-                    r.rejoined |= releasing;
+                let joining = r.releasing.is_some() && !r.reclaimed;
+                let first = joining && r.joined.is_empty();
+                if joining {
+                    r.joined.insert(id);
+                }
+                if first || r.refused() {
                     r.admission = ask();
                 }
                 Box::pin(r.admission.clone())
@@ -150,7 +162,7 @@ impl Registry {
             return Admission::new(answered(Ok(())), None);
         };
         if let Some(rel) = &r.releasing {
-            if !r.reclaimed && !r.rejoined {
+            if !r.reclaimed && r.joined.is_empty() {
                 if matches!(rel.answer.peek(), Some(Err(_))) {
                     r.releasing = None;
                 } else {
@@ -162,10 +174,20 @@ impl Registry {
         Admission::new(Box::pin(r.admission.clone()), None)
     }
 
-    /// One owner fewer of `(key, mode, depth)`. The last one asks the
-    /// source to release the key, unless the source never took it or a
-    /// release is with it already; the source is not waited on.
-    pub(super) fn drop_owner(&self, inner: &mut Inner, key: &InstrumentKey, mode: Mode, depth: u8) {
+    /// Client `id` no longer owns `(key, mode, depth)`. The last owner asks
+    /// the source to release the key, unless the source never took it or a
+    /// release is with it already; the source is not waited on. The last
+    /// joiner of a release leaving (its subscribe failed, or it went) retires
+    /// the join: the key is held for nobody but the releasing owner, whose
+    /// release goes on, so the source is told it need not hold it.
+    pub(super) fn drop_owner(
+        &self,
+        inner: &mut Inner,
+        id: ClientId,
+        key: &InstrumentKey,
+        mode: Mode,
+        depth: u8,
+    ) {
         let sk: SourceKey = (key.clone(), mode, source_depth(mode, depth));
         let Some(r) = inner.refcounts.get_mut(&sk) else {
             tracing::error!(
@@ -177,14 +199,20 @@ impl Registry {
             return;
         };
         r.owners = r.owners.saturating_sub(1);
+        let had_joiners = !r.joined.is_empty();
+        let joiner = r.joined.remove(&id);
         if r.owners > 0 {
+            if joiner && r.joined.is_empty() && r.releasing.is_some() {
+                r.admission = answered(Ok(())).shared();
+                drop(self.source.unsubscribe(key, mode, sk.2));
+            }
             return;
         }
         let Some(r) = inner.refcounts.remove(&sk) else {
             return;
         };
         let settled_by_source = if r.releasing.is_some() {
-            !r.rejoined && !r.reclaimed
+            !had_joiners && !r.reclaimed
         } else {
             r.refused()
         };
@@ -223,19 +251,19 @@ impl Registry {
             (Ok(()), None) => {}
             (Ok(()), Some(old)) => {
                 held.replacing = None;
-                self.drop_owner(inner, key, mode, old);
+                self.drop_owner(inner, id, key, mode, old);
             }
             (Err(_), Some(old)) => {
                 held.depth = old;
                 held.replacing = None;
-                self.drop_owner(inner, key, mode, depth);
+                self.drop_owner(inner, id, key, mode, depth);
                 Self::set_slot(inner, id, key, mode, Some(old));
             }
             (Err(_), None) => {
                 if let Some(c) = inner.clients.get_mut(&id) {
                     c.subs.remove(&map_key);
                 }
-                self.drop_owner(inner, key, mode, depth);
+                self.drop_owner(inner, id, key, mode, depth);
                 Self::set_slot(inner, id, key, mode, None);
             }
         }
@@ -283,12 +311,20 @@ impl Registry {
             self.forget(inner, id, key, mode, held.depth);
             return Release::Done;
         };
-        // The last owner asks the source to let go; so does this client
-        // again while its own release is with the source (a duplicate item
-        // in one batch, a retry after the reply deadline): the new release
-        // supersedes it, and only its answer settles the owner (review
-        // R107-01, R107-02). It is never taken for a shared owner's.
-        let last = r.owners == 1 && !r.rejoined && (r.releasing.is_some() || !r.refused());
+        // Its own release is with the source (a duplicate item in one
+        // batch, a retry after the reply deadline): this is the same
+        // operation, and it hears the same answer (review B1).
+        if let Some(rel) = r
+            .releasing
+            .as_ref()
+            .filter(|rel| rel.owner == id && !r.reclaimed)
+        {
+            return Release::Waiting {
+                answer: rel.answer.clone(),
+                ticket: rel.ticket,
+            };
+        }
+        let last = r.owners == 1 && r.joined.is_empty() && (r.releasing.is_some() || !r.refused());
         if !last {
             self.forget(inner, id, key, mode, held.depth);
             return Release::Done;
@@ -296,6 +332,7 @@ impl Registry {
         let answer = self.source.unsubscribe(key, mode, sk.2).shared();
         r.reclaimed = false;
         r.releasing = Some(Releasing {
+            owner: id,
             ticket,
             answer: answer.clone(),
         });
@@ -307,7 +344,7 @@ impl Registry {
         if let Some(c) = inner.clients.get_mut(&id) {
             c.subs.remove(&(key.clone(), mode));
         }
-        self.drop_owner(inner, key, mode, depth);
+        self.drop_owner(inner, id, key, mode, depth);
         Self::set_slot(inner, id, key, mode, None);
     }
 
@@ -342,9 +379,15 @@ impl Registry {
             return;
         }
         r.releasing = None;
-        let rejoined = std::mem::take(&mut r.rejoined);
+        let rejoined = !std::mem::take(&mut r.joined).is_empty();
         let reclaimed = std::mem::take(&mut r.reclaimed);
-        if outcome.is_err() || reclaimed {
+        if reclaimed {
+            return;
+        }
+        if outcome.is_err() {
+            // This owner holds it still: the source is told, as only here
+            // is it known that someone does (review B1).
+            self.source.keep(key, mode, sk.2);
             return;
         }
         if rejoined {

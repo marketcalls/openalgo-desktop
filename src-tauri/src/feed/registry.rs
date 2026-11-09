@@ -223,7 +223,7 @@ impl Registry {
                 replacing,
             },
         );
-        let op = self.acquire(inner, key, mode, depth);
+        let op = self.acquire(inner, id, key, mode, depth);
         Self::set_slot(inner, id, key, mode, Some(depth));
         Ok(Admission::new(op, replacing))
     }
@@ -241,9 +241,9 @@ impl Registry {
         let mut held: Vec<_> = client.subs.drain().collect();
         held.sort_by_key(|(_, h)| h.seq);
         for ((key, mode), h) in held {
-            self.drop_owner(inner, &key, mode, h.depth);
+            self.drop_owner(inner, id, &key, mode, h.depth);
             if let Some(old) = h.replacing {
-                self.drop_owner(inner, &key, mode, old);
+                self.drop_owner(inner, id, &key, mode, old);
             }
             Self::set_slot(inner, id, &key, mode, None);
         }
