@@ -245,6 +245,13 @@ impl FirstockFeed {
                 t.mark_absent(field);
             }
         }
+        // No trade time yet on this connection (the snapshot lasts one):
+        // `ltt` is left out rather than a receipt time passed off as one. A
+        // 0 is stored like any other value, so the time is tested, not the
+        // key.
+        if t.last_trade_time_ms <= 0 {
+            t.mark_absent(F::LastTradeTime);
+        }
         match (s.contains_key(oi_key), depth) {
             (true, false) => t.mark_carried(F::OpenInterest),
             (false, true) => t.mark_absent(F::OpenInterest),
