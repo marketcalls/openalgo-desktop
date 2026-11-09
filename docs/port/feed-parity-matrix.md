@@ -9,7 +9,7 @@ approved when it names the rule it follows (`approvals.json`). 1.0.7 ships when
 `scripts/feed_corpus/release_gate.py --check` passes: every cell "matches web",
 "approved deviation" or "not offered by the web", and every module builds its broker.
 
-Cases: 445. Open gaps: 0. Deviations pending approval: 0.
+Cases: 446. Open gaps: 0. Deviations pending approval: 0.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
