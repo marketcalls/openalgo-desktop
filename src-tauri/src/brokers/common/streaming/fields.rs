@@ -365,6 +365,18 @@ pub enum BrokerField {
 }
 
 impl BrokerField {
+    /// Whether the field is market state that holds until the broker sends
+    /// a new value or clears it (Dhan's day OI range, Groww's day traded
+    /// value): kept from earlier packets as the quote is. The others
+    /// describe their own packet (Upstox's auction figures, Fyers' update
+    /// type) and last that packet (audit R107-12).
+    pub const fn persists(self) -> bool {
+        matches!(
+            self,
+            BrokerField::OiHigh | BrokerField::OiLow | BrokerField::TradedValue
+        )
+    }
+
     /// The web adapter's key.
     pub const fn name(self) -> &'static str {
         match self {
@@ -433,7 +445,7 @@ impl Serialize for BrokerValue {
 /// from one packet to the next: a value that should last (an auction's
 /// price lasts one tick) stays only as long as the adapter sends it.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct BrokerFields(Vec<(BrokerField, BrokerValue)>);
+pub struct BrokerFields(Vec<(BrokerField, BrokerValue)>, Vec<BrokerField>);
 
 impl BrokerFields {
     /// Record `field`, replacing an earlier value of it.
@@ -442,6 +454,32 @@ impl BrokerFields {
             Some(slot) => slot.1 = value,
             None => self.0.push((field, value)),
         }
+    }
+
+    /// `field` is gone: left out of this packet's frames and not kept from
+    /// earlier ones (an absent field keeps a persistent one's last value).
+    pub fn clear(&mut self, field: BrokerField) {
+        self.0.retain(|(f, _)| *f != field);
+        if !self.1.contains(&field) {
+            self.1.push(field);
+        }
+    }
+
+    /// These fields with `newer`'s over them: a persistent field `newer`
+    /// does not carry stays unless `newer` clears it; a per-packet one
+    /// lasts its packet.
+    pub fn overlay(&self, newer: &Self) -> Self {
+        let kept = self
+            .0
+            .iter()
+            .copied()
+            .filter(|(f, _)| f.persists() && !newer.1.contains(f))
+            .collect();
+        let mut out = BrokerFields(kept, Vec::new());
+        for (f, v) in newer.iter() {
+            out.set(f, v);
+        }
+        out
     }
 
     pub fn get(&self, field: BrokerField) -> Option<BrokerValue> {

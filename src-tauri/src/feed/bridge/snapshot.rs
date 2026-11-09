@@ -224,7 +224,7 @@ pub(in crate::feed) fn merge(
     s.mode = t.mode;
     s.timestamp_ms = t.timestamp_ms;
     s.extras = s.extras.overlay(t.extras);
-    s.broker_fields = t.broker_fields.clone();
+    s.broker_fields = s.broker_fields.overlay(&t.broker_fields);
     s.numbers = t.numbers;
     s.book_absent = t.book_absent;
     let known = known.without(F::LastTradeTime).without(F::Orders);

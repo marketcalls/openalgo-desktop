@@ -225,6 +225,33 @@ fn a_new_session_of_the_connection_starts_afresh() {
     );
 }
 
+/// Dhan's day OI range holds until the broker sends a new value or clears
+/// it; Upstox's auction figures last their packet (audit R107-12).
+#[test]
+fn persistent_broker_fields_stay_and_per_packet_ones_go() {
+    use crate::brokers::common::streaming::{BrokerField as B, BrokerValue as V};
+    let mut full = quote_packet();
+    full.broker_fields.set(B::OiHigh, V::Int(9000));
+    full.broker_fields.set(B::OiLow, V::Int(8000));
+    full.broker_fields
+        .set(B::IndicativeEquilibriumPrice, V::Float(219.0));
+    let s = merge(None, &full, session(1));
+    let s = merge(Some(&s), &ltpc_packet(220.0), session(1));
+    let f = &s.tick().broker_fields;
+    assert_eq!(f.get(B::OiHigh), Some(V::Int(9000)));
+    assert_eq!(f.get(B::OiLow), Some(V::Int(8000)));
+    assert_eq!(f.get(B::IndicativeEquilibriumPrice), None, "per packet");
+    let mut cleared = ltpc_packet(221.0);
+    cleared.broker_fields.clear(B::OiHigh);
+    let s = merge(Some(&s), &cleared, session(1));
+    assert_eq!(s.tick().broker_fields.get(B::OiHigh), None, "cleared");
+    assert_eq!(s.tick().broker_fields.get(B::OiLow), Some(V::Int(8000)));
+    let mut newer = ltpc_packet(222.0);
+    newer.broker_fields.set(B::OiLow, V::Int(7900));
+    let s = merge(Some(&s), &newer, session(1));
+    assert_eq!(s.tick().broker_fields.get(B::OiLow), Some(V::Int(7900)));
+}
+
 /// A new price without a trade time does not keep the old trade time (it
 /// belonged to the old price), and one with an explicit "no trade time"
 /// mark keeps that mark.
