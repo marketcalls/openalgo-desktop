@@ -14,6 +14,7 @@ pub mod data_migrations;
 mod durability;
 pub mod key_vault;
 pub mod logs;
+mod manager;
 pub mod market_calendar;
 pub mod master_contract_status;
 mod master_swap;
@@ -33,9 +34,9 @@ pub mod webui;
 
 use crate::error::Result;
 pub use durability::Durability;
+use manager::SqliteConnectionManager;
 use models::Settings;
 use r2d2::{Pool, PooledConnection};
-use r2d2_sqlite::SqliteConnectionManager;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -108,7 +109,7 @@ pub fn open_pool(
 /// every start with a new data folder. The mode is kept in the file, so a
 /// pooled connection's own pragma then only reads it.
 fn switch_to_wal(path: &Path) -> Result<()> {
-    let c = rusqlite::Connection::open(path)?;
+    let mut c = rusqlite::Connection::open(path)?;
     c.busy_handler(Some(retry_busy))?;
     c.execute_batch("PRAGMA journal_mode=WAL;")?;
     Ok(())
@@ -359,7 +360,7 @@ mod tests {
     #[test]
     fn a_first_connection_slower_than_a_checkout_is_waited_for() {
         let dir = tempfile::tempdir().unwrap();
-        let manager = SqliteConnectionManager::file(dir.path().join("slow.db")).with_init(|_| {
+        let manager = SqliteConnectionManager::file(&dir.path().join("slow.db")).with_init(|_| {
             std::thread::sleep(Duration::from_millis(300));
             Ok(())
         });
@@ -378,7 +379,7 @@ mod tests {
     #[test]
     fn a_first_connection_that_fails_fails_the_open_at_once() {
         let dir = tempfile::tempdir().unwrap();
-        let manager = SqliteConnectionManager::file(dir.path().join("missing").join("x.db"));
+        let manager = SqliteConnectionManager::file(&dir.path().join("missing").join("x.db"));
         let started = std::time::Instant::now();
         let refused = build_pool(
             manager,

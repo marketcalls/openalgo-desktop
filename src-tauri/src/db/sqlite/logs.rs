@@ -4,9 +4,9 @@
 //!
 //! Request bodies are stored without the `apikey` field.
 
+use super::manager::SqliteConnectionManager;
 use crate::error::Result;
 use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, Connection};
 use serde_json::Value;
 use std::path::Path;

@@ -65,12 +65,17 @@ pub fn migrate(conn: &Connection) -> Result<()> {
             })
             .optional()?
             .unwrap_or_default();
+        // The price is written as SQLite wrote it before 3.53, to 15
+        // significant digits: 3.53 renders a REAL in JSON with up to 17, so
+        // 0.1 + 0.2 would have become 0.30000000000000004 instead of 0.3.
         conn.execute(
             "INSERT INTO pending_orders (user_id, api_type, order_data, created_at, created_at_ist, status)
              SELECT ?1, 'placeorder',
                     json_object('symbol', symbol, 'exchange', exchange, 'action', side,
-                                'quantity', quantity, 'price', price, 'pricetype', order_type,
-                                'product', product, 'strategy', ''),
+                                'quantity', quantity,
+                                'price', CASE WHEN typeof(price) = 'real'
+                                              THEN json(printf('%!.15g', price)) ELSE price END,
+                                'pricetype', order_type, 'product', product, 'strategy', ''),
                     created_at, NULL,
                     CASE WHEN status IN ('pending', 'approved', 'rejected') THEN status ELSE 'rejected' END
              FROM pending_orders_legacy ORDER BY id",
@@ -394,5 +399,125 @@ mod tests {
         assert_eq!(data["action"], "BUY");
         assert_eq!(data["quantity"], 5);
         assert_eq!(rows[0].api_type, "placeorder");
+    }
+
+    /// A legacy row's price reaches the Action Center (and the order an
+    /// approval places) as the text earlier builds wrote. Each expected
+    /// price is what SQLite 3.50.4, which renders a REAL in JSON to 15
+    /// digits, wrote for the same row; the bundled 3.54 renders up to 17
+    /// (`0.30000000000000004` for 0.1 + 0.2).
+    #[test]
+    fn legacy_prices_keep_the_json_earlier_builds_wrote() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT);
+             INSERT INTO users (username) VALUES ('trader');
+             CREATE TABLE pending_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, strategy_id INTEGER,
+               symbol TEXT NOT NULL, exchange TEXT NOT NULL, side TEXT NOT NULL, quantity INTEGER NOT NULL,
+               price REAL NOT NULL DEFAULT 0, order_type TEXT NOT NULL DEFAULT 'MARKET',
+               product TEXT NOT NULL DEFAULT 'MIS', status TEXT NOT NULL DEFAULT 'pending',
+               created_at TEXT NOT NULL DEFAULT (datetime('now')), processed_at TEXT);",
+        )
+        .unwrap();
+        let cases: [(f64, &str); 11] = [
+            (0.0, "0.0"),
+            (100.0, "100.0"),
+            (100.5, "100.5"),
+            (2345.65, "2345.65"),
+            (0.05, "0.05"),
+            (1234.55, "1234.55"),
+            (19999.95, "19999.95"),
+            (0.1 + 0.2, "0.3"),
+            (49.47, "49.47"),
+            (123.456789012345, "123.456789012345"),
+            (1e20, "1.0e+20"),
+        ];
+        for (price, _) in cases {
+            c.execute(
+                "INSERT INTO pending_orders (symbol, exchange, side, quantity, price, order_type)
+                 VALUES ('SBIN', 'NSE', 'BUY', 5, ?1, 'LIMIT')",
+                [price],
+            )
+            .unwrap();
+        }
+        migrate(&c).unwrap();
+        let mut st = c
+            .prepare("SELECT order_data FROM pending_orders ORDER BY id")
+            .unwrap();
+        let written: Vec<String> = st
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        let expected: Vec<String> = cases
+            .iter()
+            .map(|(_, p)| {
+                format!(
+                    r#"{{"symbol":"SBIN","exchange":"NSE","action":"BUY","quantity":5,"price":{p},"pricetype":"LIMIT","product":"MIS","strategy":""}}"#
+                )
+            })
+            .collect();
+        assert_eq!(written, expected);
+    }
+
+    /// Every migration and when it was recorded, and every queued order's
+    /// JSON, of the database at `path`.
+    fn recorded_state(path: &std::path::Path) -> (Vec<(String, String)>, Vec<String>) {
+        let c = Connection::open(path).unwrap();
+        let mut st = c
+            .prepare("SELECT name, applied_at FROM migrations ORDER BY name")
+            .unwrap();
+        let migrations = st
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        let mut st = c
+            .prepare("SELECT order_data FROM pending_orders ORDER BY id")
+            .unwrap();
+        let orders = st
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        (migrations, orders)
+    }
+
+    /// A database 1.0.6 migrated opens on this build. 1.0.7 adds no
+    /// migration to `openalgo.db` and changes only the SQL of 060, and the
+    /// runner matches a migration by its name, never by its SQL: the open
+    /// succeeds, no migration is recorded again, and the order 060 carried
+    /// over keeps the JSON 1.0.6 wrote (its price as SQLite 3.46 rendered
+    /// 0.1 + 0.2). The database is built as 1.0.6 left it: the placeholder
+    /// table of the legacy schema with a queued order, then the migrations.
+    #[test]
+    fn a_database_migrated_by_1_0_6_opens_without_running_060_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("openalgo.db");
+        {
+            let c = Connection::open(&path).unwrap();
+            crate::db::sqlite::migrations::run_legacy_schema(&c).unwrap();
+            c.execute(
+                "INSERT INTO pending_orders (symbol, exchange, side, quantity, price, order_type)
+                 VALUES ('SBIN', 'NSE', 'BUY', 5, ?1, 'LIMIT')",
+                [0.1 + 0.2],
+            )
+            .unwrap();
+            crate::db::sqlite::migrations::run_migrations(&c).unwrap();
+        }
+        let before = recorded_state(&path);
+        assert!(before
+            .0
+            .iter()
+            .any(|(name, _)| name == "060_action_center_pending_orders"));
+        assert_eq!(
+            before.1,
+            [
+                r#"{"symbol":"SBIN","exchange":"NSE","action":"BUY","quantity":5,"price":0.3,"pricetype":"LIMIT","product":"MIS","strategy":""}"#
+            ]
+        );
+        let db = crate::db::sqlite::SqliteDb::new(&path).unwrap();
+        drop(db);
+        assert_eq!(recorded_state(&path), before);
     }
 }
