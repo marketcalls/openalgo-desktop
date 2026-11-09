@@ -1,0 +1,68 @@
+{
+  "broker": "compositedge",
+  "summary": "An LTP client holds an instrument and a Quote client asks for it: the broker refuses the Quote code, so the Quote client is told why and the LTP code is not released, so the LTP client keeps streaming (review X2).",
+  "scenarios": [
+    "subscription-lifecycle",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    },
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "status": 400,
+      "body": {
+        "json": {
+          "type": "error",
+          "code": "e-instrument-0001",
+          "description": "instrument not allowed"
+        }
+      },
+      "when_body": "\"xtsMessageCode\":1501",
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/compositedge/streaming/compositedge_websocket.py::CompositedgeWebSocketClient.subscribe"
+    ],
+    "notes": [
+      "The web sends the new code and keeps the old ones per client; it logs a refused REST subscribe and acknowledges it (compositedge_websocket.py:289-292), a web defect the desktop does not copy (review R107-03). The desktop's upgrade order (the new code first, the old released once it is taken) is its own, so a refusal leaves the holder streaming.",
+      "The refusal's code and description are made up: no recorded XTS refusal exists."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "compositedge_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
+      "approval": "alias-unit"
+    }
+  ]
+}

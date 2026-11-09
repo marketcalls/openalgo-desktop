@@ -290,6 +290,10 @@ pub(crate) struct HttpAnswer {
     pub(crate) body: HttpBody,
     /// Keep its requests for `http_receives` steps.
     pub(crate) record: bool,
+    /// Answer only a request whose body holds this text (XTS answers one
+    /// batch by what it names); listed after the answer for everything
+    /// else, which it takes precedence over.
+    pub(crate) when_body: Option<String>,
 }
 
 /// A web publish named by its instrument and mode.
@@ -324,6 +328,9 @@ pub(crate) enum Action {
         client: String,
         message: Value,
         reply: Option<Value>,
+        /// How long the reply may take, when the broker's answers set it
+        /// (`within_ms`; the default is `run::RECV`).
+        within: Option<std::time::Duration>,
     },
     CloseClient {
         client: String,
@@ -581,7 +588,11 @@ impl Case {
                     let a = v
                         .as_object()
                         .unwrap_or_else(|| bad(&at, "an \"http\" answer is an object"));
-                    allow_keys(&at, a, &["method", "path", "status", "body", "record"]);
+                    allow_keys(
+                        &at,
+                        a,
+                        &["method", "path", "status", "body", "record", "when_body"],
+                    );
                     http_answer(&at, &dir, a, &mut inputs)
                 })
                 .collect(),
@@ -928,7 +939,7 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
         .and_then(Value::as_str)
         .unwrap_or_else(|| bad(at, "no \"step\""));
     let keys: &[&str] = match kind {
-        "send" => &["client", "message", "reply"],
+        "send" => &["client", "message", "reply", "within_ms"],
         "close_client" => &["client"],
         "receive" => &["client", "frame", "web", "web_mode"],
         "silence" => &["client", "ms", "web"],
@@ -939,7 +950,7 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
         "disconnect" => &["socket"],
         "refuse_upgrades" => &["socket", "status", "times"],
         "upstream_connections" => &["socket", "count", "refused", "ms"],
-        "http_serve" => &["method", "path", "status", "body", "record"],
+        "http_serve" => &["method", "path", "status", "body", "record", "when_body"],
         "http_polled" => &["method", "path", "times"],
         "http_receives" => &["requests"],
         "note" => &["text"],
@@ -984,6 +995,12 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
             client: client(),
             message: need("message"),
             reply: o.get("reply").cloned(),
+            within: o.get("within_ms").map(|v| {
+                std::time::Duration::from_millis(
+                    v.as_u64()
+                        .unwrap_or_else(|| bad(at, "\"within_ms\" is a number")),
+                )
+            }),
         },
         "close_client" => Action::CloseClient { client: client() },
         "receive" => Action::Receive {
@@ -1154,6 +1171,11 @@ fn http_answer(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8
         status,
         body,
         record: o.get("record").and_then(Value::as_bool).unwrap_or(false),
+        when_body: o.get("when_body").map(|w| {
+            w.as_str()
+                .map(String::from)
+                .unwrap_or_else(|| bad(at, "\"when_body\" is a string"))
+        }),
     }
 }
 

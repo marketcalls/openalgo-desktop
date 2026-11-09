@@ -34,6 +34,8 @@ pub(crate) struct Route {
     pub(crate) body: String,
     /// Keep its requests for `http_receives`.
     pub(crate) record: bool,
+    /// Answer only a request whose body holds this text.
+    pub(crate) when_body: Option<String>,
     /// Requests answered since the answer was last set.
     hits: usize,
 }
@@ -46,6 +48,7 @@ impl Route {
             status,
             body,
             record: false,
+            when_body: None,
             hits: 0,
         }
     }
@@ -127,8 +130,9 @@ impl HttpFake {
     /// in place of an earlier answer for them.
     pub(crate) fn serve(&self, route: Route) {
         let mut st = self.state.lock();
-        st.routes
-            .retain(|r| !r.covers(route.method.as_deref(), &route.path));
+        st.routes.retain(|r| {
+            !r.covers(route.method.as_deref(), &route.path) || r.when_body != route.when_body
+        });
         st.routes.push(route);
     }
 
@@ -195,11 +199,12 @@ async fn answer(
     };
     let reply = {
         let mut st = state.lock();
-        let route = st
-            .routes
-            .iter_mut()
-            .rev()
-            .find(|r| r.answers(&method, &uri));
+        let route = st.routes.iter_mut().rev().find(|r| {
+            r.answers(&method, &uri)
+                && r.when_body
+                    .as_deref()
+                    .is_none_or(|w| request.body.contains(w))
+        });
         let reply = route.map(|r| {
             r.hits += 1;
             (r.status, r.body.clone(), r.record)

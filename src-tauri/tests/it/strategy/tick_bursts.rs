@@ -40,8 +40,9 @@ impl Burst {
 
 #[async_trait::async_trait]
 impl PriceSource for Burst {
-    async fn subscribe(&self, keys: &[Key]) {
+    async fn subscribe(&self, keys: &[Key]) -> Vec<Key> {
         self.subscribed.lock().extend_from_slice(keys);
+        keys.to_vec()
     }
     async fn unsubscribe(&self, _keys: &[Key]) {}
     fn ticks(&self) -> broadcast::Receiver<MarketEvent> {

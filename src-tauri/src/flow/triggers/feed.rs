@@ -24,7 +24,7 @@
 //! them, so a Depth node reads the traded price and not 0.
 
 use crate::brokers::common::streaming::{
-    FeedEvent, FeedMode, FeedSubscription, NormalizedDepth, NormalizedTick, QuoteField,
+    FeedEvent, FeedMode, FeedSubscription, MarketEvent, NormalizedDepth, NormalizedTick, QuoteField,
 };
 use crate::feed::bridge::{depth_update, tick_update};
 use crate::feed::protocol::market_data;
@@ -37,7 +37,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Weak;
 use std::time::Duration;
-use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 use tokio::time::Instant;
 
 /// What the feed answers while no broker is logged in.
@@ -251,22 +251,58 @@ impl MarketFeed for AppFeed {
         // Listen before subscribing, so the first frame is not missed.
         let mut rx = app.websocket.subscribe_ticks();
         let key: Key = (symbol.to_string(), exchange.to_string(), mode.to_string());
-        self.hold(&app, &key).await?;
-        drop(app);
         let instrument = InstrumentKey::new(symbol, exchange);
         let mut wait = FrameWait::new(&instrument, mode_of(mode).1, &broker);
+        // The broker can take a while to answer a subscribe: what comes
+        // meanwhile is read as it comes and only the newest is kept, so a
+        // price kept waiting is not read afterwards as the current one. The
+        // one `wait` reads on after the answer, so a book and a price either
+        // side of it still join.
+        let mut newest = None;
+        let mut keep = |event: &MarketEvent| {
+            if let Some(f) = wait.read(event).filter(|f| accept(f)) {
+                newest = Some(f);
+            }
+        };
+        let read_on = async {
+            loop {
+                match rx.recv().await {
+                    Ok(event) => keep(&event),
+                    Err(RecvError::Lagged(_)) => continue,
+                    Err(RecvError::Closed) => std::future::pending::<()>().await,
+                }
+            }
+        };
+        tokio::select! {
+            held = self.hold(&app, &key) => held?,
+            () = read_on => {}
+        }
+        // What came just before the answer and has not been read yet.
+        loop {
+            match rx.try_recv() {
+                Ok(event) => keep(&event),
+                Err(TryRecvError::Lagged(_)) => continue,
+                Err(_) => break,
+            }
+        }
+        drop(app);
+        if newest.is_some() {
+            return Ok(newest);
+        }
         let end = Instant::now() + timeout;
         // When the held book stops waiting for a price.
         let mut price_by: Option<Instant> = None;
         loop {
+            // Here and not after a read: the book may have come while the
+            // broker was answering.
+            if wait.holds_a_book() {
+                price_by.get_or_insert_with(|| Instant::now() + PRICE_AFTER_BOOK);
+            }
             let until = price_by.map_or(end, |by| by.min(end));
             match tokio::time::timeout_at(until, rx.recv()).await {
                 Ok(Ok(event)) => {
                     if let Some(f) = wait.read(&event).filter(|f| accept(f)) {
                         return Ok(Some(f));
-                    }
-                    if wait.holds_a_book() {
-                        price_by.get_or_insert_with(|| Instant::now() + PRICE_AFTER_BOOK);
                     }
                 }
                 Ok(Err(RecvError::Lagged(_))) => {}

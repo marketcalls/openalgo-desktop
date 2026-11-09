@@ -5,7 +5,7 @@
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
 {"step": "http_receives", "requests": [{"method": "POST", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1512}}]}
 {"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
-{"step": "http_receives", "requests": [{"method": "PUT", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1512}}, {"method": "POST", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}], "note": "The mode change: the LTP subscription let go, the Quote one made."}
+{"step": "http_receives", "requests": [{"method": "POST", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}, {"method": "PUT", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1512}}], "note": "The mode change: the Quote subscription made, the LTP one let go once the broker took it."}
 {"step": "push", "frame": "frames/text_1105.txt"}
 {"step": "receive", "client": "a", "frame": "expected/ltp_from_1105.json", "web": false}
 {"step": "receive", "client": "b", "frame": "expected/quote_from_1105.json", "web": false}

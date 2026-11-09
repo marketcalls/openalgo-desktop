@@ -398,3 +398,101 @@ async fn a_samco_book_waits_for_samcos_quote() {
     assert_eq!(f["data"]["depth"]["buy"][0]["price"], 24610.0, "{}", f);
     assert!(took < SOON, "{:?}", took);
 }
+
+// ---------------------------------------------------------------------------
+// While the broker answers the subscribe (review 2, X5, with P1)
+// ---------------------------------------------------------------------------
+
+/// A wait whose subscribe the broker answers only when the test says so.
+struct AnswerHeld {
+    t: crate::state::testing::TestCtx,
+    answer: Arc<tokio::sync::Notify>,
+    waiting: tokio::task::JoinHandle<Result<Option<Value>, FeedError>>,
+}
+
+impl AnswerHeld {
+    /// Started and parked inside the subscribe, its listener already on.
+    async fn start(mode: &'static str) -> Self {
+        use crate::brokers::common::streaming::Presubscribe;
+        let (t, feed) = signed_in("pocketful", "SBIN", "NSE", "3045");
+        let answer = Arc::new(tokio::sync::Notify::new());
+        let asked = Arc::new(tokio::sync::Notify::new());
+        let step: Presubscribe = {
+            let (answer, asked) = (answer.clone(), asked.clone());
+            Arc::new(move |subs: Vec<FeedSubscription>| {
+                let (answer, asked) = (answer.clone(), asked.clone());
+                futures_util::FutureExt::boxed(async move {
+                    asked.notify_one();
+                    answer.notified().await;
+                    subs.into_iter().map(Ok).collect()
+                })
+            })
+        };
+        t.ctx.websocket.set_presubscribe(Some(step));
+        let waiting = tokio::spawn(async move {
+            feed.first_frame("SBIN", "NSE", mode, Duration::from_secs(30), &|_| true)
+                .await
+        });
+        asked.notified().await;
+        Self { t, answer, waiting }
+    }
+
+    fn emit(&self, event: FeedEvent) {
+        self.t.ctx.websocket.emit(Arc::new(event));
+    }
+
+    fn answer_now(&self) {
+        self.answer.notify_one();
+    }
+
+    async fn result(self) -> Option<Value> {
+        self.waiting.await.unwrap().unwrap()
+    }
+}
+
+/// Frames that come while the broker answers a subscribe are read as they
+/// come and only the newest is kept, so a price kept waiting is not read
+/// afterwards as the current one.
+#[tokio::test]
+async fn the_wait_keeps_only_the_newest_frame_while_the_broker_answers() {
+    let wait = AnswerHeld::start("LTP").await;
+    let FeedEvent::Tick(mut older) = tick(1) else {
+        unreachable!()
+    };
+    older.ltp = 811.0;
+    wait.emit(FeedEvent::Tick(older));
+    wait.emit(tick(1));
+    wait.answer_now();
+    let got = wait.result().await.expect("a frame");
+    assert_eq!(got["data"]["ltp"].as_f64(), Some(812.5), "{}", got);
+}
+
+/// A price seen while the broker answers still joins the book that follows
+/// the answer: one reading of the feed spans both.
+#[tokio::test]
+async fn a_price_from_before_the_answer_joins_the_book_after_it() {
+    let wait = AnswerHeld::start("Depth").await;
+    wait.emit(tick(2));
+    wait.answer_now();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    wait.emit(book_without_a_price());
+    let f = wait.result().await.expect("the book");
+    assert_eq!(f["data"]["ltp"], 812.5, "{}", f);
+    assert_eq!(f["data"]["depth"]["buy"][0]["price"], 812.4, "{}", f);
+}
+
+/// A book seen while the broker answers, on a quiet contract, gets the same
+/// two seconds as one seen after: it does not sit out the node's timeout.
+#[tokio::test]
+async fn a_book_from_before_the_answer_goes_out_after_two_seconds() {
+    let wait = AnswerHeld::start("Depth").await;
+    wait.emit(book_without_a_price());
+    let answered = std::time::Instant::now();
+    wait.answer_now();
+    let f = wait.result().await.expect("the book");
+    let took = answered.elapsed();
+    assert_eq!(f["data"]["ltp"], 0.0, "{}", f);
+    assert_eq!(f["data"]["depth"]["buy"][0]["price"], 812.4, "{}", f);
+    assert!(took >= Duration::from_millis(1900), "held: {:?}", took);
+    assert!(took < SOON, "{:?}", took);
+}
