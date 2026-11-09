@@ -125,7 +125,6 @@ const WITHOUT_BROKER: &[&str] = &[
     "iifl",
     "iiflcapital",
     "jainamxts",
-    "kotak",
     "nubra",
     "paytm",
     "pocketful",
