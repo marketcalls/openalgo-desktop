@@ -82,10 +82,11 @@ fn a_frame_without_its_exchange_reaches_the_one_scrip_with_its_token() {
 }
 
 /// Audit FB-07; web `QuoteNormalizer` (`percent_change = safe_float(pc)`)
-/// in every member: Noren's own `pc` is the change percent; it is derived
-/// from the price and the previous close only when the frame has none.
+/// in every member: Noren's own `pc` is the change percent; without one
+/// there is no change, never one worked out from the previous close
+/// (lead rule no-derived-change).
 #[test]
-fn the_change_percent_is_noren_pc_and_derived_only_when_missing() {
+fn the_change_percent_is_noren_pc_and_absent_without_one() {
     for cfg in members() {
         let mut f = feed(cfg);
         f.subscribe_frames(&[sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Quote)]);
@@ -102,17 +103,9 @@ fn the_change_percent_is_noren_pc_and_derived_only_when_missing() {
             &mut f,
             r#"{"t":"tk","e":"NSE","tk":"26000","lp":"25495.60","c":"25362.45"}"#,
         );
-        assert_eq!((t.change, t.change_percent), (133.15, 0.52), "{}", cfg.id);
-
-        let mut f = feed(cfg);
-        f.subscribe_frames(&[sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Quote)]);
-        let t = tick(
-            &mut f,
-            r#"{"t":"tk","e":"NSE","tk":"26000","lp":"25495.60"}"#,
-        );
         assert!(
             !t.knows(QuoteField::Change),
-            "{}: nothing to derive from",
+            "{}: no pc, no change, though the close is known",
             cfg.id
         );
     }
@@ -192,7 +185,7 @@ fn a_partial_update_keeps_the_times_and_change_it_left_out() {
             cfg.id
         );
         assert_eq!(t.extras.exchange_time_ms, None, "{}", cfg.id);
-        assert_eq!(t.change_percent, 0.78, "{}", cfg.id);
+        assert!(!t.knows(QuoteField::Change), "{}", cfg.id);
     }
 }
 

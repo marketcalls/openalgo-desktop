@@ -1,6 +1,6 @@
 {
   "broker": "shoonya",
-  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first packet after the reconnect has a price but no feed time (ft), trade time (ltt) or change (pc), and the frame has no old times and a change worked out from the broker's close.",
+  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first packet after the reconnect has a price but no feed time (ft), trade time (ltt) or change (pc), and the frame has none of them.",
   "scenarios": [
     "reconnect",
     "first-full-packet",
@@ -49,9 +49,9 @@
     {
       "key": "percent_change",
       "kind": "web-defect",
-      "reason": "The first packet of the new connection has no change (pc); the web sends percent_change 0.0 for it (safe_float(data.get('pc'))), a wrong figure beside a price away from its close. The desktop's Noren change falls back to the price against the broker's own previous close when no pc is known.",
-      "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer; brokers/families/noren/streaming/quote.rs change",
-      "approval": "never-copy-web-defect"
+      "reason": "The first packet of the new connection has no change (pc); the web sends percent_change 0.0 for it (safe_float(data.get('pc'))). A field the stream does not carry is left out, and the desktop works no change out where the web only forwards Noren's.",
+      "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer; lead rule no-derived-change",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "total_buy_quantity",

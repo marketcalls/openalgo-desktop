@@ -1,6 +1,6 @@
 {
   "broker": "flattrade",
-  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first packet after the reconnect has a price but no feed time (ft), trade time (ltt) or change (pc), and the frame has no old times and a change worked out from the broker's close.",
+  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first packet after the reconnect has a price but no feed time (ft), trade time (ltt) or change (pc), and the frame has none of them.",
   "scenarios": [
     "reconnect",
     "first-full-packet",
