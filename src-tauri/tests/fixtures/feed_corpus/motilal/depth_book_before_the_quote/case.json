@@ -47,6 +47,12 @@
       "kind": "web-defect",
       "reason": "Motilal sent no open interest for this cash scrip (no m packet; a cash scrip has none and its last-trade packet's OI slot is 0); the web's Depth dict sends oi 0 from a default (_normalize_depth_data: result['oi'] = 0 without an m packet); the desktop leaves it out.",
       "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs quote_tick"
+    },
+    {
+      "key": "missing-frame",
+      "kind": "web-defect",
+      "reason": "Before any trade the web's poll publishes Depth as soon as the scrip has any quote packet (circuit limits, day OHLC) and a book level, with ltp 0 (motilal_adapter.py _poll_market_data gates on the quote dict, _normalize_depth_data quote.get('ltp', 0)), a price nothing traded at; the desktop sends the book once Motilal's first trade arrives (audit RB-09).",
+      "ref": "motilal_adapter.py _poll_market_data, _normalize_depth_data"
     }
   ]
 }

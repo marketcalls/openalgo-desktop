@@ -6,6 +6,6 @@
 {"step": "silence", "client": "a", "note": "A book level and no trade yet: no Depth frame."}
 {"step": "push", "frame": "frames/oi.hex"}
 {"step": "push", "frame": "frames/ohlc.hex"}
-{"step": "silence", "client": "a", "note": "A book level and the day OHLC, no trade: the web publishes Depth with LTP 0."}
+{"step": "silence", "client": "a", "web": {"symbol": "NIFTY28OCT26FUT", "exchange": "NFO", "mode": 3}, "note": "A book level and the day OHLC, no trade: the web publishes Depth with LTP 0."}
 {"step": "push", "frame": "frames/ltp.hex"}
 {"step": "receive", "client": "a", "frame": "expected/depth.json"}

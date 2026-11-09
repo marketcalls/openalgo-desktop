@@ -26,5 +26,12 @@
       "The web publishes every subscription from its packet stores every 500 ms (motilal_adapter.py _poll_market_data); web.json holds the poll after each push, the desktop sends a frame when a packet changes what a subscription reports."
     ]
   },
-  "deviations": []
+  "deviations": [
+    {
+      "key": "missing-frame",
+      "kind": "web-defect",
+      "reason": "Before any trade the web's poll publishes a Quote from the scrip's other packets with ltp 0 (motilal_adapter.py _normalize_quote_data: quote.get('ltp', 0)), a price nothing traded at; the desktop publishes nothing until Motilal's first last-trade packet (lead rules: no zero LTP from a packet without a trade).",
+      "ref": "motilal_adapter.py _normalize_quote_data"
+    }
+  ]
 }

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "03ba83a5effb08ae14d6275e5d062dd225b1ae174330a735f388ae22f7ca9ad1",
+  "inputs_sha256": "e7bf0ab96571c18b6826be9c43c4fe6bcf7e77ab05703db2c72388ec45933c7e",
   "instruments": [
     {
       "symbol": "RELIANCE",
