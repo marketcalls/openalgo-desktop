@@ -1,0 +1,53 @@
+{
+  "broker": "rmoney",
+  "summary": "The broker refuses a subscribe over REST: the reply says so per item instead of a success, and the instrument is not held, so a later subscribe asks the broker again.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "status": 400,
+      "body": {
+        "json": {
+          "type": "error",
+          "code": "e-instrument-0001",
+          "description": "instrument not allowed"
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rmoney/streaming/rmoney_websocket.py::RMoneyWebSocketClient.subscribe",
+      "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter.subscribe"
+    ],
+    "notes": [
+      "The web acknowledges the subscribe before it is sent: the adapter queues it for a batch and answers 'Subscription requested' (rmoney_adapter.py:431-445); the batch's refusal raises (rmoney_websocket.py:558-559) and is only logged and tried again (rmoney_adapter.py:646-653), so the client never hears of it.",
+      "A web defect the desktop does not copy (review R107-03, decisions.md 'Never copy a web defect'): an acknowledgement for something that never streams. The reply is not one of the frames web.json compares, so there is no deviation entry; the web write-up is in the lane's report.",
+      "The refusal's code and description are made up for this case: no recorded XTS refusal exists. 400 is what the feed reads as a definite refusal (brokers/families/xts/streaming.rs subscription_call); the reason is passed on as the broker gave it."
+    ]
+  }
+}
