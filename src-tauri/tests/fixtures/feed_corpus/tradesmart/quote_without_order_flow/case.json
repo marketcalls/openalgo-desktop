@@ -38,31 +38,36 @@
       "key": "average_price",
       "kind": "web-defect",
       "reason": "This snapshot carries no average price; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
-      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "This snapshot carries no last quantity; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
-      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "oi",
       "kind": "web-defect",
-      "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
-      "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))"
+      "reason": "This snapshot carries no OI; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
-      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's TradeSmart Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
-      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py QuoteNormalizer"
+      "reason": "This snapshot carries no book totals; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
-      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's TradeSmart Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
-      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py QuoteNormalizer"
+      "reason": "This snapshot carries no book totals; the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers",
+      "approval": "leave-out-unsent"
     }
   ]
 }

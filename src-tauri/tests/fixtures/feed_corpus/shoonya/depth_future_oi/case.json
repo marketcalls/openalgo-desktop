@@ -42,7 +42,8 @@
       "key": "last_trade_time",
       "kind": "web-defect",
       "reason": "The web's Shoonya adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old trade time ltt: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
-      "ref": "audit R107-10, BR-107-04; broker/shoonya/streaming/shoonya_adapter.py MarketDataCache.update"
+      "ref": "audit R107-10, BR-107-04; broker/shoonya/streaming/shoonya_adapter.py MarketDataCache.update",
+      "approval": "inherited-omissions"
     }
   ]
 }

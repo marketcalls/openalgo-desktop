@@ -35,7 +35,8 @@
       "key": "oi",
       "kind": "web-defect",
       "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
-      "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))"
+      "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))",
+      "approval": "leave-out-unsent"
     }
   ]
 }

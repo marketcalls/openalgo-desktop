@@ -36,25 +36,29 @@
       "key": "last_trade_time",
       "kind": "web-defect",
       "reason": "The web's TradeSmart adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old trade time ltt: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
-      "ref": "audit R107-10, BR-107-04; broker/tradesmart/streaming/tradesmart_adapter.py MarketDataCache.update"
+      "ref": "audit R107-10, BR-107-04; broker/tradesmart/streaming/tradesmart_adapter.py MarketDataCache.update",
+      "approval": "inherited-omissions"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
-      "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))"
+      "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "percent_change",
       "kind": "web-defect",
       "reason": "The web's TradeSmart adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old change pc: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
-      "ref": "audit R107-10, BR-107-04; broker/tradesmart/streaming/tradesmart_adapter.py MarketDataCache.update"
+      "ref": "audit R107-10, BR-107-04; broker/tradesmart/streaming/tradesmart_adapter.py MarketDataCache.update",
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "tradesmart_timestamp",
       "kind": "web-defect",
       "reason": "The web's TradeSmart adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old feed time ft: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
-      "ref": "audit R107-10, BR-107-04; broker/tradesmart/streaming/tradesmart_adapter.py MarketDataCache.update"
+      "ref": "audit R107-10, BR-107-04; broker/tradesmart/streaming/tradesmart_adapter.py MarketDataCache.update",
+      "approval": "inherited-omissions"
     }
   ]
 }

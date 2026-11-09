@@ -120,7 +120,6 @@ const WITHOUT_BROKER: &[&str] = &[
     "dhan_sandbox",
     "firstock",
     "fivepaisaxts",
-    "flattrade",
     "fyers",
     "hdfcsecurities",
     "hdfcsky",
@@ -134,10 +133,7 @@ const WITHOUT_BROKER: &[&str] = &[
     "pocketful",
     "rmoney",
     "rupeezy",
-    "shoonya",
-    "tradesmart",
     "upstox",
     "wisdom",
-    "zebu",
     "zerodha",
 ];
