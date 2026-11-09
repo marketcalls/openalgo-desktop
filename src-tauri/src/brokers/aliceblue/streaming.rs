@@ -374,11 +374,13 @@ impl FeedSnap {
         if v.get("cv").is_some() {
             self.change = Some(num(v.get("cv")));
         }
-        if v.get("ft").is_some() {
-            let ft = int(v.get("ft"));
-            if ft > 0 {
-                self.ft_ms = if ft > 100_000_000_000 { ft } else { ft * 1000 };
-            }
+        let ft = int(v.get("ft"));
+        if ft > 0 {
+            self.ft_ms = if ft > 100_000_000_000 { ft } else { ft * 1000 };
+        } else if num(v.get("lp")) != 0.0 {
+            // A new price without its own time has none, never the previous
+            // packet's (audit R107-10; the web keeps the old one).
+            self.ft_ms = 0;
         }
         merge_levels(&mut self.bids, v, "bp", "bq", "bo");
         merge_levels(&mut self.asks, v, "sp", "sq", "so");

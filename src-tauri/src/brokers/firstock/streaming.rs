@@ -103,7 +103,8 @@ fn valid_level(level: &Value) -> bool {
 }
 
 /// Merge one tick into a snapshot (sentinels skipped, zero prices kept out,
-/// a depth side replaced only by the valid levels it brings).
+/// a depth side replaced only by the valid levels it brings, the trade time
+/// only with the price it came with).
 pub fn merge(snapshot: &mut Map<String, Value>, data: &Map<String, Value>) {
     for (k, v) in data {
         if k == "best_buy" || k == "best_sell" {
@@ -123,6 +124,13 @@ pub fn merge(snapshot: &mut Map<String, Value>, data: &Map<String, Value>) {
                 snapshot.insert(k.clone(), v.clone());
             }
         }
+    }
+    // A new price without its own time has none, never the previous
+    // trade's (audit R107-10; the web keeps the old one, an inherited
+    // defect).
+    let valued = |k: &str| data.get(k).and_then(number).is_some_and(|x| x != 0.0);
+    if valued("i_last_traded_price") && !valued("i_last_trade_time") {
+        snapshot.remove("i_last_trade_time");
     }
 }
 
