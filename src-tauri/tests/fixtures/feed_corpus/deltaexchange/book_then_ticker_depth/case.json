@@ -35,18 +35,6 @@
       "ref": "feed::bridge::depth_update"
     },
     {
-      "key": "total_buy_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop's canonical total_buy_quantity / total_sell_quantity go beside the web's totalbuyqty / totalsellqty with the same value (feed/dialect/names.rs: the canonical set plus the adapter's names).",
-      "ref": "feed/dialect/names.rs DELTA"
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "desktop-decision",
-      "reason": "As total_buy_quantity.",
-      "ref": "feed/dialect/names.rs DELTA"
-    },
-    {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web pads a short side of Delta's book to five zero levels Delta never sent and gives them no order count; the desktop sends the levels Delta sent (lead rule on book levels: padding a web adapter adds is a web defect).",

@@ -1,8 +1,6 @@
 {
   "broker": "nubra",
   "data": {
-    "ask": 1301.5,
-    "bid": 1301.0,
     "depth": {
       "buy": [
         {

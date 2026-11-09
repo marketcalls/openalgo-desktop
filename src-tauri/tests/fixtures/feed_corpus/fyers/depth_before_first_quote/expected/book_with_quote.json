@@ -1,12 +1,8 @@
 {
   "broker": "fyers",
   "data": {
-    "ask_price": 801.5,
-    "ask_size": 20,
     "average_price": 800.1,
     "avg_trade_price": 800.1,
-    "bid_price": 801.45,
-    "bid_size": 10,
     "change": 11.5,
     "change_percent": 1.46,
     "close": 790.0,
