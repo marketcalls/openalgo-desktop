@@ -191,7 +191,11 @@ impl World {
     pub(crate) async fn start(case: &Case, feeds: fn(&Env) -> Feeds) -> World {
         let mut upstreams = BTreeMap::new();
         for s in Socket::ALL {
-            upstreams.insert(s, Upstream::bind(case.upstream_ignore.clone()).await);
+            let up = Upstream::bind(case.upstream_ignore.clone()).await;
+            if case.close_sockets.contains(&s) {
+                up.expect_close();
+            }
+            upstreams.insert(s, up);
         }
         let urls: BTreeMap<Socket, String> = upstreams
             .iter()

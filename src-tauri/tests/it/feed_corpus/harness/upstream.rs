@@ -177,8 +177,8 @@ impl Upstream {
     }
 
     /// From now on, record the feed closing a connection (its close frame,
-    /// or an end without one) as a frame it sent: the manager is about to
-    /// close it deliberately.
+    /// or an end without one) as a frame it sent: the case expects a close
+    /// on this socket (`Case::close_sockets`).
     pub(crate) fn expect_close(&self) {
         self.state.lock().record_close = true;
     }
@@ -255,7 +255,7 @@ async fn serve(
                     Some(Ok(Message::Binary(b))) => Wire::Binary(b),
                     Some(Ok(Message::Close(frame))) if state.lock().record_close && !closed => {
                         closed = true;
-                        Wire::Closed(frame.map(|f| u16::from(f.code)))
+                        Wire::Closed(frame.map(|f| (u16::from(f.code), f.reason.to_string())))
                     }
                     Some(Ok(_)) => continue,
                     _ => {
