@@ -951,22 +951,45 @@ fn a_packet_without_a_trade_sends_only_its_book() {
     assert_eq!(b["open"], 1400.0, "what the packet did send is kept: {}", b);
 }
 
-/// A full packet with no book levels reaches Quote and LTP holders only:
-/// handed to Depth holders it would carry the connection's last book, a
-/// book this packet may say is gone (lead ruling 2026-11-09).
+/// A full packet with no book levels says so (`book_absent`): its Depth
+/// frame goes out with no `depth` key, as the web sends it, never with the
+/// connection's last book (lead ruling 2026-11-09). A packet with a book,
+/// and an index (which has none), do not set it.
 #[test]
-fn a_full_packet_without_a_book_is_no_depth_tick() {
+fn a_full_packet_without_a_book_says_it_has_none() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
     let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
-    f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
+    f.subscribe_frames(&[
+        sub("RELIANCE", "NSE", "2885", FeedMode::Depth),
+        sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Depth),
+    ]);
+    let with_book = f.parse(&Message::Binary(frame(vec![mbp_packet(
+        2885,
+        pt::NSE_CM_ALL,
+    )])));
     let mut p = mbp_packet(2885, pt::NSE_CM_ALL);
     if let Some(m) = p.mbp_data.as_mut() {
         m.market_depth_dto_list = None;
     }
-    let ev = f.parse(&Message::Binary(frame(vec![p])));
-    let [FeedEvent::Tick(t)] = ev.as_slice() else {
-        panic!("{:?}", ev)
+    let without = f.parse(&Message::Binary(frame(vec![p, index_packet()])));
+    let [FeedEvent::Tick(t), FeedEvent::Tick(i)] = without.as_slice() else {
+        panic!("{:?}", without)
     };
-    assert_eq!((t.mode, t.ltp), (2, 1410.5));
+    assert_eq!((t.mode, t.book_absent), (3, true));
+    assert!(!i.book_absent, "an index has no book to lack");
+    let FeedEvent::Tick(first) = &with_book[0] else {
+        panic!("{:?}", with_book)
+    };
+    assert!(!first.book_absent);
+    let mut frames = Frames::new("hdfcsky");
+    frames.at(&with_book, Mode::Depth);
+    let next = frames.at(&without[..1], Mode::Depth);
+    let [d] = next.as_slice() else {
+        panic!("{:?}", next)
+    };
+    assert!(d.get("depth").is_none(), "no last book: {}", d);
+    assert_eq!(d["ltp"], 1410.5, "{}", d);
 }
 
 /// An `ALL` future carries its OI (even a zero one: a derivative's packet

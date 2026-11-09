@@ -27,7 +27,7 @@
       "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize"
     ],
     "notes": [
-      "The third packet has no book levels. The web publishes it on the Depth topic with no depth key; lead ruling (2026-11-09): follow the web, never the connection's last book (proto3 cannot tell an empty level list from one not sent, and a cleared book shown as the old one is ghost liquidity). The desktop sends a Depth holder no frame for it until lane wire's switch for a tick without its own book lands (missing-frame, open). Live check: does HDFC's empty book list mean unchanged or cleared.",
+      "The third packet has no book levels. Both sides publish its Depth frame with no depth key (wire-3's book_absent): never the connection's last book, since proto3 cannot tell an empty level list from one not sent and a cleared book shown as the old one is ghost liquidity (lead ruling 2026-11-09). Live check: does HDFC's empty book list mean unchanged or cleared.",
       "Both sides send the levels the packet carried (three bids, two asks), at most five a side: MarketDepthDTOList.marketDepthDTO is a repeated field with no fixed slots."
     ]
   },
@@ -38,12 +38,6 @@
       "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
       "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
       "approved": true
-    },
-    {
-      "key": "missing-frame",
-      "kind": "open",
-      "reason": "A full packet without book levels: the web publishes its Depth frame with no depth key; the desktop sends a Depth holder none, since a full tick would carry the connection's last book (ghost liquidity; proto3 cannot tell an empty level list from one not sent). Lead ruling 2026-11-09: follow the web, no depth key. Needs a bridge switch for a tick that carries no book of its own (lane wire).",
-      "ref": "hdfcsecurities_adapter.py:447-452; investright::finish; feed/bridge/render.rs::snapshot_update"
     },
     {
       "key": "oi",

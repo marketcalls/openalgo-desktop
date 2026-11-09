@@ -35,22 +35,19 @@ pub(crate) struct PacketFacts {
 /// goes on its own to Depth holders, with ltp 0, as a book before the first
 /// quote does.
 ///
-/// A full packet without book levels goes to Quote and LTP holders only
-/// (mode 2). The web sends its Depth frame with no `depth` key: proto3
-/// cannot tell an empty level list from one not sent, and it may mean a
-/// cleared book. On the desktop a full tick would carry the connection's
-/// last book to Depth holders, which could show liquidity that is gone; a
-/// frame without the book needs a bridge switch (lane wire), and until then
-/// a Depth holder gets no frame for such a packet.
+/// A full packet without book levels says it has no book (`book_absent`):
+/// its Depth frame goes out with no `depth` key, as the web sends it, and
+/// never with the connection's last book. proto3 cannot tell an empty level
+/// list from one not sent, and it may mean a cleared book, so the old book
+/// shown for it could be liquidity that is gone (lead ruling 2026-11-09).
 pub(crate) fn finish(t: &mut NormalizedTick, p: PacketFacts) {
     t.extras.lower_circuit = limit(p.band.0);
     t.extras.upper_circuit = limit(p.band.1);
     set_trade_time(t, p.ltt);
     mark_carriage(t, p.subscribed, p.index);
+    t.book_absent = t.mode == 3 && !p.book && !p.index;
     if t.ltp == 0.0 {
         t.mark_absent(QuoteField::Ltp);
-    }
-    if t.ltp == 0.0 || (!p.book && !p.index) {
         t.mode = t.mode.min(2);
         // A derivative's OI is still in the packet, beyond mode 2.
         if t.mode == 2 && !t.absent.contains(QuoteField::OpenInterest) {

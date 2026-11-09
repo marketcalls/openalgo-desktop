@@ -5,4 +5,4 @@
 {"step": "push", "frame": "frames/full_three_two.hex"}
 {"step": "receive", "client": "a", "frame": "expected/depth_three_two.json"}
 {"step": "push", "frame": "frames/full_no_book.hex"}
-{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "A full packet without a book: the web publishes its Depth frame with no depth key; the desktop sends none (a full tick would carry the connection's last book), until lane wire's per-packet book switch lands (missing-frame, open)."}
+{"step": "receive", "client": "a", "frame": "expected/depth_no_book.json", "note": "A full packet without a book: its Depth frame has no depth key, as the web sends it, and never the connection's last book (book_absent; lead ruling 2026-11-09)."}
