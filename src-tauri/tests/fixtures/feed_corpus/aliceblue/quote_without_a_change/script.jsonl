@@ -1,0 +1,10 @@
+{"step": "upstream_receives", "frames": [{"json": {"susertoken": "5ce3151c3330d77217eec62326ffd67e4f22d297172904dc86575089f8e6e909", "t": "c", "actid": "AB1_API", "uid": "AB1_API", "source": "API"}}], "note": "The relay's login to the market socket: susertoken is SHA-256 of SHA-256 of the fake session JWT header.payload.signature, not a secret (gitleaks:allow)."}
+{"step": "push", "frame": "frames/login_ok.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NSE|2885"}}]}
+{"step": "push", "frame": "frames/tk.json", "note": "A snapshot without pc or cv."}
+{"step": "receive", "client": "a", "frame": "expected/quote_no_change.json"}
+{"step": "push", "frame": "frames/tf.json", "note": "A delta with pc: the change appears."}
+{"step": "receive", "client": "a", "frame": "expected/quote_change.json"}
+{"step": "push", "frame": "frames/tf_price_only.json", "note": "A new price alone: pc has not changed."}
+{"step": "receive", "client": "a", "frame": "expected/quote_kept.json"}

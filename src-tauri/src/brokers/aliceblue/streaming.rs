@@ -698,14 +698,18 @@ fn snapshot_tick(sub: &FeedSubscription, snap: &FeedSnap, book: bool) -> Normali
         (false, true) => tick.mark_absent(F::OpenInterest),
         _ => {}
     }
+    // The web only forwards AliceBlue's `pc`: with none known on this
+    // connection there is no change, never one worked out from the close
+    // (lead rule no-derived-change).
+    let Some(pc) = snap.change_percent else {
+        tick.mark_absent(F::Change);
+        return tick;
+    };
     tick.derive_change();
-    if let Some(pc) = snap.change_percent {
-        tick.change_percent = pc;
-        tick.mark_carried(F::Change);
-    }
+    tick.change_percent = pc;
+    tick.mark_carried(F::Change);
     if let Some(cv) = snap.change {
         tick.change = round2(cv);
-        tick.mark_carried(F::Change);
     }
     tick
 }
