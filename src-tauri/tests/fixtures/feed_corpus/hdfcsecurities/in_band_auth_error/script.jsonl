@@ -4,5 +4,6 @@
 {"step": "receive", "client": "a", "frame": "expected/quote.json", "note": "The session streams until the broker says it has ended."}
 {"step": "push", "frame": "frames/auth_error.json"}
 {"step": "silence", "client": "a", "note": "The error frame is not market data."}
+{"step": "upstream_receives", "frames": [{"close": null}], "note": "The feed closes the socket itself after the auth error."}
 {"step": "upstream_connections", "socket": "main", "count": 1, "ms": 500, "note": "The feed stops at the error and does not connect again until the trader logs in again (the web retries with the token in its database and stops when it is unchanged)."}
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "partial", "subscriptions": [{"symbol": "SBIN", "exchange": "NSE", "status": "error", "message": "HDFC Securities ended the live data session. Log in to HDFC Securities again.", "broker": "hdfcsecurities"}], "message": "Subscription processing complete", "broker": "hdfcsecurities"}, "note": "The feed has stopped: a new subscribe is refused with the trader's session-ended message and nothing reaches the broker. A feed that ignored the error frame would accept it and send it."}

@@ -36,7 +36,8 @@
     "notes": [
       "The web marks the session fatal on this frame (_on_ws_message, _is_fatal_auth_error, _mark_fatal_error) and, when the socket closes, retries with the token in its database a bounded number of times and stops when that token is unchanged (_run_websocket). The desktop's token changes only with a new login, so HdfcSecuritiesFeed::parse answers the frame with AuthFailed (investright::text_events, shared with HDFC Sky) and the manager stops until the next login.",
       "web.json has no frame for the error push: text frames publish nothing on the web.",
-      "After the error frame the case subscribes SBIN: the desktop answers it with the session-ended message (the bridge reports the feed's AuthFailed status) and sends nothing upstream. The web keeps its socket until the broker closes it and would still queue the subscribe (subscribe_scrips). The step is what pins RB-10: with the error frame ignored the subscribe succeeds and reaches the broker."
+      "After the error frame the case subscribes SBIN: the desktop answers it with the session-ended message (the bridge reports the feed's AuthFailed status) and sends nothing upstream. The web keeps its socket until the broker closes it and would still queue the subscribe (subscribe_scrips). The step is what pins RB-10: with the error frame ignored the subscribe succeeds and reaches the broker.",
+      "After the error frame the feed closes the socket itself ({\"close\": null}) and opens no other connection; a feed that ignored the frame would keep the socket open."
     ]
   },
   "deviations": [
