@@ -111,5 +111,4 @@ const BROKERS: &[(&str, &[&str])] = &[
 /// that passes its broker must leave it (the harness fails either way), and
 /// the release gate (`scripts/feed_corpus/release_gate.py`) fails while it
 /// is not empty.
-const WITHOUT_BROKER: &[&str] = &[
-];
+const WITHOUT_BROKER: &[&str] = &[];
