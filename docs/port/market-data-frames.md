@@ -165,7 +165,7 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 | aliceblue | Q `change_percent` (its only change key), `total_oi` (its only OI key); the web sends depth `orders` 0, the desktop AliceBlue's own counts (web defect) | none | `carried(OpenInterest)` on a touchline's `toi`, marks for what a message lacks, real order counts |
 | angel | Q `last_trade_quantity`; D `upper_circuit`, `lower_circuit` | number | `extras.upper_circuit` / `lower_circuit` from SNAP (parsed, not yet carried) |
 | arrow | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; D circuits | none | close and change in the 17-byte LTPC packet (`carried`), circuits from 241-byte packets |
-| compositedge, fivepaisaxts, ibulls, iifl, jainamxts, rmoney, wisdom (XTS) | L `ltq`; D `oi`, circuits | number | `carried(LastQuantity)` on 1512, circuits from 1502 root fields |
+| compositedge, fivepaisaxts, ibulls, iifl, jainamxts, rmoney, wisdom (XTS) | `ltq` in LTP only (`nt`: Quote and Depth name it `last_quantity`); D circuits, and the canonical `oi` in Depth only; no canonical change on an index (`no_index_change`) | number | `absent` for every field an event lacks, `carried(LastQuantity)` on 1512, circuits from 1502 root fields; Jainam and RMoney mark a 1105 text event's counts `NumberForm::Double` (`float()` on the web); RMoney's 1501 is an LTP message while the symbol is held at LTP only (`XtsHooks::touchline_by_holding`) |
 | definedge | Q `ltq`, `change_percent`, `percent_change`, `prev_oi`, `total_oi`, `bid`, `bid_qty`, `ask`, `ask_qty`; D `total_buy_qty`, `total_sell_qty`, circuits, `52w_high`, `52w_low` | number | `extras` previous OI, total OI, best bid and ask, circuits, 52-week range |
 | deltaexchange | L `open`, `high`, `low`, `close`, `oi`, `bid_price`, `bid_qty`, `ask_price`, `ask_qty`; D `totalbuyqty`, `totalsellqty`; depth levels without `orders` | number | best bid and ask from the ticker `q` array; `absent(Orders)` on the book |
 | dhan | L `last_trade_time` (s); Q `day_close`; D `prev_oi`, `oi_high`, `oi_low`, `depth_level` | number | previous close as `close` and the packet's close as `extras.day_close` (audit P-03), previous OI, `BrokerField::OiHigh` / `OiLow` |
@@ -232,12 +232,12 @@ fix the Zerodha shape):
 - **Each frame shaped as the broker's web adapter shapes it** (`Fold` in
   `feed/dialect/names.rs`): trimmed to the holder's mode where the adapter
   publishes a dict per mode (Zerodha, as recorded; Sahi, Rupeezy, Upstox,
-  ...); carrying the whole packet, its book and circuits included, with the
+  ..., AliceBlue, whose LTP dict is `ltp` and `ltt`, and Jainam, whose XTS
+  adapter publishes each message to every held mode in that mode's dict);
+  carrying the whole packet, its book and circuits included, with the
   dict's own `data.mode`, where the adapter publishes one dict per packet
-  (Arrow, Paytm, mStock, the XTS family, Delta Exchange, Angel, Dhan,
-  IndMoney, Pocketful), as the web sends that dict to a lower holder.
-  AliceBlue publishes a dict per subscribed mode (its LTP dict is `ltp` and
-  `ltt`), so its frames are trimmed to the holder's mode.
+  (Arrow, Paytm, mStock, the other XTS members, Delta Exchange, Angel,
+  Dhan, IndMoney, Pocketful), as the web sends that dict to a lower holder.
 - **What the Python SDK sees.** SDK 2.0.5 (`openalgo/feed.py`) calls the LTP
   callback for a frame with `mode` 1, the Quote callback for 2 and the
   Depth callback for 3 (with a book). So each callback runs once per broker

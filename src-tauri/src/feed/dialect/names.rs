@@ -326,9 +326,11 @@ const RUPEEZY: &[WebName] = &[
 ];
 
 /// The XTS family (CompositEdge, 5paisa XTS, IBulls, IIFL, Jainam, RMoney,
-/// Wisdom): `ltq` in LTP, circuits in Depth.
+/// Wisdom): `ltq` in the LTP dict only (`{ltp, ltt, ltq}`; Quote names it
+/// `last_quantity`), circuits in Depth (`_normalize_market_data` of each
+/// member's adapter).
 const XTS: &[WebName] = &[
-    n("ltq", S::LastQuantity, L),
+    nt("ltq", S::LastQuantity, L, L),
     CIRCUITS_IN_DEPTH[0],
     CIRCUITS_IN_DEPTH[1],
 ];
@@ -615,6 +617,13 @@ const fn d(data_mode: DataMode, names: &'static [WebName]) -> Dialect {
     }
 }
 
+/// The XTS family's frame, as each member's `_normalize_market_data` writes it.
+const fn xts() -> Dialect {
+    d(DataMode::Number, XTS)
+        .no_index_change()
+        .key(Key::Oi, Modes::DEPTH)
+}
+
 /// The renderer's view of `broker`'s web frames. A broker not listed gets
 /// the canonical frame with a numeric `data.mode`, `oi` and
 /// `open_interest`, and `ltt` everywhere.
@@ -642,9 +651,12 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "kotak" => d(Absent, KOTAK).no_index_change().index_book(),
         "upstox" => d(Absent, UPSTOX).book_time(),
         "fyers" => d(Absent, FYERS).no_ltt(),
-        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "jainamxts" | "rmoney" | "wisdom" => {
-            d(Number, XTS).richer()
-        }
+        // The XTS adapters send `oi` in their Depth dict only, and no change
+        // on an index. Six publish one dict per packet at its code's mode;
+        // Jainam's publishes each message to every mode the symbol is held
+        // in, in that mode's dict (jainamxts_adapter.py _process_json_data).
+        "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "rmoney" | "wisdom" => xts().richer(),
+        "jainamxts" => xts(),
         "definedge" => d(Number, DEFINEDGE).depth_needs_book(),
         "deltaexchange" => d(Number, DELTA).no_ltt().richer(),
         "dhan" => d(Number, DHAN).richer(),

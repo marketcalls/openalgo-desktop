@@ -169,14 +169,7 @@ fn an_instruments_change_goes_under_the_brokers_names() {
         assert_eq!(d[name], 1.25, "{}: {}", broker, d);
         assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
     }
-    for broker in [
-        "zerodha",
-        "angel",
-        "upstox",
-        "dhan",
-        "compositedge",
-        "unknown",
-    ] {
+    for broker in ["zerodha", "angel", "upstox", "dhan", "unknown"] {
         for mode in [Mode::Quote, Mode::Depth] {
             let d = data_at(equity(), mode, broker);
             for k in ["price_change", "price_change_percent", "change"] {
@@ -830,7 +823,8 @@ fn a_trade_time_goes_out_as_ist_text() {
 }
 
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,
-/// Tradejini, Kotak and Pocketful send no canonical change on an index;
+/// Tradejini, Kotak, Pocketful and the XTS family send no canonical change
+/// on an index;
 /// the broker's own names still go where it sends them (AliceBlue's
 /// `change_percent`); Zerodha's index frames carry the canonical ones.
 #[test]
@@ -842,6 +836,8 @@ fn the_canonical_index_change_follows_the_broker() {
         "tradejini",
         "kotak",
         "pocketful",
+        "compositedge",
+        "jainamxts",
     ] {
         let d = data_at(index(), Mode::Quote, broker);
         assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
