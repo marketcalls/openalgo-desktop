@@ -80,6 +80,14 @@ def symbols(message: dict) -> list[tuple[str, str]]:
     return [(s["symbol"], s["exchange"]) for s in items]
 
 
+def adapter_socket(step: dict) -> str:
+    """The glue socket a step's frame goes to: a further pooled market
+    connection (`main#2`, ...) is the market feed's (the replay runs one
+    web adapter; the web's pool gives each connection its own)."""
+    socket = step.get("socket", "main")
+    return "main" if socket.startswith("main#") else socket
+
+
 class Replay:
     """A case's script against the web: the web server's own subscription,
     release and delivery methods (`webserver.WebServer`, lifted from
@@ -120,12 +128,12 @@ class Replay:
             elif kind == "close_client":
                 self.server.close(client)
             elif kind == "drop_upstream":
-                self.glue.reconnect(step.get("socket", "main"))
+                self.glue.reconnect(adapter_socket(step))
             elif kind == "push":
                 frame, file_bytes = read_frame(self.case_dir, step["frame"])
                 if file_bytes is not None:
                     inputs += file_bytes
-                self.glue.push(step.get("socket", "main"), frame)
+                self.glue.push(adapter_socket(step), frame)
             elif kind == "http_serve":
                 # A new answer (an order book the poller reads next) is the
                 # web adapter's next poll.

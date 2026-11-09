@@ -9,7 +9,7 @@ approved when it names the rule it follows (`approvals.json`). 1.0.7 ships when
 `scripts/feed_corpus/release_gate.py --check` passes: every cell "matches web",
 "approved deviation" or "not offered by the web", and every module builds its broker.
 
-Cases: 375. Open gaps: 0. Deviations pending approval: 1242.
+Cases: 376. Open gaps: 0. Deviations pending approval: 1242.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -50,7 +50,7 @@ Cases: 375. Open gaps: 0. Deviations pending approval: 1242.
 | upstox | deviation pending approval: `ltpc_ltp_and_index_quote` | deviation pending approval: `auction_cas_fields`, `full_incremental_merge`, `ltpc_ltp_and_index_quote`, `reconnect_fresh_authorize` | matches web: `full_incremental_merge` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_lifecycle` |
 | wisdom | deviation pending approval: `ltp_equity_and_index`, `text_1105` | deviation pending approval: `index_quote_root`, `index_quote_touchline`, `quote_partial_keeps_the_quote`, `quote_root`, `quote_touchline`, `reconnect_replays`, `server_disconnect_reconnects`, `text_1105`, `unsubscribe_keeps_the_others` | deviation pending approval: `depth_five_and_clear`, `depth_five_beside_twenty`, `depth_zero_slots_kept`, `future_depth_oi` | deviation pending approval: `depth_five_beside_twenty`, `depth_twenty` | not offered by the web (refusal: `depth_thirty_and_fifty_refused`) | not offered by the web (refusal: `depth_thirty_and_fifty_refused`) | not offered by the web |
 | zebu | deviation pending approval: `index_ltp_and_quote` | deviation pending approval: `frame_without_exchange`, `index_ltp_and_quote`, `quote_snapshot_and_update`, `reconnect_replays` | deviation pending approval: `depth_future_oi` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_updates` |
-| zerodha | matches web: `ltp_mode`, `two_clients_mode_change` | deviation pending approval: `cds_quote_currency_unit`, `deliberate_disconnect`, `index_quote`, `quote_mode`, `reconnect_replays`, `refused_reconnect`, `two_clients_mode_change` | deviation pending approval: `full_depth_future`, `index_full` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_postbacks` |
+| zerodha | matches web: `ltp_mode`, `two_clients_mode_change` | deviation pending approval: `cds_quote_currency_unit`, `deliberate_disconnect`, `index_quote`, `pool_second_connection`, `quote_mode`, `reconnect_replays`, `refused_reconnect`, `two_clients_mode_change` | deviation pending approval: `full_depth_future`, `index_full` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_postbacks` |
 
 ## Scenarios covered
 

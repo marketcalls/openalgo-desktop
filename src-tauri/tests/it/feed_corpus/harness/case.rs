@@ -59,27 +59,53 @@ const METHODS: &[&str] = &["web-test", "web-script", "by-hand"];
 /// One of the fake broker sockets a case's feeds connect to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Socket {
-    /// The market data feed (Kite's order postbacks come on it too).
+    /// The market data feed's first connection (Kite's order postbacks
+    /// come on it too).
     Main,
+    /// A further connection of the market data pool, from 2: `main#2`,
+    /// `main#3` (`WebSocketManager::connect_pool`).
+    Pool(u8),
     /// A broker's separate deep-book socket (Dhan 20, Fyers 50).
     Depth,
     /// A dedicated order-update socket.
     Orders,
 }
 
+/// The names of the pool's further connections, `main#2` up.
+const POOL_NAMES: [&str; 8] = [
+    "main#2", "main#3", "main#4", "main#5", "main#6", "main#7", "main#8", "main#9",
+];
+
 impl Socket {
+    /// The sockets every case has.
     pub(crate) const ALL: [Socket; 3] = [Socket::Main, Socket::Depth, Socket::Orders];
 
     pub(crate) fn name(self) -> &'static str {
         match self {
             Socket::Main => "main",
+            Socket::Pool(n) => POOL_NAMES[usize::from(n) - 2],
             Socket::Depth => "depth",
             Socket::Orders => "orders",
         }
     }
 
     pub(crate) fn named(name: &str) -> Option<Socket> {
-        Self::ALL.into_iter().find(|s| s.name() == name)
+        let pool = POOL_NAMES
+            .iter()
+            .position(|p| *p == name)
+            .and_then(|i| u8::try_from(i + 2).ok())
+            .map(Socket::Pool);
+        pool.or_else(|| Self::ALL.into_iter().find(|s| s.name() == name))
+    }
+
+    /// The pooled connection this socket is, from 1 (the market feed's
+    /// first is `main`); `None` for the deep-book and order sockets.
+    pub(crate) fn pool_slot(self) -> Option<u8> {
+        match self {
+            Socket::Main => Some(1),
+            Socket::Pool(n) => Some(n),
+            Socket::Depth | Socket::Orders => None,
+        }
     }
 }
 
@@ -433,6 +459,11 @@ pub(crate) struct Case {
     /// so Depth subscribes at its levels are served at the market feed's
     /// levels (`BrokerBridge::set_deep_unavailable`).
     pub(crate) deep_feed_not_made: bool,
+    /// `case.json` `pool_per_connection`: the market data pool's instruments
+    /// per connection, in place of the broker's (`broker_runtime::
+    /// pool_limits`), so a case opens a further connection with a few
+    /// instruments; only for a broker whose pool has more than one.
+    pub(crate) pool_per_connection: Option<usize>,
     /// What the fake broker API answers from the start (`case.json`
     /// `http`).
     pub(crate) http: Vec<HttpAnswer>,
@@ -482,6 +513,7 @@ impl Case {
                 "invariants",
                 "deep_book_timeout_ms",
                 "deep_feed_not_made",
+                "pool_per_connection",
             ],
         );
         if o.get("broker").and_then(Value::as_str) != Some(broker) {
@@ -571,6 +603,12 @@ impl Case {
             sockets,
             close_sockets,
             refused_at_start,
+            pool_per_connection: o.get("pool_per_connection").map(|v| {
+                v.as_u64()
+                    .and_then(|n| usize::try_from(n).ok())
+                    .filter(|n| *n >= 1)
+                    .unwrap_or_else(|| bad(&at, "\"pool_per_connection\" is a number from 1"))
+            }),
             deep_feed_not_made: match o.get("deep_feed_not_made") {
                 None => false,
                 Some(v) => v
@@ -914,10 +952,12 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
     };
     let socket = || match o.get("socket") {
         None => Socket::Main,
-        Some(v) => v
-            .as_str()
-            .and_then(Socket::named)
-            .unwrap_or_else(|| bad(at, "socket is \"main\", \"depth\" or \"orders\"")),
+        Some(v) => v.as_str().and_then(Socket::named).unwrap_or_else(|| {
+            bad(
+                at,
+                "socket is \"main\", a pooled \"main#2\" to \"main#9\", \"depth\" or \"orders\"",
+            )
+        }),
     };
     let number = |k: &str| {
         o.get(k).map(|v| {

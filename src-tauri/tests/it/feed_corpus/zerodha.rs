@@ -5,12 +5,14 @@ use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::zerodha::streaming::KiteFeed;
 
 fn feeds(env: &Env) -> Feeds {
+    let symbols = env.symbols();
     Feeds::market(KiteFeed::with_url(
         &env.url("main"),
         "k",
         "t",
         env.symbols(),
     ))
+    .with_pool(move |url| Box::new(KiteFeed::with_url(url, "k", "t", symbols.clone())))
 }
 
 corpus_cases!(
@@ -28,5 +30,6 @@ corpus_cases!(
         deliberate_disconnect,
         order_postbacks,
         cds_quote_currency_unit,
+        pool_second_connection,
     ]
 );

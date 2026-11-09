@@ -88,6 +88,24 @@ web, with the cases that show the desktop refusing it too; a broker with
 - `deep_feed_not_made` (optional, true or false): the broker's deep-book
   feed could not be made this session (see "Adding a broker": with
   `with_broker` and `with_depth`).
+- `pool_per_connection` (optional): the market data pool's instruments per
+  connection, in place of the broker's (`broker_runtime::pool_limits`), so
+  a case opens a further connection with two or three instruments; only
+  for a broker whose pool has more than one connection, and with
+  `Feeds::with_pool` (below).
+
+The market feed runs the session's pool (`WebSocketManager::connect_pool`
+with the broker's pool limits, as `broker_runtime` starts it). Its first
+connection is the socket `main`; each further one is its own fake socket,
+`main#2`, `main#3` (up to `main#9`), which steps name like any socket
+(`push`, `upstream_receives`, `drop_upstream`, `upstream_connections`,
+`disconnect`), and which exists when the script names it. The module makes
+each further connection's feed for its socket's address with
+`Feeds::with_pool(|url| Box::new(<the feed at url>))`; without it the pool
+keeps to one connection. The web replay runs one adapter for the whole
+pool, so a frame pushed on `main#2` reaches the same web adapter as one on
+`main` (the web's pool gives each connection its own adapter instance: a
+per-connection cache difference shows there, never here).
 - `http` (optional): what the fake broker REST API answers from the start,
   a list of `{"method", "path", "status", "body", "record"}` (see "The fake
   broker API").
