@@ -40,5 +40,8 @@ corpus_cases!(
         one_token_on_two_exchanges,
         no_trade_yet,
         in_band_auth_error,
+        empty_book_first,
+        empty_book_between_books,
+        empty_book_quote_and_depth,
     ]
 );
