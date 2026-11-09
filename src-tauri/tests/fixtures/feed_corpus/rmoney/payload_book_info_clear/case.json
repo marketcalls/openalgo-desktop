@@ -63,85 +63,99 @@
       "key": "average_price",
       "kind": "web-defect",
       "reason": "XTS sent average_price in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
-      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)"
+      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)",
+      "approval": "lost-data-kept"
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "XTS sent last_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
-      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)"
+      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)",
+      "approval": "lost-data-kept"
     },
     {
       "key": "lower_circuit",
       "kind": "web-defect",
       "reason": "The 1502 event carries no LowerCircuitLimit; the web sends lower_circuit 0 for it (message.get('LowerCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
-      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)"
+      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
-      "ref": "rmoney_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+      "ref": "rmoney_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
+      "approval": "alias-unit"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The 1502 event carries no OpenInterest; the web sends oi 0 for it (message.get('OpenInterest', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
-      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)"
+      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "XTS sent total_buy_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
-      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)"
+      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)",
+      "approval": "lost-data-kept"
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "XTS sent total_sell_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
-      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)"
+      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)",
+      "approval": "lost-data-kept"
     },
     {
       "key": "upper_circuit",
       "kind": "web-defect",
       "reason": "The 1502 event carries no UpperCircuitLimit; the web sends upper_circuit 0 for it (message.get('UpperCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
-      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)"
+      "ref": "rmoney_adapter.py _normalize_market_data (mode 3)",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "The partial does not repeat close; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "RMoney sent this book's sides empty; the web's adapter adds the depth key only when a side has levels (if bids or asks), so its Depth frame carries no book and the client keeps showing the old one: the clear is lost. The desktop sends the empty book {buy: [], sell: []} (decisions: a book cleared after one existed is an empty book; web drops the key: web defect, the clear is lost; audit R107-09).",
-      "ref": "rmoney_adapter.py _normalize_market_data (:957); families/xts/streaming/variants.rs side"
+      "ref": "rmoney_adapter.py _normalize_market_data (:957); families/xts/streaming/variants.rs side",
+      "approval": "book-clear-kept"
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "The partial does not repeat high; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "The partial does not repeat low; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "The partial does not repeat open; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "The partial does not repeat volume; the web keeps no quote and sends 0 for it (.get(x, 0)), the desktop keeps the instrument's last value of it (feed/bridge/snapshot.rs; audit appendix item 1): lost data on the web.",
-      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote"
+      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs quote",
+      "approval": "market-state-overlay"
     }
   ]
 }
