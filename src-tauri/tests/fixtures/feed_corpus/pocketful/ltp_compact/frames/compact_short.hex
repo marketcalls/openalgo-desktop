@@ -1,0 +1,8 @@
+# A compact packet cut short at 22 bytes (both decoders need 42): nothing is published.
+02                      # mode 2: compact market data
+01                      # exchange code
+00000b45                # instrument token 2885
+00024a09                # last traded price 150025 paise
+00000401                # change 1025 paise (signed on the wire)
+69100284                # last traded time 1762656900 (epoch seconds)
+00020bd4                # lowDPR paise

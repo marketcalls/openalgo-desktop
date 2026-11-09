@@ -1,0 +1,57 @@
+{
+  "broker": "iiflcapital",
+  "summary": "The relay's connection drops: the new connection waits for the ready frame, subscribes both topics again, and the OI held from the old session is gone on the desktop until the first new OI packet.",
+  "scenarios": [
+    "reconnect",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY24NOV26FUT",
+      "brexchange": "NSEFO",
+      "name": "NIFTY",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::_decode_market_feed",
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::IiflcapitalWebSocket._dispatch_feed",
+      "broker/iiflcapital/streaming/iiflcapital_adapter.py::IiflcapitalWebSocketAdapter._handle_ticks",
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::IiflcapitalWebSocket._dispatch_oi"
+    ],
+    "notes": [
+      "The web's client keeps its OI cache across a reconnect: only an unsubscribe drops an entry (iiflcapital_websocket.py:282, 467)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "After a reconnect the web merges the OI its client held from the session before the drop (its OI cache survives the reconnect, iiflcapital_websocket.py:282, 467), a value from another session; the desktop leaves OI out until the new session's OI packet.",
+      "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::on_connected",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "After a reconnect the web merges the OI its client held from the session before the drop (its OI cache survives the reconnect, iiflcapital_websocket.py:282, 467), a value from another session; the desktop leaves OI out until the new session's OI packet.",
+      "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::on_connected",
+      "approved": true
+    }
+  ]
+}

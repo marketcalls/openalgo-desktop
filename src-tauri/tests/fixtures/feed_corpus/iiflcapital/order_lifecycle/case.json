@@ -1,0 +1,32 @@
+{
+  "broker": "iiflcapital",
+  "summary": "The order-update connection through the relay: order packets (no exchange: found by the instrument id) open, partly filled, complete, rejected with its reason, cancelled and trigger pending, and a trade packet for a fill, reported complete for that fill with the traded price.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSEEQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iiflcapital/streaming/iiflcapital_order_adapter.py::IiflCapitalOrderUpdateAdapter._normalize_order",
+      "broker/iiflcapital/streaming/iiflcapital_order_adapter.py::IiflCapitalOrderUpdateAdapter._normalize_trade",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Order and trade topics are prod/updates/order/v1/<client id> and prod/updates/trade/v1/<client id>; the relay subscribes them itself, so the feed sends no sub frame."
+    ]
+  }
+}

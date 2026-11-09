@@ -1,0 +1,36 @@
+{
+  "broker": "pocketful",
+  "summary": "A Depth subscription: the 166-byte snapquote gives the best five each side and the day's figures; it has no LTP, so both sides publish its average trade price as ltp; an empty book is five zero levels each side on both.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/api/packet_decoder.py::decodeSnapquoteData",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_snapquote_data",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._extract_depth_buy",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._extract_depth_sell"
+    ],
+    "notes": [
+      "Average as LTP is inherited from the web (audit inherited limitation 1): both publish 1498.76 here, pinned as it is.",
+      "A Depth subscriber gets the book frame only; the desktop's frame takes its quote fields from the snapquote's own tick."
+    ]
+  }
+}

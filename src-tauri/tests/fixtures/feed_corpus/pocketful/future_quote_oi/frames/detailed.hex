@@ -1,0 +1,26 @@
+# Detailed market data for NIFTY25NOVFUT (NFO, code 2, token 52345) with open interest.
+01                      # mode 1: detailed market data
+02                      # exchange code
+0000cc79                # instrument token 52345
+0025a8d2                # last_traded_price 2468050 paise
+6910028e                # last_traded_time 1762656910 (epoch seconds)
+0000004b                # last_traded_quantity
+0045b2f8                # trade_volume
+0025a8a0                # best_bid_price paise
+000005dc                # best_bid_quantity
+0025a904                # best_ask_price paise
+000008ca                # best_ask_quantity
+00000000000dea80        # total_buy_quantity (u64)
+00000000000ce4c8        # total_sell_quantity (u64)
+00259ef5                # average_trade_price paise
+69100290                # exchange_timestamp
+002575d8                # open_price paise
+0025c3f8                # high_price paise
+00256250                # low_price paise
+00255e68                # close_price paise (previous close)
+00290bd0                # yearly_high_price paise
+002143a0                # yearly_low_price paise
+0021a1c4                # lowDPR paise
+00291b0c                # highDPR paise
+00bc614b                # currentOpenInterest
+00b71b00                # initialOpenInterest

@@ -20,6 +20,7 @@ mod harness;
 mod inventory;
 
 mod angel;
+mod arrow;
 mod definedge;
 mod deltaexchange;
 mod dhan;
@@ -29,11 +30,15 @@ mod fyers;
 mod groww;
 mod hdfcsecurities;
 mod hdfcsky;
+mod iiflcapital;
 mod indmoney;
 mod kotak;
 mod motilal;
 mod mstock;
 mod nubra;
+mod paytm;
+mod pocketful;
+mod rupeezy;
 mod sahi;
 mod samco;
 mod tradejini;
@@ -43,6 +48,7 @@ mod zerodha;
 /// Every broker with cases, and its cases (the folder names).
 const BROKERS: &[(&str, &[&str])] = &[
     ("angel", angel::CASES),
+    ("arrow", arrow::CASES),
     ("definedge", definedge::CASES),
     ("deltaexchange", deltaexchange::CASES),
     ("dhan", dhan::CASES),
@@ -52,11 +58,15 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("groww", groww::CASES),
     ("hdfcsecurities", hdfcsecurities::CASES),
     ("hdfcsky", hdfcsky::CASES),
+    ("iiflcapital", iiflcapital::CASES),
     ("indmoney", indmoney::CASES),
     ("kotak", kotak::CASES),
     ("motilal", motilal::CASES),
     ("mstock", mstock::CASES),
     ("nubra", nubra::CASES),
+    ("paytm", paytm::CASES),
+    ("pocketful", pocketful::CASES),
+    ("rupeezy", rupeezy::CASES),
     ("sahi", sahi::CASES),
     ("samco", samco::CASES),
     ("tradejini", tradejini::CASES),

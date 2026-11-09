@@ -1,0 +1,53 @@
+# Paytm Money binary frame: a FULL packet for the future, with OI and its change.
+# -- FULL (175 bytes)
+3f                      # packet code 63
+ee020000                # level 1 buy quantity 750
+58020000                # level 1 sell quantity 600
+0500                    # level 1 buy orders 5
+0400                    # level 1 sell orders 4
+003ac046                # level 1 buy price 24605.0
+003cc046                # level 1 sell price 24606.0
+dc050000                # level 2 buy quantity 1500
+b0040000                # level 2 sell quantity 1200
+0900                    # level 2 buy orders 9
+0800                    # level 2 sell orders 8
+0039c046                # level 2 buy price 24604.5
+003dc046                # level 2 sell price 24606.5
+ca080000                # level 3 buy quantity 2250
+cf030000                # level 3 sell quantity 975
+0b00                    # level 3 buy orders 11
+0700                    # level 3 sell orders 7
+0038c046                # level 3 buy price 24604.0
+003ec046                # level 3 sell price 24607.0
+2c010000                # level 4 buy quantity 300
+96000000                # level 4 sell quantity 150
+0200                    # level 4 buy orders 2
+0100                    # level 4 sell orders 1
+0037c046                # level 4 buy price 24603.5
+003fc046                # level 4 sell price 24607.5
+39030000                # level 5 buy quantity 825
+34080000                # level 5 sell quantity 2100
+0600                    # level 5 buy orders 6
+0c00                    # level 5 sell orders 12
+0036c046                # level 5 buy price 24603.0
+0040c046                # level 5 sell price 24608.0
+003cc046                # ltp 24606.0
+557fc06a                # last trade time 1791000405, epoch s
+b9880000                # security id 35001
+01                      # tradable
+03                      # mode
+96000000                # last traded quantity 150
+801cc046                # average price 24590.25
+ce9c1c00                # volume 1875150
+d0dd0600                # total buy quantity 450000
+d8b80500                # total sell quantity 375000
+00ccbf46                # open 24550.0
+0090bf46                # previous close 24520.0
+0080c046                # high 24640.0
+00a5bf46                # low 24530.5
+3333b33e                # change percent 0.35
+0000ac42                # change 86.0
+0008cf46                # 52-week high 26500.0
+0018ab46                # 52-week low 21900.0
+ee63bc00                # open interest 12346350
+c8af0000                # open interest change 45000

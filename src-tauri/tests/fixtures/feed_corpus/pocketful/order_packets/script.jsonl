@@ -1,0 +1,13 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "push", "frame": "frames/order_open.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json", "web": false}
+{"step": "push", "frame": "frames/order_partial.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json", "web": false}
+{"step": "push", "frame": "frames/order_complete.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json", "web": false}
+{"step": "push", "frame": "frames/trade_fill.hex"}
+{"step": "receive", "client": "a", "frame": "expected/trade_fill.json", "web": false}
+{"step": "push", "frame": "frames/order_rejected.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json", "web": false}
+{"step": "push", "frame": "frames/order_cancelled.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json", "web": false}

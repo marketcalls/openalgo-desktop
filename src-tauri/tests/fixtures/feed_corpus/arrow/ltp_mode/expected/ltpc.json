@@ -1,0 +1,20 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "arrow",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "ltp": 1500.05,
+    "ltt": "<receipt_ms>",
+    "timestamp": "<receipt_ms>",
+    "token": "2885",
+    "last_price": 1500.05,
+    "close": 1488.3,
+    "prev_close": 1488.3,
+    "change": 11.75,
+    "change_percent": 0.79
+  }
+}

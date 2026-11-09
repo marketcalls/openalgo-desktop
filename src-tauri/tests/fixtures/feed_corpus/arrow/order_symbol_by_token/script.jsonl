@@ -1,0 +1,3 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "push", "frame": "frames/order_open.json", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}

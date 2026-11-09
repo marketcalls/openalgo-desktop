@@ -1,0 +1,19 @@
+# Arrow: RELIANCE quote packet with no trade time (0): ltt falls back to the feed time.
+# 93-byte quote packet (>II5xIIQQIIIIQIIQQQ).
+00000b45                # token 2885
+00024a09                # ltp 1500.25 (paise 150025)
+2b000003e8              # change flag and net change: ignored by both sides
+0000001e                # last traded quantity 30
+00024974                # average price 1498.76
+000000000001d4c0        # total buy quantity 120000
+0000000000017ed0        # total sell quantity 98000
+00024702                # open 1492.5
+00024dec                # high 1510.2
+0002455e                # previous close 1488.3 (before low)
+0002441e                # low 1485.1
+000000000034bf33        # volume 3456819
+00000000                # last trade time 0, epoch s
+6ac07ef1                # feed time 1791000305, epoch s
+0000000000000000        # open interest 0
+0000000000000000        # OI day high
+0000000000000000        # OI day low

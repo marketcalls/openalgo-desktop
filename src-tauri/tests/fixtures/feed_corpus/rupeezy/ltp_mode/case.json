@@ -1,0 +1,48 @@
+{
+  "broker": "rupeezy",
+  "summary": "An LTP subscription: Vortex's 22-byte ltp packet carries no time, so both frames are stamped on receipt; a heartbeat frame and a text order postback reach nobody; after the unsubscribe the ticker is taken back at its mode.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rupeezy/streaming/rupeezy_websocket.py::split_message",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::parse_packet",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._on_ticks",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._topics_for",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._normalize",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::RupeezyWebSocket._on_message"
+    ],
+    "notes": [
+      "The query carries auth_token, no login frame (rupeezy_websocket.py, module docstring)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends null; the docs say leave it out (lead decision 2026-11-09, 4(c)): an ltp packet, or an ohlcv packet before the first trade, carries no trade time, so the desktop's frame has no ltt, where the web sends ltt null.",
+      "ref": "rupeezy_adapter.py:222",
+      "approved": true
+    },
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "Without a trade time or update time the web sends timestamp null, a market data frame with no time (the SDK reads data.timestamp); the desktop stamps the time the packet was received.",
+      "ref": "rupeezy_adapter.py:223 ((last_update_time or ltt or 0) * 1000 or None)",
+      "approved": true
+    }
+  ]
+}

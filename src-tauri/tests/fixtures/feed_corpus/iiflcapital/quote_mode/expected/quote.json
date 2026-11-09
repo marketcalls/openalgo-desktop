@@ -1,0 +1,28 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "iiflcapital",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": "quote",
+    "ltp": 1500.05,
+    "ltt": 1791000300000,
+    "timestamp": "<receipt_ms>",
+    "volume": 3456789,
+    "last_quantity": 25,
+    "average_price": 1498.76,
+    "total_buy_quantity": 120000,
+    "total_sell_quantity": 98000,
+    "open": 1492.5,
+    "high": 1510.2,
+    "low": 1485.1,
+    "close": 1488.3,
+    "bid": 1500.0,
+    "ask": 1500.1,
+    "bid_quantity": 100,
+    "ask_quantity": 200
+  }
+}

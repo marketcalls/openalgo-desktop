@@ -1,0 +1,40 @@
+{
+  "broker": "pocketful",
+  "summary": "Pocketful drops the socket: the feed reconnects with the same query login, subscribes again, and the next packet reaches the client.",
+  "scenarios": [
+    "reconnect",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._on_open",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_detailed_data"
+    ],
+    "notes": [
+      "The web reconnects with login_id and access_token in the query (pocketful_adapter.py:156) and queues every subscription again (_on_open)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
+      "ref": "pocketful_adapter.py:583, 631",
+      "approved": true
+    }
+  ]
+}

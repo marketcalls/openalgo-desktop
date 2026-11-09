@@ -1,0 +1,217 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "iiflcapital",
+  "inputs_sha256": "12e00b093ef36a78a25278ae1dfe107441af4eb3e0b2cbda069a592b16a23305",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSEEQ"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "iiflcapital",
+            "orderid": "26110900000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1500.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 10,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "iiflcapital",
+            "orderid": "26110900000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1500.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 4,
+            "pending_quantity": 6,
+            "average_price": 1500.45,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "iiflcapital",
+            "orderid": "26110900000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 4,
+            "price": 1500.45,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "complete",
+            "filled_quantity": 4,
+            "pending_quantity": 0,
+            "average_price": 1500.45,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "iiflcapital",
+            "orderid": "26110900000101",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1500.5,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "complete",
+            "filled_quantity": 10,
+            "pending_quantity": 0,
+            "average_price": 1500.48,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "iiflcapital",
+            "orderid": "26110900000102",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 5,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "MARKET",
+            "product": "MIS",
+            "order_status": "rejected",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": "RMS: Margin Exceeds"
+          }
+        }
+      ]
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "iiflcapital",
+            "orderid": "26110900000103",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 1490.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "cancelled",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    },
+    {
+      "line": 15,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "iiflcapital",
+            "orderid": "26110900000104",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 10,
+            "price": 0.0,
+            "trigger_price": 1482.5,
+            "pricetype": "SL-M",
+            "product": "NRML",
+            "order_status": "trigger pending",
+            "filled_quantity": 0,
+            "pending_quantity": 10,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    }
+  ]
+}

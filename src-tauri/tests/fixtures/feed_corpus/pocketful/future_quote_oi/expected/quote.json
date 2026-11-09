@@ -1,0 +1,25 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY25NOV25FUT",
+  "exchange": "NFO",
+  "mode": 2,
+  "broker": "pocketful",
+  "data": {
+    "symbol": "NIFTY25NOV25FUT",
+    "exchange": "NFO",
+    "mode": 2,
+    "ltp": 24680.5,
+    "ltt": 1762656910000,
+    "timestamp": "<receipt_ms>",
+    "volume": 4567800,
+    "average_price": 24655.25,
+    "total_buy_quantity": 912000,
+    "total_sell_quantity": 845000,
+    "open": 24550.0,
+    "high": 24750.0,
+    "low": 24500.0,
+    "close": 24490.0,
+    "oi": 12345675,
+    "last_trade_quantity": 75
+  }
+}

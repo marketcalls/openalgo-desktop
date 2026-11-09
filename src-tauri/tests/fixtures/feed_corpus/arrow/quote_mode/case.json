@@ -1,0 +1,31 @@
+{
+  "broker": "arrow",
+  "summary": "A Quote subscription: the 93-byte quote packet becomes a Quote frame with the trade time and the feed time; a packet without a trade time takes the feed time as ltt, and one without either is stamped on receipt.",
+  "scenarios": [
+    "first-full-packet",
+    "absent-field",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/arrow/streaming/arrow_websocket.py::ArrowWebSocket._parse_packet",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._on_ticks",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._normalize"
+    ],
+    "notes": []
+  },
+  "upstream_ignore": [
+    "PONG"
+  ]
+}

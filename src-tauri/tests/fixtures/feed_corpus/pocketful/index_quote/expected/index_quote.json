@@ -1,0 +1,20 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "broker": "pocketful",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "mode": 2,
+    "ltp": 24500.1,
+    "ltt": 1762656900000,
+    "timestamp": "<receipt_ms>",
+    "volume": 0,
+    "open": 24450.0,
+    "high": 24600.0,
+    "low": 24400.0,
+    "close": 24300.0
+  }
+}

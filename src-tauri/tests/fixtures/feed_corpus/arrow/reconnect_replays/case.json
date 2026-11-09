@@ -1,0 +1,30 @@
+{
+  "broker": "arrow",
+  "summary": "Arrow drops the socket: the manager reconnects with the same query, sends the quote subscription again on the new connection, and its packets reach the client.",
+  "scenarios": [
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/arrow/streaming/arrow_websocket.py::ArrowWebSocket._parse_packet",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._on_ticks",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._normalize",
+      "broker/arrow/streaming/arrow_websocket.py::ArrowWebSocket._resubscribe_all"
+    ],
+    "notes": []
+  },
+  "upstream_ignore": [
+    "PONG"
+  ]
+}

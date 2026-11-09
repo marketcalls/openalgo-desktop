@@ -1,0 +1,30 @@
+{
+  "broker": "pocketful",
+  "summary": "A Depth 20 subscribe: refused with the web adapter's words and status partial, nothing sent upstream; a Depth 5 subscribe after it streams the snapquote book.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py::WebSocketProxy.subscribe_client"
+    ],
+    "notes": [
+      "The web answers a Depth subscribe at any level but 5 with INVALID_DEPTH, \"Invalid depth level 20. Must be 5\", status partial (pocketful_adapter.py:256-259, websocket_proxy/server.py:1318-1334); the desktop refuses it at admission with the same words (feed/refusals.rs, lane life; PF-02)."
+    ]
+  }
+}

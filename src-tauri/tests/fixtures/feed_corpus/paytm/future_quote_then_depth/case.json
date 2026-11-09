@@ -1,0 +1,52 @@
+{
+  "broker": "paytm",
+  "summary": "Two clients on a NIFTY future: a Quote holder, then a Depth holder moves the preference from QUOTE to FULL in one frame; one FULL packet serves both, with its OI; the Depth holder leaving moves it back to QUOTE and the Quote holder keeps streaming.",
+  "scenarios": [
+    "derivative-oi",
+    "mode-change",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY24NOV26FUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_binary_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter.subscribe",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter.unsubscribe"
+    ],
+    "notes": [
+      "The web adds a second preference (FULL beside QUOTE) and keys token_map by the security id with the mode subscribed last; the Depth holder leaving deletes that key (paytm_adapter.py:500-501), so the web's Quote holder receives nothing more."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes Paytm's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time)",
+      "approved": true
+    },
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "When the Depth holder leaves, the web adapter deletes the security id from token_map (paytm_adapter.py:500-501) although the Quote holder's preference is still on the wire, so every later packet is dropped as untracked and the web's Quote holder receives nothing more. The desktop moves the preference back to QUOTE and keeps streaming to it.",
+      "ref": "paytm_adapter.py:463-501, 649-657",
+      "approved": true
+    }
+  ]
+}

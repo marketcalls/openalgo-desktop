@@ -1,0 +1,30 @@
+# The same instrument's next packet at exactly 186 bytes (no slack).
+0020                    # relay PUBLISH: topic length 32 (big-endian)
+70726f642f6d61726b6574666565642f6d772f76312f6e736565712f32383835  # topic prod/marketfeed/mw/v1/nseeq/2885
+094a0200                # ltp 1500.25 (x100)
+0a000000                # last traded quantity 10
+1fbf3400                # traded volume 3456799
+ec4d0200                # high 1510.2
+1e440200                # low 1485.1
+02470200                # open 1492.5
+5e450200                # previous close 1488.3
+74490200                # average traded price 1498.76
+0000                    # reserved
+64000000                # best bid quantity 100
+f0490200                # best bid price 1500.0
+c8000000                # best ask quantity 200
+fa490200                # best ask price 1500.1
+c0d40100                # total bid quantity 120000
+d07e0100                # total ask quantity 98000
+64000000                # price divisor 100
+f17ec06a                # last traded time 1791000305, epoch s
+64000000f049020003000100# bid 1: qty 100, price 1500.0, orders 3, transactionType 1
+65000000eb49020004000100# bid 2: qty 101, price 1499.95, orders 4, transactionType 1
+66000000e649020005000100# bid 3: qty 102, price 1499.9, orders 5, transactionType 1
+67000000e149020006000100# bid 4: qty 103, price 1499.85, orders 6, transactionType 1
+68000000dc49020007000100# bid 5: qty 104, price 1499.8, orders 7, transactionType 1
+c8000000fa49020004000200# ask 1: qty 200, price 1500.1, orders 4, transactionType 2
+c9000000ff49020005000200# ask 2: qty 201, price 1500.15, orders 5, transactionType 2
+ca000000044a020006000200# ask 3: qty 202, price 1500.2, orders 6, transactionType 2
+cb000000094a020007000200# ask 4: qty 203, price 1500.25, orders 7, transactionType 2
+cc0000000e4a020008000200# ask 5: qty 204, price 1500.3, orders 8, transactionType 2

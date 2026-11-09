@@ -1,0 +1,45 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "arrow",
+  "inputs_sha256": "9540afb9b829918deb48da21a91f71b6e331d6888825f80c72c8e7019da994a2",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "arrow",
+            "orderid": "25110900000104",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 10,
+            "price": 1480.0,
+            "trigger_price": 1482.5,
+            "pricetype": "SL-LMT",
+            "product": "MIS",
+            "order_status": "trigger pending",
+            "filled_quantity": 0,
+            "pending_quantity": 10,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ]
+    }
+  ]
+}

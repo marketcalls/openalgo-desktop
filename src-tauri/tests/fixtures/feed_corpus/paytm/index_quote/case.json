@@ -1,0 +1,75 @@
+{
+  "broker": "paytm",
+  "summary": "NIFTY 50 at Quote: the INDEX_QUOTE packet carries OHLC, the change and the 52-week range, and no time, volume, trades or book totals.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "13",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_binary_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "No live index packet was recorded.",
+      "Layout: paytm_websocket.py:395-414."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
+      "approved": true
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
+      "approved": true
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
+      "approved": true
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
+      "approved": true
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
+      "approved": true
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). The INDEX_QUOTE packet carries no time; the web sends ltt 0, the desktop leaves ltt out.",
+      "ref": "paytm_adapter.py:709",
+      "approved": true
+    }
+  ]
+}

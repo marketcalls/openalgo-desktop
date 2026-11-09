@@ -1,0 +1,21 @@
+# Paytm Money binary frame: a QUOTE packet for the NIFTY future (security id 35001).
+# -- QUOTE (67 bytes)
+3e                      # packet code 62
+003bc046                # ltp 24605.5
+507fc06a                # last trade time 1791000400, epoch s
+b9880000                # security id 35001
+01                      # tradable
+02                      # mode
+4b000000                # last traded quantity 75
+801cc046                # average price 24590.25
+389c1c00                # volume 1875000
+d0dd0600                # total buy quantity 450000
+d8b80500                # total sell quantity 375000
+00ccbf46                # open 24550.0
+0090bf46                # previous close 24520.0
+0080c046                # high 24640.0
+00a5bf46                # low 24530.5
+3333b33e                # change percent 0.35
+0000ab42                # change 85.5
+0008cf46                # 52-week high 26500.0
+0018ab46                # 52-week low 21900.0

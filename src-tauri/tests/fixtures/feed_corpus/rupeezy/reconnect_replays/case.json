@@ -1,0 +1,29 @@
+{
+  "broker": "rupeezy",
+  "summary": "Vortex drops the socket: a new connection starts with nothing subscribed, the manager subscribes the ticker again at its mode, and its packets reach the client.",
+  "scenarios": [
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rupeezy/streaming/rupeezy_websocket.py::split_message",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::parse_packet",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._on_ticks",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._topics_for",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._normalize",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::RupeezyWebSocket._resubscribe_all"
+    ],
+    "notes": []
+  }
+}

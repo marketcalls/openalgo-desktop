@@ -1,0 +1,58 @@
+{
+  "broker": "iiflcapital",
+  "summary": "A Depth subscription on an equity: the packet's ten depth entries are five bids then five asks (by position); the next packet moves the book; a packet whose entries are all zero sends five zero levels a side, as the web does.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSEEQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::_decode_market_feed",
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::IiflcapitalWebSocket._dispatch_feed",
+      "broker/iiflcapital/streaming/iiflcapital_adapter.py::IiflcapitalWebSocketAdapter._handle_ticks"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386",
+      "approved": true
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
+      "approved": true
+    },
+    {
+      "key": "ask",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
+      "approved": true
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
+      "approved": true
+    }
+  ]
+}

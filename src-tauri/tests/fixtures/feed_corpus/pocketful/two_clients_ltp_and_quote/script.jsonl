@@ -1,0 +1,11 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [[1, 2885]], "m": "compact_marketdata"}}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "compact_marketdata"}}, {"json": {"a": "subscribe", "v": [[1, 2885]], "m": "marketdata"}}], "note": "The desktop moves the instrument to the richer mode: compact off, detailed on. The web subscribes the detailed feed beside the compact one."}
+{"step": "push", "frame": "frames/detailed.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltp_from_quote.json"}
+{"step": "receive", "client": "b", "frame": "expected/quote.json", "web": false, "note": "The web publishes this packet on the LTP topic only (see the deviations)."}
+{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "marketdata"}}, {"json": {"a": "subscribe", "v": [[1, 2885]], "m": "compact_marketdata"}}], "note": "Back to compact for the LTP client alone."}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "compact_marketdata"}}]}

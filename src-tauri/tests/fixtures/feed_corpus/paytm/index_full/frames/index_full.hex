@@ -1,0 +1,14 @@
+# Paytm Money binary frame: one INDEX_FULL packet for NIFTY 50 (time at 35).
+# -- INDEX_FULL (39 bytes)
+42                      # packet code 66
+3387bf46                # ltp 24515.6
+0d000000                # security id 13
+01                      # tradable
+03                      # mode
+0004bf46                # open 24450.0
+33a0be46                # previous close 24400.1
+cde0bf46                # high 24560.4
+8078be46                # low 24380.25
+d7a3f03e                # change percent 0.47
+0000e742                # change 115.5
+ef7ec06a                # last trade time 1791000303, epoch s

@@ -1,0 +1,50 @@
+{
+  "broker": "arrow",
+  "summary": "Two clients on a NIFTY future: a Quote holder, then a Depth 20 subscribe (acknowledged as 5) moves Arrow from quote to full; one full packet serves both, the Quote frame with the OI the full packet carries; the Depth holder leaving moves Arrow back to quote and the Quote holder keeps streaming.",
+  "scenarios": [
+    "derivative-oi",
+    "mode-change",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52345",
+      "brsymbol": "NIFTY24NOVFUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "tick_size": 0.05
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/arrow/streaming/arrow_websocket.py::ArrowWebSocket._parse_packet",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._on_ticks",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._normalize",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter.subscribe",
+      "broker/arrow/streaming/arrow_websocket.py::ArrowWebSocket.unsubscribe",
+      "websocket_proxy/server.py::_unsubscribe_owned_subscription"
+    ],
+    "notes": [
+      "The web proxy releases (symbol, exchange, mode) on its own: the Depth holder leaving calls the adapter's unsubscribe for mode 3, which drops the token from Arrow entirely (arrow_websocket.py:344-365), so the web's Quote holder receives nothing more."
+    ]
+  },
+  "upstream_ignore": [
+    "PONG"
+  ],
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "When the Depth holder leaves, the web proxy asks the Arrow adapter to unsubscribe mode 3 only, and the adapter unsubscribes the whole token from Arrow (arrow_websocket.py:344-365) and forgets it (arrow_adapter.py:167): the Quote holder still subscribed on the web receives nothing more. The desktop moves Arrow back to quote and keeps streaming to it.",
+      "ref": "arrow_adapter.py:157-171; arrow_websocket.py:344-365; websocket_proxy/server.py::_unsubscribe_owned_subscription",
+      "approved": true
+    }
+  ]
+}

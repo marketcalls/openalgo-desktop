@@ -1,0 +1,40 @@
+{
+  "broker": "iiflcapital",
+  "summary": "Through the relay: the ready frame, then an LTP subscription takes the instrument's market-feed topic; a 188-byte MWBOCombined (186 plus the bridge's slack) and an exact 186-byte one become LTP frames with the trade time in ms; a shorter payload is dropped.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSEEQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::_decode_market_feed",
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::IiflcapitalWebSocket._dispatch_feed",
+      "broker/iiflcapital/streaming/iiflcapital_adapter.py::IiflcapitalWebSocketAdapter._handle_ticks",
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::IiflcapitalWebSocket._on_mqtt_message"
+    ],
+    "notes": [
+      "The relay frames (ready text, sub/unsub JSON, PUBLISH binary) are the desktop's own (brokers/iiflcapital/mqtt_relay.rs); the web glue unwraps the PUBLISH frame and hands the web the same topic and payload."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386",
+      "approved": true
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "broker": "paytm",
+  "summary": "NIFTY 50 at Depth: the INDEX_FULL packet carries OHLC, the change and the trade time at byte 35, and no book, OI or 52-week range.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "13",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_binary_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "No live index packet was recorded.",
+      "Layout: paytm_websocket.py:515-533."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
+    },
+    {
+      "key": "52_week_high",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
+    },
+    {
+      "key": "52_week_low",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web's index-full parser stores the trade time as last_trade_time and its normaliser reads last_traded_time, so the web sends ltt 0 and loses the time; the desktop decodes it.",
+      "ref": "paytm_websocket.py:529; paytm_adapter.py:728",
+      "approved": true
+    }
+  ]
+}

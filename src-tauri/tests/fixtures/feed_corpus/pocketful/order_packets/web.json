@@ -1,0 +1,41 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "pocketful",
+  "inputs_sha256": "e435662d4afd44ed50d2129e7a8d143ff37002fe995448f430a46f4b2c8ba164",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 4,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": []
+    },
+    {
+      "line": 8,
+      "published": []
+    },
+    {
+      "line": 10,
+      "published": []
+    },
+    {
+      "line": 12,
+      "published": []
+    }
+  ]
+}

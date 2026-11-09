@@ -1,0 +1,154 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "arrow",
+  "inputs_sha256": "1a83a7f926486e49cd8ce8df2a1daca9147b179fd4d87785aea27d02f252dce1",
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52345",
+      "brsymbol": "NIFTY24NOVFUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "tick_size": 0.05
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "token": "52345",
+            "ltp": 24605.5,
+            "last_price": 24605.5,
+            "ltt": 1791000400000,
+            "timestamp": 1791000401000,
+            "close": 24520.0,
+            "prev_close": 24520.0,
+            "change": 85.5,
+            "change_percent": 0.35,
+            "volume": 1875000,
+            "last_quantity": 75,
+            "average_price": 24590.25,
+            "total_buy_quantity": 450000,
+            "total_sell_quantity": 375000,
+            "open": 24550.0,
+            "high": 24640.0,
+            "low": 24530.5,
+            "oi": 12345600,
+            "open_interest": 12345600
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "token": "52345",
+            "ltp": 24606.0,
+            "last_price": 24606.0,
+            "ltt": 1791000405000,
+            "timestamp": 1791000406000,
+            "close": 24520.0,
+            "prev_close": 24520.0,
+            "change": 86.0,
+            "change_percent": 0.35,
+            "volume": 1875150,
+            "last_quantity": 150,
+            "average_price": 24590.25,
+            "total_buy_quantity": 450000,
+            "total_sell_quantity": 375000,
+            "open": 24550.0,
+            "high": 24640.0,
+            "low": 24530.5,
+            "oi": 12346350,
+            "open_interest": 12346350,
+            "depth": {
+              "buy": [
+                {
+                  "quantity": 750,
+                  "price": 24605.0,
+                  "orders": 5
+                },
+                {
+                  "quantity": 1500,
+                  "price": 24604.5,
+                  "orders": 9
+                },
+                {
+                  "quantity": 2250,
+                  "price": 24604.0,
+                  "orders": 11
+                },
+                {
+                  "quantity": 300,
+                  "price": 24603.5,
+                  "orders": 2
+                },
+                {
+                  "quantity": 825,
+                  "price": 24603.0,
+                  "orders": 6
+                }
+              ],
+              "sell": [
+                {
+                  "quantity": 600,
+                  "price": 24606.0,
+                  "orders": 4
+                },
+                {
+                  "quantity": 1200,
+                  "price": 24606.5,
+                  "orders": 8
+                },
+                {
+                  "quantity": 975,
+                  "price": 24607.0,
+                  "orders": 7
+                },
+                {
+                  "quantity": 150,
+                  "price": 24607.5,
+                  "orders": 1
+                },
+                {
+                  "quantity": 2100,
+                  "price": 24608.0,
+                  "orders": 12
+                }
+              ]
+            },
+            "upper_circuit": 26972.0,
+            "lower_circuit": 22068.0
+          }
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "published": []
+    }
+  ]
+}

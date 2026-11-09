@@ -23,7 +23,7 @@ use super::mqtt_relay::{self, MqttEndpoint, MqttRelay, MqttUpstream, Prepare, Pr
 use crate::brokers::common::relay;
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    NormalizedTick, OrderUpdate, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -262,10 +262,28 @@ impl MqttUpstream for MarketUpstream {
     }
 }
 
+/// Where a feed's relay side is: its own relay, started on first use, or
+/// a socket that plays the relay (the feed corpus's fake broker sends the
+/// ready frame and PUBLISH frames and takes the sub and unsub frames), so
+/// nothing connects to IIFL.
+enum RelaySide {
+    Own(Mutex<Option<MqttRelay>>),
+    At(String),
+}
+
+impl RelaySide {
+    fn url(&self, upstream: impl FnOnce() -> Arc<dyn MqttUpstream>) -> Result<String> {
+        match self {
+            RelaySide::Own(slot) => mqtt_relay::ensure_started(slot, upstream),
+            RelaySide::At(url) => Ok(url.clone()),
+        }
+    }
+}
+
 /// The market-data `BrokerFeed`.
 pub struct IiflFeed {
     upstream: Arc<MarketUpstream>,
-    relay: Mutex<Option<MqttRelay>>,
+    relay: RelaySide,
     /// Topic key -> subscription (bounded by the manager's subscriptions).
     subs: HashMap<String, FeedSubscription>,
     /// Latest OI per topic key (removed with the subscription).
@@ -285,10 +303,21 @@ impl IiflFeed {
                 endpoint,
                 session: Secret::new(session),
             }),
-            relay: Mutex::new(None),
+            relay: RelaySide::Own(Mutex::new(None)),
             subs: HashMap::new(),
             oi: HashMap::new(),
         })
+    }
+
+    /// The feed with its relay side at `url` ([`RelaySide::At`]).
+    pub fn with_relay_url(url: &str, session: &str) -> Result<Self> {
+        let mut feed = Self::new(
+            MqttEndpoint::plain("127.0.0.1", 0),
+            session,
+            SymbolResolver::new(),
+        )?;
+        feed.relay = RelaySide::At(url.to_string());
+        Ok(feed)
     }
 
     fn on_publish(&mut self, topic: &str, payload: &[u8]) -> Vec<FeedEvent> {
@@ -308,6 +337,33 @@ impl IiflFeed {
             return Vec::new();
         };
         ticks(sub, &p, self.oi.get(key).copied())
+    }
+}
+
+/// What a Quote or Depth tick carries beyond the packet's quote, as the
+/// web's `_handle_ticks` publishes it (`iiflcapital_adapter.py:395-421`):
+/// the best bid and ask with their quantities, and the open interest the
+/// OI topic last sent, in Quote frames too. An OI not known yet (none
+/// since the subscription or the connection began, or an instrument with
+/// no OI stream) is left out, never sent as 0; an index has no book and
+/// no OI, whose zeros the web passes on and the docs leave out. The web
+/// sends no change: an instrument's is left out, an index's goes under
+/// the docs' keys (lead decision 2026-11-09, `feed::dialect`).
+fn quote_extras(t: &mut NormalizedTick, sub: &FeedSubscription, p: &MarketPacket, oi: Option<i64>) {
+    let index = is_index(&sub.exchange);
+    match oi.filter(|_| !index) {
+        Some(v) => {
+            t.oi = v;
+            t.mark_carried(QuoteField::OpenInterest);
+        }
+        None => t.mark_absent(QuoteField::OpenInterest),
+    }
+    if !index {
+        t.mark_absent(QuoteField::Change);
+        t.extras.bid_price = Some(p.best_bid_price);
+        t.extras.bid_quantity = Some(p.best_bid_quantity);
+        t.extras.ask_price = Some(p.best_ask_price);
+        t.extras.ask_quantity = Some(p.best_ask_quantity);
     }
 }
 
@@ -333,7 +389,7 @@ pub fn ticks(sub: &FeedSubscription, p: &MarketPacket, oi: Option<i64>) -> Vec<F
         t.average_price = p.average_price;
         t.total_buy_quantity = p.total_buy_quantity;
         t.total_sell_quantity = p.total_sell_quantity;
-        t.oi = oi.unwrap_or(0);
+        quote_extras(&mut t, sub, p, oi);
         t.derive_change();
     }
     let mut out = vec![FeedEvent::Tick(t)];
@@ -372,7 +428,7 @@ impl BrokerFeed for IiflFeed {
 
     fn ws_request(&self) -> Result<WsRequest> {
         let up = self.upstream.clone();
-        let url = mqtt_relay::ensure_started(&self.relay, move || up as Arc<dyn MqttUpstream>)?;
+        let url = self.relay.url(move || up as Arc<dyn MqttUpstream>)?;
         url.as_str()
             .into_client_request()
             .map_err(|_| AppError::Internal("IIFL Capital feed relay address is invalid".into()))
@@ -430,6 +486,35 @@ impl BrokerFeed for IiflFeed {
         } else {
             vec![mqtt_relay::unsub_frame(&topics)]
         }
+    }
+
+    /// The same instrument at another mode keeps its streams and the OI
+    /// they last sent, as the web's adapter does: it subscribes the new
+    /// mode's topics again and keeps its OI cache (`iiflcapital_adapter.py:
+    /// 279-292`, `iiflcapital_websocket.py:428-438`). A topic the new mode
+    /// drops (Quote to LTP drops OI) is unsubscribed first, and its OI goes
+    /// with it.
+    fn mode_change_frames(
+        &mut self,
+        old: &FeedSubscription,
+        new: &FeedSubscription,
+    ) -> Vec<Message> {
+        let key = topic_key(new);
+        let after = topics_for(new);
+        if !after.iter().any(|t| t.starts_with(TOPIC_OPEN_INTEREST)) {
+            self.oi.remove(&key);
+        }
+        self.subs.insert(key, new.clone());
+        let dropped: Vec<String> = topics_for(old)
+            .into_iter()
+            .filter(|t| !after.contains(t))
+            .collect();
+        let mut frames = Vec::new();
+        if !dropped.is_empty() {
+            frames.push(mqtt_relay::unsub_frame(&dropped));
+        }
+        frames.push(mqtt_relay::sub_frame(&after));
+        frames
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
@@ -609,7 +694,7 @@ pub fn trade_packet(d: &Value, symbols: &SymbolResolver) -> OrderUpdate {
 /// the relay subscribes both topics as soon as the bridge accepts).
 pub struct IiflOrderFeed {
     upstream: Arc<OrderUpstream>,
-    relay: Mutex<Option<MqttRelay>>,
+    relay: RelaySide,
     symbols: SymbolResolver,
 }
 
@@ -635,9 +720,22 @@ impl IiflOrderFeed {
                 client_id: Mutex::new(client_id.filter(|c| !c.trim().is_empty())),
                 http: crate::brokers::common::http::client(),
             }),
-            relay: Mutex::new(None),
+            relay: RelaySide::Own(Mutex::new(None)),
             symbols,
         })
+    }
+
+    /// The order feed with its relay side at `url` ([`RelaySide::At`]).
+    pub fn with_relay_url(url: &str, session: &str, symbols: SymbolResolver) -> Result<Self> {
+        let mut feed = Self::new(
+            MqttEndpoint::plain("127.0.0.1", 0),
+            session,
+            None,
+            String::new(),
+            symbols,
+        )?;
+        feed.relay = RelaySide::At(url.to_string());
+        Ok(feed)
     }
 
     /// Decode one relayed PUBLISH.
@@ -666,7 +764,7 @@ impl BrokerFeed for IiflOrderFeed {
 
     fn ws_request(&self) -> Result<WsRequest> {
         let up = self.upstream.clone();
-        let url = mqtt_relay::ensure_started(&self.relay, move || up as Arc<dyn MqttUpstream>)?;
+        let url = self.relay.url(move || up as Arc<dyn MqttUpstream>)?;
         url.as_str().into_client_request().map_err(|_| {
             AppError::Internal("IIFL Capital order-update relay address is invalid".into())
         })

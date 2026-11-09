@@ -1,0 +1,6 @@
+# Arrow: RELIANCE (NSE, token 2885) in ltpc mode.
+# 17-byte ltpc packet: token, ltp, 5 ignored bytes, previous close.
+00000b45                # token 2885
+000249f5                # ltp 1500.05 (paise 150005)
+2b000003e8              # change flag and net change: ignored by both sides
+0002455e                # previous close 1488.3

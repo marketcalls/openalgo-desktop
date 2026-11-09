@@ -1,0 +1,31 @@
+# IIFL Capital index feed for NIFTY 50 (NSEEQ 26000): no trades, book or totals.
+0024                    # relay PUBLISH: topic length 36 (big-endian)
+70726f642f6d61726b6574666565642f696e6465782f76312f6e736565712f3236303030  # topic prod/marketfeed/index/v1/nseeq/26000
+23672500                # ltp 24512.35 (x100)
+00000000                # last traded quantity 0
+00000000                # traded volume 0
+e8792500                # high 24560.4
+89332500                # low 24380.25
+c84e2500                # open 24450.0
+4a3b2500                # previous close 24400.1
+00000000                # average traded price 0.0
+0000                    # reserved
+00000000                # best bid quantity 0
+00000000                # best bid price 0.0
+00000000                # best ask quantity 0
+00000000                # best ask price 0.0
+00000000                # total bid quantity 0
+00000000                # total ask quantity 0
+64000000                # price divisor 100
+ee7ec06a                # last traded time 1791000302, epoch s
+000000000000000000000100# bid 1: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000100# bid 2: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000100# bid 3: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000100# bid 4: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000100# bid 5: qty 0, price 0.0, orders 0, transactionType 1
+000000000000000000000200# ask 1: qty 0, price 0.0, orders 0, transactionType 2
+000000000000000000000200# ask 2: qty 0, price 0.0, orders 0, transactionType 2
+000000000000000000000200# ask 3: qty 0, price 0.0, orders 0, transactionType 2
+000000000000000000000200# ask 4: qty 0, price 0.0, orders 0, transactionType 2
+000000000000000000000200# ask 5: qty 0, price 0.0, orders 0, transactionType 2
+0000                    # 2 trailing slack bytes the bridge publishes (188-byte frames)

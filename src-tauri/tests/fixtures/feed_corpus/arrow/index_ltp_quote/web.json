@@ -1,0 +1,78 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "arrow",
+  "inputs_sha256": "44816bbc6f43e6ad9614656fb20ffb4d11067a6fa1cd0cf2cf408b6530516aa0",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY",
+      "brexchange": "INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_LTP",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 1,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "token": "26000",
+            "ltp": 24512.35,
+            "last_price": 24512.35,
+            "ltt": "<receipt_ms>",
+            "timestamp": "<receipt_ms>",
+            "close": 24400.1,
+            "prev_close": 24400.1,
+            "change": 112.25,
+            "change_percent": 0.46
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "token": "26000",
+            "ltp": 24512.35,
+            "last_price": 24512.35,
+            "ltt": 1791000302000,
+            "timestamp": 1791000302000,
+            "close": 24400.1,
+            "prev_close": 24400.1,
+            "change": 112.25,
+            "change_percent": 0.46,
+            "volume": 0,
+            "last_quantity": 0,
+            "average_price": 0.0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "open": 24450.0,
+            "high": 24560.4,
+            "low": 24380.25,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ]
+    }
+  ]
+}

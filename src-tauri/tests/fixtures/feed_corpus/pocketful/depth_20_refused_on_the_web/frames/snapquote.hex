@@ -1,0 +1,42 @@
+# Pocketful snapquote (mode 4, 166 bytes) for RELIANCE, after a Depth 20 subscribe.
+04                      # mode 4: snapquote
+01                      # exchange code
+00000b45                # instrument token 2885
+00000003                # buyers[0]
+00000004                # buyers[1]
+00000005                # buyers[2]
+00000006                # buyers[3]
+00000007                # buyers[4]
+000249f0                # bidPrices (paise)[0]
+000249eb                # bidPrices (paise)[1]
+000249e6                # bidPrices (paise)[2]
+000249e1                # bidPrices (paise)[3]
+000249dc                # bidPrices (paise)[4]
+00000064                # bidQtys[0]
+00000065                # bidQtys[1]
+00000066                # bidQtys[2]
+00000067                # bidQtys[3]
+00000068                # bidQtys[4]
+00000008                # sellers[0]
+00000009                # sellers[1]
+0000000a                # sellers[2]
+0000000b                # sellers[3]
+0000000c                # sellers[4]
+000249fa                # askPrices (paise)[0]
+000249ff                # askPrices (paise)[1]
+00024a04                # askPrices (paise)[2]
+00024a09                # askPrices (paise)[3]
+00024a0e                # askPrices (paise)[4]
+000000c8                # askQtys[0]
+000000c9                # askQtys[1]
+000000ca                # askQtys[2]
+000000cb                # askQtys[3]
+000000cc                # askQtys[4]
+00024974                # averageTradePrice paise (no LTP in this packet)
+00024608                # open paise
+00024dd8                # high paise
+00024414                # low paise
+00024540                # close paise
+000000000007a120        # totalBuyQty (u64)
+00000000000927c0        # totalSellQty (u64)
+0012d687                # volume

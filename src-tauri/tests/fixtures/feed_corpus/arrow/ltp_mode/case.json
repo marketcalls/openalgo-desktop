@@ -1,0 +1,66 @@
+{
+  "broker": "arrow",
+  "summary": "An LTP subscription goes to Arrow as ltpc: the 17-byte ltpc packet and a 13-byte ltp packet each become an LTP frame stamped on receipt; after the unsubscribe a packet still in flight reaches nobody.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/arrow/streaming/arrow_websocket.py::ArrowWebSocket._parse_packet",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._on_ticks",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._normalize",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter.subscribe",
+      "broker/arrow/streaming/arrow_mapping.py::ArrowCapabilityRegistry.MODE_MAP"
+    ],
+    "notes": [
+      "The query carries appID and token, no login frame (arrow_websocket.py::_build_url).",
+      "Neither packet carries a trade or feed time: both sides stamp the receipt time as timestamp and ltt."
+    ]
+  },
+  "upstream_ignore": [
+    "PONG"
+  ],
+  "deviations": [
+    {
+      "key": "close",
+      "kind": "desktop-decision",
+      "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). A 13-byte LTP packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the frame carries the close and change the 17-byte packet brought; the web's frame from a 13-byte packet has none (the Arrow adapter keeps no snapshot). Nothing is invented: every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; arrow_websocket.py:556-568 (only the 17-byte packet has a close)",
+      "approved": true
+    },
+    {
+      "key": "prev_close",
+      "kind": "desktop-decision",
+      "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). A 13-byte LTP packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the frame carries the close and change the 17-byte packet brought; the web's frame from a 13-byte packet has none (the Arrow adapter keeps no snapshot). Nothing is invented: every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; arrow_websocket.py:556-568 (only the 17-byte packet has a close)",
+      "approved": true
+    },
+    {
+      "key": "change",
+      "kind": "desktop-decision",
+      "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). A 13-byte LTP packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the frame carries the close and change the 17-byte packet brought; the web's frame from a 13-byte packet has none (the Arrow adapter keeps no snapshot). Nothing is invented: every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; arrow_websocket.py:556-568 (only the 17-byte packet has a close)",
+      "approved": true
+    },
+    {
+      "key": "change_percent",
+      "kind": "desktop-decision",
+      "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). A 13-byte LTP packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the frame carries the close and change the 17-byte packet brought; the web's frame from a 13-byte packet has none (the Arrow adapter keeps no snapshot). Nothing is invented: every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; arrow_websocket.py:556-568 (only the 17-byte packet has a close)",
+      "approved": true
+    }
+  ]
+}

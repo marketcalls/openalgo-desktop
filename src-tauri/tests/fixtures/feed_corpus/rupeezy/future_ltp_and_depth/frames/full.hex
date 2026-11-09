@@ -1,0 +1,50 @@
+# Vortex frame: a full packet for the NIFTY future (NSE_FO, token 35001) with OI.
+0100                    # packets in this frame: 1
+0a01                    # packet length 266
+4e53455f464f00000000    # exchange NSE_FO, NUL padded
+b9880000                # token 35001
+000000006007d840        # ltp 24605.5
+507fc06a                # last trade time 1791000400, epoch s
+0000000080f9d740        # open 24550.0
+000000000010d840        # high 24640.0
+00000000a0f4d740        # low 24530.5
+0000000000f2d740        # previous close 24520.0
+389c1c00                # volume 1875000
+517fc06a                # last update time 1791000401, epoch s
+4b000000                # last traded quantity 75
+000000009003d840        # average price 24590.25
+d0dd060000000000        # total buy quantity 450000
+d8b8050000000000        # total sell quantity 375000
+0061bc00                # open interest 12345600
+000000004007d840        # bid 1 price 24605.0
+ee020000                # bid 1 quantity 750
+05000000                # bid 1 orders 5
+000000002007d840        # bid 2 price 24604.5
+dc050000                # bid 2 quantity 1500
+09000000                # bid 2 orders 9
+000000000007d840        # bid 3 price 24604.0
+ca080000                # bid 3 quantity 2250
+0b000000                # bid 3 orders 11
+00000000e006d840        # bid 4 price 24603.5
+2c010000                # bid 4 quantity 300
+02000000                # bid 4 orders 2
+00000000c006d840        # bid 5 price 24603.0
+39030000                # bid 5 quantity 825
+06000000                # bid 5 orders 6
+000000008007d840        # ask 1 price 24606.0
+58020000                # ask 1 quantity 600
+04000000                # ask 1 orders 4
+00000000a007d840        # ask 2 price 24606.5
+b0040000                # ask 2 quantity 1200
+08000000                # ask 2 orders 8
+00000000c007d840        # ask 3 price 24607.0
+cf030000                # ask 3 quantity 975
+07000000                # ask 3 orders 7
+00000000e007d840        # ask 4 price 24607.5
+96000000                # ask 4 quantity 150
+01000000                # ask 4 orders 1
+000000000008d840        # ask 5 price 24608.0
+34080000                # ask 5 quantity 2100
+0c000000                # ask 5 orders 12
+f0272900                # upper circuit 26972.0 (paise)
+50ac2100                # lower circuit 22068.0 (paise)

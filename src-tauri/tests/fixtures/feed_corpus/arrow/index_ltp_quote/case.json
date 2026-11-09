@@ -1,0 +1,78 @@
+{
+  "broker": "arrow",
+  "summary": "NIFTY 50 on NSE_INDEX, which Arrow streams by token like any instrument: an ltpc packet as LTP, then a quote packet as an index Quote frame (no trade, book or OI fields; the change worked out from the previous close).",
+  "scenarios": [
+    "index",
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY",
+      "brexchange": "INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/arrow/streaming/arrow_websocket.py::ArrowWebSocket._parse_packet",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._on_ticks",
+      "broker/arrow/streaming/arrow_adapter.py::ArrowWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "An index quote packet carries zeros for quantities, OI and the trade time; no live index packet was recorded."
+    ]
+  },
+  "upstream_ignore": [
+    "PONG"
+  ],
+  "deviations": [
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
+      "approved": true
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
+      "approved": true
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
+      "approved": true
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "arrow_adapter.py:214-225",
+      "approved": true
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "paytm",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 1,
+    "ltp": 1500.1,
+    "ltt": 1791000305000,
+    "timestamp": "<receipt_ms>",
+    "change_absolute": 11.8,
+    "change_percent": 0.79
+  }
+}

@@ -1,0 +1,19 @@
+# Arrow: a quote packet once the Depth holder has gone.
+# 93-byte quote packet (>II5xIIQQIIIIQIIQQQ).
+0000cc79                # token 52345
+00258c35                # ltp 24607.25 (paise 2460725)
+2b000003e8              # change flag and net change: ignored by both sides
+000000e1                # last traded quantity 225
+00258591                # average price 24590.25
+000000000006ddd0        # total buy quantity 450000
+000000000005b8d8        # total sell quantity 375000
+002575d8                # open 24550.0
+00259900                # high 24640.0
+00256a20                # previous close 24520.0 (before low)
+00256e3a                # low 24530.5
+00000000001c9daf        # volume 1875375
+6ac07f5a                # last trade time 1791000410, epoch s
+6ac07f5b                # feed time 1791000411, epoch s
+0000000000bc66dc        # open interest 12347100
+0000000000bd3580        # OI day high
+0000000000b8a1a0        # OI day low

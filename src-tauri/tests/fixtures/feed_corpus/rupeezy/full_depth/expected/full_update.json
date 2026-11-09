@@ -1,0 +1,88 @@
+{
+  "type": "market_data",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "mode": 3,
+  "broker": "rupeezy",
+  "data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "ltp": 812.5,
+    "ltt": 1791000310000,
+    "timestamp": 1791000311000,
+    "volume": 4568190,
+    "last_quantity": 300,
+    "average_price": 810.37,
+    "total_buy_quantity": 345600,
+    "total_sell_quantity": 298700,
+    "open": 805.1,
+    "high": 815.6,
+    "low": 803.25,
+    "close": 807.9,
+    "oi": 0,
+    "open_interest": 0,
+    "depth": {
+      "buy": [
+        {
+          "price": 812.4,
+          "quantity": 500,
+          "orders": 7
+        },
+        {
+          "price": 812.35,
+          "quantity": 410,
+          "orders": 5
+        },
+        {
+          "price": 812.3,
+          "quantity": 920,
+          "orders": 11
+        },
+        {
+          "price": 812.25,
+          "quantity": 150,
+          "orders": 2
+        },
+        {
+          "price": 812.2,
+          "quantity": 760,
+          "orders": 9
+        }
+      ],
+      "sell": [
+        {
+          "price": 812.55,
+          "quantity": 640,
+          "orders": 6
+        },
+        {
+          "price": 812.6,
+          "quantity": 210,
+          "orders": 3
+        },
+        {
+          "price": 812.65,
+          "quantity": 880,
+          "orders": 10
+        },
+        {
+          "price": 812.7,
+          "quantity": 1200,
+          "orders": 14
+        },
+        {
+          "price": 812.75,
+          "quantity": 95,
+          "orders": 1
+        }
+      ]
+    },
+    "token": "3045",
+    "last_price": 812.5,
+    "prev_close": 807.9,
+    "change": 4.6,
+    "change_percent": 0.57,
+    "upper_circuit": 892.65,
+    "lower_circuit": 730.35
+  }
+}

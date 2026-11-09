@@ -1,0 +1,19 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY24NOV26FUT",
+  "exchange": "NFO",
+  "mode": 1,
+  "broker": "rupeezy",
+  "data": {
+    "symbol": "NIFTY24NOV26FUT",
+    "exchange": "NFO",
+    "ltp": 24607.25,
+    "timestamp": "<receipt_ms>",
+    "token": "35001",
+    "last_price": 24607.25,
+    "close": 24520.0,
+    "prev_close": 24520.0,
+    "change": 87.25,
+    "change_percent": 0.36
+  }
+}

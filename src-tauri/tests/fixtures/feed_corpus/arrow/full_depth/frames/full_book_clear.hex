@@ -1,0 +1,32 @@
+# Arrow: a full packet whose ten levels are all zero (no book, e.g. a halt).
+# 249-byte full packet: the quote block, circuit limits, 8 reserved bytes, then ten 14-byte levels at 109.
+00000b45                # token 2885
+000249ff                # ltp 1500.15 (paise 150015)
+2b000003e8              # change flag and net change: ignored by both sides
+00000000                # last traded quantity 0
+00024974                # average price 1498.76
+000000000001d4c0        # total buy quantity 120000
+0000000000017ed0        # total sell quantity 98000
+00024702                # open 1492.5
+00024dec                # high 1510.2
+0002455e                # previous close 1488.3 (before low)
+0002441e                # low 1485.1
+000000000034bf51        # volume 3456849
+6ac07efb                # last trade time 1791000315, epoch s
+6ac07f00                # feed time 1791000320, epoch s
+0000000000000000        # open interest 0
+0000000000000000        # OI day high
+0000000000000000        # OI day low
+00020b3e                # lower circuit 1339.5
+00027f88                # upper circuit 1637.2
+0000000000000000        # reserved
+0000000000000000000000000000# bid 1: qty 0, price 0.0, orders 0
+0000000000000000000000000000# bid 2: qty 0, price 0.0, orders 0
+0000000000000000000000000000# bid 3: qty 0, price 0.0, orders 0
+0000000000000000000000000000# bid 4: qty 0, price 0.0, orders 0
+0000000000000000000000000000# bid 5: qty 0, price 0.0, orders 0
+0000000000000000000000000000# ask 1: qty 0, price 0.0, orders 0
+0000000000000000000000000000# ask 2: qty 0, price 0.0, orders 0
+0000000000000000000000000000# ask 3: qty 0, price 0.0, orders 0
+0000000000000000000000000000# ask 4: qty 0, price 0.0, orders 0
+0000000000000000000000000000# ask 5: qty 0, price 0.0, orders 0

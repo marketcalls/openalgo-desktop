@@ -1,0 +1,15 @@
+# Paytm Money binary frame: one INDEX_QUOTE packet for NIFTY 50 (no time).
+# -- INDEX_QUOTE (43 bytes)
+41                      # packet code 65
+b380bf46                # ltp 24512.35
+0d000000                # security id 13
+01                      # tradable
+02                      # mode
+0004bf46                # open 24450.0
+33a0be46                # previous close 24400.1
+cde0bf46                # high 24560.4
+8078be46                # low 24380.25
+0080e042                # change 112.25
+1f85eb3e                # change percent 0.46
+b34acd46                # 52-week high 26277.35
+4ddfa946                # 52-week low 21743.65

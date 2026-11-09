@@ -1,0 +1,6 @@
+# Arrow: NIFTY 50 (NSE_INDEX, token 26000) in ltpc mode.
+# 17-byte ltpc packet: token, ltp, 5 ignored bytes, previous close.
+00006590                # token 26000
+00256723                # ltp 24512.35 (paise 2451235)
+2b000003e8              # change flag and net change: ignored by both sides
+00253b4a                # previous close 24400.1

@@ -1,0 +1,53 @@
+# Paytm Money binary frame: one FULL packet for RELIANCE.
+# -- FULL (175 bytes)
+3f                      # packet code 63
+64000000                # level 1 buy quantity 100
+c8000000                # level 1 sell quantity 200
+0300                    # level 1 buy orders 3
+0400                    # level 1 sell orders 4
+0080bb44                # level 1 buy price 1500.0
+3383bb44                # level 1 sell price 1500.1
+65000000                # level 2 buy quantity 101
+c9000000                # level 2 sell quantity 201
+0400                    # level 2 buy orders 4
+0500                    # level 2 sell orders 5
+667ebb44                # level 2 buy price 1499.95
+cd84bb44                # level 2 sell price 1500.15
+66000000                # level 3 buy quantity 102
+ca000000                # level 3 sell quantity 202
+0500                    # level 3 buy orders 5
+0600                    # level 3 sell orders 6
+cd7cbb44                # level 3 buy price 1499.9
+6686bb44                # level 3 sell price 1500.2
+67000000                # level 4 buy quantity 103
+cb000000                # level 4 sell quantity 203
+0600                    # level 4 buy orders 6
+0700                    # level 4 sell orders 7
+337bbb44                # level 4 buy price 1499.85
+0088bb44                # level 4 sell price 1500.25
+68000000                # level 5 buy quantity 104
+cc000000                # level 5 sell quantity 204
+0700                    # level 5 buy orders 7
+0800                    # level 5 sell orders 8
+9a79bb44                # level 5 buy price 1499.8
+9a89bb44                # level 5 sell price 1500.3
+9a81bb44                # ltp 1500.05
+ec7ec06a                # last trade time 1791000300, epoch s
+450b0000                # security id 2885
+01                      # tradable
+03                      # mode
+19000000                # last traded quantity 25
+0058bb44                # average price 1498.75
+15bf3400                # volume 3456789
+c0d40100                # total buy quantity 120000
+d07e0100                # total sell quantity 98000
+0090ba44                # open 1492.5
+9a09ba44                # previous close 1488.3
+66c6bc44                # high 1510.2
+33a3b944                # low 1485.1
+713d4a3f                # change percent 0.79
+00003c41                # change 11.75
+661ec944                # 52-week high 1608.95
+00309644                # 52-week low 1201.5
+00000000                # open interest 0
+00000000                # open interest change 0

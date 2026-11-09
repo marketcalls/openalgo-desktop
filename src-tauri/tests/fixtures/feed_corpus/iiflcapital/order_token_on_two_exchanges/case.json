@@ -1,0 +1,34 @@
+{
+  "broker": "iiflcapital",
+  "summary": "An order packet for an instrument id the master has on NSE and on BSE: order packets carry no exchange, so both sides take the first candidate exchange (NSE) and its symbol, whatever the trading symbol says (an inherited ambiguity, pinned).",
+  "scenarios": [
+    "order-open"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSEEQ"
+    },
+    {
+      "symbol": "SOMEBSE",
+      "exchange": "BSE",
+      "token": "2885",
+      "brsymbol": "SOMEBSE",
+      "brexchange": "BSEEQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iiflcapital/streaming/iiflcapital_order_adapter.py::IiflCapitalOrderUpdateAdapter._normalize_order",
+      "broker/iiflcapital/streaming/iiflcapital_order_adapter.py::_resolve_order_exchange"
+    ],
+    "notes": [
+      "Audit remaining brokers, inherited limitation 3."
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+# Pocketful compact market data (mode 2, 42 bytes) for RELIANCE (NSE, code 1, token 2885).
+# Big-endian; prices in paise. Change +10.25 over a previous close of 1490.00.
+02                      # mode 2: compact market data
+01                      # exchange code
+00000b45                # instrument token 2885
+00024a09                # last traded price 150025 paise
+00000401                # change 1025 paise (signed on the wire)
+69100284                # last traded time 1762656900 (epoch seconds)
+00020bd4                # lowDPR paise
+0002803c                # highDPR paise
+00000000                # currentOpenInterest
+00000000                # initialOpenInterest
+00024a04                # bidPrice 150020 paise
+00024a0e                # askPrice 150030 paise

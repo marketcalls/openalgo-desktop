@@ -34,7 +34,7 @@
 use super::mapping::{map_status, price_type_from_arrow, product_from_arrow, side_from_arrow};
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    NormalizedTick, OrderUpdate, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -172,6 +172,31 @@ pub fn decode_packet(data: &[u8]) -> Option<ArrowPacket> {
     Some(p)
 }
 
+/// The OpenAlgo mode a packet carries, by its length (web `_SIZE_TO_MODE`,
+/// with its fallback for other sizes): 13 and 17 bytes LTP, 93 Quote,
+/// 241 and 249 Depth. It is the packet's own, not the subscription's: a
+/// packet of a mode Arrow has not switched yet carries only its own fields.
+fn packet_mode(len: usize) -> u8 {
+    if len >= 241 {
+        FeedMode::Depth.code()
+    } else if len >= 93 {
+        FeedMode::Quote.code()
+    } else {
+        FeedMode::Ltp.code()
+    }
+}
+
+/// Open interest as the web sends it: in Quote as well as Depth frames
+/// (`arrow_adapter.py:223-225`), and never for an index, whose packet fills
+/// it with 0 (the docs: a field the stream does not carry is left out).
+fn mark_open_interest(t: &mut NormalizedTick, exchange: &str) {
+    if exchange.ends_with("_INDEX") {
+        t.mark_absent(QuoteField::OpenInterest);
+    } else {
+        t.mark_carried(QuoteField::OpenInterest);
+    }
+}
+
 #[derive(Debug, Clone)]
 struct SubInfo {
     symbol: String,
@@ -246,7 +271,7 @@ impl ArrowFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
+            mode: packet_mode(data.len()),
             ltp: p.ltp,
             close: p.close.unwrap_or(0.0),
             last_trade_time_ms: p.ltt * 1000,
@@ -263,6 +288,17 @@ impl ArrowFeed {
             t.total_buy_quantity = p.total_buy_quantity;
             t.total_sell_quantity = p.total_sell_quantity;
             t.oi = p.oi;
+        } else if p.close.is_some() {
+            // The 17-byte LTPC packet's previous close, which the web's LTP
+            // frame carries with the change (arrow_adapter.py:206-212).
+            t.mark_carried(QuoteField::Close);
+        }
+        if t.mode >= FeedMode::Quote.code() {
+            mark_open_interest(&mut t, &sub.exchange);
+        }
+        if t.mode == FeedMode::Depth.code() {
+            t.extras.upper_circuit = Some(p.upper_limit);
+            t.extras.lower_circuit = Some(p.lower_limit);
         }
         t.derive_change();
         let mut out = Vec::with_capacity(2);
@@ -426,9 +462,17 @@ impl ArrowOrderFeed {
             .map(|v| v as i64)
             .unwrap_or_else(|| (quantity - filled).max(0));
         let exchange = s("exchange");
+        // The instrument token first, then the trading symbol, as the web's
+        // `to_openalgo_symbol(symbol, exchange, token=...)`
+        // (websocket_proxy/order_adapter.py:45-68).
+        let symbol = self
+            .symbols
+            .by_token(&exchange, &s("token"))
+            .map(|row| row.symbol)
+            .unwrap_or_else(|| self.symbols.oa_symbol_or_raw(&s("symbol"), &exchange));
         Some(OrderUpdate {
             orderid: id,
-            symbol: self.symbols.oa_symbol_or_raw(&s("symbol"), &exchange),
+            symbol,
             exchange,
             action: side_from_arrow(&s("transactionType")),
             quantity,

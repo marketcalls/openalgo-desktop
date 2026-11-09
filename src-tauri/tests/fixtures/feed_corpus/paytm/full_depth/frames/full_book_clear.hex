@@ -1,0 +1,53 @@
+# Paytm Money binary frame: a FULL packet whose five levels are all zero (no book).
+# -- FULL (175 bytes)
+3f                      # packet code 63
+00000000                # level 1 buy quantity 0
+00000000                # level 1 sell quantity 0
+0000                    # level 1 buy orders 0
+0000                    # level 1 sell orders 0
+00000000                # level 1 buy price 0.0
+00000000                # level 1 sell price 0.0
+00000000                # level 2 buy quantity 0
+00000000                # level 2 sell quantity 0
+0000                    # level 2 buy orders 0
+0000                    # level 2 sell orders 0
+00000000                # level 2 buy price 0.0
+00000000                # level 2 sell price 0.0
+00000000                # level 3 buy quantity 0
+00000000                # level 3 sell quantity 0
+0000                    # level 3 buy orders 0
+0000                    # level 3 sell orders 0
+00000000                # level 3 buy price 0.0
+00000000                # level 3 sell price 0.0
+00000000                # level 4 buy quantity 0
+00000000                # level 4 sell quantity 0
+0000                    # level 4 buy orders 0
+0000                    # level 4 sell orders 0
+00000000                # level 4 buy price 0.0
+00000000                # level 4 sell price 0.0
+00000000                # level 5 buy quantity 0
+00000000                # level 5 sell quantity 0
+0000                    # level 5 buy orders 0
+0000                    # level 5 sell orders 0
+00000000                # level 5 buy price 0.0
+00000000                # level 5 sell price 0.0
+3383bb44                # ltp 1500.1
+f67ec06a                # last trade time 1791000310, epoch s
+450b0000                # security id 2885
+01                      # tradable
+03                      # mode
+00000000                # last traded quantity 0
+0058bb44                # average price 1498.75
+47bf3400                # volume 3456839
+00000000                # total buy quantity 0
+00000000                # total sell quantity 0
+0090ba44                # open 1492.5
+9a09ba44                # previous close 1488.3
+66c6bc44                # high 1510.2
+33a3b944                # low 1485.1
+713d4a3f                # change percent 0.79
+cdcc3c41                # change 11.8
+661ec944                # 52-week high 1608.95
+00309644                # 52-week low 1201.5
+00000000                # open interest 0
+00000000                # open interest change 0

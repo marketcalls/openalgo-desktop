@@ -1,0 +1,21 @@
+{
+  "broker": "arrow",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": "a dedicated order-update socket (wss://order-updates.arrow.trade)"
+  },
+  "sources": [
+    "broker/arrow/streaming/arrow_mapping.py::ArrowCapabilityRegistry",
+    "broker/arrow/streaming/arrow_adapter.py",
+    "broker/arrow/streaming/arrow_order_adapter.py",
+    "services/order_update_service.py:55"
+  ],
+  "notes": [
+    "Arrow streams five levels only; a Depth 20, 30 or 50 subscribe is acknowledged with depth 5 and streams five, as on the web (ArrowCapabilityRegistry.get_fallback_depth_level). Outside Depth mode the web names no depth (null), and so does the desktop (feed::dialect, DepthAck::FallbackElseNull).",
+    "LTP subscribes Arrow's ltpc mode so the previous close comes too (arrow_mapping.py:54-68)."
+  ]
+}

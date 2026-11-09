@@ -1,0 +1,75 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "rupeezy",
+  "inputs_sha256": "b54fef051cb2e2a72fef3edccacb951eefe79887c57b20c6d4fd5002a4775a4b",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 2,
+          "data": {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "token": "3045",
+            "ltp": 812.45,
+            "last_price": 812.45,
+            "ltt": 1791000300000,
+            "timestamp": 1791000300000,
+            "close": 807.9,
+            "prev_close": 807.9,
+            "change": 4.55,
+            "change_percent": 0.56,
+            "open": 805.1,
+            "high": 815.6,
+            "low": 803.25,
+            "volume": 4567890
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 2,
+          "data": {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "token": "3045",
+            "ltp": 813.0,
+            "last_price": 813.0,
+            "ltt": 1791000500000,
+            "timestamp": 1791000500000,
+            "close": 807.9,
+            "prev_close": 807.9,
+            "change": 5.1,
+            "change_percent": 0.63,
+            "open": 805.1,
+            "high": 815.6,
+            "low": 803.25,
+            "volume": 4569000
+          }
+        }
+      ]
+    }
+  ]
+}

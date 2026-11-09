@@ -1,0 +1,50 @@
+# Vortex frame: one 266-byte full packet for SBIN, five levels a side.
+0100                    # packets in this frame: 1
+0a01                    # packet length 266
+4e53455f455100000000    # exchange NSE_EQ, NUL padded
+e50b0000                # token 3045
+9a99999999638940        # ltp 812.45
+ec7ec06a                # last trade time 1791000300, epoch s
+cdcccccccc288940        # open 805.1
+cdcccccccc7c8940        # high 815.6
+00000000001a8940        # low 803.25
+33333333333f8940        # previous close 807.9
+52b34500                # volume 4567890
+ed7ec06a                # last update time 1791000301, epoch s
+0c000000                # last traded quantity 12
+295c8fc2f5528940        # average price 810.37
+0046050000000000        # total buy quantity 345600
+cc8e040000000000        # total sell quantity 298700
+00000000                # open interest 0
+3333333333638940        # bid 1 price 812.4
+f4010000                # bid 1 quantity 500
+07000000                # bid 1 orders 7
+cdcccccccc628940        # bid 2 price 812.35
+9a010000                # bid 2 quantity 410
+05000000                # bid 2 orders 5
+6666666666628940        # bid 3 price 812.3
+98030000                # bid 3 quantity 920
+0b000000                # bid 3 orders 11
+0000000000628940        # bid 4 price 812.25
+96000000                # bid 4 quantity 150
+02000000                # bid 4 orders 2
+9a99999999618940        # bid 5 price 812.2
+f8020000                # bid 5 quantity 760
+09000000                # bid 5 orders 9
+0000000000648940        # ask 1 price 812.5
+2c010000                # ask 1 quantity 300
+04000000                # ask 1 orders 4
+6666666666648940        # ask 2 price 812.55
+80020000                # ask 2 quantity 640
+06000000                # ask 2 orders 6
+cdcccccccc648940        # ask 3 price 812.6
+d2000000                # ask 3 quantity 210
+03000000                # ask 3 orders 3
+3333333333658940        # ask 4 price 812.65
+70030000                # ask 4 quantity 880
+0a000000                # ask 4 orders 10
+9a99999999658940        # ask 5 price 812.7
+b0040000                # ask 5 quantity 1200
+0e000000                # ask 5 orders 14
+b15c0100                # upper circuit 892.65 (paise)
+4b1d0100                # lower circuit 730.35 (paise)

@@ -1,0 +1,296 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "rupeezy",
+  "inputs_sha256": "153316cdcd0f86c54d7ba5c74db7eae04526827f687afb32c653c77da0aaddbc",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 3,
+          "data": {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "token": "3045",
+            "ltp": 812.45,
+            "last_price": 812.45,
+            "ltt": 1791000300000,
+            "timestamp": 1791000301000,
+            "close": 807.9,
+            "prev_close": 807.9,
+            "change": 4.55,
+            "change_percent": 0.56,
+            "open": 805.1,
+            "high": 815.6,
+            "low": 803.25,
+            "volume": 4567890,
+            "last_quantity": 12,
+            "average_price": 810.37,
+            "total_buy_quantity": 345600,
+            "total_sell_quantity": 298700,
+            "oi": 0,
+            "open_interest": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 812.4,
+                  "quantity": 500,
+                  "orders": 7
+                },
+                {
+                  "price": 812.35,
+                  "quantity": 410,
+                  "orders": 5
+                },
+                {
+                  "price": 812.3,
+                  "quantity": 920,
+                  "orders": 11
+                },
+                {
+                  "price": 812.25,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 812.2,
+                  "quantity": 760,
+                  "orders": 9
+                }
+              ],
+              "sell": [
+                {
+                  "price": 812.5,
+                  "quantity": 300,
+                  "orders": 4
+                },
+                {
+                  "price": 812.55,
+                  "quantity": 640,
+                  "orders": 6
+                },
+                {
+                  "price": 812.6,
+                  "quantity": 210,
+                  "orders": 3
+                },
+                {
+                  "price": 812.65,
+                  "quantity": 880,
+                  "orders": 10
+                },
+                {
+                  "price": 812.7,
+                  "quantity": 1200,
+                  "orders": 14
+                }
+              ]
+            },
+            "upper_circuit": 892.65,
+            "lower_circuit": 730.35
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 3,
+          "data": {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "token": "3045",
+            "ltp": 812.5,
+            "last_price": 812.5,
+            "ltt": 1791000310000,
+            "timestamp": 1791000311000,
+            "close": 807.9,
+            "prev_close": 807.9,
+            "change": 4.6,
+            "change_percent": 0.57,
+            "open": 805.1,
+            "high": 815.6,
+            "low": 803.25,
+            "volume": 4568190,
+            "last_quantity": 300,
+            "average_price": 810.37,
+            "total_buy_quantity": 345600,
+            "total_sell_quantity": 298700,
+            "oi": 0,
+            "open_interest": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 812.4,
+                  "quantity": 500,
+                  "orders": 7
+                },
+                {
+                  "price": 812.35,
+                  "quantity": 410,
+                  "orders": 5
+                },
+                {
+                  "price": 812.3,
+                  "quantity": 920,
+                  "orders": 11
+                },
+                {
+                  "price": 812.25,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 812.2,
+                  "quantity": 760,
+                  "orders": 9
+                }
+              ],
+              "sell": [
+                {
+                  "price": 812.55,
+                  "quantity": 640,
+                  "orders": 6
+                },
+                {
+                  "price": 812.6,
+                  "quantity": 210,
+                  "orders": 3
+                },
+                {
+                  "price": 812.65,
+                  "quantity": 880,
+                  "orders": 10
+                },
+                {
+                  "price": 812.7,
+                  "quantity": 1200,
+                  "orders": 14
+                },
+                {
+                  "price": 812.75,
+                  "quantity": 95,
+                  "orders": 1
+                }
+              ]
+            },
+            "upper_circuit": 892.65,
+            "lower_circuit": 730.35
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_DEPTH",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 3,
+          "data": {
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "token": "3045",
+            "ltp": 812.5,
+            "last_price": 812.5,
+            "ltt": 1791000310000,
+            "timestamp": 1791000320000,
+            "close": 807.9,
+            "prev_close": 807.9,
+            "change": 4.6,
+            "change_percent": 0.57,
+            "open": 805.1,
+            "high": 815.6,
+            "low": 803.25,
+            "volume": 4568190,
+            "last_quantity": 0,
+            "average_price": 810.37,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "oi": 0,
+            "open_interest": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            },
+            "upper_circuit": 892.65,
+            "lower_circuit": 730.35
+          }
+        }
+      ]
+    }
+  ]
+}

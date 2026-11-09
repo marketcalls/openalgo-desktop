@@ -1,0 +1,31 @@
+# The future's packet after the new OI.
+0021                    # relay PUBLISH: topic length 33 (big-endian)
+70726f642f6d61726b6574666565642f6d772f76312f6e7365666f2f3335303031  # topic prod/marketfeed/mw/v1/nsefo/35001
+ea8b2500                # ltp 24606.5 (x100)
+4b000000                # last traded quantity 75
+199d1c00                # traded volume 1875225
+00992500                # high 24640.0
+3a6e2500                # low 24530.5
+d8752500                # open 24550.0
+206a2500                # previous close 24520.0
+91852500                # average traded price 24590.25
+0000                    # reserved
+ee020000                # best bid quantity 750
+548b2500                # best bid price 24605.0
+58020000                # best ask quantity 600
+b88b2500                # best ask price 24606.0
+d0dd0600                # total bid quantity 450000
+d8b80500                # total ask quantity 375000
+64000000                # price divisor 100
+587fc06a                # last traded time 1791000408, epoch s
+ee020000548b250005000100# bid 1: qty 750, price 24605.0, orders 5, transactionType 1
+dc050000228b250009000100# bid 2: qty 1500, price 24604.5, orders 9, transactionType 1
+ca080000f08a25000b000100# bid 3: qty 2250, price 24604.0, orders 11, transactionType 1
+2c010000be8a250002000100# bid 4: qty 300, price 24603.5, orders 2, transactionType 1
+390300008c8a250006000100# bid 5: qty 825, price 24603.0, orders 6, transactionType 1
+58020000b88b250004000200# ask 1: qty 600, price 24606.0, orders 4, transactionType 2
+b0040000ea8b250008000200# ask 2: qty 1200, price 24606.5, orders 8, transactionType 2
+cf0300001c8c250007000200# ask 3: qty 975, price 24607.0, orders 7, transactionType 2
+960000004e8c250001000200# ask 4: qty 150, price 24607.5, orders 1, transactionType 2
+34080000808c25000c000200# ask 5: qty 2100, price 24608.0, orders 12, transactionType 2
+0000                    # 2 trailing slack bytes the bridge publishes (188-byte frames)

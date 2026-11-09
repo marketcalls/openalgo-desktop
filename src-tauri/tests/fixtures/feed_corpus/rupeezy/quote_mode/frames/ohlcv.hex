@@ -1,0 +1,12 @@
+# Vortex frame: one 62-byte ohlcv packet for SBIN.
+0100                    # packets in this frame: 1
+3e00                    # packet length 62
+4e53455f455100000000    # exchange NSE_EQ, NUL padded
+e50b0000                # token 3045
+9a99999999638940        # ltp 812.45
+ec7ec06a                # last trade time 1791000300, epoch s
+cdcccccccc288940        # open 805.1
+cdcccccccc7c8940        # high 815.6
+00000000001a8940        # low 803.25
+33333333333f8940        # previous close 807.9
+52b34500                # volume 4567890

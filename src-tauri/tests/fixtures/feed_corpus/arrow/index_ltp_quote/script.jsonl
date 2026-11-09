@@ -1,0 +1,12 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "LTP", "depth": null, "broker": "arrow"}], "message": "Subscription processing complete", "broker": "arrow"}}
+{"step": "upstream_receives", "frames": [{"json": {"code": "sub", "mode": "ltpc", "ltpc": [26000]}}]}
+{"step": "push", "frame": "frames/ltpc.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltpc.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"code": "unsub", "mode": "ltpc", "ltpc": [26000]}}]}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": null, "broker": "arrow"}], "message": "Subscription processing complete", "broker": "arrow"}}
+{"step": "upstream_receives", "frames": [{"json": {"code": "sub", "mode": "quote", "quote": [26000]}}]}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"code": "unsub", "mode": "quote", "quote": [26000]}}]}

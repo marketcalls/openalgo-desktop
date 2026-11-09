@@ -1,0 +1,123 @@
+{
+  "broker": "iiflcapital",
+  "summary": "NIFTY 50 (NSE_INDEX) at Quote takes the index topic; its packet becomes an index Quote frame with the change worked out from the previous close.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSEEQ",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::_decode_market_feed",
+      "broker/iiflcapital/streaming/iiflcapital_websocket.py::IiflcapitalWebSocket._dispatch_feed",
+      "broker/iiflcapital/streaming/iiflcapital_adapter.py::IiflcapitalWebSocketAdapter._handle_ticks"
+    ],
+    "notes": [
+      "No live index packet was recorded; an index packet carries zero trades, book and totals."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386",
+      "approved": true
+    },
+    {
+      "key": "ltp",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
+      "approved": true
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
+      "approved": true
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:395-411",
+      "approved": true
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:395-411",
+      "approved": true
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:395-411",
+      "approved": true
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:395-411",
+      "approved": true
+    },
+    {
+      "key": "bid",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:395-411",
+      "approved": true
+    },
+    {
+      "key": "ask",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:395-411",
+      "approved": true
+    },
+    {
+      "key": "bid_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:395-411",
+      "approved": true
+    },
+    {
+      "key": "ask_quantity",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: IIFL Capital's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:395-411",
+      "approved": true
+    },
+    {
+      "key": "change",
+      "kind": "desktop-decision",
+      "reason": "The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet.",
+      "ref": "feed/dialect/names.rs IIFLCAPITAL; iiflcapital/streaming.rs ticks (derive_change)",
+      "approved": true
+    },
+    {
+      "key": "change_percent",
+      "kind": "desktop-decision",
+      "reason": "The IIFL Capital adapter sends no change at all. Lead decision 2026-11-09 (ruling 4(b)): an index Quote carries the docs' change and change_percent (docs/prompt/websockets-format.md, the Quote example), worked out from the previous close in IIFL's own index packet.",
+      "ref": "feed/dialect/names.rs IIFLCAPITAL; iiflcapital/streaming.rs ticks (derive_change)",
+      "approved": true
+    }
+  ]
+}

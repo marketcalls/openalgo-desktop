@@ -1,0 +1,51 @@
+{
+  "broker": "pocketful",
+  "summary": "An LTP subscription on an NSE equity: Pocketful's 42-byte compact packet becomes an LTP frame; a fall decodes as a signed change; a packet cut short reaches nobody, nor does one after the unsubscribe.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/api/packet_decoder.py::decodeCompactMarketData",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter.subscribe",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._on_message",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_compact_data",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._find_subscription"
+    ],
+    "notes": [
+      "Frames hand-built from the decoder's offsets (packet_decoder.py:252-265); the web publishes the compact packet on the subscription's LTP topic (pocketful_adapter.py:631-642)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
+      "ref": "pocketful_adapter.py:583, 631",
+      "approved": true
+    },
+    {
+      "key": "change",
+      "kind": "web-defect",
+      "reason": "The compact packet's change is a signed number; the web unpacks it unsigned (packet_decoder.py:257, '>I'), so a fall of 10.50 becomes 42949662.46. The desktop reads it signed (audit RB-14; lead ruling 2026-11-09: keep the desktop's).",
+      "ref": "packet_decoder.py:252-265; pocketful/streaming.rs decode_compact",
+      "approved": true
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+# Vortex frame: one 22-byte ltp packet for SBIN (NSE_EQ, token 3045).
+0100                    # packets in this frame: 1
+1600                    # packet length 22
+4e53455f455100000000    # exchange NSE_EQ, NUL padded
+e50b0000                # token 3045
+9a99999999638940        # ltp 812.45

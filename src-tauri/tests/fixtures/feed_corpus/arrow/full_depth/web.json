@@ -1,0 +1,389 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "arrow",
+  "inputs_sha256": "723630a7b6a6dc4577536bdd3d8d9a2c6f74cb478880a8b79a798208ae35569a",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.05,
+            "last_price": 1500.05,
+            "ltt": 1791000300000,
+            "timestamp": 1791000301000,
+            "close": 1488.3,
+            "prev_close": 1488.3,
+            "change": 11.75,
+            "change_percent": 0.79,
+            "volume": 3456789,
+            "last_quantity": 25,
+            "average_price": 1498.76,
+            "total_buy_quantity": 120000,
+            "total_sell_quantity": 98000,
+            "open": 1492.5,
+            "high": 1510.2,
+            "low": 1485.1,
+            "oi": 0,
+            "open_interest": 0,
+            "depth": {
+              "buy": [
+                {
+                  "quantity": 100,
+                  "price": 1500.0,
+                  "orders": 3
+                },
+                {
+                  "quantity": 101,
+                  "price": 1499.95,
+                  "orders": 4
+                },
+                {
+                  "quantity": 102,
+                  "price": 1499.9,
+                  "orders": 5
+                },
+                {
+                  "quantity": 103,
+                  "price": 1499.85,
+                  "orders": 6
+                },
+                {
+                  "quantity": 104,
+                  "price": 1499.8,
+                  "orders": 7
+                }
+              ],
+              "sell": [
+                {
+                  "quantity": 200,
+                  "price": 1500.1,
+                  "orders": 4
+                },
+                {
+                  "quantity": 201,
+                  "price": 1500.15,
+                  "orders": 5
+                },
+                {
+                  "quantity": 202,
+                  "price": 1500.2,
+                  "orders": 6
+                },
+                {
+                  "quantity": 203,
+                  "price": 1500.25,
+                  "orders": 7
+                },
+                {
+                  "quantity": 204,
+                  "price": 1500.3,
+                  "orders": 8
+                }
+              ]
+            },
+            "upper_circuit": 1637.2,
+            "lower_circuit": 1339.5
+          }
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.1,
+            "last_price": 1500.1,
+            "ltt": 1791000310000,
+            "timestamp": 1791000311000,
+            "close": 1488.3,
+            "prev_close": 1488.3,
+            "change": 11.8,
+            "change_percent": 0.79,
+            "volume": 3456839,
+            "last_quantity": 50,
+            "average_price": 1498.76,
+            "total_buy_quantity": 120000,
+            "total_sell_quantity": 98000,
+            "open": 1492.5,
+            "high": 1510.2,
+            "low": 1485.1,
+            "oi": 0,
+            "open_interest": 0,
+            "depth": {
+              "buy": [
+                {
+                  "quantity": 150,
+                  "price": 1500.05,
+                  "orders": 2
+                },
+                {
+                  "quantity": 100,
+                  "price": 1500.0,
+                  "orders": 3
+                },
+                {
+                  "quantity": 101,
+                  "price": 1499.95,
+                  "orders": 4
+                },
+                {
+                  "quantity": 102,
+                  "price": 1499.9,
+                  "orders": 5
+                },
+                {
+                  "quantity": 103,
+                  "price": 1499.85,
+                  "orders": 6
+                }
+              ],
+              "sell": [
+                {
+                  "quantity": 200,
+                  "price": 1500.1,
+                  "orders": 4
+                },
+                {
+                  "quantity": 201,
+                  "price": 1500.15,
+                  "orders": 5
+                },
+                {
+                  "quantity": 202,
+                  "price": 1500.2,
+                  "orders": 6
+                },
+                {
+                  "quantity": 203,
+                  "price": 1500.25,
+                  "orders": 7
+                },
+                {
+                  "quantity": 204,
+                  "price": 1500.3,
+                  "orders": 8
+                }
+              ]
+            },
+            "upper_circuit": 1637.2,
+            "lower_circuit": 1339.5
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.15,
+            "last_price": 1500.15,
+            "ltt": 1791000315000,
+            "timestamp": 1791000316000,
+            "close": 1488.3,
+            "prev_close": 1488.3,
+            "change": 11.85,
+            "change_percent": 0.8,
+            "volume": 3456849,
+            "last_quantity": 10,
+            "average_price": 1498.76,
+            "total_buy_quantity": 120000,
+            "total_sell_quantity": 98000,
+            "open": 1492.5,
+            "high": 1510.2,
+            "low": 1485.1,
+            "oi": 0,
+            "open_interest": 0,
+            "depth": {
+              "buy": [
+                {
+                  "quantity": 100,
+                  "price": 1500.0,
+                  "orders": 3
+                },
+                {
+                  "quantity": 101,
+                  "price": 1499.95,
+                  "orders": 4
+                },
+                {
+                  "quantity": 102,
+                  "price": 1499.9,
+                  "orders": 5
+                },
+                {
+                  "quantity": 103,
+                  "price": 1499.85,
+                  "orders": 6
+                },
+                {
+                  "quantity": 104,
+                  "price": 1499.8,
+                  "orders": 7
+                }
+              ],
+              "sell": [
+                {
+                  "quantity": 200,
+                  "price": 1500.1,
+                  "orders": 4
+                },
+                {
+                  "quantity": 201,
+                  "price": 1500.15,
+                  "orders": 5
+                },
+                {
+                  "quantity": 202,
+                  "price": 1500.2,
+                  "orders": 6
+                },
+                {
+                  "quantity": 203,
+                  "price": 1500.25,
+                  "orders": 7
+                },
+                {
+                  "quantity": 204,
+                  "price": 1500.3,
+                  "orders": 8
+                }
+              ]
+            },
+            "upper_circuit": 1637.2,
+            "lower_circuit": 1339.5
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "token": "2885",
+            "ltp": 1500.15,
+            "last_price": 1500.15,
+            "ltt": 1791000315000,
+            "timestamp": 1791000320000,
+            "close": 1488.3,
+            "prev_close": 1488.3,
+            "change": 11.85,
+            "change_percent": 0.8,
+            "volume": 3456849,
+            "last_quantity": 0,
+            "average_price": 1498.76,
+            "total_buy_quantity": 120000,
+            "total_sell_quantity": 98000,
+            "open": 1492.5,
+            "high": 1510.2,
+            "low": 1485.1,
+            "oi": 0,
+            "open_interest": 0,
+            "depth": {
+              "buy": [
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                },
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                },
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                },
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                },
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                },
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                },
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                },
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                },
+                {
+                  "quantity": 0,
+                  "price": 0.0,
+                  "orders": 0
+                }
+              ]
+            },
+            "upper_circuit": 1637.2,
+            "lower_circuit": 1339.5
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+# Arrow: the same future in full mode (OI, circuits, five levels).
+# 249-byte full packet: the quote block, circuit limits, 8 reserved bytes, then ten 14-byte levels at 109.
+0000cc79                # token 52345
+00258bb8                # ltp 24606.0 (paise 2460600)
+2b000003e8              # change flag and net change: ignored by both sides
+00000096                # last traded quantity 150
+00258591                # average price 24590.25
+000000000006ddd0        # total buy quantity 450000
+000000000005b8d8        # total sell quantity 375000
+002575d8                # open 24550.0
+00259900                # high 24640.0
+00256a20                # previous close 24520.0 (before low)
+00256e3a                # low 24530.5
+00000000001c9cce        # volume 1875150
+6ac07f55                # last trade time 1791000405, epoch s
+6ac07f56                # feed time 1791000406, epoch s
+0000000000bc63ee        # open interest 12346350
+0000000000bd3580        # OI day high
+0000000000b8a1a0        # OI day low
+0021ac50                # lower circuit 22068.0
+002927f0                # upper circuit 26972.0
+0000000000000000        # reserved
+00000000000002ee00258b540005# bid 1: qty 750, price 24605.0, orders 5
+00000000000005dc00258b220009# bid 2: qty 1500, price 24604.5, orders 9
+00000000000008ca00258af0000b# bid 3: qty 2250, price 24604.0, orders 11
+000000000000012c00258abe0002# bid 4: qty 300, price 24603.5, orders 2
+000000000000033900258a8c0006# bid 5: qty 825, price 24603.0, orders 6
+000000000000025800258bb80004# ask 1: qty 600, price 24606.0, orders 4
+00000000000004b000258bea0008# ask 2: qty 1200, price 24606.5, orders 8
+00000000000003cf00258c1c0007# ask 3: qty 975, price 24607.0, orders 7
+000000000000009600258c4e0001# ask 4: qty 150, price 24607.5, orders 1
+000000000000083400258c80000c# ask 5: qty 2100, price 24608.0, orders 12

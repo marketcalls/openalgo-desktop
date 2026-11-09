@@ -1,0 +1,32 @@
+# Arrow: the next full packet: the best bid fills, the book moves.
+# 249-byte full packet: the quote block, circuit limits, 8 reserved bytes, then ten 14-byte levels at 109.
+00000b45                # token 2885
+000249fa                # ltp 1500.1 (paise 150010)
+2b000003e8              # change flag and net change: ignored by both sides
+00000032                # last traded quantity 50
+00024974                # average price 1498.76
+000000000001d4c0        # total buy quantity 120000
+0000000000017ed0        # total sell quantity 98000
+00024702                # open 1492.5
+00024dec                # high 1510.2
+0002455e                # previous close 1488.3 (before low)
+0002441e                # low 1485.1
+000000000034bf47        # volume 3456839
+6ac07ef6                # last trade time 1791000310, epoch s
+6ac07ef7                # feed time 1791000311, epoch s
+0000000000000000        # open interest 0
+0000000000000000        # OI day high
+0000000000000000        # OI day low
+00020b3e                # lower circuit 1339.5
+00027f88                # upper circuit 1637.2
+0000000000000000        # reserved
+0000000000000096000249f50002# bid 1: qty 150, price 1500.05, orders 2
+0000000000000064000249f00003# bid 2: qty 100, price 1500.0, orders 3
+0000000000000065000249eb0004# bid 3: qty 101, price 1499.95, orders 4
+0000000000000066000249e60005# bid 4: qty 102, price 1499.9, orders 5
+0000000000000067000249e10006# bid 5: qty 103, price 1499.85, orders 6
+00000000000000c8000249fa0004# ask 1: qty 200, price 1500.1, orders 4
+00000000000000c9000249ff0005# ask 2: qty 201, price 1500.15, orders 5
+00000000000000ca00024a040006# ask 3: qty 202, price 1500.2, orders 6
+00000000000000cb00024a090007# ask 4: qty 203, price 1500.25, orders 7
+00000000000000cc00024a0e0008# ask 5: qty 204, price 1500.3, orders 8

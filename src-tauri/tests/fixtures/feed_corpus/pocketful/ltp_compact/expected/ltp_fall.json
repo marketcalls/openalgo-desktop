@@ -1,0 +1,19 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "pocketful",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 1,
+    "ltp": 1489.75,
+    "ltt": 1762656960000,
+    "timestamp": "<receipt_ms>",
+    "change": -10.5,
+    "oi": 0,
+    "bid_price": 1489.7,
+    "ask_price": 1489.8
+  }
+}

@@ -1,0 +1,4 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "push", "frame": {"text": "{\"openalgo_relay\":\"ready\"}"}, "socket": "orders", "note": "The relay's ready frame: the broker side is open."}
+{"step": "push", "frame": "frames/order_open.hex", "socket": "orders"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}

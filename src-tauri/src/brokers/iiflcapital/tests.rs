@@ -808,6 +808,8 @@ pub struct FakeMqtt {
     pub subscribed: Mutex<Vec<String>>,
     pub unsubscribed: Mutex<Vec<String>>,
     pub pings: Mutex<usize>,
+    /// DISCONNECT packets received.
+    pub disconnects: Mutex<usize>,
     /// Published (in this order) once their topic is subscribed.
     pub on_subscribe: Mutex<Vec<(String, Vec<u8>)>>,
 }
@@ -936,7 +938,10 @@ async fn mqtt_session(mut s: TcpStream, fake: Arc<FakeMqtt>) {
                 *fake.pings.lock() += 1;
                 let _ = s.write_all(&[0xD0, 0x00]).await;
             }
-            0xE0 => return,
+            0xE0 => {
+                *fake.disconnects.lock() += 1;
+                return;
+            }
             _ => {}
         }
     }
@@ -1049,6 +1054,36 @@ async fn relay_drives_the_market_feed_end_to_end() {
     let c = fake.connects.lock().clone();
     assert_eq!(c.len(), 2);
     assert_ne!(c[0].client_id, c[1].client_id);
+}
+
+/// Web `iiflcapital_mqtt.py:253-273` (`disconnect`): a client that closes
+/// on purpose sends MQTT DISCONNECT (0xE0 0x00) before it closes the
+/// socket, so the bridge ends the session at once instead of waiting out
+/// the keepalive. The relay sends it when the feed's side of it closes.
+#[tokio::test]
+async fn closing_the_feed_sends_mqtt_disconnect() {
+    let fake = Arc::new(FakeMqtt {
+        password: format!("OPENID~~{}~", JWT),
+        ..Default::default()
+    });
+    let port = fake_mqtt(fake.clone()).await;
+    let mut feed = IiflFeed::new(
+        MqttEndpoint::plain("127.0.0.1", port),
+        JWT,
+        SymbolResolver::new(),
+    )
+    .unwrap();
+    let (mut ws, _) = tokio_tungstenite::connect_async(feed.ws_request().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(
+        feed.parse(&next_frame(&mut ws).await),
+        vec![FeedEvent::AuthOk]
+    );
+    assert_eq!(*fake.disconnects.lock(), 0);
+    ws.close(None).await.unwrap();
+    let f = fake.clone();
+    wait_for(move || *f.disconnects.lock() == 1).await;
 }
 
 #[tokio::test]

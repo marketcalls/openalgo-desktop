@@ -1,0 +1,31 @@
+{
+  "broker": "rupeezy",
+  "summary": "A Depth subscription streams Vortex full: the 266-byte packet gives the quote, OI, five levels a side and the price band; the next packet moves the book; a packet whose levels are all zero sends five zero levels a side, as the web does.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rupeezy/streaming/rupeezy_websocket.py::split_message",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::parse_packet",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._on_ticks",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._topics_for",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._normalize",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter.subscribe"
+    ],
+    "notes": []
+  }
+}

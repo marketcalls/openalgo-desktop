@@ -1,0 +1,19 @@
+# Arrow: NIFTY future (NFO, token 52345) quote packet with OI.
+# 93-byte quote packet (>II5xIIQQIIIIQIIQQQ).
+0000cc79                # token 52345
+00258b86                # ltp 24605.5 (paise 2460550)
+2b000003e8              # change flag and net change: ignored by both sides
+0000004b                # last traded quantity 75
+00258591                # average price 24590.25
+000000000006ddd0        # total buy quantity 450000
+000000000005b8d8        # total sell quantity 375000
+002575d8                # open 24550.0
+00259900                # high 24640.0
+00256a20                # previous close 24520.0 (before low)
+00256e3a                # low 24530.5
+00000000001c9c38        # volume 1875000
+6ac07f50                # last trade time 1791000400, epoch s
+6ac07f51                # feed time 1791000401, epoch s
+0000000000bc6100        # open interest 12345600
+0000000000bd3580        # OI day high
+0000000000b8a1a0        # OI day low
