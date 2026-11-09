@@ -1,6 +1,6 @@
 {
   "broker": "aliceblue",
-  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first tk after the reconnect has no feed time, and the frame does not take the last connection's (it falls back to the receipt time).",
+  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first tk after the reconnect has no feed time, and the frame leaves ltt out rather than pass a receipt time off as one. The next tf with a time brings ltt back, and a partial tf after it keeps that time.",
   "scenarios": [
     "reconnect",
     "first-full-packet",
@@ -29,26 +29,41 @@
       "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._resubscribe_after_auth"
     ],
     "notes": [
-      "Partial updates overlay within a connection only: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. Both sides drop their snapshots on a new connection."
+      "Partial updates overlay within a connection only: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. Both sides drop their snapshots on a new connection.",
+      "Lead ruling (round 3 review): on a partial-update feed, no trade time yet in this connection means ltt is left out; a receipt time is never passed off as a trade time."
     ]
   },
   "deviations": [
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds as a string, and on the first tk of the new connection, which has no ft, an empty string (its snapshot was cleared). The protocol's WebSocket timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the time in ms as a number, and for a packet without one the time it made the tick.",
+      "reason": "The first tk of the new connection has no feed time; the web's snapshot was cleared and it sends ltt as an empty string. With no trade time yet on this connection the desktop leaves ltt out rather than pass a receipt time off as one.",
       "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146",
-      "approval": "alias-unit",
+      "approval": "do-not-invent-data",
       "allows": [
         [
           "",
-          "<receipt_ms>"
-        ],
+          "<absent>"
+        ]
+      ]
+    },
+    {
+      "key": "ltt",
+      "cause": "seconds-as-ms",
+      "allows": [
         [
           "1794302700",
           1794302700000
+        ],
+        [
+          "1794302765",
+          1794302765000
         ]
-      ]
+      ],
+      "kind": "web-defect",
+      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, as a string; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the time in ms, as a number.",
+      "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146",
+      "approval": "lost-data-kept"
     },
     {
       "key": "last_quantity",

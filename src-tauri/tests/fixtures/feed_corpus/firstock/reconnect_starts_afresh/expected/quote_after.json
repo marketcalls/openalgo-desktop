@@ -9,7 +9,6 @@
     "exchange": "NSE",
     "mode": 2,
     "ltp": 1297.0,
-    "ltt": "<receipt_ms>",
     "timestamp": "<receipt_ms>",
     "volume": 4570000,
     "last_quantity": 20,

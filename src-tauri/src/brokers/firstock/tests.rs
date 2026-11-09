@@ -532,3 +532,38 @@ fn a_partial_tick_keeps_the_trade_time_for_its_connection() {
         "a new connection starts afresh"
     );
 }
+
+/// No trade time yet on this connection: `ltt` is left out, never a receipt
+/// time passed off as one (lead ruling, do-not-invent-data). A tick with a
+/// time brings it, a partial tick keeps it, a new connection starts without.
+#[test]
+fn ltt_waits_for_the_connections_first_trade_time() {
+    use crate::brokers::common::streaming::{BrokerFeed, NormalizedTick, QuoteField};
+    fn tick(f: &mut FirstockFeed, data: Value) -> NormalizedTick {
+        let events = f.parse_text(&json!({ "NSE:2885": data }).to_string());
+        match events.into_iter().next() {
+            Some(FeedEvent::Tick(t)) => t,
+            other => panic!("no tick: {other:?}"),
+        }
+    }
+    let left_out = |t: &NormalizedTick| t.absent.contains(QuoteField::LastTradeTime);
+    let mut f = FirstockFeed::new(WS_URL, "AB1234", "jk");
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Quote)]);
+
+    let t = tick(&mut f, json!({"i_last_traded_price": 129600}));
+    assert!(left_out(&t), "no time yet on this connection");
+    let zero = json!({"i_last_traded_price": 129650, "i_last_trade_time": 0});
+    assert!(left_out(&tick(&mut f, zero)), "a time of 0 is none");
+
+    let timed = json!({"i_last_traded_price": 129700, "i_last_trade_time": 1794302702});
+    let t = tick(&mut f, timed);
+    assert!(!left_out(&t));
+    assert_eq!(t.last_trade_time_ms, 1_794_302_702_000);
+    let t = tick(&mut f, json!({"i_last_traded_price": 129750}));
+    assert!(!left_out(&t), "a partial tick keeps it");
+    assert_eq!(t.last_trade_time_ms, 1_794_302_702_000);
+
+    f.on_connected();
+    let t = tick(&mut f, json!({"i_last_traded_price": 129800}));
+    assert!(left_out(&t), "a new connection starts without one");
+}

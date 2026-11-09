@@ -34,8 +34,12 @@ a cleared book side) is sent.
   last their packet (audit R107-12).
 - The trade time belongs to its price: a new price without a trade time
   drops the old one, and the frame then sends the receive time as `ltt`, as
-  the web's adapters do, unless the stream has no trade time at all (an
-  index on Sahi), when `ltt` is left out.
+  the web's adapters with complete packets do (Arrow, Dhan Sandbox,
+  Zerodha), unless the stream has no trade time at all (an index on Sahi),
+  when `ltt` is left out. On a partial-update feed (below) `ltt` is left
+  out too until the connection has sent a trade time: the web's Firstock
+  adapter sends the last connection's time there and AliceBlue's an empty
+  string, and a receive time is never passed off as a trade time.
 - A packet with no traded price is not published; its other fields wait for
   the next price. No frame carries an invented LTP of 0.
 - A depth frame before its instrument's first tick carries the book, its

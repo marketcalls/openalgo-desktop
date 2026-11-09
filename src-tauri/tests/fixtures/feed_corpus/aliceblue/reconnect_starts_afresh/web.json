@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "aliceblue",
-  "inputs_sha256": "d80110aa0c5089047e630af3bc0b770c8653796449676db1e63d8b25231d5ecf",
+  "inputs_sha256": "2091254b58374d182848a9721227a64c688322cc191969a4cef84608f423ee02",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -96,6 +96,78 @@
           "data": {
             "ltp": 1297.0,
             "ltt": "",
+            "volume": 4570000,
+            "open": 1288.0,
+            "high": 1301.2,
+            "low": 1285.1,
+            "close": 1280.0,
+            "change_percent": 1.21,
+            "average_price": 1292.33,
+            "total_oi": 0
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "aliceblue",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 14,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1297.5,
+            "ltt": "1794302765",
+            "volume": 4570000,
+            "open": 1288.0,
+            "high": 1301.2,
+            "low": 1285.1,
+            "close": 1280.0,
+            "change_percent": 1.21,
+            "average_price": 1292.33,
+            "total_oi": 0
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "aliceblue",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 16,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1298.0,
+            "ltt": "1794302765",
             "volume": 4570000,
             "open": 1288.0,
             "high": 1301.2,

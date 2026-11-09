@@ -693,6 +693,11 @@ fn snapshot_tick(sub: &FeedSubscription, snap: &FeedSnap, book: bool) -> Normali
             tick.mark_absent(field);
         }
     }
+    // No feed time yet on this connection: `ltt` is left out rather than a
+    // receipt time passed off as one.
+    if snap.ft_ms <= 0 {
+        tick.mark_absent(F::LastTradeTime);
+    }
     match (snap.known.contains(F::OpenInterest), book) {
         (true, false) => tick.mark_carried(F::OpenInterest),
         (false, true) => tick.mark_absent(F::OpenInterest),
