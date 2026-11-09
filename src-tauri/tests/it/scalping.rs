@@ -747,8 +747,9 @@ impl FakePrices {
 
 #[async_trait]
 impl PriceSource for FakePrices {
-    async fn subscribe(&self, keys: &[Key]) {
+    async fn subscribe(&self, keys: &[Key]) -> Vec<Key> {
         self.held.lock().extend(keys.iter().cloned());
+        keys.to_vec()
     }
     async fn unsubscribe(&self, keys: &[Key]) {
         self.held.lock().retain(|k| !keys.contains(k));

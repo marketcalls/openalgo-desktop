@@ -1166,3 +1166,52 @@ async fn a_depth_answers_as_soon_as_both_packets_are_in() {
         assert!(took < Duration::from_secs(10), "{}: {:?}", order, took);
     }
 }
+
+/// Review 2, P2: a mode change sends only the difference between the two
+/// modes' streams. Quote and Depth both run the detailed stream, which must
+/// not stop and restart on the way between them.
+#[test]
+fn a_mode_change_sends_only_the_difference_between_the_streams() {
+    let mut f = PocketfulFeed::new("wss://x", "c", "t", master());
+    let at = |mode| sub("SBIN", "NSE", "3045", "NSE", mode);
+    f.subscribe_frames(&[at(FeedMode::Quote)]);
+    let frames = |v: Vec<Message>| -> Vec<Value> {
+        v.iter()
+            .map(|m| match m {
+                Message::Text(t) => json(t),
+                other => panic!("{:?}", other),
+            })
+            .collect()
+    };
+    let snap = |a: &str| json!({"a": a, "v": [[1, 3045]], "m": "full_snapquote"});
+    let detailed = |a: &str| json!({"a": a, "v": [[1, 3045]], "m": "marketdata"});
+    let compact = |a: &str| json!({"a": a, "v": [[1, 3045]], "m": "compact_marketdata"});
+    assert_eq!(
+        frames(f.mode_change_frames(&at(FeedMode::Quote), &at(FeedMode::Depth))),
+        vec![snap("subscribe")]
+    );
+    assert_eq!(
+        frames(f.mode_change_frames(&at(FeedMode::Depth), &at(FeedMode::Quote))),
+        vec![snap("unsubscribe")]
+    );
+    assert_eq!(
+        frames(f.mode_change_frames(&at(FeedMode::Ltp), &at(FeedMode::Depth))),
+        vec![
+            compact("unsubscribe"),
+            detailed("subscribe"),
+            snap("subscribe")
+        ]
+    );
+    assert_eq!(
+        frames(f.mode_change_frames(&at(FeedMode::Depth), &at(FeedMode::Ltp))),
+        vec![
+            detailed("unsubscribe"),
+            snap("unsubscribe"),
+            compact("subscribe")
+        ]
+    );
+    // The instrument stays routed through all of it.
+    assert!(!f
+        .parse(&Message::Binary(detailed_packet(1, 3045, 81_225)))
+        .is_empty());
+}

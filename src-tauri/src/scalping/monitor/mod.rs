@@ -692,7 +692,13 @@ impl RiskMonitor {
         }
         if let Some(src) = &self.prices {
             if !add.is_empty() {
-                src.subscribe(&add).await;
+                let taken = src.subscribe(&add).await;
+                // What was refused holds nothing to release later (X6);
+                // the next sync asks for it again.
+                let mut inner = self.inner.lock();
+                for k in add.iter().filter(|k| !taken.contains(k)) {
+                    inner.subscribed.remove(k);
+                }
             }
             if !remove.is_empty() {
                 src.unsubscribe(&remove).await;

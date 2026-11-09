@@ -205,6 +205,7 @@ fn oracle_tool_digest() -> String {
         "webkit.py",
         "webserver.py",
         "protolite.py",
+        "shadow.py",
     ]
     .map(String::from)
     .to_vec();

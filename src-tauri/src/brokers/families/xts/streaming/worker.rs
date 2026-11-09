@@ -2,7 +2,7 @@
 //! feed's subscription commands in order (`run_command`) and sends a batch
 //! that failed for a passing reason again (BF-03).
 
-use super::{run_command, Command, SubscriptionTarget, SUBSCRIBE_GAP};
+use super::{run_command, Command, CommandReport, SubscriptionTarget, SUBSCRIBE_GAP};
 use crate::security::Secret;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -74,6 +74,17 @@ pub(crate) async fn run_commands(
                 continue;
             }
         }
+        if let Some(release) = old_code_to_release(&cmd, &report) {
+            let due = tokio::time::Instant::now();
+            schedule(
+                &mut pending,
+                Pending {
+                    cmd: release,
+                    attempt: 0,
+                    due,
+                },
+            );
+        }
         if report.retry.is_empty() {
             continue;
         }
@@ -95,16 +106,42 @@ pub(crate) async fn run_commands(
                 code: cmd.code,
                 instruments: report.retry,
                 waited: None,
+                then_release: cmd.then_release,
             },
             attempt: attempt + 1,
             due: tokio::time::Instant::now() + wait,
         };
-        let at = pending
-            .iter()
-            .position(|q| q.due > p.due)
-            .unwrap_or(pending.len());
-        pending.insert(at, p);
+        schedule(&mut pending, p);
     }
+}
+
+/// `p` among what waits, in the order it falls due.
+fn schedule(pending: &mut std::collections::VecDeque<Pending>, p: Pending) {
+    let at = pending
+        .iter()
+        .position(|q| q.due > p.due)
+        .unwrap_or(pending.len());
+    pending.insert(at, p);
+}
+
+/// A mode upgrade's release of its old message code, for the instruments
+/// the broker took at the new one: what it refused keeps the old code, and
+/// what is to be sent again goes when that send is taken (review X2).
+fn old_code_to_release(cmd: &Command, report: &CommandReport) -> Option<Command> {
+    let code = cmd.then_release?;
+    let instruments: Vec<serde_json::Value> = cmd
+        .instruments
+        .iter()
+        .filter(|i| !report.retry.contains(i) && !report.refused.iter().any(|(r, _)| r == *i))
+        .cloned()
+        .collect();
+    (!instruments.is_empty()).then_some(Command {
+        subscribe: false,
+        code,
+        instruments,
+        waited: None,
+        then_release: None,
+    })
 }
 
 /// What the worker task owns: where its calls go, and where it hands the

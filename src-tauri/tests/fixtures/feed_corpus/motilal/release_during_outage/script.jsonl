@@ -1,0 +1,20 @@
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "connection": 1, "note": "The login goes out as the socket opens."}
+{"step": "push", "frame": "frames/hello.hex", "note": "The first binary frame authenticates the session."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "motilal"}], "message": "Subscription processing complete", "broker": "motilal"}}
+{"step": "upstream_receives", "frames": ["frames/register.hex"], "connection": 1}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "INFY", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "motilal"}], "message": "Subscription processing complete", "broker": "motilal"}}
+{"step": "upstream_receives", "frames": ["frames/register_infy.hex"], "connection": 1}
+{"step": "drop_upstream", "note": "The socket drops with both instruments registered on it."}
+{"step": "upstream_connected", "connection": 2}
+{"step": "upstream_receives", "frames": ["frames/login.hex"], "connection": 2, "note": "The socket is back and its login unanswered: the feed is not connected yet, as in the backoff, so nothing a client changes now reaches this socket or the feed."}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "note": "RELIANCE goes while the feed is not connected: only the registry hears of it, and the feed still holds its wire key.", "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "motilal"}], "failed": [], "broker": "motilal"}}
+{"step": "push", "frame": "frames/hello.hex", "note": "The new session is accepted."}
+{"step": "upstream_receives", "frames": ["frames/register_infy.hex"], "connection": 2, "note": "The replay is what clients still hold: INFY alone."}
+{"step": "push", "frame": "frames/ltp_infy.hex", "note": "INFY streams again, and its frame shows the session is up before the next subscribe."}
+{"step": "receive", "client": "a", "frame": "expected/quote_infy.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}, "note": "The feed is connected and INFY registered again, so this release goes to the broker as usual.", "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "INFY", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "motilal"}], "failed": [], "broker": "motilal"}}
+{"step": "upstream_receives", "frames": ["frames/unregister_infy.hex"], "connection": 2}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28OCT26FUT", "exchange": "NFO"}], "mode": 2}, "note": "Nobody holds ('N', 2885) any more, so the NFO contract with that code is not refused.", "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY28OCT26FUT", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "motilal"}], "message": "Subscription processing complete", "broker": "motilal"}}
+{"step": "upstream_receives", "frames": ["frames/register_fo.hex"], "connection": 2}
+{"step": "push", "frame": "frames/ltp_fo.hex", "note": "The scrip's packets are the NFO contract's."}
+{"step": "receive", "client": "a", "frame": "expected/quote_fo.json"}

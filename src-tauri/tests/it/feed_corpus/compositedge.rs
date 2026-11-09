@@ -21,6 +21,7 @@ corpus_cases!(
         index_quote_root,
         index_quote_touchline,
         ltp_equity_and_index,
+        one_of_fifty_refused,
         quote_partial_keeps_the_quote,
         quote_root,
         quote_touchline,
@@ -29,5 +30,6 @@ corpus_cases!(
         subscribe_refused_by_the_broker,
         text_1105,
         unsubscribe_keeps_the_others,
+        upgrade_refused_keeps_the_ltp_stream,
     ]
 );

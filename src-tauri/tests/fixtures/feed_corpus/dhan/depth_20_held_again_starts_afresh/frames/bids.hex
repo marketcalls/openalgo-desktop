@@ -1,0 +1,26 @@
+# Dhan 20-level depth frame: the bids half (code 41), 20 rows of f64 price, u32 qty, u32 orders.
+4c01                    # message length 332, header included
+29                      # response code 41 (bids)
+01                      # exchange segment 1 (NSE_EQ)
+450b0000                # security id 2885
+01000000                # sequence
+00000000005094406400000001000000# level 1: price 1300.0, qty 100, orders 1
+cdcccccccc4f94406e00000002000000# level 2: price 1299.95, qty 110, orders 2
+9a999999994f94407800000003000000# level 3: price 1299.9, qty 120, orders 3
+66666666664f94408200000004000000# level 4: price 1299.85, qty 130, orders 4
+33333333334f94408c00000005000000# level 5: price 1299.8, qty 140, orders 5
+00000000004f94409600000006000000# level 6: price 1299.75, qty 150, orders 6
+cdcccccccc4e9440a000000007000000# level 7: price 1299.7, qty 160, orders 7
+9a999999994e9440aa00000008000000# level 8: price 1299.65, qty 170, orders 8
+66666666664e9440b400000009000000# level 9: price 1299.6, qty 180, orders 9
+33333333334e9440be0000000a000000# level 10: price 1299.55, qty 190, orders 10
+00000000004e9440c80000000b000000# level 11: price 1299.5, qty 200, orders 11
+cdcccccccc4d9440d20000000c000000# level 12: price 1299.45, qty 210, orders 12
+9a999999994d9440dc0000000d000000# level 13: price 1299.4, qty 220, orders 13
+66666666664d9440e60000000e000000# level 14: price 1299.35, qty 230, orders 14
+33333333334d9440f00000000f000000# level 15: price 1299.3, qty 240, orders 15
+00000000004d9440fa00000010000000# level 16: price 1299.25, qty 250, orders 16
+cdcccccccc4c94400401000011000000# level 17: price 1299.2, qty 260, orders 17
+9a999999994c94400e01000012000000# level 18: price 1299.15, qty 270, orders 18
+66666666664c94401801000013000000# level 19: price 1299.1, qty 280, orders 19
+33333333334c94402201000014000000# level 20: price 1299.05, qty 290, orders 20

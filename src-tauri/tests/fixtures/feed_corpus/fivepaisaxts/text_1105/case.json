@@ -1,6 +1,6 @@
 {
   "broker": "fivepaisaxts",
-  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) arrives. The desktop reads it as the touchline its codes 110-119 are: both clients get a frame, the LTP client the whole Quote dict (this member's adapter publishes one dict per packet).",
+  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a POST of 1501, then a PUT of the LTP code once the broker took it), and a 1105 text event (t:1_2885,110:...,119:...) arrives. The desktop reads it as the touchline its codes 110-119 are: both clients get a frame, the LTP client the whole Quote dict (this member's adapter publishes one dict per packet).",
   "scenarios": [
     "partial-packet",
     "mode-change"

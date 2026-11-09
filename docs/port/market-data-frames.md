@@ -49,7 +49,9 @@ a cleared book side) is sent.
   broker's deeper socket, its holders get that socket's books (and every
   tick with the last of them), never the main feed's 5 levels in between;
   a holder at 5 gets the main feed's books. Before the holder's first book
-  from that socket, and again after that socket alone reconnects, it gets
+  from that socket, and again once that socket's session ends or the
+  instrument's last holder at that depth has left (nothing keeps the old
+  book current then), it gets
   the instrument's main-feed book where one exists, as the web sends a book
   in that frame: a frame without a `depth` key breaks a client reading
   `data['depth']` and leaves a blank book for up to 30 s on a quiet

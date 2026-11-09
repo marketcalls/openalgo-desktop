@@ -40,6 +40,8 @@ corpus_cases!(
         decimal_prices,
         oi_high_low_persist,
         depth_20_first_book_beside_5,
+        depth_20_held_again_starts_afresh,
+        depth_20_socket_down_forgets_its_book,
         depth_20_feed_not_made,
         depth_20_socket_refused,
         depth_20_silent_falls_back,

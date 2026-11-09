@@ -1,0 +1,787 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "compositedge",
+  "inputs_sha256": "3db38d24d8a441cb6f98e0e7c6c25d9c131c73b0cbaecf818568730791a0d6ef",
+  "instruments": [
+    {
+      "symbol": "S00",
+      "exchange": "NSE",
+      "token": "5000",
+      "brsymbol": "S00-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S01",
+      "exchange": "NSE",
+      "token": "5001",
+      "brsymbol": "S01-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S02",
+      "exchange": "NSE",
+      "token": "5002",
+      "brsymbol": "S02-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S03",
+      "exchange": "NSE",
+      "token": "5003",
+      "brsymbol": "S03-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S04",
+      "exchange": "NSE",
+      "token": "5004",
+      "brsymbol": "S04-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S05",
+      "exchange": "NSE",
+      "token": "5005",
+      "brsymbol": "S05-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S06",
+      "exchange": "NSE",
+      "token": "5006",
+      "brsymbol": "S06-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S07",
+      "exchange": "NSE",
+      "token": "5007",
+      "brsymbol": "S07-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S08",
+      "exchange": "NSE",
+      "token": "5008",
+      "brsymbol": "S08-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S09",
+      "exchange": "NSE",
+      "token": "5009",
+      "brsymbol": "S09-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S10",
+      "exchange": "NSE",
+      "token": "5010",
+      "brsymbol": "S10-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S11",
+      "exchange": "NSE",
+      "token": "5011",
+      "brsymbol": "S11-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S12",
+      "exchange": "NSE",
+      "token": "5012",
+      "brsymbol": "S12-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S13",
+      "exchange": "NSE",
+      "token": "5013",
+      "brsymbol": "S13-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S14",
+      "exchange": "NSE",
+      "token": "5014",
+      "brsymbol": "S14-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S15",
+      "exchange": "NSE",
+      "token": "5015",
+      "brsymbol": "S15-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S16",
+      "exchange": "NSE",
+      "token": "5016",
+      "brsymbol": "S16-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S17",
+      "exchange": "NSE",
+      "token": "5017",
+      "brsymbol": "S17-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S18",
+      "exchange": "NSE",
+      "token": "5018",
+      "brsymbol": "S18-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S19",
+      "exchange": "NSE",
+      "token": "5019",
+      "brsymbol": "S19-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S20",
+      "exchange": "NSE",
+      "token": "5020",
+      "brsymbol": "S20-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S21",
+      "exchange": "NSE",
+      "token": "5021",
+      "brsymbol": "S21-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S22",
+      "exchange": "NSE",
+      "token": "5022",
+      "brsymbol": "S22-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S23",
+      "exchange": "NSE",
+      "token": "5023",
+      "brsymbol": "S23-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S24",
+      "exchange": "NSE",
+      "token": "5024",
+      "brsymbol": "S24-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S25",
+      "exchange": "NSE",
+      "token": "5025",
+      "brsymbol": "S25-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S26",
+      "exchange": "NSE",
+      "token": "5026",
+      "brsymbol": "S26-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S27",
+      "exchange": "NSE",
+      "token": "5027",
+      "brsymbol": "S27-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S28",
+      "exchange": "NSE",
+      "token": "5028",
+      "brsymbol": "S28-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S29",
+      "exchange": "NSE",
+      "token": "5029",
+      "brsymbol": "S29-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S30",
+      "exchange": "NSE",
+      "token": "5030",
+      "brsymbol": "S30-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S31",
+      "exchange": "NSE",
+      "token": "5031",
+      "brsymbol": "S31-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S32",
+      "exchange": "NSE",
+      "token": "5032",
+      "brsymbol": "S32-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S33",
+      "exchange": "NSE",
+      "token": "5033",
+      "brsymbol": "S33-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S34",
+      "exchange": "NSE",
+      "token": "5034",
+      "brsymbol": "S34-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S35",
+      "exchange": "NSE",
+      "token": "5035",
+      "brsymbol": "S35-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S36",
+      "exchange": "NSE",
+      "token": "5036",
+      "brsymbol": "S36-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S37",
+      "exchange": "NSE",
+      "token": "5037",
+      "brsymbol": "S37-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S38",
+      "exchange": "NSE",
+      "token": "5038",
+      "brsymbol": "S38-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S39",
+      "exchange": "NSE",
+      "token": "5039",
+      "brsymbol": "S39-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S40",
+      "exchange": "NSE",
+      "token": "5040",
+      "brsymbol": "S40-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S41",
+      "exchange": "NSE",
+      "token": "5041",
+      "brsymbol": "S41-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S42",
+      "exchange": "NSE",
+      "token": "5042",
+      "brsymbol": "S42-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S43",
+      "exchange": "NSE",
+      "token": "5043",
+      "brsymbol": "S43-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S44",
+      "exchange": "NSE",
+      "token": "5044",
+      "brsymbol": "S44-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S45",
+      "exchange": "NSE",
+      "token": "5045",
+      "brsymbol": "S45-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S46",
+      "exchange": "NSE",
+      "token": "5046",
+      "brsymbol": "S46-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S47",
+      "exchange": "NSE",
+      "token": "5047",
+      "brsymbol": "S47-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S48",
+      "exchange": "NSE",
+      "token": "5048",
+      "brsymbol": "S48-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "S49",
+      "exchange": "NSE",
+      "token": "5049",
+      "brsymbol": "S49-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "S00",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S01",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S02",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S03",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S04",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S05",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S06",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S07",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S08",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S09",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S10",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S11",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S12",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S13",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S14",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S15",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S16",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S17",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S18",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S19",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S20",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S21",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S22",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S23",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S24",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S25",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S26",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S27",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S28",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S29",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S30",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S31",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S32",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S33",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S34",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S35",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S36",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S37",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S38",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S39",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S40",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S41",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S42",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S43",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S44",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S45",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S46",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S47",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S48",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            },
+            {
+              "symbol": "S49",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "compositedge"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "compositedge"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 4,
+      "published": [],
+      "deliveries": []
+    }
+  ]
+}

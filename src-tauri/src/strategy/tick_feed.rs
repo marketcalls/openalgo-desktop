@@ -28,7 +28,7 @@ use crate::brokers::types::QuoteKey;
 use crate::state::AppState;
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
@@ -43,7 +43,10 @@ pub type Key = (String, String);
 /// multiquotes; tests inject ticks directly.
 #[async_trait]
 pub trait PriceSource: Send + Sync {
-    async fn subscribe(&self, keys: &[Key]);
+    /// Ask for these instruments' prices; which of them were taken. What
+    /// was refused holds nothing, and must not be released later: another
+    /// consumer's reference would go instead (review X6).
+    async fn subscribe(&self, keys: &[Key]) -> Vec<Key>;
     async fn unsubscribe(&self, keys: &[Key]);
     fn ticks(&self) -> broadcast::Receiver<MarketEvent>;
     /// Last prices over REST, for symbols the stream has gone quiet on.
@@ -57,6 +60,8 @@ pub trait PriceSource: Send + Sync {
 struct Inner {
     refs: HashMap<Key, u32>,
     runs: HashMap<i64, Vec<Key>>,
+    /// The instruments the price source took, the only ones released.
+    held: HashSet<Key>,
     last_tick: HashMap<Key, Instant>,
 }
 
@@ -119,8 +124,27 @@ impl TickFeed {
             fresh
         };
         if let (Some(src), false) = (&self.source, fresh.is_empty()) {
-            src.subscribe(&fresh).await;
+            let taken = src.subscribe(&fresh).await;
+            let orphans = self.record_taken(taken);
+            if !orphans.is_empty() {
+                src.unsubscribe(&orphans).await;
+            }
         }
+    }
+
+    /// Remember what the source took; what no run holds any more (its run
+    /// ended while the subscribe was answered) is returned, to be released.
+    fn record_taken(&self, taken: Vec<Key>) -> Vec<Key> {
+        let mut inner = self.inner.lock();
+        let mut orphans = Vec::new();
+        for k in taken {
+            if inner.refs.contains_key(&k) {
+                inner.held.insert(k);
+            } else {
+                orphans.push(k);
+            }
+        }
+        orphans
     }
 
     /// Release this run's instruments; unsubscribes those no run holds.
@@ -135,7 +159,9 @@ impl TickFeed {
                     if *n == 0 {
                         inner.refs.remove(&k);
                         inner.last_tick.remove(&k);
-                        gone.push(k);
+                        if inner.held.remove(&k) {
+                            gone.push(k);
+                        }
                     }
                 }
             }
@@ -152,7 +178,8 @@ impl TickFeed {
             let mut inner = self.inner.lock();
             inner.runs.clear();
             inner.last_tick.clear();
-            inner.refs.drain().map(|(k, _)| k).collect()
+            inner.refs.clear();
+            inner.held.drain().collect()
         };
         self.pending.clear();
         if let (Some(src), false) = (&self.source, all.is_empty()) {
@@ -318,14 +345,26 @@ impl FeedPrices {
 
 #[async_trait]
 impl PriceSource for FeedPrices {
-    async fn subscribe(&self, keys: &[Key]) {
+    async fn subscribe(&self, keys: &[Key]) -> Vec<Key> {
         let subs = self.subscriptions(keys);
-        if !subs.is_empty() {
-            if let Err(e) = self.feed.subscribe(subs).await {
+        if subs.is_empty() {
+            return Vec::new();
+        }
+        let answers = self.feed.admit(subs.clone()).await;
+        let mut taken = Vec::with_capacity(subs.len());
+        for (s, answer) in subs.into_iter().zip(answers) {
+            match answer {
+                Ok(()) => taken.push((s.symbol, s.exchange)),
                 // The REST fallback keeps the run priced.
-                tracing::warn!("Strategy prices could not be streamed: {}", e.code());
+                Err(why) => tracing::warn!(
+                    "{} on {} could not be streamed for a strategy: {}",
+                    s.symbol,
+                    s.exchange,
+                    why
+                ),
             }
         }
+        taken
     }
 
     async fn unsubscribe(&self, keys: &[Key]) {

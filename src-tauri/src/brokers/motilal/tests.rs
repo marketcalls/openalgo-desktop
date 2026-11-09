@@ -1185,6 +1185,84 @@ fn the_second_instrument_streams_once_the_first_goes() {
     ));
 }
 
+/// RELIANCE is registered, the socket drops and the client lets it go
+/// before the new session is up: the release never reaches the feed
+/// (`send_waited` hands nothing to a connection that is not up) and the
+/// replay does not carry it. Its wire key is free once the session is
+/// accepted, and the NFO contract with that code streams.
+#[test]
+fn a_release_during_an_outage_frees_the_wire_key() {
+    let (cash, fo) = colliding_pair();
+    let keys = super::wire_keys::WireKeys::default();
+    let mut feed = MotilalFeed::new("wss://example.invalid/feed", "C1").sharing(keys.clone());
+    assert!(keys.claim(vec![cash.clone()])[0].is_ok());
+    feed.subscribe_frames(std::slice::from_ref(&cash));
+
+    feed.on_connected();
+    assert!(feed.on_authenticated().is_empty());
+
+    assert_eq!((feed.registered(), keys.len()), (0, 0));
+    assert!(keys.claim(vec![fo.clone()])[0].is_ok());
+    feed.subscribe_frames(std::slice::from_ref(&fo));
+    assert!(a_trade_reaches(&mut feed, "NIFTY28OCT26FUT", "NFO"));
+}
+
+/// Whether a last-trade packet on the colliding wire key is reported as
+/// `symbol` on `exchange`.
+fn a_trade_reaches(feed: &mut MotilalFeed, symbol: &str, exchange: &str) -> bool {
+    let trade = pkt(b'N', 2885, b'A', &f(1300.5));
+    feed.parse(&Message::Binary(trade))
+        .iter()
+        .any(|e| matches!(e, FeedEvent::Tick(t) if t.symbol == symbol && t.exchange == exchange))
+}
+
+/// An instrument a client still holds keeps its wire key through the
+/// login round trip and the replay: a colliding subscribe cannot take the
+/// code while the new socket is being signed in, and the packets are
+/// still its own afterwards.
+#[test]
+fn a_held_instrument_keeps_its_wire_key_across_a_reconnect() {
+    let (cash, fo) = colliding_pair();
+    let keys = super::wire_keys::WireKeys::default();
+    let mut feed = MotilalFeed::new("wss://example.invalid/feed", "C1").sharing(keys.clone());
+    assert!(keys.claim(vec![cash.clone()])[0].is_ok());
+    feed.subscribe_frames(std::slice::from_ref(&cash));
+
+    feed.on_connected();
+    assert_eq!(keys.claim(vec![fo.clone()])[0], Err(COLLISION.to_string()));
+    feed.on_authenticated();
+    feed.subscribe_frames(std::slice::from_ref(&cash));
+
+    assert_eq!(keys.claim(vec![fo])[0], Err(COLLISION.to_string()));
+    assert_eq!((feed.registered(), keys.len()), (1, 1));
+    assert!(a_trade_reaches(&mut feed, "RELIANCE", "NSE"));
+}
+
+/// A subscribe made while the socket is down reserves its wire key and is
+/// placed in the replay. The new session frees only what the feed itself
+/// had registered, so the reservation stays and the colliding contract is
+/// still refused, while the code of an instrument let go of in the outage
+/// is freed beside it.
+#[test]
+fn a_reservation_made_while_the_socket_is_down_survives_the_new_session() {
+    let (cash, fo) = colliding_pair();
+    let released = sub("INFY", "NSE", "1594", FeedMode::Quote);
+    let keys = super::wire_keys::WireKeys::default();
+    let mut feed = MotilalFeed::new("wss://example.invalid/feed", "C1").sharing(keys.clone());
+    assert!(keys.claim(vec![released.clone()])[0].is_ok());
+    feed.subscribe_frames(std::slice::from_ref(&released));
+
+    assert!(keys.claim(vec![cash.clone()])[0].is_ok());
+    feed.on_connected();
+    assert!(feed.on_authenticated().is_empty());
+
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys.claim(vec![fo.clone()])[0], Err(COLLISION.to_string()));
+    feed.subscribe_frames(std::slice::from_ref(&cash));
+    assert_eq!(keys.claim(vec![fo])[0], Err(COLLISION.to_string()));
+    assert_eq!((feed.registered(), keys.len()), (1, 1));
+}
+
 #[test]
 fn index_subscriptions_register_on_the_real_exchange() {
     assert_eq!(feed_exchange("NSE_INDEX"), "NSE");

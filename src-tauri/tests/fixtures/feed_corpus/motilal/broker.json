@@ -37,6 +37,6 @@
   "notes": [
     "Depth is 5 levels everywhere; the web refuses any other depth in Depth mode (INVALID_DEPTH, motilal_adapter.py:242).",
     "The web publishes from its packet stores on a 500 ms poll; the desktop pushes per packet.",
-    "A conditional identity risk shared with the web: a broadcast packet names only the exchange character and the scrip (motilal_websocket.py:456-484), so NSE cash and NSE F&O with the same scrip code share a wire key and the first registration gets both contracts' packets (motilal_websocket.py:942-966). The desktop refuses the second instrument while the first holds the code (motilal/wire_keys.rs; case wire_key_collision)."
+    "A conditional identity risk shared with the web: a broadcast packet names only the exchange character and the scrip (motilal_websocket.py:456-484), so NSE cash and NSE F&O with the same scrip code share a wire key and the first registration gets both contracts' packets (motilal_websocket.py:942-966). The desktop refuses the second instrument while the first holds the code (motilal/wire_keys.rs; case wire_key_collision). A code released while the feed is not connected is free once the new session is accepted (case release_during_outage), so a colliding subscribe made during the outage itself is refused until then."
   ]
 }

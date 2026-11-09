@@ -64,7 +64,7 @@ impl WebSocketManager {
                 registry: self.registry.clone(),
                 events: self.events.clone(),
                 packets: self.packets.clone(),
-                session: Default::default(),
+                session: self.packets.task_started(conn),
                 status,
                 config: self.config.clone(),
                 stats: self.stats.clone(),

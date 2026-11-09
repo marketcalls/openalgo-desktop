@@ -495,16 +495,16 @@ impl WebSocketManager {
             }
             (placed, (deltas, reg.changes))
         };
-        let refused = self.apply_admitted(deltas).await;
-        let Some(why) = refused.values().next().cloned() else {
+        let not_taken = self.apply_admitted(deltas).await;
+        let Some(why) = not_taken.refusals.values().next().cloned() else {
             return Ok(());
         };
         // All or none: what the broker took goes again with the refusal.
-        self.let_go_refused(&placed, &refused);
+        self.let_go_refused(&placed, &not_taken).await;
         let taken: Vec<FeedSubscription> = placed
             .into_iter()
             .flatten()
-            .filter(|s| !refused.contains_key(&s.instrument_key()))
+            .filter(|s| !not_taken.refusals.contains_key(&s.instrument_key()))
             .collect();
         let _ = self.unsubscribe(taken).await;
         Err(AppError::Validation(why))
@@ -550,11 +550,14 @@ impl WebSocketManager {
             (answers, placed, (deltas, reg.changes))
         };
         // Taken once the broker took it (review R107-03).
-        let refused = self.apply_admitted(deltas).await;
-        if !refused.is_empty() {
-            self.let_go_refused(&placed, &refused);
+        let not_taken = self.apply_admitted(deltas).await;
+        if !not_taken.refusals.is_empty() {
+            self.let_go_refused(&placed, &not_taken).await;
             for (answer, s) in answers.iter_mut().zip(&placed) {
-                if let Some(why) = s.as_ref().and_then(|s| refused.get(&s.instrument_key())) {
+                let why = s
+                    .as_ref()
+                    .and_then(|s| not_taken.refusals.get(&s.instrument_key()));
+                if let Some(why) = why {
                     *answer = Err(why.clone());
                 }
             }

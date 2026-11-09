@@ -550,6 +550,22 @@ pub trait BrokerFeed: Send + Sync {
         v
     }
 
+    /// The frames for mode upgrades `(old, new)` a caller waits on, and,
+    /// for a broker that answers subscribes apart from the socket, where
+    /// its refusals come (keyed by the new subscription, like
+    /// `admission_frames`): what it refuses keeps the old mode (review X2).
+    /// Default: the plain mode changes, whose writing is the whole change.
+    fn mode_upgrade_frames(
+        &mut self,
+        changes: &[(FeedSubscription, FeedSubscription)],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        let frames = changes
+            .iter()
+            .flat_map(|(old, new)| self.mode_change_frames(old, new))
+            .collect();
+        (frames, None)
+    }
+
     /// Decode one frame.
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent>;
 
