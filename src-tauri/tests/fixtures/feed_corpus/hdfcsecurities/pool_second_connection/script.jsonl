@@ -1,0 +1,22 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "mode": 2, "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}}
+{"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]}}], "note": "Connection 1 takes the first 1 instruments, its room."}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "mode": 2, "symbols": [{"symbol": "INFY", "exchange": "NSE"}]}}
+{"step": "upstream_connected", "socket": "main#2", "connection": 1, "path": "/?token=t&api_key=k", "headers": {"authorization": "t"}, "note": "The next instrument opens a second connection, with the session's query and headers."}
+{"step": "upstream_receives", "socket": "main#2", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_1594", "type": "ALL"}]}}]}
+{"step": "push", "socket": "main#2", "frame": "frames/infy.hex"}
+{"step": "receive", "client": "b", "frame": "expected/quote_infy.json"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/reliance.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_reliance.json"}
+{"step": "silence", "client": "b"}
+{"step": "refuse_upgrades", "socket": "main#2", "status": 503, "times": 1000000, "note": "Far more refusals than the case makes attempts: connection 2 stays down until a later step."}
+{"step": "drop_upstream", "socket": "main#2", "note": "The broker closes connection 2, and every attempt to reconnect is refused."}
+{"step": "push", "frame": "frames/reliance_2.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_reliance_2.json", "note": "Connection 1 keeps streaming while connection 2 is down."}
+{"step": "silence", "client": "b", "note": "Connection 2 is down: nothing for its client."}
+{"step": "refuse_upgrades", "socket": "main#2", "status": 503, "times": 1, "note": "One more refusal, then connection 2 may reconnect."}
+{"step": "upstream_connections", "socket": "main#2", "count": 2, "note": "Connection 2 is back, once; how many upgrades were refused depends on the backoff."}
+{"step": "upstream_receives", "socket": "main#2", "connection": 2, "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_1594", "type": "ALL"}]}}], "note": "It subscribes its instrument again; nothing moves to connection 1."}
+{"step": "push", "socket": "main#2", "frame": "frames/infy_2.hex"}
+{"step": "receive", "client": "b", "frame": "expected/quote_infy_2.json"}
+{"step": "upstream_connections", "socket": "main", "count": 1, "note": "Connection 1 never reconnected."}

@@ -2,10 +2,13 @@
 //! (`brokers::hdfcsecurities::streaming::HdfcSecuritiesFeed`), HDFC Sky's
 //! sibling protocol, built by the broker as a session builds it
 //! (`create_feed` from the stored `api_key:token`), with the broker wired
-//! into the bridge (its depth levels and refusals). No order-update
-//! stream, here or on the web.
+//! into the bridge (its depth levels and refusals), and the session's
+//! connection pool (1,000 instruments a connection, 2 connections;
+//! `pool_second_connection` lowers the 1,000). No order-update stream,
+//! here or on the web.
 
 use super::harness::{corpus_cases, Env, Feeds};
+use openalgo_desktop_lib::brokers::hdfcsecurities::streaming::HdfcSecuritiesFeed;
 use openalgo_desktop_lib::brokers::hdfcsecurities::HdfcSecuritiesBroker;
 use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
@@ -23,7 +26,10 @@ fn feeds(env: &Env) -> Feeds {
     let feed = broker
         .create_feed(&auth)
         .expect("HDFC Securities' market feed");
-    Feeds::boxed(feed).with_broker(broker, &auth)
+    let symbols = env.symbols();
+    Feeds::boxed(feed)
+        .with_broker(broker, &auth)
+        .with_pool(move |url| Box::new(HdfcSecuritiesFeed::new(url, "k", "t", symbols.clone())))
 }
 
 corpus_cases!(
@@ -43,5 +49,6 @@ corpus_cases!(
         empty_book_first,
         empty_book_between_books,
         empty_book_quote_and_depth,
+        pool_second_connection,
     ]
 );

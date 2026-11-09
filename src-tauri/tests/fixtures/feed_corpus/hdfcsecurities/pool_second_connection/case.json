@@ -1,0 +1,65 @@
+{
+  "broker": "hdfcsecurities",
+  "summary": "The market data pool opens a second connection when the first is full (one instrument each here): its ticks reach its own client only; the broker closes it and refuses it while the first connection keeps streaming, then it reconnects and subscribes its instrument again.",
+  "scenarios": [
+    "subscription-lifecycle",
+    "reconnect",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pool_per_connection": 1,
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._parse_packet",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._on_ticks",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "The session's pool is 1,000 instruments a connection and 2 connections (broker_runtime::pool_limits; rule life-d1-d8, D4); the case lowers it to one instrument a connection, so two instruments open the second connection. The web's pool opens its next connection at 1,000 a connection too, up to 3.",
+      "The web replay runs one adapter for the whole pool, and every frame here is a full packet of one instrument, so which connection carried it does not change the web's output."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
+      "approval": "alias-unit"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approval": "leave-out-unsent"
+    }
+  ]
+}
