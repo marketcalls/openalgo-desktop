@@ -93,6 +93,10 @@ class Fivepaisa(Polling, Glue):
         return f"{cid}_{depth}" if mode == 3 else cid
 
     def subscribe(self, row, mode, depth):
+        # fivepaisa_adapter.py:411-414: Depth at any level but 5 is refused
+        # (INVALID_DEPTH) before anything is stored.
+        if mode == 3 and depth != 5:
+            return
         methods = self.ad._methods_for_mode(mode)
         self.ad.subscriptions[self.correlation_id(row, mode, depth)] = {
             "symbol": row["symbol"],
