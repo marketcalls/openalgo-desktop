@@ -32,13 +32,15 @@
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "5paisa fills an index's traded quantity and book totals with 0 (an index has no trades and no book); the web passes the zeros on (_quote_fields feed.get(\"LastQty\", 0), feed.get(\"TBidQ\", 0)), the desktop's index frame leaves them out. Web sends zero; docs say leave out.",
-      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote"
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote",
+      "approved": true
     },
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
       "reason": "5paisa fills an index's traded quantity and book totals with 0 (an index has no trades and no book); the web passes the zeros on (_quote_fields feed.get(\"LastQty\", 0), feed.get(\"TBidQ\", 0)), the desktop's index frame leaves them out. Web sends zero; docs say leave out.",
-      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote"
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote",
+      "approved": true
     },
     {
       "key": "average_price",
@@ -51,13 +53,15 @@
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "5paisa fills an index's traded quantity and book totals with 0 (an index has no trades and no book); the web passes the zeros on (_quote_fields feed.get(\"LastQty\", 0), feed.get(\"TBidQ\", 0)), the desktop's index frame leaves them out. Web sends zero; docs say leave out.",
-      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote"
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote",
+      "approved": true
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "5paisa fills an index's traded quantity and book totals with 0 (an index has no trades and no book); the web passes the zeros on (_quote_fields feed.get(\"LastQty\", 0), feed.get(\"TBidQ\", 0)), the desktop's index frame leaves them out. Web sends zero; docs say leave out.",
-      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote"
+      "ref": "fivepaisa_adapter.py:_quote_fields, _normalize_market_data; feed/protocol/market.rs shown_quote",
+      "approved": true
     },
     {
       "key": "bid_price",
