@@ -36,56 +36,56 @@
       "kind": "web-defect",
       "reason": "The web drops a depth acknowledgement without OHLC before caching it, so a Depth subscriber gets nothing for the book Definedge sent; the desktop frames it.",
       "ref": "definedge_adapter.py:809-821",
-      "approved": true
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "ask",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best ask price; the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approved": true
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "ask_qty",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best ask quantity; the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approved": true
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "bid",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the best bid price; the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approved": true
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821), so it builds the next Depth frame from the update alone: every level but the one updated quantity reads 0 (price 0.0 at level one), zeros Definedge never sent. The desktop keeps the acknowledged book and applies the update to it.",
       "ref": "definedge_adapter.py:809-821, :1148-1193",
-      "approved": true
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
       "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
-      "approved": true
+      "approval": "alias-unit"
     },
     {
       "key": "total_sell_qty",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the sell total (its Depth name); the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approved": true
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "The web dropped the depth acknowledgement uncached (definedge_adapter.py:809-821) and with it the sell total; the desktop keeps it.",
       "ref": "definedge_adapter.py:809-821",
-      "approved": true
+      "approval": "never-copy-web-defect"
     }
   ]
 }

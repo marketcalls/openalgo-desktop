@@ -35,21 +35,21 @@
       "kind": "web-defect",
       "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
       "ref": "motilal_adapter.py _normalize_depth_data",
-      "approved": true
+      "approval": "lost-data-kept"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
       "ref": "motilal_adapter.py _normalize_depth_data",
-      "approved": true
+      "approval": "lost-data-kept"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "Motilal sent no open interest for this cash scrip (no m packet; a cash scrip has none and its last-trade packet's OI slot is 0); the web's Depth dict sends oi 0 from a default (_normalize_depth_data: result['oi'] = 0 without an m packet); the desktop leaves it out.",
       "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs quote_tick",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "missing-frame",

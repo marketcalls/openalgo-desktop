@@ -35,49 +35,49 @@
       "kind": "web-defect",
       "reason": "An index has no trades: Motilal's index packet (H) carries no last quantity, and the web sends ltq 0 from a default (quote.get(..., 0)); the desktop leaves it out.",
       "ref": "motilal_adapter.py _normalize_quote_data, _normalize_ltp_data",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "An index has no trades: Motilal's index packet (H) carries no average price, and the web sends average_price 0 from a default (quote.get(..., 0)); the desktop leaves it out.",
       "ref": "motilal_adapter.py _normalize_quote_data, _normalize_ltp_data",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "An index has no trades: Motilal's index packet (H) carries no volume, and the web sends volume 0 from a default (quote.get(..., 0)); the desktop leaves it out.",
       "ref": "motilal_adapter.py _normalize_quote_data, _normalize_ltp_data",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
       "ref": "motilal_adapter.py _normalize_quote_data",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
       "ref": "motilal_adapter.py _normalize_quote_data",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
       "ref": "motilal_adapter.py _normalize_quote_data",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
       "ref": "motilal_adapter.py _normalize_quote_data",
-      "approved": true
+      "approval": "leave-out-unsent"
     }
   ]
 }
