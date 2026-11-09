@@ -6,7 +6,7 @@
 {"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 3, "depth": 5}}
 {"step": "upstream_receives", "connection": 2, "frames": [{"text": "UNSUB 1\r\n"}, {"text": "SUB /ld/eq/nse/book.3045 2\r\n"}, {"text": "SUB /ld/eq/nse/price.3045 3\r\n"}], "note": "The mode change: the book, and the price subject again with a new sid. The web keeps sid 1 and subscribes the price subject a second time (a shadow), so Groww streams every price to it twice."}
 {"step": "push", "frame": "frames/book_first.hex", "connection": 2}
-{"step": "silence", "client": "a", "note": "A book is no trade: the Quote client gets nothing, as on the web."}
+{"step": "silence", "client": "a", "web": {"symbol": "SBIN", "exchange": "NSE", "mode": 2}, "note": "A book is no trade: the desktop sends the Quote client nothing. The web fans the Depth publication down to the Quote client as a frame with no ltp (declared)."}
 {"step": "receive", "client": "b", "frame": "expected/depth_book_only.json"}
 {"step": "push", "frame": "frames/price_full.hex", "connection": 2}
 {"step": "receive", "client": "a", "frame": "expected/quote_full.json"}
