@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fivepaisa",
-  "inputs_sha256": "4c699146b31f98053c0745f93465109ec97b664d76df644a0c8e55daceffe04b",
+  "inputs_sha256": "7b99483860fdb15000997a82271d4b88fa47ff33727f3efdaaaa747d920ca453",
   "instruments": [
     {
       "symbol": "ITC",

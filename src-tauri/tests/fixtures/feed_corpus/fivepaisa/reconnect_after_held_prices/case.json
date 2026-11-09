@@ -25,8 +25,7 @@
       "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter._on_open"
     ],
     "notes": [
-      "The first frame is the web test's FEED with OpenRate 445.5; the frames after the reconnect are worked here: no trade yet on the new connection (every price 0, the quantities as sent), then a trade at 440.30 with the other prices still 0.",
-      "For the unpriced frame the web publishes a quote with its pre-outage prices (its last_snapshot survives the reconnect); the desktop publishes nothing, which the harness cannot pair with a web publish, so it is not a declared key: the same web defect shows on the priced frame's open, high, low, close and average price."
+      "The first frame is the web test's FEED with OpenRate 445.5; the frames after the reconnect are worked here: no trade yet on the new connection (every price 0, the quantities as sent), then a trade at 440.30 with the other prices still 0."
     ]
   },
   "deviations": [
@@ -78,6 +77,13 @@
       "reason": "The web keeps its snapshot across a reconnect (fivepaisa_adapter.py _on_open and _on_close leave last_snapshot), so a frame 5paisa sends after it with a price of 0 goes out with the pre-outage price as current; the desktop starts each connection afresh and leaves a price it does not have out (lead decision: restarting the merge after a reconnect is a desktop improvement).",
       "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected",
       "approved": true
+    },
+    {
+      "key": "missing-frame",
+      "kind": "web-defect",
+      "approved": true,
+      "reason": "After the reconnect 5paisa's first frame reports 0 for every price: the web publishes a quote with its pre-outage prices as current (its last_snapshot survives the reconnect); the desktop starts the new connection afresh and publishes nothing without a traded price (lead decision: restarting the merge after a reconnect is a desktop improvement).",
+      "ref": "fivepaisa_adapter.py:_update_snapshot, _on_open; brokers/fivepaisa/streaming.rs quote_tick, on_connected"
     }
   ]
 }
