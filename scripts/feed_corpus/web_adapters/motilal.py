@@ -146,9 +146,10 @@ class Motilal(Glue):
         self.orders = self.new("MotilalOrderUpdateAdapter")
 
     def subscribe(self, row, mode, depth):
-        r = self.ad.subscribe(row["symbol"], row["exchange"], mode, depth)
-        if r.get("status") != "success":
-            raise SystemExit(f"the web adapter refused {row['symbol']} on {row['exchange']}: {r}")
+        # A subscribe the adapter refuses (INVALID_DEPTH for a depth other
+        # than 5, motilal_adapter.py:242) stores nothing, so it publishes
+        # nothing; the case checks the refusal's words in its reply.
+        self.ad.subscribe(row["symbol"], row["exchange"], mode, depth)
 
     def unsubscribe(self, row, mode, depth):
         self.ad.unsubscribe(row["symbol"], row["exchange"], mode, depth)

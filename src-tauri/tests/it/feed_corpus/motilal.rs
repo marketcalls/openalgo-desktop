@@ -41,5 +41,6 @@ corpus_cases!(
         reconnect_quote,
         order_lifecycle,
         order_session_refused,
+        depth_20_refused,
     ]
 );

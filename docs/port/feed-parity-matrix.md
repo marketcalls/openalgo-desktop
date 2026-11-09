@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 76. Open gaps: 117. Deviations pending approval: 171.
+Cases: 77. Open gaps: 117. Deviations pending approval: 171.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -33,7 +33,7 @@ Cases: 76. Open gaps: 117. Deviations pending approval: 171.
 | indmoney | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | jainamxts | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | kotak | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| motilal | deviation pending approval: `index_quote`, `ltp_mode` | deviation pending approval: `future_quote_oi`, `index_quote`, `quote_ohlc_before_first_trade`, `quote_trade_before_ohlc`, `reconnect_quote` | deviation pending approval: `depth_before_the_book`, `depth_book_before_the_quote`, `derivative_depth_oi` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_lifecycle`, `order_session_refused` |
+| motilal | deviation pending approval: `index_quote`, `ltp_mode` | deviation pending approval: `future_quote_oi`, `index_quote`, `quote_ohlc_before_first_trade`, `quote_trade_before_ohlc`, `reconnect_quote` | deviation pending approval: `depth_20_refused`, `depth_before_the_book`, `depth_book_before_the_quote`, `derivative_depth_oi` | not offered by the web (refusal: `depth_20_refused`) | not offered by the web | not offered by the web | matches web: `order_lifecycle`, `order_session_refused` |
 | mstock | matches web: `ltp_mode` | open gap: `currency_segment`, `future_quote_to_depth`, `index_quote`, `quote_mode`, `reconnect_replays`, `same_token_two_segments` | open gap: `depth_full_packets`, `depth_levels_refused`, `full_trade_time_in_seconds`, `future_quote_to_depth` | not offered by the web (refusal: `depth_levels_refused`) | not offered by the web | not offered by the web (refusal: `depth_levels_refused`) | not offered by the web |
 | nubra | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | paytm | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
