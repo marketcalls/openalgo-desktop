@@ -782,6 +782,26 @@ impl BrokerFeed for PocketfulFeed {
             .collect()
     }
 
+    /// Only the difference between the two modes' streams: Quote and
+    /// Depth both run the detailed stream, which stays up between them.
+    fn mode_change_frames(
+        &mut self,
+        old: &FeedSubscription,
+        new: &FeedSubscription,
+    ) -> Vec<Message> {
+        let Some(key) = Self::key(new) else {
+            return Vec::new();
+        };
+        let (before, after) = (streams(old.mode), streams(new.mode));
+        let frame = |action, stream: &u8| sub_frame(action, key.0, key.1, *stream);
+        let leaving = before.iter().filter(|s| !after.contains(s));
+        let arriving = after.iter().filter(|s| !before.contains(s));
+        leaving
+            .map(|s| frame("unsubscribe", s))
+            .chain(arriving.map(|s| frame("subscribe", s)))
+            .collect()
+    }
+
     fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         let mut out = Vec::new();
         for s in subs {
