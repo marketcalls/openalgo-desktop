@@ -87,6 +87,26 @@ pub fn merge(cached: &mut Map<String, Value>, new: &Map<String, Value>) {
     }
 }
 
+/// What of a scrip's cache belongs to the packet that carried it, not to
+/// the market (audit R107-10; lead decision: a per-packet time never
+/// carries over). `ft` dates its packet, so a packet without one has no
+/// feed time; `ltt` and `pc` belong to the price they came with, so a new
+/// `lp` without them has no trade time and a change worked out afresh. A
+/// packet that moves no price keeps its price's. The web's cache keeps
+/// all three and sends them with every later packet.
+fn forget_packet_times(cached: &mut Map<String, Value>, packet: &Map<String, Value>) {
+    if !packet.contains_key("ft") {
+        cached.remove("ft");
+    }
+    if packet.contains_key("lp") {
+        for key in ["ltt", "pc"] {
+            if !packet.contains_key(key) {
+                cached.remove(key);
+            }
+        }
+    }
+}
+
 /// A frame field as text (Noren sends numbers as strings).
 fn field(m: &Map<String, Value>, key: &str) -> String {
     match m.get(key) {
@@ -168,6 +188,7 @@ impl NorenFeed {
         };
         let entry = self.cache.entry(key).or_default();
         merge(entry, m);
+        forget_packet_times(entry, m);
         let snapshot = entry.clone();
         let depth_packet = t == "dk" || t == "df";
         let at = || Instrument {
