@@ -15,14 +15,15 @@
   ],
   "provenance": {
     "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
-    "method": "by-hand",
+    "method": "web-script",
     "sources": [
       "broker/fivepaisa/streaming/fivepaisa_adapter.py::FivepaisaWebSocketAdapter.subscribe",
-      "websocket_proxy/server.py::WebSocketProxy.subscribe_client"
+      "websocket_proxy/server.py::WebSocketProxy.subscribe_client",
+      "scripts/feed_corpus/web_adapters/fivepaisa.py::Fivepaisa.subscribe (the adapter's depth check, fivepaisa_adapter.py:411-414)"
     ],
     "notes": [
       "fivepaisa_adapter.py:411-414: mode 3 with depth_level not in [5] returns INVALID_DEPTH \"Invalid depth level {depth_level}. 5Paisa only supports 5 levels\" before any symbol lookup; server.py:1318-1335 answers the client a subscribe of status partial with the error item (symbol, exchange, status error, message, broker).",
-      "The refusal is in the adapter's subscribe, which the web script does not lift, so the reply is worked by hand and the case has no web.json."
+      "The glue refuses Depth at any level but 5 before storing anything, as the adapter's subscribe does, so web.json is computed: the web publishes nothing for the refused Depth 20; the Depth 5 subscribe that follows is the adapter's ordinary one."
     ]
   }
 }
