@@ -15,12 +15,15 @@
 //! same lock that checks), so two colliding subscribes arriving together,
 //! in one request or from two clients, cannot both pass. The feed marks a
 //! reservation registered when it registers the instrument and frees it
-//! when it lets go (or hands it to the instrument still sharing it). The
-//! map is bounded by the registered instruments plus reservations younger
-//! than [`RESERVATION_TTL`]: a reservation that never became a
-//! registration (its subscribe was refused for room afterwards) is dropped
-//! by the next claim once it is older than that, and claiming an
-//! instrument again replaces its own reservation.
+//! when it lets go (or hands it to the instrument still sharing it). A new
+//! session frees what the feed registered on the old one and registers
+//! what clients still hold, so a release made during an outage, which
+//! never reaches the feed, frees its key too. The map is bounded by the
+//! registered instruments plus reservations younger than
+//! [`RESERVATION_TTL`]: a reservation that never became a registration
+//! (its subscribe was refused for room afterwards) is dropped by the next
+//! claim once it is older than that, and claiming an instrument again
+//! replaces its own reservation.
 
 use crate::brokers::common::streaming::{FeedSubscription, Presubscribe};
 use futures_util::FutureExt;

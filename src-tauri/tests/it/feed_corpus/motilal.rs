@@ -45,5 +45,6 @@ corpus_cases!(
         market_logout,
         mode_change,
         wire_key_collision,
+        release_during_outage,
     ]
 );
