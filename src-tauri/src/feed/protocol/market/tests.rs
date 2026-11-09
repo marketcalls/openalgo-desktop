@@ -162,13 +162,18 @@ fn an_instruments_change_goes_under_the_brokers_names() {
         ("samco", "change"),
         ("shoonya", "percent_change"),
         ("kotak", "percent_change"),
-        ("pocketful", "change"),
     ];
     for (broker, name) in names {
         let d = data_at(equity(), Mode::Quote, broker);
         assert_eq!(d[name], 1.25, "{}: {}", broker, d);
         assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
     }
+    // pocketful_adapter.py:629-637: the compact (LTP) packet alone has one.
+    let pocketful = data_at(equity(), Mode::Ltp, "pocketful");
+    assert_eq!(pocketful["change"], 1.25, "{}", pocketful);
+    assert!(data_at(equity(), Mode::Quote, "pocketful")
+        .get("change")
+        .is_none());
     for broker in [
         "zerodha",
         "angel",
@@ -444,11 +449,15 @@ fn shared_fields_go_out_under_the_brokers_names() {
     assert_eq!(dhan["day_close"], 101.0);
     let shoonya = render(&u, Mode::Ltp, "shoonya");
     assert_eq!(shoonya["shoonya_timestamp"], 1_791_000_000);
-    let pocketful = render(&u, Mode::Ltp, "pocketful");
+    let mut at_ltp = u.clone();
+    at_ltp.mode = Mode::Ltp;
+    let pocketful = render(&at_ltp, Mode::Ltp, "pocketful");
     assert_eq!(
         (pocketful["bid_price"].as_f64(), pocketful["oi"].as_i64()),
         (Some(101.2), Some(5000))
     );
+    let pocketful_quote = render(&at_quote, Mode::Quote, "pocketful");
+    assert!(pocketful_quote.get("bid_price").is_none(), "LTP only");
     let zerodha = render(&u, Mode::Depth, "zerodha");
     assert!(zerodha.get("upper_circuit").is_none() && zerodha.get("bid_price").is_none());
     let none = render(&update(equity()), Mode::Depth, "angel");
@@ -830,7 +839,8 @@ fn a_trade_time_goes_out_as_ist_text() {
 }
 
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,
-/// Tradejini, Kotak and Pocketful send no canonical change on an index;
+/// Tradejini, Kotak, Pocketful, Arrow, Rupeezy, Paytm and IIFL Capital
+/// send no canonical change on an index;
 /// the broker's own names still go where it sends them (AliceBlue's
 /// `change_percent`); Zerodha's index frames carry the canonical ones.
 #[test]
@@ -842,6 +852,10 @@ fn the_canonical_index_change_follows_the_broker() {
         "tradejini",
         "kotak",
         "pocketful",
+        "arrow",
+        "rupeezy",
+        "paytm",
+        "iiflcapital",
     ] {
         let d = data_at(index(), Mode::Quote, broker);
         assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
@@ -855,6 +869,7 @@ fn the_canonical_index_change_follows_the_broker() {
         data_at(index(), Mode::Quote, "kotak")["percent_change"],
         1.25
     );
+    assert_eq!(data_at(index(), Mode::Quote, "iiflcapital")["change"], 1.25);
     assert_eq!(
         data_at(index(), Mode::Quote, "zerodha")["price_change"],
         1.25

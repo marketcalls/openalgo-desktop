@@ -485,8 +485,8 @@ const GROWW: &[WebName] = &[
 
 /// IIFL Capital's adapter sends no change at all; an index's change goes
 /// out under the docs' Quote keys, worked out from the previous close in
-/// IIFL's own index packet (lead decision 2026-11-09). An instrument has
-/// none (`instrument_change` is off), so these keys stay off its frames.
+/// IIFL's own index packet (lead decision 2026-11-09). An instrument's
+/// ticks mark the change absent, so these keys stay off its frames.
 const IIFLCAPITAL: &[WebName] = &[
     n("bid", S::Extra(E::BidPrice), Q),
     n("ask", S::Extra(E::AskPrice), Q),
@@ -549,11 +549,13 @@ const PAYTM: &[WebName] = &[
     n("oi_change", S::Extra(E::OiChange), D),
 ];
 
+/// pocketful_adapter.py:629-637: the compact (LTP) frame alone carries the
+/// change and the best prices; the detailed (Quote) frame has neither.
 const POCKETFUL: &[WebName] = &[
-    n("change", S::Change, L),
+    nt("change", S::Change, L, L),
     n("oi", S::Oi, L),
-    n("bid_price", S::Extra(E::BidPrice), L),
-    n("ask_price", S::Extra(E::AskPrice), L),
+    nt("bid_price", S::Extra(E::BidPrice), L, L),
+    nt("ask_price", S::Extra(E::AskPrice), L, L),
     n("last_trade_quantity", S::LastQuantity, Q),
 ];
 
@@ -629,14 +631,17 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
     match broker {
         "zerodha" => d(Label, ZERODHA).open_interest().no_ltt_on_ltp_copies(),
         "sahi" => d(Label, SAHI).open_interest().index_book(),
-        "iiflcapital" => d(Label, IIFLCAPITAL).open_interest(),
+        "iiflcapital" => d(Label, IIFLCAPITAL).open_interest().no_index_change(),
         "nubra" => d(Label, NUBRA).no_ltt(),
         "angel" => d(Number, ANGEL)
             .richer()
             .floats(&["total_buy_quantity", "total_sell_quantity"]),
-        "arrow" => d(Absent, ARROW_HDFC).open_interest().richer(),
+        "arrow" => d(Absent, ARROW_HDFC)
+            .open_interest()
+            .richer()
+            .no_index_change(),
         "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest(),
-        "rupeezy" => d(Absent, RUPEEZY).open_interest(),
+        "rupeezy" => d(Absent, RUPEEZY).open_interest().no_index_change(),
         // aliceblue_adapter.py:1243-1305: no symbol, exchange or mode in
         // `data`, and `timestamp` in the Depth dict only.
         "aliceblue" => d(Absent, ALICEBLUE)
@@ -664,6 +669,7 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "mstock" => d(Number, MSTOCK).richer(),
         "paytm" => d(Number, PAYTM)
             .richer()
+            .no_index_change()
             .instrument_key(Key::LastQuantity, Modes::DEPTH),
         "pocketful" => d(Number, POCKETFUL)
             .richer()
