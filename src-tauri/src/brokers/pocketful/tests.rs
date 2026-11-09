@@ -695,6 +695,7 @@ fn feed_frames_and_heartbeat() {
         vec![
             json!({"a":"subscribe","v":[[1,3045]],"m":"compact_marketdata"}),
             json!({"a":"subscribe","v":[[1,26000]],"m":"marketdata"}),
+            json!({"a":"subscribe","v":[[2,41918]],"m":"marketdata"}),
             json!({"a":"subscribe","v":[[2,41918]],"m":"full_snapquote"}),
         ]
     );
@@ -718,6 +719,7 @@ fn feed_frames_and_heartbeat() {
         texts,
         vec![
             json!({"a":"subscribe","v":[[1,11],[1,12]],"m":"compact_marketdata"}),
+            json!({"a":"subscribe","v":[[1,13]],"m":"marketdata"}),
             json!({"a":"subscribe","v":[[1,13]],"m":"full_snapquote"}),
             json!({"a":"subscribe","v":[[2,14]],"m":"compact_marketdata"}),
         ]
@@ -758,7 +760,7 @@ fn feed_ticks_and_depth_use_subscription_names() {
     let ev = f.parse(&Message::Binary(snapquote_packet(1, 3045)));
     match &ev[..] {
         [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
-            assert_eq!(t.ltp, 811.5);
+            assert_eq!((t.ltp, t.average_price), (0.0, 811.5), "R107-07");
             assert_eq!(t.mode, 3);
             assert_eq!(d.symbol, "SBIN");
             assert_eq!(d.buy[0].price, 812.0);

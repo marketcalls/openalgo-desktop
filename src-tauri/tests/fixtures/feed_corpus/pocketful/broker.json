@@ -15,7 +15,7 @@
     "services/order_update_service.py:36"
   ],
   "notes": [
-    "OpenAlgo LTP streams Pocketful's compact market data, Quote its detailed market data, Depth its snapquote (pocketful_adapter.py:242-246).",
+    "OpenAlgo LTP streams Pocketful's compact market data, Quote its detailed market data, Depth its snapquote (pocketful_adapter.py:242-246). The desktop's Depth also streams the detailed market data, whose packets carry the trade price a snapquote lacks, and sends a snapquote's average trade price as average_price, never as ltp (lead decision 2026-11-09, R107-07; the web streams the snapquote alone and publishes its average as ltp): cases depth_snapquote, snapquote_average_beside_a_trade_price.",
     "The web adapter refuses a Depth subscribe at any level but 5 (INVALID_DEPTH, pocketful_adapter.py:256-259); the desktop acknowledges it at 5 (feed::dialect, Fallback): case depth_20_refused_on_the_web.",
     "The web has no Pocketful order feed (no factory in services/order_update_service.py) and its market adapter ignores the order and trade packets (modes 50 and 51) the socket carries; the desktop relays them: case order_packets."
   ]
