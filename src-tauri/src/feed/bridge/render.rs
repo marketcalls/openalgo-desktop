@@ -77,6 +77,8 @@ pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> Option<Mark
         exact_mode: false,
         token: None,
         broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     })
 }
 
@@ -97,6 +99,7 @@ pub(in crate::feed) fn snapshot_update(key: InstrumentKey, s: &Snapshot) -> Opti
         }
         u.depth = Some(last.book.clone());
     }
+    u.deep_book = s.deep_book().map(|last| last.book.clone());
     Some(u)
 }
 
@@ -162,6 +165,8 @@ pub(crate) fn depth_update(
         exact_mode: true,
         token: None,
         broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     }
 }
 

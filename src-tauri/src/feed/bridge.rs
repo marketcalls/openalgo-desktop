@@ -146,6 +146,19 @@ impl Desired {
 }
 
 #[derive(Default)]
+impl State {
+    /// `levels` while `key`'s Depth subscription at them streams from the
+    /// deeper socket (not fallen back to the main feed's levels).
+    fn deep_live(&self, key: &InstrumentKey, levels: Option<u8>) -> Option<u8> {
+        levels.filter(|l| {
+            matches!(
+                self.applied.get(&(key.clone(), Mode::Depth, *l)),
+                Some(Applied::Deep { .. })
+            )
+        })
+    }
+}
+
 struct State {
     desired: Desired,
     applied: HashMap<DesiredKey, Applied>,
@@ -481,6 +494,7 @@ impl BrokerBridge {
         match ev {
             FeedEvent::Tick(t) => {
                 let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
+                let deep_levels = *self.deep.lock();
                 let epoch = self.connection();
                 let mut st = self.state.lock();
                 if !st.holds(&key) {
@@ -492,6 +506,7 @@ impl BrokerBridge {
                 }
                 // A packet without a trade (OI, circuits) only updates the
                 // snapshot; the next priced packet carries what it brought.
+                let deep_live = st.deep_live(&key, deep_levels);
                 let update = t
                     .knows(QuoteField::Ltp)
                     .then(|| snapshot_update(key.clone(), &merged))
@@ -499,6 +514,7 @@ impl BrokerBridge {
                     .map(|u| MarketUpdate {
                         token: merged.token(),
                         broker_symbol: merged.broker_symbol(),
+                        deep_live,
                         ..u
                     });
                 st.last_tick.insert(key, merged);
@@ -509,7 +525,8 @@ impl BrokerBridge {
                 let epoch = self.connection();
                 // A broker with a deeper socket: its books are at its levels,
                 // the main feed's at the main levels (a fallen-back holder's).
-                let levels = (*self.deep.lock()).map(|l| if deep { l } else { DEFAULT_DEPTH });
+                let deep_levels = *self.deep.lock();
+                let levels = deep_levels.map(|l| if deep { l } else { DEFAULT_DEPTH });
                 let mut st = self.state.lock();
                 if !st.holds(&key) {
                     return None;
@@ -525,11 +542,18 @@ impl BrokerBridge {
                     book.levels = levels;
                 }
                 if let Some(book) = LastBook::of(&update) {
-                    snapshot::keep_book(&mut st.last_tick, &key, book, epoch);
+                    snapshot::keep_book(&mut st.last_tick, &key, book, epoch, deep);
+                }
+                if deep {
+                    update.deep_book = update.depth.take();
+                } else {
+                    let cached = st.last_tick.get(&key).and_then(Snapshot::deep_book);
+                    update.deep_book = cached.map(|b| b.book.clone());
                 }
                 Some(MarketUpdate {
                     token,
                     broker_symbol,
+                    deep_live: st.deep_live(&key, deep_levels),
                     ..update
                 })
             }

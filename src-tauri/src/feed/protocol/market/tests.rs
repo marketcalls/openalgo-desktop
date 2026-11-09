@@ -49,6 +49,8 @@ fn update(key: InstrumentKey) -> MarketUpdate {
         exact_mode: false,
         token: None,
         broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     }
 }
 
@@ -887,6 +889,77 @@ fn a_fallen_back_book_names_the_levels_it_was_served_at() {
     assert!(data(&u, 50, "fyers").get("is_50_depth").is_none());
     levels(&mut u, Some(50));
     assert_eq!(data(&u, 50, "fyers")["is_50_depth"], true);
+}
+
+/// A Depth 5 and a Depth 20 holder of one Dhan symbol while its 20 levels
+/// stream from the depth socket: each gets only books at its own depth,
+/// the 20 holder never the main feed's 5 levels in between (web defect:
+/// the web sends every Depth publish of a symbol to every Depth client);
+/// after the fallback the 20 holder gets the main feed's book, named 5.
+#[test]
+fn each_depth_holder_gets_only_books_at_its_own_depth() {
+    use super::reaches;
+    let book = |n: usize, levels: u8| DepthBook {
+        buy: vec![
+            DepthLevel {
+                price: 101.0,
+                quantity: 1,
+                orders: Some(1)
+            };
+            n
+        ],
+        sell: vec![
+            DepthLevel {
+                price: 101.5,
+                quantity: 1,
+                orders: Some(1)
+            };
+            n
+        ],
+        levels: Some(levels),
+        time_ms: None,
+    };
+    let frame = |u: &MarketUpdate, depth: u8| -> Option<Value> {
+        reaches(u, Mode::Depth, depth, "dhan").then(|| {
+            let v: Value =
+                serde_json::from_str(&market_data(u, Mode::Depth, depth, "dhan")).unwrap();
+            v["data"].clone()
+        })
+    };
+    let side = |d: &Value| d["depth"]["buy"].as_array().map(Vec::len);
+    let mut main = update(equity());
+    main.exact_mode = true;
+    main.depth = Some(book(5, 5));
+    main.deep_live = Some(20);
+    main.deep_book = Some(book(20, 20));
+    let five = frame(&main, 5).expect("a 5 holder hears the main book");
+    assert_eq!(
+        (side(&five), five["depth_level"].as_u64()),
+        (Some(5), Some(5))
+    );
+    assert!(frame(&main, 20).is_none(), "never the 5 levels in between");
+
+    let mut deep = main.clone();
+    deep.depth = None;
+    let twenty = frame(&deep, 20).expect("the 20 holder hears its book");
+    assert_eq!(
+        (side(&twenty), twenty["depth_level"].as_u64()),
+        (Some(20), Some(20))
+    );
+    assert!(frame(&deep, 5).is_none(), "the 5 holder has its own book");
+
+    let mut tick = main.clone();
+    tick.exact_mode = false;
+    assert_eq!(frame(&tick, 5).as_ref().and_then(side), Some(5));
+    assert_eq!(frame(&tick, 20).as_ref().and_then(side), Some(20));
+
+    let mut fell_back = main.clone();
+    fell_back.deep_live = None;
+    let twenty = frame(&fell_back, 20).expect("after the fallback, the main book");
+    assert_eq!(
+        (side(&twenty), twenty["depth_level"].as_u64()),
+        (Some(5), Some(5))
+    );
 }
 
 /// Fyers' `token` is the exchange's token (the fytoken less its first ten

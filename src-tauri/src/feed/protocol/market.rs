@@ -6,7 +6,7 @@
 use super::to_json;
 use crate::brokers::common::streaming::{Number, NumberForm, TimeText};
 use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Fold, Key, Source, Unit};
-use crate::feed::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
+use crate::feed::source::{DepthBook, DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
 use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
 use serde_json::Value;
@@ -304,7 +304,7 @@ fn as_integer(v: Value) -> Value {
 /// main feed's where its deep subscription fell back (web Dhan names 5
 /// then, dhan_adapter.py:930, 1042; web Fyers sends no 50-level frame).
 fn served(fr: &Frame<'_>) -> u8 {
-    let levels = fr.update.depth.as_ref().and_then(|b| b.levels);
+    let levels = book_for(fr.update, fr.depth).and_then(|b| b.levels);
     levels.map_or(fr.depth, |l| l.min(fr.depth))
 }
 
@@ -340,18 +340,11 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
             book.then(|| Value::from(served(fr)))
         }
         Source::BookLevels => {
-            let b = fr
-                .update
-                .depth
-                .as_ref()
-                .filter(|_| fr.content == Mode::Depth)?;
+            let b = book_for(fr.update, fr.depth).filter(|_| fr.content == Mode::Depth)?;
             let present = b.buy.len().max(b.sell.len()).min(usize::from(fr.depth));
             Some(Value::from(present))
         }
-        Source::BookTime(unit) => fr
-            .update
-            .depth
-            .as_ref()
+        Source::BookTime(unit) => book_for(fr.update, fr.depth)
             .and_then(|b| b.time_ms)
             .map(|ms| time(ms, unit)),
         Source::ExchangeToken => {
@@ -417,11 +410,38 @@ fn web_keys(d: &DataOut<'_>, fr: &Frame<'_>) -> WebKeys {
 /// update's mode, only its own mode for an exact one (a book on its own),
 /// and at Depth without a book only where the broker's web adapter
 /// publishes such a packet on its Depth topic (`Dialect::depth_needs_book`).
-pub(crate) fn reaches(update: &MarketUpdate, mode: Mode, broker: &str) -> bool {
+pub(crate) fn reaches(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -> bool {
     if mode > update.mode || (update.exact_mode && mode != update.mode) {
         return false;
     }
-    !(mode == Mode::Depth && update.depth.is_none() && dialect(broker).depth_needs_book)
+    if mode != Mode::Depth {
+        return true;
+    }
+    // A main-feed book is not for a holder whose own book streams from the
+    // deeper socket (its frames carry that book).
+    if update.exact_mode && update.depth.is_some() && update.deep_live == Some(depth) {
+        return false;
+    }
+    if book_for(update, depth).is_some() {
+        return true;
+    }
+    // No book for this holder: a book event for other holders reaches it
+    // not at all; a tick reaches it without a book unless its broker's web
+    // adapter waits for the book.
+    !update.exact_mode && !dialect(broker).depth_needs_book
+}
+
+/// The book a Depth holder at `depth` gets from `update`: the deeper
+/// socket's while its subscription streams from there (a Dhan 20 or Fyers
+/// 50 holder never gets the main feed's 5 levels in between, which would
+/// show its book shrinking and growing; web defect: the web's listener
+/// sends every Depth publish of a symbol to every Depth client), else the
+/// main feed's, cut to `depth`.
+fn book_for(update: &MarketUpdate, depth: u8) -> Option<&DepthBook> {
+    match update.deep_live {
+        Some(levels) if levels == depth => update.deep_book.as_ref(),
+        _ => update.depth.as_ref(),
+    }
 }
 
 /// Render `update` for a subscriber at `mode` (which must not exceed
@@ -470,7 +490,12 @@ fn book(update: &MarketUpdate, mode: Mode, depth: u8) -> Option<BookOut> {
     } else {
         usize::MAX
     };
-    match &update.depth {
+    let held = if mode == Mode::Depth {
+        book_for(update, depth)
+    } else {
+        update.depth.as_ref()
+    };
+    match held {
         Some(b) => Some(BookOut {
             buy: b.buy.iter().take(n).map(LevelOut::from).collect(),
             sell: b.sell.iter().take(n).map(LevelOut::from).collect(),

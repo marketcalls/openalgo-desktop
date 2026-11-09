@@ -37,6 +37,16 @@ a cleared book side) is sent.
   `timestamp`; the web leaves `ltp` out too).
 - A book without totals takes the tick's; a book without order counts
   (Upstox) sends levels without `orders`.
+- A Depth holder gets only books at its own depth. While a Dhan 20 or
+  Fyers 50 subscription streams from the broker's deeper socket, its
+  holders get that socket's books (and every tick with the last of them),
+  never the main feed's 5 levels in between; a holder at 5 gets the main
+  feed's books. After a fallback the deep holder gets the main feed's book.
+  Web defect: the web's listener (`server.py` around 2102) sends every
+  Depth publish of a symbol to every Depth client, so a Dhan 20 client
+  there sees its book alternate between 20 and 5 levels, and a 5 client
+  receives 20-level books uncut (`protocol::book_for`, `reaches`; test
+  `fanout_tests::a_5_and_a_20_holder_each_get_books_at_their_own_depth`).
 - A frame names the levels its book was served at: Dhan's `depth_level`
   says 5 once a 20-level subscription fell back to the main feed (web
   dhan_adapter.py:930, 1042), and Fyers sends no 50-level keys then

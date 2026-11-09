@@ -62,8 +62,9 @@ pub(in crate::feed) struct Snapshot {
     token: Option<Arc<str>>,
     broker_symbol: Option<Arc<str>>,
     /// The instrument's last book in this connection (shared: every tick
-    /// makes a new snapshot).
+    /// makes a new snapshot), and the deeper socket's apart.
     book: Option<Arc<LastBook>>,
+    deep_book: Option<Arc<LastBook>>,
 }
 
 impl Snapshot {
@@ -98,21 +99,32 @@ impl Snapshot {
     pub(in crate::feed) fn book(&self) -> Option<&LastBook> {
         self.book.as_deref()
     }
+
+    pub(in crate::feed) fn deep_book(&self) -> Option<&LastBook> {
+        self.deep_book.as_deref()
+    }
 }
 
-/// Keep `book` as `key`'s last book in connection `epoch`: on its snapshot,
-/// or on a snapshot with no quote yet when the book came first.
+/// Keep `book` as `key`'s last book (`deep`: from the deeper socket) in
+/// connection `epoch`: on its snapshot, or on a snapshot with no quote yet
+/// when the book came first.
 pub(in crate::feed) fn keep_book(
     snapshots: &mut HashMap<InstrumentKey, Snapshot>,
     key: &InstrumentKey,
     book: LastBook,
     epoch: u64,
+    deep: bool,
 ) {
     let book = Some(Arc::new(book));
     if let Some(s) = snapshots.get_mut(key).filter(|s| s.of_epoch(epoch)) {
-        s.book = book;
+        if deep {
+            s.deep_book = book;
+        } else {
+            s.book = book;
+        }
         return;
     }
+    let (book, deep_book) = if deep { (None, book) } else { (book, None) };
     let tick = NormalizedTick {
         symbol: key.symbol.clone(),
         exchange: key.exchange.clone(),
@@ -128,6 +140,7 @@ pub(in crate::feed) fn keep_book(
             token: None,
             broker_symbol: None,
             book,
+            deep_book,
         },
     );
 }
@@ -143,6 +156,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
     let token = prev.and_then(Snapshot::token);
     let broker_symbol = prev.and_then(Snapshot::broker_symbol);
     let book = prev.and_then(|p| p.book.clone());
+    let deep_book = prev.and_then(|p| p.deep_book.clone());
     let (mut s, mut known) = match prev {
         Some(p) => (p.tick.clone(), p.tick.known()),
         None => (
@@ -179,6 +193,7 @@ pub(in crate::feed) fn merge(prev: Option<&Snapshot>, t: &NormalizedTick, epoch:
         token,
         broker_symbol,
         book,
+        deep_book,
     }
 }
 

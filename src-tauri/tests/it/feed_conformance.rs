@@ -248,6 +248,8 @@ fn update_from(frame: &Value) -> MarketUpdate {
         exact_mode: false,
         token: None,
         broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     }
 }
 

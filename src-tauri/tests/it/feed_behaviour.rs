@@ -47,6 +47,8 @@ fn depth_update(key: InstrumentKey, ltp: f64, levels: usize) -> MarketUpdate {
         exact_mode: false,
         token: None,
         broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     }
 }
 

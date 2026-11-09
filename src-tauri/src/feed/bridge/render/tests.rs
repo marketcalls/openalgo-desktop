@@ -430,7 +430,12 @@ fn a_full_tick_after_a_book_carries_that_book() {
     let u = snapshot_update(key.clone(), &s).expect("a price");
     assert_eq!(u.ltp, 1168.0, "the tick's price, not the book's");
     assert_eq!(u.depth.as_ref().map(|b| b.buy[0].price), Some(1167.6));
-    assert!(crate::feed::protocol::reaches(&u, Mode::Depth, "definedge"));
+    assert!(crate::feed::protocol::reaches(
+        &u,
+        Mode::Depth,
+        5,
+        "definedge"
+    ));
     let mut quote = next.clone();
     quote.mode = 2;
     let q = snapshot_update(key.clone(), &merge(Some(&s), &quote, 1)).expect("a price");
