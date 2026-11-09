@@ -428,6 +428,9 @@ impl BrokerBridge {
                     again |= !st.desired.contains(&k);
                     if matches!(a, Applied::Deep { .. }) {
                         st.deep_books.watch(&k);
+                        // The pass that planned it has already looked for
+                        // what it next has to wake for.
+                        again = true;
                     }
                     st.applied.insert(k.clone(), a);
                     st.ops.refused.remove(&k);
@@ -536,6 +539,7 @@ impl BrokerBridge {
                         why
                     );
                     st.ops.retry.insert(r.key.clone(), (now + pause, attempt));
+                    again = true;
                 }
                 st.applied.insert(r.key.clone(), r.applied);
             } else {

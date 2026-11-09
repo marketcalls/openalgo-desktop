@@ -1,6 +1,6 @@
 {
   "broker": "rmoney",
-  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a POST of 1501, then a PUT of the LTP code once the broker took it), and a 1105 text event (t:1_2885,110:...,119:...) arrives. It is an LTP (1512) message for RMoney, as its web client marks it and its adapter publishes it on the LTP topic alone: the LTP client gets it, its counts as doubles (float()), the Quote client nothing.",
+  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) arrives. It is an LTP (1512) message for RMoney, as its web client marks it and its adapter publishes it on the LTP topic alone: the LTP client gets it, its counts as doubles (float()), the Quote client nothing.",
   "scenarios": [
     "partial-packet",
     "mode-change"
