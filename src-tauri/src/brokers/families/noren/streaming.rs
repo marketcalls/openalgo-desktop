@@ -74,7 +74,12 @@ fn is_zero(v: &Value) -> bool {
     }
 }
 
-/// Overlay `new` on `cached`, keeping non-zero o/h/l/c/ap.
+/// Overlay `new` on `cached`, keeping non-zero o/h/l/c/ap. A `tf` is a
+/// partial update: a key it leaves out has not changed, so `ft`, `ltt` and
+/// `pc` stay cached like every other field (a second-resolution time is
+/// not resent on a tick in the same second, nor `pc` when its rounded
+/// figure did not move), as on the web. The cache lasts one connection.
+/// See "Partial-update feeds" in docs/port/market-data-frames.md.
 pub fn merge(cached: &mut Map<String, Value>, new: &Map<String, Value>) {
     for (k, v) in new {
         if matches!(k.as_str(), "o" | "h" | "l" | "c" | "ap")

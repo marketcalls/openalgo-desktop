@@ -482,3 +482,53 @@ fn an_invalid_depth_side_keeps_the_valid_book() {
         "invalid levels drop out instead of pushing valid ones down, and no zero level is added"
     );
 }
+
+/// The trade time of a Firstock quote tick for RELIANCE.
+fn ltp_and_trade_time(f: &mut FirstockFeed, data: Value) -> (f64, i64) {
+    let events = f.parse_text(&json!({ "NSE:2885": data }).to_string());
+    match &events[..] {
+        [FeedEvent::Tick(t)] => (t.ltp, t.last_trade_time_ms),
+        other => panic!("no tick: {other:?}"),
+    }
+}
+
+/// Firstock's ticks are partial updates (docs/port/market-data-frames.md,
+/// "Partial-update feeds"): a new price without `i_last_trade_time` keeps
+/// the cached time, as on the web, until a tick brings its own (the "no
+/// value" sentinel is not one); a new connection starts afresh.
+#[test]
+fn a_partial_tick_keeps_the_trade_time_for_its_connection() {
+    use crate::brokers::common::streaming::BrokerFeed;
+    let mut f = FirstockFeed::new(WS_URL, "AB1234", "jk");
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Quote)]);
+    let first = json!({"i_last_traded_price": 129600, "i_last_trade_time": 1794302702});
+    assert_eq!(
+        ltp_and_trade_time(&mut f, first),
+        (1296.0, 1_794_302_702_000)
+    );
+    assert_eq!(
+        ltp_and_trade_time(&mut f, json!({"i_last_traded_price": 129700})),
+        (1297.0, 1_794_302_702_000),
+        "a new price without a time keeps the last one"
+    );
+    let sentinel = json!({
+        "i_last_traded_price": 129710,
+        "i_last_trade_time": super::streaming::SENTINEL
+    });
+    assert_eq!(
+        ltp_and_trade_time(&mut f, sentinel),
+        (1297.1, 1_794_302_702_000),
+        "the no-value sentinel is no new time"
+    );
+    let timed = json!({"i_last_traded_price": 129750, "i_last_trade_time": 1794302712});
+    assert_eq!(
+        ltp_and_trade_time(&mut f, timed),
+        (1297.5, 1_794_302_712_000)
+    );
+    f.on_connected();
+    assert_eq!(
+        ltp_and_trade_time(&mut f, json!({"i_last_traded_price": 129800})),
+        (1298.0, 0),
+        "a new connection starts afresh"
+    );
+}

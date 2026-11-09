@@ -659,6 +659,24 @@ fn quote_snapshot_merges_tf_onto_tk() {
     assert_eq!(q.bid, 812.3);
 }
 
+/// AliceBlue's `tf` is a partial update (docs/port/market-data-frames.md,
+/// "Partial-update feeds"): a new price without its own `ft` keeps the
+/// last feed time, as on the web, until a packet brings one.
+#[test]
+fn a_partial_update_keeps_the_feed_time() {
+    let mut s = FeedSnap::default();
+    s.apply(&json!({"t":"tk","e":"NSE","tk":"2885","lp":"1295.50","ft":"1794302700"}));
+    assert_eq!((s.ltp, s.ft_ms), (1295.5, 1_794_302_700_000));
+    s.apply(&json!({"t":"tf","e":"NSE","tk":"2885","lp":"1296.00"}));
+    assert_eq!(
+        (s.ltp, s.ft_ms),
+        (1296.0, 1_794_302_700_000),
+        "a new price without ft keeps the last one"
+    );
+    s.apply(&json!({"t":"tf","e":"NSE","tk":"2885","lp":"1296.50","ft":"1794302712"}));
+    assert_eq!((s.ltp, s.ft_ms), (1296.5, 1_794_302_712_000));
+}
+
 #[test]
 fn depth_snapshot_merges_levels() {
     // Keys per web alicebluewebsocket.py:616-741.

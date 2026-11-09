@@ -292,6 +292,12 @@
       "date": "2026-11-09",
       "source": "lead message to bk-d",
       "rule": "Send the docs' keys `change` / `change_percent` on the IIFL index Quote, computed from the packet's own close, and no canonical price_change* (wire's key rule switches those off per broker)."
+    },
+    "partial-update-feeds": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": ".lane/107/decisions.md",
+      "rule": "CORRECTION (lead, 2026-11-09 night) R107-10 is WITHDRAWN for partial-update brokers (Noren four, Firstock, AliceBlue): a field a `tf` packet omits is unchanged, not unknown. Evidence: Firstock's docs (\"except for t, e, and tk other fields may / may not be present\"), the web's own \"Use cache to handle partial updates\", AliceBlue's \"sends 0 for unchanged values\". So `ft`, `ltt`, `pc` (and Firstock's `i_last_trade_time`, AliceBlue's `ft`) are market state: they overlay within a connection, exactly as the web does, no deviation; a reconnect starts afresh. Dropping them made `ltt` and `last_trade_time` come and go on ordinary same-second ticks, where every web client sees them, and replaced Noren's own `pc` with a recomputed figure. \"A per-packet time never carries over\" still holds for brokers whose packets are complete. The Noren/Firstock half of the review-fixes.md \"inherited web defects\" bullet is withdrawn; the 5paisa half stands."
     }
   }
 }

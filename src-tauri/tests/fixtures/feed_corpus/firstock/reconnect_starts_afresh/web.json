@@ -1,0 +1,113 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "firstock",
+  "inputs_sha256": "cc5bf1108bb7f2e73f2ad671b96b79e55e672f632aede4e587480b7587c184d8",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 4,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1295.5,
+            "ltt": 1794302700,
+            "volume": 4567890,
+            "open": 1288.0,
+            "high": 1301.2,
+            "low": 1285.1,
+            "close": 1280.0,
+            "last_quantity": 15,
+            "average_price": 1292.33,
+            "total_buy_quantity": 234567,
+            "total_sell_quantity": 345678,
+            "oi": 0,
+            "upper_circuit": 1408.0,
+            "lower_circuit": 1152.0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1297.0,
+            "ltt": 1794302700,
+            "volume": 4570000,
+            "open": 1288.0,
+            "high": 1301.2,
+            "low": 1285.1,
+            "close": 1280.0,
+            "last_quantity": 20,
+            "average_price": 1292.33,
+            "total_buy_quantity": 234567,
+            "total_sell_quantity": 345678,
+            "oi": 0,
+            "upper_circuit": 1408.0,
+            "lower_circuit": 1152.0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

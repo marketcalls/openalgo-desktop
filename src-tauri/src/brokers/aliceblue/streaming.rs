@@ -312,7 +312,11 @@ impl DepthSnap {
 /// last non-zero value, volumes take any non-negative value, depth sides
 /// are merged level by level and only levels with a price are published.
 /// `known` is what this session has had a value for, so a field AliceBlue
-/// never sent is left out rather than sent as 0 (audit C03).
+/// never sent is left out rather than sent as 0 (audit C03). A `tf` is a
+/// partial update (AliceBlue "sends 0 for unchanged values" and leaves
+/// fields out): the feed time `ft` stays like the rest, as on the web, for
+/// the connection. See "Partial-update feeds" in
+/// docs/port/market-data-frames.md.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FeedSnap {
     pub ltp: f64,

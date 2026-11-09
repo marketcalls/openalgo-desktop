@@ -20,16 +20,6 @@
       "brexchange": "NSECM"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      20
-    ],
-    "NFO": [
-      5,
-      20
-    ]
-  },
   "http": [
     {
       "path": "/apimarketdata/instruments/subscription",
@@ -66,13 +56,15 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
-      "ref": "compositedge_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+      "ref": "compositedge_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
+      "approval": "alias-unit"
     },
     {
       "key": "frame",
       "kind": "web-defect",
       "reason": "This web adapter disconnects the whole socket after any unsubscribe (self.disconnect() in unsubscribe), so every other symbol stops streaming; the desktop removes only the instrument let go (audit appendix, inherited item 3).",
-      "ref": "compositedge_adapter.py unsubscribe"
+      "ref": "compositedge_adapter.py unsubscribe",
+      "approval": "never-copy-web-defect"
     }
   ]
 }

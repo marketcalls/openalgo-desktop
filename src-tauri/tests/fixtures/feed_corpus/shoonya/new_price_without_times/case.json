@@ -1,0 +1,51 @@
+{
+  "broker": "shoonya",
+  "summary": "A new price that carries no times: after Shoonya's snapshot with its feed time (ft), trade time (ltt) and change (pc), a partial with only a new lp keeps them, as does a partial with only a new volume. A tf is a partial update: a key it leaves out has not changed (the review's R107-10, withdrawn for partial-update feeds).",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/shoonya/streaming/shoonya_adapter.py::ShoonyaWebSocketAdapter._process_market_message",
+      "broker/shoonya/streaming/shoonya_adapter.py::ShoonyaWebSocketAdapter._normalize_market_data",
+      "broker/shoonya/streaming/shoonya_adapter.py::MarketDataCache",
+      "broker/shoonya/streaming/shoonya_adapter.py::QuoteNormalizer"
+    ],
+    "notes": [
+      "A tf leaves out what has not changed: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. The web's cache gives the same frames.",
+      "Client a holds Quote and client b LTP on one touchline subscription."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Shoonya Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Shoonya Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/shoonya/streaming/shoonya_adapter.py QuoteNormalizer",
+      "approval": "lost-data-kept"
+    }
+  ]
+}

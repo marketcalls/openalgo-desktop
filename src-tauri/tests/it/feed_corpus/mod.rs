@@ -45,6 +45,7 @@ mod jainamxts;
 mod kotak;
 mod motilal;
 mod mstock;
+mod noren_family;
 mod nubra;
 mod paytm;
 mod pocketful;
@@ -111,24 +112,11 @@ const BROKERS: &[(&str, &[&str])] = &[
 /// the release gate (`scripts/feed_corpus/release_gate.py`) fails while it
 /// is not empty.
 const WITHOUT_BROKER: &[&str] = &[
-    "aliceblue",
     "angel",
-    "compositedge",
     "deltaexchange",
     "dhan_sandbox",
-    "firstock",
-    "fivepaisaxts",
-    "flattrade",
     "fyers",
-    "ibulls",
-    "iifl",
-    "jainamxts",
     "nubra",
-    "rmoney",
-    "shoonya",
-    "tradesmart",
     "upstox",
-    "wisdom",
-    "zebu",
     "zerodha",
 ];

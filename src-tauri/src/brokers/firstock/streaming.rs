@@ -103,7 +103,12 @@ fn valid_level(level: &Value) -> bool {
 }
 
 /// Merge one tick into a snapshot (sentinels skipped, zero prices kept out,
-/// a depth side replaced only by the valid levels it brings).
+/// a depth side replaced only by the valid levels it brings). A tick is a
+/// partial update: Firstock says that past the exchange and token "other
+/// fields may / may not be present", so a field it leaves out, the trade
+/// time included, has not changed and stays, as on the web. The snapshot
+/// lasts one connection. See "Partial-update feeds" in
+/// docs/port/market-data-frames.md.
 pub fn merge(snapshot: &mut Map<String, Value>, data: &Map<String, Value>) {
     for (k, v) in data {
         if k == "best_buy" || k == "best_sell" {

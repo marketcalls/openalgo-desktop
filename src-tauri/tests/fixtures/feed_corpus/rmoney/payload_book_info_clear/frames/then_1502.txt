@@ -1,0 +1,1 @@
+42["1502-json-full","{\"MessageCode\":1502,\"MessageVersion\":4,\"ApplicationType\":0,\"TokenID\":0,\"ExchangeSegment\":1,\"ExchangeInstrumentID\":2885,\"ExchangeTimeStamp\":1478686562,\"Touchline\":{\"LastTradedPrice\":2500.5,\"LastTradedTime\":1478686562},\"BidInfo\":[],\"AskInfo\":{}}"]

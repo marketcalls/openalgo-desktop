@@ -13,16 +13,6 @@
       "brexchange": "NSECM"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      20
-    ],
-    "NFO": [
-      5,
-      20
-    ]
-  },
   "http": [
     {
       "path": "/apimarketdata/instruments/subscription",
@@ -60,49 +50,57 @@
       "key": "average_price",
       "kind": "web-defect",
       "reason": "XTS sent average_price in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
-      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)"
+      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)",
+      "approval": "lost-data-kept"
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "XTS sent last_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
-      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)"
+      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)",
+      "approval": "lost-data-kept"
     },
     {
       "key": "lower_circuit",
       "kind": "web-defect",
       "reason": "The 1502 event carries no LowerCircuitLimit; the web sends lower_circuit 0 for it (message.get('LowerCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
-      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)"
+      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
-      "ref": "wisdom_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+      "ref": "wisdom_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
+      "approval": "alias-unit"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The 1502 event carries no OpenInterest; the web sends oi 0 for it (message.get('OpenInterest', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
-      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)"
+      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "XTS sent total_buy_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
-      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)"
+      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)",
+      "approval": "lost-data-kept"
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "XTS sent total_sell_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode (lead decision, night of 9 Nov).",
-      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)"
+      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)",
+      "approval": "lost-data-kept"
     },
     {
       "key": "upper_circuit",
       "kind": "web-defect",
       "reason": "The 1502 event carries no UpperCircuitLimit; the web sends upper_circuit 0 for it (message.get('UpperCircuitLimit', 0)), the desktop leaves it out (docs: a field the stream does not carry is left out).",
-      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)"
+      "ref": "wisdom_adapter.py _normalize_market_data (mode 3)",
+      "approval": "leave-out-unsent"
     }
   ]
 }

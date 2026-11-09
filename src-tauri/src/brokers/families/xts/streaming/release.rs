@@ -156,6 +156,7 @@ impl XtsFeed {
         for s in subs {
             if let Some(k) = Self::key(s) {
                 self.book.remove(&k);
+                self.sides.forget(&k);
             }
         }
     }

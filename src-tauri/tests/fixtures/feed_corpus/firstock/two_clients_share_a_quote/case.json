@@ -1,0 +1,47 @@
+{
+  "broker": "firstock",
+  "summary": "Two clients hold the same Quote on one equity: the instrument is subscribed once, and each tick reaches both; the first client's unsubscribe sends nothing upstream and its frames stop, the other keeps getting them, and the last unsubscribe lets the instrument go.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/firstock/streaming/firstock_websocket.py::FirstockWebSocket._on_message",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._process_market_data",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "The review's coverage table asks for an exact same-mode two-client sequence (codex/WEBSOCKET_PARITY_REVIEW_1.0.7.md, Firstock row).",
+      "Both sides count holders per instrument and mode: the web server's subscription index and the adapter's reference count (_should_ws_subscribe), the desktop's registry; an extra subscribe frame would precede the unsubscribe the script waits for."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
+      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The web's Quote sends oi 0 for an equity whose tick carries no open interest (data.get(\"i_open_interest\", 0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md, web openalgo#2376). The desktop's Quote leaves it out.",
+      "ref": "firstock_adapter.py:849",
+      "approval": "leave-out-unsent"
+    }
+  ]
+}

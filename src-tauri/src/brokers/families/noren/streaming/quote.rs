@@ -6,9 +6,10 @@
 //!   quote, a depth packet (`dk`, `df`) the quote and open interest.
 //! * A key the scrip's snapshot has never held is not carried: the frame
 //!   leaves it out where the web sends its `safe_float` default of 0.
-//! * `pc` is Noren's own change percent and is published when sent; the
-//!   change is worked out from the price and the previous close only when
-//!   it is not (web: `percent_change = safe_float(pc)`).
+//! * `pc` is Noren's own change percent and is published when known; with
+//!   none known on the connection there is no change, never one worked out
+//!   from the previous close (the web only forwards `pc`: `percent_change =
+//!   safe_float(pc)`, which is 0 without one; lead rule no-derived-change).
 //! * `ft` is the feed time (the web's `<member>_timestamp`), not the trade
 //!   time: the trade time is Noren's `ltt`, a time of day in IST.
 //! * Circuits and the 52-week range (`uc`, `lc`, `52h`, `52l`) are carried
@@ -122,11 +123,11 @@ fn open_interest(
     }
 }
 
-/// Noren's `pc` when sent (a 0 included), else the change derived from
-/// the price and the previous close.
+/// Noren's `pc` when known (a 0 included), else no change at all: the web
+/// only forwards `pc`, so the desktop works none out.
 fn change(t: &mut NormalizedTick, d: &Map<String, Value>, v: &Value) {
     if !d.contains_key("pc") {
-        t.derive_change();
+        t.mark_absent(QuoteField::Change);
         return;
     }
     t.change_percent = f(v, "pc");

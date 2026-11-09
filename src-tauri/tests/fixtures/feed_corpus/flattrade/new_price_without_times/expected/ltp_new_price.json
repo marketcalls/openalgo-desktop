@@ -1,0 +1,15 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "flattrade",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 1,
+    "ltp": 1413.0,
+    "timestamp": "<receipt_ms>",
+    "flattrade_timestamp": 1794199542
+  }
+}

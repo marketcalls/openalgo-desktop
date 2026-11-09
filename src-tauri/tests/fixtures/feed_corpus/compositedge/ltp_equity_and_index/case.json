@@ -23,16 +23,6 @@
       "instrumenttype": "INDEX"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      20
-    ],
-    "NFO": [
-      5,
-      20
-    ]
-  },
   "http": [
     {
       "path": "/apimarketdata/instruments/subscription",
@@ -69,13 +59,15 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
-      "ref": "compositedge_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+      "ref": "compositedge_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
+      "approval": "alias-unit"
     },
     {
       "key": "ltq",
       "kind": "web-defect",
       "reason": "An index has no ltq; the web sends XTS's 0 for it, the desktop's index frames leave the trade-size and book fields out (feed/protocol/market.rs shown_quote; lead decision, night of 9 Nov: web zeros for values an index stream does not have are left out).",
-      "ref": "compositedge_adapter.py _normalize_market_data; feed/protocol/market.rs shown_quote"
+      "ref": "compositedge_adapter.py _normalize_market_data; feed/protocol/market.rs shown_quote",
+      "approval": "index-quote-zero-left-out"
     }
   ]
 }

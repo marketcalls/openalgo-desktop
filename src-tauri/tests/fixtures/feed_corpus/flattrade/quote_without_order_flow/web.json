@@ -1,0 +1,65 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "flattrade",
+  "inputs_sha256": "88723aac13c81fdf02358c9205e9dac72d2b11779760ab20dbb385f5d1a1162a",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "59182",
+      "brsymbol": "NIFTY25NOV26F",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
+          "mode": 2,
+          "data": {
+            "mode": 2,
+            "ltp": 25480.0,
+            "volume": 2345600,
+            "open": 25390.0,
+            "high": 25520.0,
+            "low": 25350.5,
+            "close": 25366.0,
+            "average_price": 0.0,
+            "percent_change": 0.45,
+            "last_quantity": 0,
+            "last_trade_time": "10:15:41",
+            "flattrade_timestamp": 1794199542,
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

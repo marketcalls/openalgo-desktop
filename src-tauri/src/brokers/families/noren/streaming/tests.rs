@@ -82,10 +82,11 @@ fn a_frame_without_its_exchange_reaches_the_one_scrip_with_its_token() {
 }
 
 /// Audit FB-07; web `QuoteNormalizer` (`percent_change = safe_float(pc)`)
-/// in every member: Noren's own `pc` is the change percent; it is derived
-/// from the price and the previous close only when the frame has none.
+/// in every member: Noren's own `pc` is the change percent; without one
+/// there is no change, never one worked out from the previous close
+/// (lead rule no-derived-change).
 #[test]
-fn the_change_percent_is_noren_pc_and_derived_only_when_missing() {
+fn the_change_percent_is_noren_pc_and_absent_without_one() {
     for cfg in members() {
         let mut f = feed(cfg);
         f.subscribe_frames(&[sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Quote)]);
@@ -102,17 +103,9 @@ fn the_change_percent_is_noren_pc_and_derived_only_when_missing() {
             &mut f,
             r#"{"t":"tk","e":"NSE","tk":"26000","lp":"25495.60","c":"25362.45"}"#,
         );
-        assert_eq!((t.change, t.change_percent), (133.15, 0.52), "{}", cfg.id);
-
-        let mut f = feed(cfg);
-        f.subscribe_frames(&[sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Quote)]);
-        let t = tick(
-            &mut f,
-            r#"{"t":"tk","e":"NSE","tk":"26000","lp":"25495.60"}"#,
-        );
         assert!(
             !t.knows(QuoteField::Change),
-            "{}: nothing to derive from",
+            "{}: no pc, no change, though the close is known",
             cfg.id
         );
     }
@@ -144,6 +137,56 @@ fn the_trade_time_is_noren_ltt_and_ft_is_the_feed_time() {
     );
     assert!(!t.knows(QuoteField::LastTradeTime));
     assert_eq!(t.extras.exchange_time_ms, None);
+}
+
+/// Noren's `tf` is a partial update: a key it leaves out has not changed
+/// (docs/port/market-data-frames.md, "Partial-update feeds"). A new price
+/// without `ft`, `ltt` or `pc` keeps the cached ones, as on the web, until
+/// a packet brings its own; a new connection starts afresh.
+#[test]
+fn a_partial_update_keeps_the_times_and_change_it_left_out() {
+    for cfg in members() {
+        let mut f = feed(cfg);
+        f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Quote)]);
+        let t = tick(
+            &mut f,
+            r#"{"t":"tk","e":"NSE","tk":"2885","lp":"1412.30","c":"1403.00","pc":"0.66","ltt":"10:15:42","ft":"1794199542"}"#,
+        );
+        assert!(t.knows(QuoteField::LastTradeTime), "{}", cfg.id);
+        assert_eq!(t.extras.exchange_time_ms, Some(1_794_199_542_000));
+        let trade_time = t.last_trade_time_ms;
+
+        let t = tick(&mut f, r#"{"t":"tf","e":"NSE","tk":"2885","lp":"1413.00"}"#);
+        assert_eq!(t.ltp, 1413.0, "{}", cfg.id);
+        assert_eq!(t.last_trade_time_ms, trade_time, "{}: trade time", cfg.id);
+        assert_eq!(
+            t.extras.exchange_time_ms,
+            Some(1_794_199_542_000),
+            "{}: feed time",
+            cfg.id
+        );
+        assert_eq!(t.change_percent, 0.66, "{}: Noren's own change", cfg.id);
+
+        let t = tick(
+            &mut f,
+            r#"{"t":"tf","e":"NSE","tk":"2885","lp":"1413.50","ltt":"10:15:44","ft":"1794199545"}"#,
+        );
+        assert_eq!(t.last_trade_time_ms, 1_794_199_544_000, "{}", cfg.id);
+        assert_eq!(t.extras.exchange_time_ms, Some(1_794_199_545_000));
+
+        f.on_connected();
+        let t = tick(
+            &mut f,
+            r#"{"t":"tk","e":"NSE","tk":"2885","lp":"1414.00","c":"1403.00"}"#,
+        );
+        assert!(
+            !t.knows(QuoteField::LastTradeTime),
+            "{}: a new connection starts afresh",
+            cfg.id
+        );
+        assert_eq!(t.extras.exchange_time_ms, None, "{}", cfg.id);
+        assert!(!t.knows(QuoteField::Change), "{}", cfg.id);
+    }
 }
 
 /// Audit FB-07; web DepthNormalizer / `_normalize_market_data`: Shoonya,
