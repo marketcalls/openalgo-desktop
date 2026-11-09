@@ -33,16 +33,16 @@
     {
       "key": "oi",
       "kind": "web-defect",
-      "approved": true,
       "reason": "INDstocks sends OI as 0 when it has none (an equity's OI); the web's own get_value reads a 0 as 'nothing new' and keeps the last value, but with none to keep it sends the 0 (indmoney_adapter.py:651-665). The desktop leaves out a field with no value: a field the stream did not give a value is left out, never sent as 0 (docs; openalgo#2376; lead approval 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "indmoney-equity-oi-zero"
     },
     {
       "key": "oi_change",
       "kind": "web-defect",
-      "approved": true,
       "reason": "INDstocks sends the OI change as 0 when it has none (an equity's OI); the web's own get_value reads a 0 as 'nothing new' and keeps the last value, but with none to keep it sends the 0 (indmoney_adapter.py:651-665). The desktop leaves out a field with no value: a field the stream did not give a value is left out, never sent as 0 (docs; openalgo#2376; lead approval 2026-11-09).",
-      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md"
+      "ref": "indmoney_adapter.py:651-687; docs/api/websocket-streaming/quote.md",
+      "approval": "indmoney-equity-oi-zero"
     }
   ]
 }

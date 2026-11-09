@@ -29,16 +29,16 @@
     {
       "key": "depth",
       "kind": "web-defect",
-      "approved": true,
       "reason": "The web pads each side of an SFeed book to five rows of price 0, quantity 0 (sfeed_websocket.py::_depth_rows): levels the exchange does not have, with zero prices. The desktop sends the book's real levels only (lead decision 9 Nov: zero-padded levels -> the real ones, web defect).",
-      "ref": "sfeed_websocket.py:649-660; decisions.md (night of 9 Nov, empty book)"
+      "ref": "sfeed_websocket.py:649-660; decisions.md (night of 9 Nov, empty book)",
+      "approval": "book-levels-as-sent"
     },
     {
       "key": "missing-frame",
       "kind": "web-defect",
-      "approved": true,
       "reason": "After a reconnect the web keeps _depth_cache (only _symbol_state is cleared), so the first touch line republishes the previous connection's book as current. The desktop starts every instrument afresh on a new connection and sends the Depth holder nothing until this connection's first book (lead decision 9 Nov: a stale pre-outage snapshot promoted as current is a web defect).",
-      "ref": "kotak_adapter.py:997 _attempt_reconnection; feed::bridge::snapshot"
+      "ref": "kotak_adapter.py:997 _attempt_reconnection; feed::bridge::snapshot",
+      "approval": "merge-restart-on-reconnect"
     }
   ]
 }

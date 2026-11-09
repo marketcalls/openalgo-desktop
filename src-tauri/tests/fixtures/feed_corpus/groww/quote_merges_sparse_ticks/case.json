@@ -38,9 +38,9 @@
     {
       "key": "ltp",
       "kind": "web-defect",
-      "approved": true,
       "reason": "A Groww tick that leaves the LTP out (it did not change) is normalised by the web with ltp_data.get('ltp', 0), and the 0 replaces the cached LTP: the web publishes ltp 0 for a packet without a trade. The desktop keeps the last LTP (GrowwFeed merge).",
-      "ref": "groww_adapter.py:1099 (mode 2 default 0), :53-62 (update_from_ltp keeps a 0)"
+      "ref": "groww_adapter.py:1099 (mode 2 default 0), :53-62 (update_from_ltp keeps a 0)",
+      "approval": "adapter-keys-carried"
     }
   ]
 }

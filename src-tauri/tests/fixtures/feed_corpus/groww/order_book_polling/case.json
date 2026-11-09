@@ -75,35 +75,35 @@
       "kind": "web-defect",
       "reason": "The web relays average_price 0.0 for a filled order: its Groww order book has no average fill price. The desktop sends Groww's average_fill_price.",
       "ref": "order_data.py:58-86; order_adapter.py:513",
-      "approved": true
+      "approval": "adapter-keys-carried"
     },
     {
       "key": "filled_quantity",
       "kind": "web-defect",
       "reason": "The web relays filled_quantity 0 for a filled order: its Groww order book has no filled quantity. The desktop sends Groww's filled_quantity.",
       "ref": "order_data.py:58-86; order_adapter.py:511",
-      "approved": true
+      "approval": "adapter-keys-carried"
     },
     {
       "key": "frame",
       "kind": "web-defect",
       "reason": "A partial fill leaves the status open, and the web's poller compares (status, filled quantity) with a filled quantity its Groww book never has, so it relays nothing until the order completes. The desktop relays the partial fill.",
       "ref": "order_adapter.py:463-475",
-      "approved": true
+      "approval": "adapter-keys-carried"
     },
     {
       "key": "pending_quantity",
       "kind": "web-defect",
       "reason": "The web relays pending_quantity 0 for a working order: its Groww order book has no pending quantity. The desktop sends Groww's remaining_quantity.",
       "ref": "order_data.py:58-86; order_adapter.py:512",
-      "approved": true
+      "approval": "adapter-keys-carried"
     },
     {
       "key": "rejection_reason",
       "kind": "web-defect",
       "reason": "The web relays an empty rejection_reason: its Groww order book drops Groww's remark. The desktop sends the remark, the reason RMS gave.",
       "ref": "order_data.py:58-86; order_adapter.py:514-516",
-      "approved": true
+      "approval": "adapter-keys-carried"
     }
   ]
 }

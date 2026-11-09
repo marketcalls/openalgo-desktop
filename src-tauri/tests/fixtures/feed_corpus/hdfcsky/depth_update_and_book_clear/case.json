@@ -37,21 +37,21 @@
       "kind": "web-defect",
       "reason": "HDFC Sky sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
       "ref": "hdfcsky_websocket.py:764-765; hdfcsky_adapter.py:421",
-      "approved": true
+      "approval": "alias-unit"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
       "ref": "hdfcsky_adapter.py:443-445; investright::mark_carriage",
-      "approved": true
+      "approval": "leave-out-unsent"
     }
   ]
 }

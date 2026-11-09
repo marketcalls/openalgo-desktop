@@ -42,14 +42,14 @@
       "kind": "web-defect",
       "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
       "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
-      "approved": true
+      "approval": "alias-unit"
     },
     {
       "key": "missing-frame",
       "kind": "web-defect",
       "reason": "The web's InvestRight adapter keeps its merge snapshot across the reconnect, so the first OI packet on the new socket republishes the pre-outage quote as current; the desktop restarts the merge from the new socket's first full packet. Lead decision: restarting the merge after a reconnect is a desktop improvement, the stale snapshot a web defect.",
       "ref": "hdfcsecurities_adapter.py:113-117; HdfcSecuritiesFeed::on_connected",
-      "approved": true
+      "approval": "merge-restart-on-reconnect"
     }
   ]
 }
