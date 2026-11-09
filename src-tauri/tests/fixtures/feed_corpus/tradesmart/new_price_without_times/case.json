@@ -1,0 +1,60 @@
+{
+  "broker": "tradesmart",
+  "summary": "A new price that carries no times: after TradeSmart's snapshot with its feed time (ft), trade time (ltt) and change (pc), a partial with only a new lp goes out without the old feed time, trade time or change percent (worked out again from the new price), and a partial with only a new volume keeps the price's own (absent) times (audit R107-10).",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._process_market_message",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::TradeSmartWebSocketAdapter._normalize_market_data",
+      "broker/tradesmart/streaming/tradesmart_adapter.py::MarketDataCache"
+    ],
+    "notes": [
+      "Lead decision (review-fixes.md): a per-packet time never carries over. The web's adapter merges every raw key into its cache and so sends the old ft and ltt (and the old pc) with the new price: declared as web defects.",
+      "Client a holds Quote and client b LTP on one touchline subscription."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "last_trade_time",
+      "kind": "web-defect",
+      "reason": "The web's TradeSmart adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old trade time ltt: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
+      "ref": "audit R107-10, BR-107-04; broker/tradesmart/streaming/tradesmart_adapter.py MarketDataCache.update"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The stream carries no OI for this instrument (a cash equity or an index); the web's TradeSmart adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "tradesmart_adapter.py _normalize_market_data (oi = safe_int(oi))"
+    },
+    {
+      "key": "percent_change",
+      "kind": "web-defect",
+      "reason": "The web's TradeSmart adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old change pc: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
+      "ref": "audit R107-10, BR-107-04; broker/tradesmart/streaming/tradesmart_adapter.py MarketDataCache.update"
+    },
+    {
+      "key": "tradesmart_timestamp",
+      "kind": "web-defect",
+      "reason": "The web's TradeSmart adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old feed time ft: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
+      "ref": "audit R107-10, BR-107-04; broker/tradesmart/streaming/tradesmart_adapter.py MarketDataCache.update"
+    }
+  ]
+}

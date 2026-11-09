@@ -45,6 +45,7 @@ mod jainamxts;
 mod kotak;
 mod motilal;
 mod mstock;
+mod noren_family;
 mod nubra;
 mod paytm;
 mod pocketful;

@@ -146,6 +146,51 @@ fn the_trade_time_is_noren_ltt_and_ft_is_the_feed_time() {
     assert_eq!(t.extras.exchange_time_ms, None);
 }
 
+/// Audit R107-10 (review BR-107-04): after a packet with Noren's feed time,
+/// trade time and change, a packet with only a new price carries none of
+/// them (the change is worked out from the new price), and a packet that
+/// moves no price keeps the price's own times (none since that price).
+#[test]
+fn a_new_price_never_carries_an_older_packets_times() {
+    for cfg in members() {
+        let mut f = feed(cfg);
+        f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Quote)]);
+        let t = tick(
+            &mut f,
+            r#"{"t":"tk","e":"NSE","tk":"2885","lp":"1412.30","c":"1403.00","pc":"0.66","ltt":"10:15:42","ft":"1794199542"}"#,
+        );
+        assert!(t.knows(QuoteField::LastTradeTime), "{}", cfg.id);
+        assert_eq!(t.extras.exchange_time_ms, Some(1_794_199_542_000));
+        let t = tick(&mut f, r#"{"t":"tf","e":"NSE","tk":"2885","lp":"1413.00"}"#);
+        assert_eq!(t.ltp, 1413.0, "{}", cfg.id);
+        assert!(
+            !t.knows(QuoteField::LastTradeTime),
+            "{}: old trade time",
+            cfg.id
+        );
+        assert_eq!(t.extras.exchange_time_ms, None, "{}: old feed time", cfg.id);
+        assert_eq!(
+            t.change_percent, 0.71,
+            "{}: the change of the new price",
+            cfg.id
+        );
+        let t = tick(&mut f, r#"{"t":"tf","e":"NSE","tk":"2885","v":"4568200"}"#);
+        assert!(!t.knows(QuoteField::LastTradeTime), "{}", cfg.id);
+        assert_eq!(t.extras.exchange_time_ms, None, "{}", cfg.id);
+        let t = tick(
+            &mut f,
+            r#"{"t":"tf","e":"NSE","tk":"2885","lp":"1413.50","ltt":"10:15:44","ft":"1794199545"}"#,
+        );
+        assert_eq!(t.last_trade_time_ms, 1_794_199_544_000, "{}", cfg.id);
+        let t = tick(&mut f, r#"{"t":"tf","e":"NSE","tk":"2885","v":"4568300"}"#);
+        assert_eq!(
+            t.last_trade_time_ms, 1_794_199_544_000,
+            "{}: no new price keeps its trade time",
+            cfg.id
+        );
+    }
+}
+
 /// Audit FB-07; web DepthNormalizer / `_normalize_market_data`: Shoonya,
 /// Flattrade and Zebu read `toi` in Depth, TradeSmart the native `oi`, in
 /// Quote too. A depth packet is a mode 3 tick, a touchline packet mode 2.

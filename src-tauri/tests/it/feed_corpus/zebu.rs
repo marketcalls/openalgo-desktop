@@ -1,18 +1,12 @@
-//! Zebu: the Noren market data socket (`NorenFeed` on Zebu's config),
-//! which carries the `om` order updates too after `{"t":"o"}`.
+//! Zebu: the Noren market data socket as a Zebu session makes it
+//! (`noren_family::feeds`), carrying the `om` order updates too after
+//! `{"t":"o"}`.
 
 use super::harness::{corpus_cases, Env, Feeds};
-use openalgo_desktop_lib::brokers::families::noren::streaming::NorenFeed;
 use openalgo_desktop_lib::brokers::zebu;
 
 fn feeds(env: &Env) -> Feeds {
-    Feeds::market(NorenFeed::new(
-        zebu::config(),
-        &env.url("main"),
-        "U1",
-        "tok",
-        env.symbols(),
-    ))
+    super::noren_family::feeds(env, zebu::config())
 }
 
 corpus_cases!(
@@ -25,5 +19,6 @@ corpus_cases!(
         reconnect_replays,
         order_updates,
         frame_without_exchange,
+        new_price_without_times,
     ]
 );
