@@ -659,6 +659,36 @@ fn quote_snapshot_merges_tf_onto_tk() {
     assert_eq!(q.bid, 812.3);
 }
 
+/// Audit R107-10: AliceBlue's feed time ft goes with the price it came
+/// with. A new price without its own ft has no time (the frame falls back
+/// as for any packet without one), never the earlier packet's; a packet
+/// without a price keeps the time of the price it still shows.
+#[test]
+fn a_new_price_never_takes_the_old_feed_time() {
+    let mut s = FeedSnap::default();
+    s.apply(&json!({"t":"tk","e":"NSE","tk":"2885","lp":"1295.50","ft":"1794302700"}));
+    assert_eq!((s.ltp, s.ft_ms), (1295.5, 1_794_302_700_000));
+    s.apply(&json!({"t":"tf","e":"NSE","tk":"2885","v":"4567900"}));
+    assert_eq!(
+        s.ft_ms, 1_794_302_700_000,
+        "a packet without a price keeps the time of the price it shows"
+    );
+    s.apply(&json!({"t":"tf","e":"NSE","tk":"2885","lp":"0.00","tbq":"10"}));
+    assert_eq!(
+        (s.ltp, s.ft_ms),
+        (1295.5, 1_794_302_700_000),
+        "nor does a zero price, which keeps the last one"
+    );
+    s.apply(&json!({"t":"tf","e":"NSE","tk":"2885","lp":"1296.00"}));
+    assert_eq!(
+        (s.ltp, s.ft_ms),
+        (1296.0, 0),
+        "a new price without ft has no time"
+    );
+    s.apply(&json!({"t":"tf","e":"NSE","tk":"2885","lp":"1296.50","ft":"1794302712"}));
+    assert_eq!((s.ltp, s.ft_ms), (1296.5, 1_794_302_712_000));
+}
+
 #[test]
 fn depth_snapshot_merges_levels() {
     // Keys per web alicebluewebsocket.py:616-741.

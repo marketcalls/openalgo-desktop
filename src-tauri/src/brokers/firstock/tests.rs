@@ -482,3 +482,45 @@ fn an_invalid_depth_side_keeps_the_valid_book() {
         "invalid levels drop out instead of pushing valid ones down, and no zero level is added"
     );
 }
+
+/// Audit R107-10: Firstock's ticks are deltas merged over the snapshot, and
+/// a trade time goes with the price it came with. A new price without its
+/// own time has none (the frame falls back as for any packet without one),
+/// never the previous trade's; a packet without a price keeps the time of
+/// the price it still shows, and the next price with a time brings it.
+#[test]
+fn a_new_price_never_takes_the_old_trade_time() {
+    use crate::brokers::common::streaming::BrokerFeed;
+    let mut f = FirstockFeed::new(WS_URL, "AB1234", "jk");
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Quote)]);
+    let mut tick = |data: Value| {
+        let events = f.parse_text(&json!({ "NSE:2885": data }).to_string());
+        match &events[..] {
+            [FeedEvent::Tick(t)] => (t.ltp, t.last_trade_time_ms),
+            other => panic!("no tick: {other:?}"),
+        }
+    };
+    let timed = json!({"i_last_traded_price": 129600, "i_last_trade_time": 1794302702});
+    assert_eq!(tick(timed), (1296.0, 1_794_302_702_000));
+    assert_eq!(
+        tick(json!({"i_volume_traded_today": 10})),
+        (1296.0, 1_794_302_702_000),
+        "a packet without a price keeps the time of the price it shows"
+    );
+    assert_eq!(
+        tick(json!({"i_last_traded_price": 129700})),
+        (1297.0, 0),
+        "a new price without a time has no trade time"
+    );
+    let sentinel = json!({
+        "i_last_traded_price": 129710,
+        "i_last_trade_time": super::streaming::SENTINEL
+    });
+    assert_eq!(
+        tick(sentinel),
+        (1297.1, 0),
+        "nor one with the no-value sentinel for its time"
+    );
+    let timed = json!({"i_last_traded_price": 129750, "i_last_trade_time": 1794302712});
+    assert_eq!(tick(timed), (1297.5, 1_794_302_712_000));
+}

@@ -1,0 +1,9 @@
+{"step": "push", "frame": "frames/login_ok.json", "note": "The login answer before any subscription."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "tokens": "NSE:2885"}}]}
+{"step": "push", "frame": "frames/full.json", "note": "A full tick with its trade time."}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "push", "frame": "frames/price_only.json", "note": "A new price without a trade time: the old trade's time does not go with it."}
+{"step": "receive", "client": "a", "frame": "expected/quote_new_price.json"}
+{"step": "push", "frame": "frames/price_and_time.json", "note": "A price with its trade time again."}
+{"step": "receive", "client": "a", "frame": "expected/quote_timed.json"}

@@ -1,0 +1,67 @@
+{
+  "broker": "aliceblue",
+  "summary": "A Quote client on an equity whose tk snapshot carries no average price, trade quantity, book totals or OI: the Quote frame leaves them out rather than sending 0. A tf delta then brings a new price and a buy total without a feed time: the total appears, and the new price does not take the earlier packet's time (ltt falls back to the receipt time); the next delta with a time brings it.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"k\":\"\",\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._handle_message",
+      "broker/aliceblue/streaming/aliceblue_mapping.py::AliceBlueMessageMapper.parse_tick_data",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._update_market_snapshot",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received"
+    ],
+    "notes": [
+      "Audit R107-10 (codex/WEBSOCKET_PARITY_REVIEW_1.0.7.md): a per-packet time never carries over to a new price; the review's coverage table asks AliceBlue for an absent-field sequence.",
+      "AliceBlue (Noren) leaves a field it has no value for out of tk and tf."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, and a string (\"1794302700\"); the protocol's WebSocket timestamps are epoch milliseconds (docs/prompt/websockets-format.md). On the tf with a new price and no ft the web sends the earlier packet's time from its snapshot: a per-packet time never carries over to a new price (lead rule, .lane/107/decisions.md and review-fixes.md; audit R107-10). The desktop sends the time in ms, as a number, and for the price without its time the time it made the tick, as for any packet without one.",
+      "ref": "aliceblue_adapter.py:1248-1257 (_update_market_snapshot keeps ft); aliceblue_mapping.py:146"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "The web's Quote sends average_price 0.0, then 0, for a tick whose snapshot never carried ap (parsed_data.get(\"average_price\", 0.0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "aliceblue_adapter.py:1266"
+    },
+    {
+      "key": "total_oi",
+      "kind": "web-defect",
+      "reason": "The web's Quote sends total_oi 0 for an equity whose ticks carry no toi; a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",
+      "ref": "aliceblue_mapping.py:147; aliceblue_adapter.py:1268"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries last_quantity (ltq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "AliceBlue's tick carries total_buy_quantity (tbq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
+      "ref": "aliceblue_mapping.py:111-217"
+    }
+  ]
+}

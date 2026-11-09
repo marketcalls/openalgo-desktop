@@ -1,0 +1,97 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "aliceblue",
+  "inputs_sha256": "0949939d4e7734de98977929e2b43d85094e6b409c98764a30785e21da2bf81c",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1295.5,
+            "ltt": "1794302700",
+            "volume": 4567890,
+            "open": 1288.0,
+            "high": 1301.2,
+            "low": 1285.1,
+            "close": 1280.0,
+            "change_percent": 1.21,
+            "average_price": 0.0,
+            "total_oi": 0
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1296.0,
+            "ltt": "1794302700",
+            "volume": 4567890,
+            "open": 1288.0,
+            "high": 1301.2,
+            "low": 1285.1,
+            "close": 1280.0,
+            "change_percent": 1.25,
+            "average_price": 0,
+            "total_oi": 0
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 1296.5,
+            "ltt": "1794302712",
+            "volume": 4567890,
+            "open": 1288.0,
+            "high": 1301.2,
+            "low": 1285.1,
+            "close": 1280.0,
+            "change_percent": 1.29,
+            "average_price": 0,
+            "total_oi": 0
+          }
+        }
+      ]
+    }
+  ]
+}

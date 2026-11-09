@@ -1,0 +1,44 @@
+{
+  "broker": "firstock",
+  "summary": "A Quote client gets a full tick with its trade time, then a tick with only a new price: Firstock's V2 ticks are deltas merged over the snapshot, and the new price comes without a trade time, so the Quote frame has no old trade's time (it falls back to the receipt time); the next tick with a price and its time carries that time again.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/firstock/streaming/firstock_websocket.py::FirstockWebSocket._on_message",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._process_market_data",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "Audit R107-10 (codex/WEBSOCKET_PARITY_REVIEW_1.0.7.md): the old trade time inherited by a new price. The time-bearing tick is ltp_then_quote's full packet."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). On a tick with a new price and no trade time the web sends the previous trade's time from its snapshot: a trade time goes with the price it came with and never carries over to a new one (lead rule, .lane/107/decisions.md and review-fixes.md: a per-packet time never carries over; audit R107-10). The desktop sends the trade time in ms, and for the price without its time the time it made the tick, as for any packet without one.",
+      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0)); firstock_websocket.py::_on_message (merges each tick into the snapshot)"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The web's Quote sends oi 0 for an equity whose tick carries no open interest (data.get(\"i_open_interest\", 0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md, web openalgo#2376). The desktop's Quote leaves it out.",
+      "ref": "firstock_adapter.py:849"
+    }
+  ]
+}
