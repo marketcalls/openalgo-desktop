@@ -162,7 +162,7 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 
 | Broker | Web keys beyond the canonical ones | `data.mode` | Adapter fills |
 | --- | --- | --- | --- |
-| aliceblue | Q `change_percent`, `total_oi` (its OI); depth levels carry `orders` 0 | none | marks for the `tf` fields it lacks |
+| aliceblue | Q `change_percent` (its only change key), `total_oi` (its only OI key); the web sends depth `orders` 0, the desktop AliceBlue's own counts (web defect) | none | `carried(OpenInterest)` on a touchline's `toi`, marks for what a message lacks, real order counts |
 | angel | Q `last_trade_quantity`; D `upper_circuit`, `lower_circuit` | number | `extras.upper_circuit` / `lower_circuit` from SNAP (parsed, not yet carried) |
 | arrow | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; D circuits | none | close and change in the 17-byte LTPC packet (`carried`), circuits from 241-byte packets |
 | compositedge, fivepaisaxts, ibulls, iifl, jainamxts, rmoney, wisdom (XTS) | L `ltq`; D `oi`, circuits | number | `carried(LastQuantity)` on 1512, circuits from 1502 root fields |
@@ -235,8 +235,9 @@ fix the Zerodha shape):
   ...); carrying the whole packet, its book and circuits included, with the
   dict's own `data.mode`, where the adapter publishes one dict per packet
   (Arrow, Paytm, mStock, the XTS family, Delta Exchange, Angel, Dhan,
-  AliceBlue, IndMoney, Pocketful), as the web sends that dict to a lower
-  holder.
+  IndMoney, Pocketful), as the web sends that dict to a lower holder.
+  AliceBlue publishes a dict per subscribed mode (its LTP dict is `ltp` and
+  `ltt`), so its frames are trimmed to the holder's mode.
 - **What the Python SDK sees.** SDK 2.0.5 (`openalgo/feed.py`) calls the LTP
   callback for a frame with `mode` 1, the Quote callback for 2 and the
   Depth callback for 3 (with a book). So each callback runs once per broker

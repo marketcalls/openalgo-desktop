@@ -26,6 +26,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 3,
           "data": {
             "ltp": 24450.3,
@@ -108,6 +110,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 3,
           "data": {
             "ltp": 24451.0,
@@ -190,6 +194,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 3,
           "data": {
             "ltp": 24451.0,
@@ -272,6 +278,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 3,
           "data": {
             "ltp": 24451.0,
@@ -354,6 +362,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 3,
           "data": {
             "ltp": 24451.5,

@@ -41,18 +41,6 @@
       "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146"
     },
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical price_change follows the adapter (lead decision 2026-11-09): the index_change switch (lane wire) turns it off on an index; until then it is open.",
-      "ref": "aliceblue_adapter.py:1259-1268; feed::dialect (lane wire)"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical price_change_percent follows the adapter (lead decision 2026-11-09): the index_change switch (lane wire) turns it off on an index; until then it is open.",
-      "ref": "aliceblue_adapter.py:1259-1268; feed::dialect (lane wire)"
-    },
-    {
       "key": "volume",
       "kind": "web-defect",
       "reason": "The web's Quote sends volume 0 for an index tick that carries none; a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md).",

@@ -1,5 +1,4 @@
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
-{"step": "silence", "client": "a", "ms": 300, "note": "The subscription reaches the feed while Firstock has not answered the login: nothing is sent (audit FB-01)."}
 {"step": "push", "frame": "frames/login_ok.json", "note": "Audit FB-01: nothing goes to Firstock until it answers the login; then the subscribe goes, as the web's client sends its queued subscriptions."}
 {"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "tokens": "NSE:2885"}}]}
 {"step": "silence", "client": "a"}

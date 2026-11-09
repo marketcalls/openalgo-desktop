@@ -129,8 +129,8 @@ pub(crate) enum Fold {
     /// each frame is trimmed to its holder's mode.
     PerMode,
     /// The adapter publishes one dict per packet (Arrow, Paytm, mStock, the
-    /// XTS family, Delta Exchange, Angel, Dhan, AliceBlue, IndMoney,
-    /// Pocketful): a lower mode's frame carries the whole packet, its book
+    /// XTS family, Delta Exchange, Angel, Dhan, IndMoney, Pocketful): a
+    /// lower mode's frame carries the whole packet, its book
     /// and circuits included. The desktop still sends one frame per mode a
     /// client holds (lead decision 2026-11-09): the web's single frame
     /// leaves a client's lower-mode callbacks unrun, a web defect.
@@ -632,11 +632,13 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest(),
         "rupeezy" => d(Absent, RUPEEZY).open_interest(),
         // aliceblue_adapter.py:1243-1305: no symbol, exchange or mode in
-        // `data`, and `timestamp` in the Depth dict only.
+        // `data`, and `timestamp` in the Depth dict only; a dict per
+        // subscribed mode (LTP `{ltp, ltt}`), OI only as `total_oi` and
+        // the change only as `change_percent`.
         "aliceblue" => d(Absent, ALICEBLUE)
             .bare(Mode::Depth)
-            .richer()
-            .no_index_change(),
+            .no_index_change()
+            .key(Key::Oi, Modes::NEVER),
         "kotak" => d(Absent, KOTAK).no_index_change().index_book(),
         "upstox" => d(Absent, UPSTOX).book_time(),
         "fyers" => d(Absent, FYERS).no_ltt(),

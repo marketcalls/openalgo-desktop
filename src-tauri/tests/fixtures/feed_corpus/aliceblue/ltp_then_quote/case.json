@@ -57,24 +57,6 @@
       "kind": "web-defect",
       "reason": "AliceBlue's tick carries total_sell_quantity (tsq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
       "ref": "aliceblue_mapping.py:111-217"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical price_change follows the adapter (lead decision 2026-11-09): the per-broker key rule (lane wire) turns it off; until then it is open.",
-      "ref": "aliceblue_adapter.py:1259-1268; feed::dialect (lane wire)"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical price_change_percent follows the adapter (lead decision 2026-11-09): the per-broker key rule (lane wire) turns it off; until then it is open.",
-      "ref": "aliceblue_adapter.py:1259-1268; feed::dialect (lane wire)"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "AliceBlue's web adapter sends the change only as change_percent and OI only as total_oi; the canonical oi follows the adapter (lead decision 2026-11-09): the per-broker key rule (lane wire) turns it off; until then it is open.",
-      "ref": "aliceblue_adapter.py:1268; feed::dialect (lane wire)"
     }
   ]
 }

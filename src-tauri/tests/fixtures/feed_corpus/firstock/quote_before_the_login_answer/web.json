@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "firstock",
-  "inputs_sha256": "b2ca8acae5c6f836bafe3b657c7b7079648b6082f0a0f1bc85845ca6bb89d556",
+  "inputs_sha256": "eed364c7ca142baaaa08377c60e677590baf2a0420ba054ba02be3dc5ebffdfa",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -14,15 +14,17 @@
   ],
   "pushes": [
     {
-      "line": 3,
+      "line": 2,
       "published": []
     },
     {
-      "line": 6,
+      "line": 5,
       "published": [
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 2,
           "data": {
             "ltp": 1295.5,
@@ -48,11 +50,13 @@
       ]
     },
     {
-      "line": 8,
+      "line": 7,
       "published": [
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 2,
           "data": {
             "ltp": 1296.0,
@@ -78,7 +82,7 @@
       ]
     },
     {
-      "line": 12,
+      "line": 11,
       "published": []
     }
   ]

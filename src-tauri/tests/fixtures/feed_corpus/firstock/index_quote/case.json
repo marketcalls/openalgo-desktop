@@ -26,7 +26,7 @@
     ],
     "notes": [
       "NSE_INDEX subscribes on Firstock's NSE segment on both (firstock_mapping.py:16; brokers/families/noren/mapping.rs noren_exchange).",
-      "The change is worked by hand: round2(24450.3 - 24380.0) = 70.3 and round2(70.3 / 24380.0 * 100) = 0.29."
+      "No change key goes on Firstock's index frames: its web adapter sends none (lead decision 2026-11-09, feed::dialect no_index_change)."
     ]
   },
   "deviations": [
@@ -35,18 +35,6 @@
       "kind": "web-defect",
       "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
       "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The web's Firstock adapter sends no change for any instrument; an index's change keys follow the adapter (lead decision 2026-11-09), so they go once the per-broker index_change switch lands (lane wire).",
-      "ref": "firstock_adapter.py:838-852; feed::dialect (lane wire)"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "As price_change.",
-      "ref": "firstock_adapter.py:838-852; feed::dialect (lane wire)"
     },
     {
       "key": "volume",
