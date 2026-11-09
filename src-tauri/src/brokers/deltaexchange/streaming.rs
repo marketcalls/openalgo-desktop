@@ -19,7 +19,10 @@
 //!   subscriber the book again with the new prices (web `_on_data`
 //!   publishes the merged snapshot on either channel, audit P-07). The
 //!   caches hold one entry per subscribed symbol and are cleared on
-//!   unsubscribe.
+//!   unsubscribe, and both are emptied when a connection opens: what Delta
+//!   sent before a drop is not current, and the first ticker or book after
+//!   it carries only its own values (R107-05; the web keeps its merged
+//!   cache across a reconnect, a web defect).
 //! * The ticker's best bid and ask (`q`) go out as the web's `bid_price`,
 //!   `bid_qty`, `ask_price`, `ask_qty` (parity, replacing decision BF-02);
 //!   a null inside a present `q` is 0, as on the web.
@@ -151,12 +154,22 @@ impl DeltaFeed {
                 });
             merge_ticker(t, e, spot, self.books.get(br));
             t.timestamp_ms = now;
-            let tick = t.clone();
-            out.push(FeedEvent::Tick(tick.clone()));
-            if sub.mode == FeedMode::Depth {
-                if let Some((buy, sell)) = self.books.get(br) {
-                    out.push(FeedEvent::Depth(book_event(sub, &tick, buy, sell, now)));
+            let mut tick = t.clone();
+            match (sub.mode, self.books.get(br)) {
+                (FeedMode::Depth, Some((buy, sell))) => {
+                    let book = book_event(sub, &tick, buy, sell, now);
+                    out.push(FeedEvent::Tick(tick));
+                    out.push(FeedEvent::Depth(book));
                 }
+                // No book yet on this connection: a full tick, so a Depth
+                // holder still hears it, its frame without a book (lead
+                // decision 2026-11-09; the web publishes the merged dict on
+                // the Depth topic).
+                (FeedMode::Depth, None) => {
+                    tick.mode = FeedMode::Depth.code();
+                    out.push(FeedEvent::Tick(tick));
+                }
+                _ => out.push(FeedEvent::Tick(tick)),
             }
         }
         out
@@ -187,8 +200,15 @@ impl DeltaFeed {
         let (buy, sell) = (side("b"), side("a"));
         let tick = self.cache.get(br).cloned().unwrap_or_default();
         let depth = book_event(sub, &tick, &buy, &sell, now_ms());
+        let mut out = Vec::new();
+        // The tickers so far said the totals are not known, and the bridge
+        // would believe that of this book too; they are known from now on.
+        if self.cache.contains_key(br) && !self.books.contains_key(br) {
+            out.push(FeedEvent::Tick(totals_known(sub, &depth)));
+        }
         self.books.insert(br.to_string(), (buy, sell));
-        vec![FeedEvent::Depth(depth)]
+        out.push(FeedEvent::Depth(depth));
+        out
     }
 
     /// Decode one text frame.
@@ -264,6 +284,24 @@ fn merge_ticker(t: &mut NormalizedTick, e: &Value, spot: Option<&Value>, book: O
 /// The book of `sub` with the ticker's price: the levels Delta sent (no
 /// order counts, no padding) and their sums as the totals, the web's
 /// `totalbuyqty` / `totalsellqty`.
+/// A packet with the book's totals and no price: the bridge publishes
+/// nothing for it and keeps the totals.
+fn totals_known(sub: &Sub, book: &NormalizedDepth) -> NormalizedTick {
+    NormalizedTick {
+        symbol: sub.symbol.clone(),
+        exchange: sub.exchange.clone(),
+        mode: FeedMode::Quote.code(),
+        total_buy_quantity: book.total_buy_quantity,
+        total_sell_quantity: book.total_sell_quantity,
+        timestamp_ms: book.timestamp_ms,
+        absent: AbsentFields::ALL.minus(AbsentFields::of(&[
+            QuoteField::TotalBuyQuantity,
+            QuoteField::TotalSellQuantity,
+        ])),
+        ..Default::default()
+    }
+}
+
 fn book_event(
     sub: &Sub,
     tick: &NormalizedTick,
@@ -312,6 +350,14 @@ impl BrokerFeed for DeltaFeed {
             .as_str()
             .into_client_request()
             .map_err(|_| AppError::Internal("Delta Exchange feed address is invalid".into()))
+    }
+
+    /// A new connection starts the merge afresh; the subscriptions stay and
+    /// the manager sends them again.
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.cache.clear();
+        self.books.clear();
+        Vec::new()
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {

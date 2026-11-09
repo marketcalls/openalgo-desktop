@@ -1,0 +1,32 @@
+{
+  "broker": "upstox",
+  "summary": "A full packet with an empty book after one with five levels: the Depth holder's book goes empty, the quote stays.",
+  "scenarios": [
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "NSE_FO|52175",
+      "brsymbol": "NIFTY FUT 25 NOV 26",
+      "brexchange": "NSE_FO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._process_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._merge_feed",
+      "broker/upstox/streaming/upstox_adapter.py::UpstoxWebSocketAdapter._build_payload",
+      "broker/upstox/streaming/upstox_client.py::UpstoxWebSocketClient._decode_protobuf_to_dict"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

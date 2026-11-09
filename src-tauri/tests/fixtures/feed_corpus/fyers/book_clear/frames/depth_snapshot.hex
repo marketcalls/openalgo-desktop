@@ -1,0 +1,40 @@
+# HSM data feed: SBIN's depth-feed snapshot.
+00000600000000  # length (unused), type 6 (data feed), padding
+0001  # scrip count
+530c00  # snapshot record (83), topic id 12 (little-endian)
+0e64707c6e73655f636d7c33303435  # topic name dp|nse_cm|3045
+1e  # field count 30
+00013911  # bid_price1 80145
+0001390c  # bid_price2 80140
+00013907  # bid_price3 80135
+00013902  # bid_price4 80130
+000138fd  # bid_price5 80125
+00013916  # ask_price1 80150
+0001391b  # ask_price2 80155
+00013920  # ask_price3 80160
+00013925  # ask_price4 80165
+0001392a  # ask_price5 80170
+0000000a  # bid_size1 10
+00000019  # bid_size2 25
+00000028  # bid_size3 40
+00000037  # bid_size4 55
+00000046  # bid_size5 70
+00000014  # ask_size1 20
+00000023  # ask_size2 35
+00000032  # ask_size3 50
+00000041  # ask_size4 65
+00000050  # ask_size5 80
+00000001  # bid_order1 1
+00000002  # bid_order2 2
+00000003  # bid_order3 3
+00000004  # bid_order4 4
+00000005  # bid_order5 5
+00000002  # ask_order1 2
+00000003  # ask_order2 3
+00000004  # ask_order3 4
+00000005  # ask_order4 5
+00000006  # ask_order5 6
+0000 0001 02  # two skipped bytes, multiplier 1, precision 2
+034e5345  # NSE
+0433303435  # 3045
+075342494e2d4551  # SBIN-EQ

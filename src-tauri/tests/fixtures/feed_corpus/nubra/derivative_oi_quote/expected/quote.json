@@ -1,0 +1,20 @@
+{
+  "broker": "nubra",
+  "data": {
+    "close": 141.0,
+    "exchange": "NFO",
+    "high": 155.0,
+    "low": 139.0,
+    "ltp": 147.85,
+    "mode": "quote",
+    "oi": 2450000,
+    "prev_close": 141.0,
+    "symbol": "NIFTY25NOV2625000CE",
+    "timestamp": 1740729566039,
+    "volume": 750000
+  },
+  "exchange": "NFO",
+  "mode": 2,
+  "symbol": "NIFTY25NOV2625000CE",
+  "type": "market_data"
+}

@@ -31,13 +31,15 @@
       "key": "timestamp",
       "kind": "web-defect",
       "reason": "The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
-      "ref": "fyers_mapping.py:178; fyers_adapter.py:553"
+      "ref": "fyers_mapping.py:178; fyers_adapter.py:553",
+      "approval": "alias-unit"
     },
     {
       "key": "ltp",
       "kind": "desktop-decision",
       "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote; the web's Fyers depth before the first quote has no ltp (CLAUDE.md, the compatibility contract).",
-      "ref": "feed::bridge::depth_update; fyers_adapter.py:535"
+      "ref": "feed::bridge::depth_update; fyers_adapter.py:535",
+      "approval": "per-broker-wire-shape"
     }
   ]
 }

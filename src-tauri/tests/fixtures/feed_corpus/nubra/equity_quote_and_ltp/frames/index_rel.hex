@@ -1,0 +1,23 @@
+# An index-channel message for RELIANCE (Nubra sends an equity's value there).
+# Any(Any(BatchWebSocketIndexMessage)), the inner message:
+#   {
+#    "indexes": [
+#     {
+#      "indexname": "RELIANCE",
+#      "timestamp": 1740729566039,
+#      "index_value": 130125,
+#      "high_index_value": 131000,
+#      "low_index_value": 129500,
+#      "prev_close": 129800,
+#      "volume": 50000,
+#      "exchange": "NSE"
+#     }
+#    ],
+#    "timestamp": 1740729566039
+#   }
+0a27747970652e676f6f676c65617069732e636f6d2f676f6f676c652e70726f
+746f6275662e416e79128c010a55747970652e676f6f676c65617069732e636f
+6d2f70726f746f732e7a616e736b6172736563757269746965732e6e75627261
+66726f6e74656e642e4261746368576562536f636b6574496e6465784d657373
+6167651233122a0a0852454c49414e434510d786c5dcd43218cdf80720b8ff07
+28dcf3074888f60730d0860352034e534508d786c5dcd432

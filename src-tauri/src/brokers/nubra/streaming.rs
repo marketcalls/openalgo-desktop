@@ -33,8 +33,9 @@ use super::proto::{self, MarketFrame};
 use super::DEVICE_ID;
 use crate::brokers::common::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::brokers::common::streaming::{
-    now_ms, ping, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest, WEB_ORDER_PING_INTERVAL,
+    now_ms, ping, AbsentFields, BrokerFeed, ExtraField, FeedEvent, FeedMode, FeedSubscription,
+    Message, NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest,
+    WEB_ORDER_PING_INTERVAL,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -276,8 +277,18 @@ impl NubraFeed {
             t.mark_carried(QuoteField::OpenInterest);
         }
         // web `_on_orderbook_data`: the Quote carries the best bid and ask.
+        // Once a book has come, a side it does not have is gone, not the
+        // last book's (R107-06): cleared, where a `None` would keep it.
         t.extras.bid_price = st.bids.first().map(|l| l.price).filter(|p| *p > 0.0);
         t.extras.ask_price = st.asks.first().map(|l| l.price).filter(|p| *p > 0.0);
+        if st.book_seen {
+            if t.extras.bid_price.is_none() {
+                t.extras.clear(ExtraField::BidPrice);
+            }
+            if t.extras.ask_price.is_none() {
+                t.extras.clear(ExtraField::AskPrice);
+            }
+        }
         t.derive_change();
         if t.change_percent == 0.0 && st.change_percent != 0.0 {
             t.change_percent = st.change_percent;
@@ -440,12 +451,19 @@ impl NubraFeed {
             }
             st.bids = levels(&x.bids);
             st.asks = levels(&x.asks);
-            if st.ltp <= 0.0 {
-                continue;
+            // No trade yet: no quote goes out, but the book does, without an
+            // LTP of its own (web `_on_orderbook_data` publishes it with LTP
+            // 0; R107-11).
+            let priced = st.ltp > 0.0;
+            if priced {
+                out.push(FeedEvent::Tick(Self::tick(inst)));
             }
-            out.push(FeedEvent::Tick(Self::tick(inst)));
             if inst.sub.mode == FeedMode::Depth {
-                out.push(FeedEvent::Depth(Self::depth(inst)));
+                let mut book = Self::depth(inst);
+                if !priced {
+                    book.absent = book.absent.with(QuoteField::Ltp);
+                }
+                out.push(FeedEvent::Depth(book));
             }
         }
     }

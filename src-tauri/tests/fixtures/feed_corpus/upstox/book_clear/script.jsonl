@@ -1,0 +1,6 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"binary_json": {"guid": "<any>", "method": "sub", "data": {"instrumentKeys": ["NSE_FO|52175"], "mode": "full"}}}]}
+{"step": "push", "frame": "frames/book.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}
+{"step": "push", "frame": "frames/book_empty.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth_empty.json"}

@@ -1,0 +1,194 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "upstox",
+  "inputs_sha256": "84eac702797da6326771ddd7e919f2b286a03382e4e685b9923f15f5a6876155",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "NSE_FO|52175",
+      "brsymbol": "NIFTY FUT 25 NOV 26",
+      "brexchange": "NSE_FO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "NSE_FO|52175",
+            "ltp": 219.3,
+            "close": 215.0,
+            "last_trade_quantity": 75,
+            "last_quantity": 75,
+            "volume": 1234500,
+            "average_price": 218.9,
+            "total_buy_quantity": 5000,
+            "total_sell_quantity": 6000,
+            "oi": 98765.0,
+            "ltt": 1740729560000,
+            "last_trade_time": 1740729560000,
+            "timestamp": 1740729566600,
+            "depth": {
+              "buy": [
+                {
+                  "price": 219.25,
+                  "quantity": 50
+                },
+                {
+                  "price": 219.2,
+                  "quantity": 100
+                },
+                {
+                  "price": 219.15,
+                  "quantity": 150
+                },
+                {
+                  "price": 219.1,
+                  "quantity": 200
+                },
+                {
+                  "price": 219.05,
+                  "quantity": 250
+                }
+              ],
+              "sell": [
+                {
+                  "price": 219.35,
+                  "quantity": 40
+                },
+                {
+                  "price": 219.4,
+                  "quantity": 80
+                },
+                {
+                  "price": 219.45,
+                  "quantity": 120
+                },
+                {
+                  "price": 219.5,
+                  "quantity": 160
+                },
+                {
+                  "price": 219.55,
+                  "quantity": 200
+                }
+              ],
+              "timestamp": 1740729566600
+            }
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "NSE_FO|52175",
+            "ltp": 219.35,
+            "close": 215.0,
+            "last_trade_quantity": 75,
+            "last_quantity": 75,
+            "volume": 1234500,
+            "average_price": 218.9,
+            "total_buy_quantity": 5000,
+            "total_sell_quantity": 6000,
+            "oi": 98765.0,
+            "ltt": 1740729561000,
+            "last_trade_time": 1740729561000,
+            "timestamp": 1740729567600,
+            "depth": {
+              "buy": [
+                {
+                  "price": 219.25,
+                  "quantity": 50
+                },
+                {
+                  "price": 219.2,
+                  "quantity": 100
+                },
+                {
+                  "price": 219.15,
+                  "quantity": 150
+                },
+                {
+                  "price": 219.1,
+                  "quantity": 200
+                },
+                {
+                  "price": 219.05,
+                  "quantity": 250
+                }
+              ],
+              "sell": [
+                {
+                  "price": 219.35,
+                  "quantity": 40
+                },
+                {
+                  "price": 219.4,
+                  "quantity": 80
+                },
+                {
+                  "price": 219.45,
+                  "quantity": 120
+                },
+                {
+                  "price": 219.5,
+                  "quantity": 160
+                },
+                {
+                  "price": 219.55,
+                  "quantity": 200
+                }
+              ],
+              "timestamp": 1740729567600
+            }
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    }
+  ]
+}

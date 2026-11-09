@@ -1,0 +1,24 @@
+# The first order-book message on the new connection: one bid, no LTP.
+# Any(Any(BatchWebSocketOrderbookMessage)), the inner message:
+#   {
+#    "instruments": [
+#     {
+#      "ref_id": 2885,
+#      "timestamp": 1740729568000,
+#      "bids": [
+#       {
+#        "price": 130100,
+#        "quantity": 10,
+#        "orders": 1
+#       }
+#      ]
+#     }
+#    ],
+#    "timestamp": 1740729568000
+#   }
+0a27747970652e676f6f676c65617069732e636f6d2f676f6f676c652e70726f
+746f6275662e416e79127a0a59747970652e676f6f676c65617069732e636f6d
+2f70726f746f732e7a616e736b6172736563757269746965732e6e7562726166
+726f6e74656e642e4261746368576562536f636b65744f72646572626f6f6b4d
+657373616765121d121440c516108096c5dcd4321a0808b4f807100a18010880
+96c5dcd432

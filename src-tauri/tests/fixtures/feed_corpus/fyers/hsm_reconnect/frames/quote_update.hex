@@ -1,0 +1,6 @@
+# HSM data feed: an update for topic 11 (a new LTP).
+00000600000000  # length (unused), type 6 (data feed), padding
+0001  # scrip count
+550b00  # update record (85), topic id 11
+01  # field count 1
+0001392f  # ltp 80175

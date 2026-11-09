@@ -1,0 +1,7 @@
+# A ticker packet (code 2) for RELIANCE: the LTP and trade time only.
+02                      # response code 2 (ticker)
+1000                    # message length 16, header included
+01                      # exchange segment 1 (NSE_EQ)
+450b0000                # security id 2885
+0098a244                # ltp 1300.75
+a2680169                # last trade time, epoch s

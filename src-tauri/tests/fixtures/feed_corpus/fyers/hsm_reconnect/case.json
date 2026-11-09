@@ -1,0 +1,52 @@
+{
+  "broker": "fyers",
+  "summary": "Fyers drops the HSM socket: the feed signs in again, subscribes again after the K, an update for a topic id of the old connection is ignored, and the next snapshot carries the quote again.",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "10100000003045",
+      "brsymbol": "NSE:SBIN-EQ",
+      "brexchange": "NSE",
+      "name": "STATE BANK OF INDIA"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fyers/streaming/fyers_hsm_websocket.py::FyersHSMWebSocket._parse_snapshot_data",
+      "broker/fyers/streaming/fyers_hsm_websocket.py::FyersHSMWebSocket._parse_update_data",
+      "broker/fyers/streaming/fyers_adapter.py::FyersAdapter._on_message",
+      "broker/fyers/streaming/fyers_mapping.py::FyersDataMapper.map_to_openalgo_depth"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
+      "ref": "fyers_adapter.py:553",
+      "approval": "alias-unit"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The record carries no OI for this equity; the web sends oi 0 (fyers_data.get('OI', 0)), the desktop leaves it out.",
+      "ref": "fyers_mapping.py:150",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "missing-frame",
+      "kind": "web-defect",
+      "reason": "The web keeps its topic state across a reconnect (scrips_data is cleared only on a deliberate disconnect), so an update for a topic id of the old connection goes out on the state from before the outage; the desktop forgets the topic ids and waits for the new snapshot.",
+      "ref": "fyers_hsm_websocket.py:747, 1124",
+      "approval": "merge-restart-on-reconnect"
+    }
+  ]
+}

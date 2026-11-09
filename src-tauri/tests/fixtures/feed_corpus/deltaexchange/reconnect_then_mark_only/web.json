@@ -1,0 +1,274 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "deltaexchange",
+  "inputs_sha256": "f912e1f65f5830548b494f29c9c8b7b8b04d14a625488d27177331e9783bc638",
+  "instruments": [
+    {
+      "symbol": "BTCUSDFUT",
+      "exchange": "CRYPTO",
+      "token": "27",
+      "brsymbol": "BTCUSD",
+      "brexchange": "CRYPTO",
+      "instrumenttype": "FUT",
+      "tick_size": 0.5
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "CRYPTO_BTCUSDFUT_DEPTH",
+          "exchange": "CRYPTO",
+          "symbol": "BTCUSDFUT",
+          "mode": 3,
+          "data": {
+            "depth": {
+              "buy": [
+                {
+                  "price": 63833.0,
+                  "quantity": 4388
+                },
+                {
+                  "price": 63832.5,
+                  "quantity": 200
+                },
+                {
+                  "price": 63831.0,
+                  "quantity": 75
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 63834.5,
+                  "quantity": 718
+                },
+                {
+                  "price": 63835.0,
+                  "quantity": 120
+                },
+                {
+                  "price": 63836.5,
+                  "quantity": 40
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                }
+              ]
+            },
+            "totalbuyqty": 4663,
+            "totalsellqty": 878,
+            "symbol": "BTCUSDFUT",
+            "exchange": "CRYPTO",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "CRYPTO_BTCUSDFUT_DEPTH",
+          "exchange": "CRYPTO",
+          "symbol": "BTCUSDFUT",
+          "mode": 3,
+          "data": {
+            "depth": {
+              "buy": [
+                {
+                  "price": 63833.0,
+                  "quantity": 4388
+                },
+                {
+                  "price": 63832.5,
+                  "quantity": 200
+                },
+                {
+                  "price": 63831.0,
+                  "quantity": 75
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 63834.5,
+                  "quantity": 718
+                },
+                {
+                  "price": 63835.0,
+                  "quantity": 120
+                },
+                {
+                  "price": 63836.5,
+                  "quantity": 40
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                }
+              ]
+            },
+            "totalbuyqty": 4663,
+            "totalsellqty": 878,
+            "average_price": 0,
+            "oi_change": 0,
+            "ltp": 63838.06,
+            "open": 64025.0,
+            "high": 64475.5,
+            "low": 63217.5,
+            "close": 63839.0,
+            "oi": 1407713.0,
+            "bid_price": 63833.0,
+            "bid_qty": 4388,
+            "ask_price": 63834.0,
+            "ask_qty": 718,
+            "symbol": "BTCUSDFUT",
+            "exchange": "CRYPTO",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "CRYPTO_BTCUSDFUT_DEPTH",
+          "exchange": "CRYPTO",
+          "symbol": "BTCUSDFUT",
+          "mode": 3,
+          "data": {
+            "depth": {
+              "buy": [
+                {
+                  "price": 63833.0,
+                  "quantity": 4388
+                },
+                {
+                  "price": 63832.5,
+                  "quantity": 200
+                },
+                {
+                  "price": 63831.0,
+                  "quantity": 75
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 63834.5,
+                  "quantity": 718
+                },
+                {
+                  "price": 63835.0,
+                  "quantity": 120
+                },
+                {
+                  "price": 63836.5,
+                  "quantity": 40
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0
+                }
+              ]
+            },
+            "totalbuyqty": 4663,
+            "totalsellqty": 878,
+            "average_price": 0,
+            "oi_change": 0,
+            "ltp": 63840.5,
+            "open": 64025.0,
+            "high": 64475.5,
+            "low": 63217.5,
+            "close": 63839.0,
+            "oi": 1407713.0,
+            "bid_price": 63833.0,
+            "bid_qty": 4388,
+            "ask_price": 63834.0,
+            "ask_qty": 718,
+            "symbol": "BTCUSDFUT",
+            "exchange": "CRYPTO",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,195 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "nubra",
+  "inputs_sha256": "c3c4a28649002ca1107ecac1679db7ccd331e48c7aef0c5223c81c5c6c762b32",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": "full",
+            "ltp": 1301.25,
+            "volume": 50000,
+            "timestamp": 1740729568000,
+            "total_buy_quantity": 60,
+            "total_sell_quantity": 75,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1301.0,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 1300.5,
+                  "quantity": 20,
+                  "orders": 2
+                },
+                {
+                  "price": 1300.0,
+                  "quantity": 30,
+                  "orders": 3
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1301.5,
+                  "quantity": 15,
+                  "orders": 1
+                },
+                {
+                  "price": 1302.0,
+                  "quantity": 25,
+                  "orders": 2
+                },
+                {
+                  "price": 1302.5,
+                  "quantity": 35,
+                  "orders": 4
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": "full",
+            "ltp": 0,
+            "volume": 0,
+            "timestamp": 1740729568000,
+            "total_buy_quantity": 10,
+            "total_sell_quantity": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1301.0,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "serves": [
+            3
+          ]
+        }
+      ]
+    }
+  ]
+}

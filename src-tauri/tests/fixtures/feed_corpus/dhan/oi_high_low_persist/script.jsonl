@@ -1,0 +1,25 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 21, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 20}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 23, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "socket": "depth"}
+{"step": "push", "frame": "frames/prev_close.hex"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/full.json"}
+{"step": "receive", "client": "b", "frame": "expected/quote_before_its_book.json", "web": false, "note": "The holder at 20 levels gets the full packet's quote without its 5-level book, until its own book comes."}
+{"step": "silence", "client": "b", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "The web's frame for this packet carries the 5-level book."}
+{"step": "push", "frame": "frames/quote.hex", "note": "Code 4: no OI high or low in it; a Depth-only holder hears nothing from it."}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/ticker.hex", "note": "Code 2: the LTP alone."}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/bids.hex", "socket": "depth"}
+{"step": "push", "frame": "frames/asks.hex", "socket": "depth"}
+{"step": "receive", "client": "b", "frame": "expected/deep_after_quote_and_ticker.json", "note": "The day's OI high and low are still known."}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "A 5-level holder gets no 20-level book."}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "path": "/?version=2&token=t&clientId=c&authType=2"}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 21, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "connection": 2}
+{"step": "push", "frame": "frames/bids.hex", "socket": "depth"}
+{"step": "push", "frame": "frames/asks.hex", "socket": "depth"}
+{"step": "receive", "client": "b", "frame": "expected/deep_after_reconnect.json", "note": "A new market connection: its quote state, the OI high and low with it, starts afresh."}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "A 5-level holder gets no 20-level book."}

@@ -1,0 +1,86 @@
+{
+  "broker": "dhan",
+  "summary": "Prices not exact in an f32 (LTP 954.1, previous close 1279.35, OHLC, average and book levels): the desktop sends each as the shortest decimal that reads back to the same f32, the price Dhan meant; the web widens the f32 (954.0999755859375) (R107-19, lead decision).",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket._parse_regular_message",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._normalize_5depth_data"
+    ],
+    "notes": [
+      "The review's probe: LTP bytes 66 86 6e 44; the web yields 954.0999755859375, the desktop 954.1."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltp",
+      "kind": "web-defect",
+      "reason": "Dhan sends prices as f32. The desktop sends the shortest decimal that reads back to the same f32 (954.1, the tick Dhan meant); the web widens the f32 to a double (954.0999755859375), noise past the tick size (lead decision, R107-19; the same reason as IIFL Capital's).",
+      "ref": "dhan_websocket.py struct.unpack('<f'); brokers/dhan/streaming.rs le_f32",
+      "approval": "dhan-f32-shortest-decimal"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Dhan sends prices as f32. The desktop sends the shortest decimal that reads back to the same f32 (954.1, the tick Dhan meant); the web widens the f32 to a double (954.0999755859375), noise past the tick size (lead decision, R107-19; the same reason as IIFL Capital's).",
+      "ref": "dhan_websocket.py struct.unpack('<f'); brokers/dhan/streaming.rs le_f32",
+      "approval": "dhan-f32-shortest-decimal"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "Dhan sends prices as f32. The desktop sends the shortest decimal that reads back to the same f32 (954.1, the tick Dhan meant); the web widens the f32 to a double (954.0999755859375), noise past the tick size (lead decision, R107-19; the same reason as IIFL Capital's).",
+      "ref": "dhan_websocket.py struct.unpack('<f'); brokers/dhan/streaming.rs le_f32",
+      "approval": "dhan-f32-shortest-decimal"
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Dhan sends prices as f32. The desktop sends the shortest decimal that reads back to the same f32 (954.1, the tick Dhan meant); the web widens the f32 to a double (954.0999755859375), noise past the tick size (lead decision, R107-19; the same reason as IIFL Capital's).",
+      "ref": "dhan_websocket.py struct.unpack('<f'); brokers/dhan/streaming.rs le_f32",
+      "approval": "dhan-f32-shortest-decimal"
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "Dhan sends prices as f32. The desktop sends the shortest decimal that reads back to the same f32 (954.1, the tick Dhan meant); the web widens the f32 to a double (954.0999755859375), noise past the tick size (lead decision, R107-19; the same reason as IIFL Capital's).",
+      "ref": "dhan_websocket.py struct.unpack('<f'); brokers/dhan/streaming.rs le_f32",
+      "approval": "dhan-f32-shortest-decimal"
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "Dhan sends prices as f32. The desktop sends the shortest decimal that reads back to the same f32 (954.1, the tick Dhan meant); the web widens the f32 to a double (954.0999755859375), noise past the tick size (lead decision, R107-19; the same reason as IIFL Capital's).",
+      "ref": "dhan_websocket.py struct.unpack('<f'); brokers/dhan/streaming.rs le_f32",
+      "approval": "dhan-f32-shortest-decimal"
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "Dhan sends prices as f32. The desktop sends the shortest decimal that reads back to the same f32 (954.1, the tick Dhan meant); the web widens the f32 to a double (954.0999755859375), noise past the tick size (lead decision, R107-19; the same reason as IIFL Capital's).",
+      "ref": "dhan_websocket.py struct.unpack('<f'); brokers/dhan/streaming.rs le_f32",
+      "approval": "dhan-f32-shortest-decimal"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md).",
+      "ref": "dhan_adapter.py:900",
+      "approval": "zerodha-dhan-web-defects"
+    }
+  ]
+}

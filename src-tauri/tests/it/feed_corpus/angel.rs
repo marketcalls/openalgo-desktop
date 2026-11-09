@@ -3,6 +3,9 @@
 
 use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::angel::streaming::{AngelFeed, AngelOrderFeed};
+use openalgo_desktop_lib::brokers::angel::AngelBroker;
+use openalgo_desktop_lib::brokers::types::AuthToken;
+use std::sync::Arc;
 
 fn feeds(env: &Env) -> Feeds {
     Feeds::market(AngelFeed::new(
@@ -18,6 +21,10 @@ fn feeds(env: &Env) -> Feeds {
         "jwt",
         env.symbols(),
     ))
+    .with_broker(
+        Arc::new(AngelBroker::new(env.symbols())),
+        &AuthToken::new("jwt"),
+    )
 }
 
 corpus_cases!(
@@ -31,5 +38,7 @@ corpus_cases!(
         future_snap_oi,
         quote_depth_mode_change,
         order_lifecycle,
+        depth_reconnect,
+        snap_partial_book_no_circuits,
     ]
 );

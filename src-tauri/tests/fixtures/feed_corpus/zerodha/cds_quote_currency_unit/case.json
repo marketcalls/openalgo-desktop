@@ -33,37 +33,43 @@
       "key": "ltp",
       "kind": "web-defect",
       "reason": "Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet).",
-      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'"
+      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'",
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet).",
-      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'"
+      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'",
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet).",
-      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'"
+      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'",
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet).",
-      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'"
+      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'",
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet).",
-      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'"
+      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'",
+      "approval": "never-copy-web-defect"
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "Kite sends currency derivative prices in units of 10^-7 rupees (BCD 10^-4); the web divides every price by 100, so USDINR at 88.1234 reaches clients as 8812340.0. The desktop divides by the segment's unit (brokers/zerodha/streaming.rs parse_packet).",
-      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'"
+      "ref": "zerodha_websocket.py:718-793; audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'",
+      "approval": "never-copy-web-defect"
     }
   ]
 }

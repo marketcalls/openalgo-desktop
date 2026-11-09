@@ -31,13 +31,15 @@
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "Nubra's order book carries the last traded quantity; the web drops it from the Depth frame, the desktop keeps it (lead decision: market data a web adapter drops from a mode is kept, lost data).",
-      "ref": "nubra_adapter.py:878-892"
+      "ref": "nubra_adapter.py:878-892",
+      "approval": "lost-data-kept"
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web pads a short side of Nubra's book to five zero levels (price 0, an integer) Nubra never sent; the desktop sends the levels Nubra sent (lead rule on book levels).",
-      "ref": "nubra_adapter.py:870-875"
+      "ref": "nubra_adapter.py:870-875",
+      "approval": "book-levels-as-sent"
     }
   ]
 }

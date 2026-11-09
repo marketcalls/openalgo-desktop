@@ -1,0 +1,4 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV2625000CE", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"text": "batch_subscribe nubra-corpus-session index {\"instruments\":[],\"indexes\":[\"NIFTY25NOV2625000CE\"]} NSE"}, {"text": "batch_subscribe nubra-corpus-session index_bucket {\"instruments\":[],\"indexes\":[\"NIFTY25NOV2625000CE\"]} 1d NSE"}, {"text": "batch_subscribe nubra-corpus-session orderbook {\"instruments\":[52175],\"indexes\":[]}"}, {"text": "batch_subscribe nubra-corpus-session orderbook_depth 5"}]}
+{"step": "push", "frame": "frames/index.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}

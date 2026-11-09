@@ -30,7 +30,8 @@
       "key": "frame",
       "kind": "desktop-decision",
       "reason": "A 20-level Depth subscription whose 20-level socket was not made, was refused or stayed silent is served at the market feed's five levels (lead decision 2026-11-09, audit P-10); the web's adapter serves it there only after its fallback monitor's 30 s, so it publishes nothing for this packet.",
-      "ref": "decisions.md (Deep book: served on the main 5 levels); dhan_adapter.py:409-412, 972-1066"
+      "ref": "decisions.md (Deep book: served on the main 5 levels); dhan_adapter.py:409-412, 972-1066",
+      "approval": "bk-a-final-approvals"
     }
   ]
 }

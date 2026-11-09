@@ -1,0 +1,56 @@
+# A Nubra order-book message for RELIANCE (ref_id 2885): three levels a side, LTP, last quantity and volume.
+# Any(Any(BatchWebSocketOrderbookMessage)), the inner message:
+#   {
+#    "instruments": [
+#     {
+#      "ref_id": 2885,
+#      "timestamp": 1740729568000,
+#      "bids": [
+#       {
+#        "price": 130100,
+#        "quantity": 10,
+#        "orders": 1
+#       },
+#       {
+#        "price": 130050,
+#        "quantity": 20,
+#        "orders": 2
+#       },
+#       {
+#        "price": 130000,
+#        "quantity": 30,
+#        "orders": 3
+#       }
+#      ],
+#      "asks": [
+#       {
+#        "price": 130150,
+#        "quantity": 15,
+#        "orders": 1
+#       },
+#       {
+#        "price": 130200,
+#        "quantity": 25,
+#        "orders": 2
+#       },
+#       {
+#        "price": 130250,
+#        "quantity": 35,
+#        "orders": 4
+#       }
+#      ],
+#      "ltp": 130125,
+#      "ltq": 5,
+#      "volume": 50000
+#     }
+#    ],
+#    "timestamp": 1740729568000
+#   }
+0a27747970652e676f6f676c65617069732e636f6d2f676f6f676c652e70726f
+746f6275662e416e7912b6010a59747970652e676f6f676c65617069732e636f
+6d2f70726f746f732e7a616e736b6172736563757269746965732e6e75627261
+66726f6e74656e642e4261746368576562536f636b65744f72646572626f6f6b
+4d6573736167651259125040c516108096c5dcd4321a0808b4f807100a18011a
+080882f807101418021a0808d0f707101e1803220808e6f807100f1801220808
+98f90710191802220808caf9071023180428cdf807300538d08603088096c5dc
+d432

@@ -17,12 +17,6 @@
       "name": "STATE BANK OF INDIA"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      50
-    ]
-  },
   "upstream_ignore": [
     "ping"
   ],
@@ -42,13 +36,15 @@
       "key": "timestamp",
       "kind": "web-defect",
       "reason": "The web stamps the 50-level frame with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
-      "ref": "fyers_mapping.py:307"
+      "ref": "fyers_mapping.py:307",
+      "approval": "alias-unit"
     },
     {
       "key": "update_type",
       "kind": "desktop-decision",
       "reason": "The 50-level book frame carries the instrument's latest quote, the quote's update_type with it (1.0.6 decision, kept: the depth frame keeps ltp, timestamp and the latest quote); the web's TBT frame has the book's keys alone.",
-      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS",
+      "approval": "per-broker-wire-shape"
     }
   ]
 }

@@ -1,0 +1,51 @@
+{
+  "broker": "nubra",
+  "summary": "A book that loses its asks: the Quote keeps the new best bid and drops the ask; the Depth book has bids and an empty ask side (R107-06).",
+  "scenarios": [
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/nubra/api/nubrawebsocket.py::NubraWebSocket._decode_protobuf",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_index_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_ohlcv_data",
+      "broker/nubra/streaming/nubra_adapter.py::NubraWebSocketAdapter._on_orderbook_data"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "The web pads a short side of Nubra's book to five zero levels (price 0, an integer) Nubra never sent; the desktop sends the levels Nubra sent.",
+      "ref": "nubra_adapter.py:870-875",
+      "approval": "book-levels-as-sent"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "Nubra's order book carries the last traded quantity; the web drops it from the frames it builds on the book, the desktop keeps it (lost data).",
+      "ref": "nubra_adapter.py:878-892",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "ask",
+      "kind": "web-defect",
+      "reason": "The book has no asks after this message; the web sends ask 0, the desktop leaves the key out (a side the book does not have is not a price; R107-06, the review: omission is the authorized alternative to the zero).",
+      "ref": "nubra_adapter.py:878-892",
+      "approval": "leave-out-unsent"
+    }
+  ]
+}

@@ -8,13 +8,18 @@ use openalgo_desktop_lib::brokers::nubra::NubraBroker;
 use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
 use serde_json::json;
+use std::sync::Arc;
 
 fn feeds(env: &Env) -> Feeds {
     env.serve_json(
         "/userinfo",
         json!({"env_info": {"user_ws_url": env.url("orders")}}),
     );
-    let broker = NubraBroker::with_urls(env.symbols(), env.http_url(), env.url("main"));
+    let broker = Arc::new(NubraBroker::with_urls(
+        env.symbols(),
+        env.http_url(),
+        env.url("main"),
+    ));
     let auth = AuthToken::new("nubra-corpus-session");
     Feeds::boxed(broker.create_feed(&auth).expect("the Nubra market feed"))
         .with_order_feed(
@@ -22,7 +27,7 @@ fn feeds(env: &Env) -> Feeds {
                 .create_order_feed(&auth)
                 .expect("the Nubra order feed"),
         )
-        .keeping(broker)
+        .with_broker(broker.clone(), &auth)
 }
 
 corpus_cases!(
@@ -31,6 +36,12 @@ corpus_cases!(
     [
         index_quote_ltp_bucket,
         equity_depth_orderbook,
-        order_lifecycle
+        order_lifecycle,
+        quote_and_depth_book_clear,
+        one_sided_book_clear,
+        book_before_price,
+        book_first_after_reconnect,
+        equity_quote_and_ltp,
+        derivative_oi_quote
     ]
 );

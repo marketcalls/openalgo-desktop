@@ -35,13 +35,15 @@
       "key": "open",
       "kind": "web-defect",
       "reason": "Before the day bucket the web sends open 0 (ohlcv.get('open', 0)); a field the stream has not sent is left out (web openalgo#2376), as the desktop does.",
-      "ref": "nubra_adapter.py:711"
+      "ref": "nubra_adapter.py:711",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "Once the day bucket came the web sends the bucket's close (today's price) as close, ahead of prev_close (ohlcv.get('close', prev_close)); close is the previous day's close, which the desktop keeps sending (the audit's 'Nubra bucket close' note).",
-      "ref": "nubra_adapter.py:712"
+      "ref": "nubra_adapter.py:712",
+      "approval": "never-copy-web-defect"
     }
   ]
 }

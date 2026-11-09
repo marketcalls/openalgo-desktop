@@ -1,0 +1,26 @@
+# The next full packet: no bid or ask.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_FO|52175": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 219.35,
+#         "ltt": "1740729561000",
+#         "ltq": "75",
+#         "cp": 215.0
+#        },
+#        "marketLevel": {
+#         "bidAskQuote": []
+#        }
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729567600"
+#   }
+080112350a0c4e53455f464f7c3532313735122512210a1f0a1b093333333333
+6b6b4010a8dfc4dcd432184b210000000000e06a401200200118f092c5dcd432

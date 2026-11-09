@@ -112,11 +112,4 @@ const BROKERS: &[(&str, &[&str])] = &[
 /// the release gate (`scripts/feed_corpus/release_gate.py`) fails while it
 /// is not empty.
 const WITHOUT_BROKER: &[&str] = &[
-    "angel",
-    "deltaexchange",
-    "dhan_sandbox",
-    "fyers",
-    "nubra",
-    "upstox",
-    "zerodha",
 ];

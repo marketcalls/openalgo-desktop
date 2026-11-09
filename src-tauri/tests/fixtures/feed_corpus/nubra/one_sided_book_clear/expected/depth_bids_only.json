@@ -1,0 +1,33 @@
+{
+  "broker": "nubra",
+  "data": {
+    "depth": {
+      "buy": [
+        {
+          "orders": 1,
+          "price": 1301.1,
+          "quantity": 12
+        },
+        {
+          "orders": 2,
+          "price": 1300.6,
+          "quantity": 22
+        }
+      ],
+      "sell": []
+    },
+    "exchange": "NSE",
+    "last_quantity": 3,
+    "ltp": 1301.25,
+    "mode": "full",
+    "symbol": "RELIANCE",
+    "timestamp": 1740729569000,
+    "total_buy_quantity": 34,
+    "total_sell_quantity": 0,
+    "volume": 50013
+  },
+  "exchange": "NSE",
+  "mode": 3,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}

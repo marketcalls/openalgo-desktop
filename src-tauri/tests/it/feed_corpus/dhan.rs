@@ -37,6 +37,8 @@ corpus_cases!(
         quote_to_depth_mode_change,
         deliberate_disconnect,
         exchange_not_supported,
+        decimal_prices,
+        oi_high_low_persist,
         depth_20_feed_not_made,
         depth_20_socket_refused,
         depth_20_silent_falls_back,

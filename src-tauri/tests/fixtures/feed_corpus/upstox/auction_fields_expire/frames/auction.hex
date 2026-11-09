@@ -1,0 +1,36 @@
+# A full packet during the closing auction.
+# Protobuf FeedResponse (MarketDataFeedV3.proto), these values:
+#   {
+#    "type": "live_feed",
+#    "feeds": {
+#     "NSE_EQ|INE002A01018": {
+#      "fullFeed": {
+#       "marketFF": {
+#        "ltpc": {
+#         "ltp": 1301.0,
+#         "ltt": "1740729560000",
+#         "ltq": "5",
+#         "cp": 1295.0,
+#         "iep": 1302.0
+#        },
+#        "atp": 1299.5,
+#        "vtt": "50000",
+#        "tbq": 9000.0,
+#        "tsq": 8000.0,
+#        "rp": 1300.0,
+#        "ieq": "5000",
+#        "iiqTotal": "-4200",
+#        "iiqM": "300",
+#        "casEligible": true
+#       }
+#      },
+#      "requestMode": "full_d5"
+#     }
+#    },
+#    "currentTs": "1740729566600"
+#   }
+08011281010a134e53455f45517c494e45303032413031303138126a12660a64
+0a2609000000000054944010c0d7c4dcd43218052100000000003c94402a0909
+00000000005894402900000000004e944030d0860349000000000094c1405100
+0000000040bf406100000000005094406888277098dfffffffffffffff0178ac
+02800101200118888bc5dcd432

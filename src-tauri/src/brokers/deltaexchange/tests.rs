@@ -8,7 +8,9 @@ use super::master_contract::{canonical_symbol, expiry, instrument_type, parse_pr
 use super::streaming::DeltaFeed;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Validity};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
@@ -674,11 +676,11 @@ fn feed_decodes_ticker_and_book_frames_and_merges_them() {
     let FeedEvent::Tick(t) = &ev[0] else {
         panic!("{:?}", ev)
     };
-    // The ticker is a Quote packet whatever the subscription (carrier:
-    // the packet's mode), carrying OI.
+    // Before any book a Depth holder's ticker is a full tick (its frame
+    // goes out without a book), carrying OI.
     assert_eq!(
         (t.symbol.as_str(), t.exchange.as_str(), t.mode),
-        ("BTCUSDFUT", "CRYPTO", 2)
+        ("BTCUSDFUT", "CRYPTO", 3)
     );
     assert_eq!(
         (t.ltp, t.open, t.high, t.low, t.close, t.oi),
@@ -694,9 +696,14 @@ fn feed_decodes_ticker_and_book_frames_and_merges_them() {
         ("ETHUSDFUT", 2451.2, 2, 2450.0)
     );
     let ev = f.parse(&Message::Text(lines[3].into()));
-    let FeedEvent::Depth(d) = &ev[0] else {
+    let [FeedEvent::Tick(totals), FeedEvent::Depth(d)] = &ev[..] else {
         panic!("{:?}", ev)
     };
+    // The first book after a ticker says the totals are known now, in a
+    // packet without a price, which the bridge keeps and does not publish.
+    assert!(!totals.knows(QuoteField::Ltp));
+    assert!(totals.knows(QuoteField::TotalBuyQuantity));
+    assert_eq!(totals.total_buy_quantity, 1775);
     assert_eq!(d.symbol, "BTCUSDFUT");
     assert_eq!(d.ltp, 59876.12);
     // The top five bids and the two asks Delta sent: no padding.
@@ -719,6 +726,60 @@ fn feed_decodes_ticker_and_book_frames_and_merges_them() {
     f.unsubscribe_frames(&[sub("BTCUSDFUT", "BTCUSD", FeedMode::Depth)]);
     assert_eq!(f.cached(), 1);
     assert!(f.parse(&Message::Text(lines[3].into())).is_empty());
+}
+
+/// R107-05: a new connection starts the merge afresh. The ticker's OHLC and
+/// OI and the book from before a drop are not current, so the first ticker
+/// after it carries only its mark price, and no book goes out with it.
+#[test]
+fn a_reconnect_forgets_the_last_ticker_and_book() {
+    let mut f = DeltaFeed::new(WS_PUBLIC_URL);
+    f.subscribe_frames(&[sub("BTCUSDFUT", "BTCUSD", FeedMode::Depth)]);
+    let lines: Vec<&str> = fixture!("ws_frames.jsonl").lines().collect();
+    f.parse(&Message::Text(lines[1].into()));
+    f.parse(&Message::Text(lines[3].into()));
+    assert!(f.on_connected().is_empty());
+    f.subscribe_frames(&[sub("BTCUSDFUT", "BTCUSD", FeedMode::Depth)]);
+    let mark_only = r#"{"type":"ticker","sy":"BTCUSD","d":[{"s":"BTCUSD","m":"63840.5"}]}"#;
+    let ev = f.parse(&Message::Text(mark_only.into()));
+    let [FeedEvent::Tick(t)] = &ev[..] else {
+        panic!("a tick alone, no book from before: {:?}", ev)
+    };
+    assert_eq!(t.ltp, 63840.5);
+    for field in [
+        QuoteField::Open,
+        QuoteField::High,
+        QuoteField::Low,
+        QuoteField::Close,
+        QuoteField::OpenInterest,
+    ] {
+        assert!(!t.knows(field), "{:?} from before the drop", field);
+    }
+    assert_eq!(t.extras.bid_price, None);
+}
+
+/// A Depth holder hears a ticker before any book (after a reconnect, or
+/// at the start): a full tick, so the bridge sends its Depth frame without
+/// a book (lead decision 2026-11-09: a Depth holder with no book known still
+/// gets a Depth frame per tick). Lower holders' ticks stay Quote packets.
+#[test]
+fn a_depth_holder_hears_a_ticker_before_any_book() {
+    let mut f = DeltaFeed::new(WS_PUBLIC_URL);
+    f.subscribe_frames(&[
+        sub("BTCUSDFUT", "BTCUSD", FeedMode::Depth),
+        sub("ETHUSDFUT", "ETHUSD", FeedMode::Quote),
+    ]);
+    let lines: Vec<&str> = fixture!("ws_frames.jsonl").lines().collect();
+    let ev = f.parse(&Message::Text(lines[1].into()));
+    let [FeedEvent::Tick(t)] = &ev[..] else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!(t.mode, FeedMode::Depth.code());
+    let ev = f.parse(&Message::Text(lines[2].into()));
+    let [FeedEvent::Tick(t)] = &ev[..] else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!(t.mode, FeedMode::Quote.code());
 }
 
 #[test]

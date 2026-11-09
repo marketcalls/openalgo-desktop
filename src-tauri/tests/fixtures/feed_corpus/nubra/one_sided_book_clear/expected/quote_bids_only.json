@@ -1,0 +1,17 @@
+{
+  "broker": "nubra",
+  "data": {
+    "bid": 1301.1,
+    "exchange": "NSE",
+    "last_quantity": 3,
+    "ltp": 1301.25,
+    "mode": "quote",
+    "symbol": "RELIANCE",
+    "timestamp": 1740729569000,
+    "volume": 50013
+  },
+  "exchange": "NSE",
+  "mode": 2,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}

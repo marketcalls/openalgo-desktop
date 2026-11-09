@@ -1,0 +1,52 @@
+{
+  "broker": "deltaexchange",
+  "summary": "A book message with both sides empty after a full one: the Depth holder's book goes empty on both sides, the quote stays.",
+  "scenarios": [
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "BTCUSDFUT",
+      "exchange": "CRYPTO",
+      "token": "27",
+      "brsymbol": "BTCUSD",
+      "brexchange": "CRYPTO",
+      "instrumenttype": "FUT",
+      "tick_size": 0.5
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._on_data",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_ticker",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_book"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Delta's ticker never carries average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
+      "ref": "delta_adapter.py:584",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "oi_change",
+      "kind": "web-defect",
+      "reason": "Delta's ticker never carries an OI change; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
+      "ref": "delta_adapter.py:584",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "The web pads a short or empty side of Delta's book to five zero levels Delta never sent; the desktop sends the levels Delta sent (an emptied side is an empty list).",
+      "ref": "delta_adapter.py:606-617",
+      "approval": "book-levels-as-sent"
+    }
+  ]
+}
