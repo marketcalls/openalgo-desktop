@@ -35,30 +35,6 @@
       "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
       "ref": "pocketful_adapter.py:583, 631",
       "approved": true
-    },
-    {
-      "key": "change",
-      "kind": "open",
-      "reason": "The desktop sends Pocketful's change key from LTP up (names.rs `from`), in Quote and Depth frames too; the Pocketful web adapter sends change only in its LTP (compact) frame. Open until wire's WebName.to.",
-      "ref": "pocketful_adapter.py:629-637; feed/dialect/names.rs POCKETFUL"
-    },
-    {
-      "key": "last_quantity",
-      "kind": "open",
-      "reason": "The desktop sends the canonical last_quantity beside last_trade_quantity; the Pocketful web adapter sends last_trade_quantity only, which is also the docs' name (lead ruling 2026-11-09). Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "pocketful_adapter.py:589; docs/prompt/websockets-format.md (Quote)"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     }
   ]
 }

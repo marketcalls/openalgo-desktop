@@ -12,7 +12,6 @@
     "ltt": 1762656900000,
     "timestamp": "<receipt_ms>",
     "volume": 1234567,
-    "last_quantity": 25,
     "average_price": 1498.76,
     "total_buy_quantity": 500000,
     "total_sell_quantity": 600000,
@@ -20,10 +19,7 @@
     "high": 1510.0,
     "low": 1485.0,
     "close": 1488.0,
-    "price_change": 12.25,
-    "price_change_percent": 0.82,
     "oi": 0,
-    "change": 12.25,
     "last_trade_quantity": 25
   }
 }

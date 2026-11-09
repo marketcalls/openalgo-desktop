@@ -1,6 +1,6 @@
 {
   "broker": "pocketful",
-  "summary": "A Depth 20 subscribe: the desktop answers success at depth 5 and streams the five-level book; the web adapter refuses any Depth level but 5, so the web streams nothing.",
+  "summary": "A Depth 20 subscribe: refused with the web adapter's words and status partial, nothing sent upstream; a Depth 5 subscribe after it streams the snapquote book.",
   "scenarios": [
     "subscription-lifecycle"
   ],
@@ -24,15 +24,7 @@
       "websocket_proxy/server.py::WebSocketProxy.subscribe_client"
     ],
     "notes": [
-      "Web acknowledgement worked from pocketful_adapter.py:256-259 (INVALID_DEPTH before the capability fallback, which is never reached) and server.py:1319-1336: {\"type\": \"subscribe\", \"status\": \"partial\", \"subscriptions\": [{\"symbol\": \"RELIANCE\", \"exchange\": \"NSE\", \"status\": \"error\", \"message\": \"Invalid depth level 20. Must be 5\", \"broker\": \"pocketful\"}], \"message\": \"Subscription processing complete\", \"broker\": \"pocketful\"}."
+      "The web answers a Depth subscribe at any level but 5 with INVALID_DEPTH, \"Invalid depth level 20. Must be 5\", status partial (pocketful_adapter.py:256-259, websocket_proxy/server.py:1318-1334); the desktop refuses it at admission with the same words (feed/refusals.rs, lane life; PF-02)."
     ]
-  },
-  "deviations": [
-    {
-      "key": "frame",
-      "kind": "open",
-      "reason": "The web refuses a Depth subscribe at any level but 5 (INVALID_DEPTH \"Invalid depth level 20. Must be 5\", pocketful_adapter.py:256-259), so it streams nothing; the desktop acknowledges it at depth 5 and streams the book. Lane life's refusal (feed/server/refusals.rs, c08002aa) fixes it once life is merged into base; the case then expects the refusal and no frame (PF-02).",
-      "ref": "pocketful_adapter.py:256-259; feed/server/refusals.rs (lane life)"
-    }
-  ]
+  }
 }

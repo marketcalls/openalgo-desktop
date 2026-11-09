@@ -38,24 +38,6 @@
       "approved": true
     },
     {
-      "key": "change",
-      "kind": "open",
-      "reason": "The desktop sends Pocketful's change key from LTP up (names.rs `from`), in Quote and Depth frames too; the Pocketful web adapter sends change only in its LTP (compact) frame. Open until wire's WebName.to.",
-      "ref": "pocketful_adapter.py:629-637; feed/dialect/names.rs POCKETFUL"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an index beside the web adapter's own change keys (change); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends the canonical price_change and price_change_percent on an index beside the web adapter's own change keys (change); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
-      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
-    },
-    {
       "key": "last_trade_quantity",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",

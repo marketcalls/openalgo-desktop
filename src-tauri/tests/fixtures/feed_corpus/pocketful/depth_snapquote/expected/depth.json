@@ -17,8 +17,6 @@
     "high": 1510.0,
     "low": 1485.0,
     "close": 1488.0,
-    "price_change": 10.76,
-    "price_change_percent": 0.72,
     "depth": {
       "buy": [
         {
@@ -74,7 +72,6 @@
           "orders": 12
         }
       ]
-    },
-    "change": 10.76
+    }
   }
 }

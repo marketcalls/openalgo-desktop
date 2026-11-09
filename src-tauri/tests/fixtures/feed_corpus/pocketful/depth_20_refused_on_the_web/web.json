@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "pocketful",
-  "inputs_sha256": "a959308a188034ae75fa4bcd32ad2c39bc3f1fc20f3857a27affc5371f22accd",
+  "inputs_sha256": "62b55d41db1481a09e3584aa852c8147961708b63cd0d97a37dbef68af88a2cb",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -14,8 +14,86 @@
   ],
   "pushes": [
     {
-      "line": 3,
-      "published": []
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "ltp": 1498.76,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1485.0,
+            "close": 1488.0,
+            "volume": 1234567,
+            "total_buy_quantity": 500000,
+            "total_sell_quantity": 600000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>",
+            "depth": {
+              "buy": [
+                {
+                  "price": 1500.0,
+                  "quantity": 100,
+                  "orders": 3
+                },
+                {
+                  "price": 1499.95,
+                  "quantity": 101,
+                  "orders": 4
+                },
+                {
+                  "price": 1499.9,
+                  "quantity": 102,
+                  "orders": 5
+                },
+                {
+                  "price": 1499.85,
+                  "quantity": 103,
+                  "orders": 6
+                },
+                {
+                  "price": 1499.8,
+                  "quantity": 104,
+                  "orders": 7
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1500.1,
+                  "quantity": 200,
+                  "orders": 8
+                },
+                {
+                  "price": 1500.15,
+                  "quantity": 201,
+                  "orders": 9
+                },
+                {
+                  "price": 1500.2,
+                  "quantity": 202,
+                  "orders": 10
+                },
+                {
+                  "price": 1500.25,
+                  "quantity": 203,
+                  "orders": 11
+                },
+                {
+                  "price": 1500.3,
+                  "quantity": 204,
+                  "orders": 12
+                }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }
