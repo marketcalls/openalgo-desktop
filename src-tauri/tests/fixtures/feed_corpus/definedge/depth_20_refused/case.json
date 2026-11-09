@@ -1,0 +1,40 @@
+{
+  "broker": "definedge",
+  "summary": "A Depth subscribe at 20 levels: Definedge's web adapter refuses any depth but 5 before it looks the symbol up, and so does the desktop, with the adapter's words; nothing goes to the broker. Depth 5 is then taken and streams.",
+  "scenarios": [
+    "subscription-lifecycle",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py:1318-1329"
+    ],
+    "notes": [
+      "definedge_adapter.py:400-404: INVALID_DEPTH, 'Invalid depth level {depth_level}. Must be 5'; the proxy hands the client the message (feed::refusals)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
+      "approved": true
+    }
+  ]
+}

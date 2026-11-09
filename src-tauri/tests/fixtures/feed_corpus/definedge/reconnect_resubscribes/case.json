@@ -36,19 +36,8 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
-      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "Definedge's web adapter sends the percent change only (change_percent, percent_change), never price_change, for any instrument; the desktop adds its canonical price_change. Lead rules 2026-11-09: change keys outside the docs follow the adapter; dropped in Phase B through the per-broker switch.",
-      "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "Definedge's web adapter names the percent change change_percent and percent_change (both sent by the desktop too); the desktop adds its canonical price_change_percent. Dropped in Phase B through the per-broker switch (lead rules 2026-11-09).",
-      "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
+      "approved": true
     },
     {
       "key": "average_price",
