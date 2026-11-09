@@ -30,6 +30,11 @@ pub const MULTIQUOTE_BATCH: usize = 50;
 /// web `_QUOTE_WAIT_SECONDS` / `_DEPTH_WAIT_SECONDS`.
 pub const QUOTE_WAIT: Duration = Duration::from_secs(10);
 pub const DEPTH_WAIT: Duration = Duration::from_secs(15);
+/// How long a depth answer may still wait for the trade price once its
+/// book is in. The web answers on the snapquote alone, so a quiet contract
+/// that sends no detailed packet must not hold a depth panel for all of
+/// `DEPTH_WAIT` (lead decision 2026-11-09).
+const TRADE_AFTER_BOOK: Duration = Duration::from_secs(2);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const SEND_TIMEOUT: Duration = Duration::from_secs(5);
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -65,7 +70,7 @@ pub(crate) async fn snapshot(
     mode: u8,
     wait: Duration,
 ) -> Result<HashMap<u32, Packet>> {
-    let got = packets(b, auth, instruments, &[mode], wait).await?;
+    let got = packets(b, auth, instruments, &[mode], wait, None).await?;
     Ok(got.into_iter().map(|((tok, _), p)| (tok, p)).collect())
 }
 
@@ -79,13 +84,15 @@ fn packet_mode(p: &Packet) -> Option<u8> {
 }
 
 /// `snapshot` for several Pocketful types at once: the first packet per
-/// token and type, keyed by both.
+/// token and type, keyed by both. With `after_book`, a snapquote cuts what
+/// is left of `wait` to that long.
 async fn packets(
     b: &PocketfulBroker,
     auth: &AuthToken,
     instruments: &[(u8, u32)],
     modes: &[u8],
     wait: Duration,
+    after_book: Option<Duration>,
 ) -> Result<HashMap<(u32, u8), Packet>> {
     let client_id = b.client_id(auth).await?;
     let token = PocketfulBroker::token(auth)?;
@@ -115,7 +122,7 @@ async fn packets(
         }
     };
     let wanted: std::collections::HashSet<u32> = instruments.iter().map(|(_, t)| *t).collect();
-    let deadline = Instant::now() + wait;
+    let mut deadline = Instant::now() + wait;
     let outcome: Result<()> = async {
         for &mode in modes {
             for (code, tok) in instruments {
@@ -149,6 +156,9 @@ async fn packets(
                 if let (Some(mode), Some((_, tok))) = (mode, p.token()) {
                     if wanted.contains(&tok) {
                         got.entry((tok, mode)).or_insert(p);
+                        if let Some(rest) = after_book.filter(|_| mode == MODE_SNAPQUOTE) {
+                            deadline = deadline.min(Instant::now() + rest);
+                        }
                     }
                 }
             }
@@ -276,9 +286,21 @@ pub async fn get_market_depth(
     auth: &AuthToken,
     key: &QuoteKey,
 ) -> Result<MarketDepth> {
+    depth_within(b, auth, key, TRADE_AFTER_BOOK).await
+}
+
+/// `get_market_depth`, the trade price allowed `after_book` once the book
+/// is in.
+pub(super) async fn depth_within(
+    b: &PocketfulBroker,
+    auth: &AuthToken,
+    key: &QuoteKey,
+    after_book: Duration,
+) -> Result<MarketDepth> {
     let inst = resolve_instrument(b, key)?;
     let book = pocketful_mode(FeedMode::Depth);
-    let mut got = packets(b, auth, &[inst], &[MODE_DETAILED, book], DEPTH_WAIT).await?;
+    let modes = [MODE_DETAILED, book];
+    let mut got = packets(b, auth, &[inst], &modes, DEPTH_WAIT, Some(after_book)).await?;
     let trade = match got.remove(&(inst.1, MODE_DETAILED)) {
         Some(Packet::Detailed(d)) => Some(d),
         _ => None,

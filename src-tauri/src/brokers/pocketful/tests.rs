@@ -1137,3 +1137,32 @@ async fn a_book_with_no_trade_price_does_not_hold_the_depth_answer() {
     assert!(took >= Duration::from_millis(1900), "waited: {:?}", took);
     assert!(took < Duration::from_secs(10), "held for {:?}", took);
 }
+
+/// Both packets in, in either order: the answer goes at once with the
+/// detailed packet's price. The allowance here is longer than the whole
+/// wait, so any extra wait would show as the full 15 s.
+#[tokio::test]
+async fn a_depth_answers_as_soon_as_both_packets_are_in() {
+    let trade = || detailed_packet(1, 3045, 81_225);
+    let book = || snapquote_packet(1, 3045);
+    for (order, packets) in [
+        ("price first", vec![trade(), book()]),
+        ("book first", vec![book(), trade()]),
+    ] {
+        let ws = depth_socket(packets, Duration::from_millis(50)).await;
+        let b = depth_broker(&ws);
+        let started = std::time::Instant::now();
+        let d = super::data::depth_within(
+            &b,
+            &depth_session(),
+            &QuoteKey::new("NSE", "SBIN"),
+            Duration::from_secs(60),
+        )
+        .await
+        .unwrap();
+        let took = started.elapsed();
+        assert_eq!((d.ltp, d.ltq), (812.25, 25), "{}", order);
+        assert_eq!(d.bids[0].price, 812.0, "{}", order);
+        assert!(took < Duration::from_secs(10), "{}: {:?}", order, took);
+    }
+}
