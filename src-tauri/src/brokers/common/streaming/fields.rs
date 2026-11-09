@@ -441,12 +441,12 @@ impl Serialize for BrokerValue {
     }
 }
 
-/// The [`BrokerField`]s one packet carried, each at most once. Not kept
-/// from one packet to the next: a value that should last (an auction's
-/// price lasts one tick) stays only as long as the adapter sends it.
+/// The [`BrokerField`]s one packet carried, each at most once: a value, or
+/// `None` for a field the packet clears (one list, so a tick keeps its
+/// size). The bridge keeps a market-state field from packet to packet
+/// until a new value or a clear (`BrokerField::persists`); a per-event one
+/// (an auction's price) lasts its packet.
 #[derive(Debug, Clone, Default, PartialEq)]
-/// A packet's broker-only fields: a value per field, or `None` for a field
-/// the packet clears (one list, so a tick stays the size it was).
 pub struct BrokerFields(Vec<(BrokerField, Option<BrokerValue>)>);
 
 impl BrokerFields {
