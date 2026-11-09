@@ -13,10 +13,13 @@ use openalgo_desktop_lib::brokers::Broker;
 use openalgo_desktop_lib::feed::auth::StaticAuth;
 use openalgo_desktop_lib::feed::bridge::BrokerBridge;
 use openalgo_desktop_lib::feed::{start, FeedConfig, FeedDeps, FeedHandle};
-use openalgo_desktop_lib::websocket::{FeedMode, WebSocketManager};
+use openalgo_desktop_lib::websocket::{
+    FeedConfig as ManagerConfig, FeedMode, FeedStatus, WebSocketManager,
+};
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::collections::{HashSet, VecDeque};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -44,6 +47,10 @@ struct Upstream {
     refuse_instrument: HashSet<i64>,
     /// The next POSTs answered 503.
     fail_posts: VecDeque<()>,
+    /// Every POST is taken, and answered 503: the broker's answer is lost.
+    answers_lost: bool,
+    /// The next POSTs refused for the market data token.
+    token_refusals: usize,
     put_gate: Option<oneshot::Receiver<()>>,
 }
 
@@ -80,6 +87,22 @@ async fn on_post(state: Arc<Mutex<Upstream>>, body: Value) -> Answer {
     let (code, instruments) = named(&body);
     let mut s = state.lock();
     s.requests.push(("POST".into(), code, instruments.clone()));
+    if s.token_refusals > 0 {
+        s.token_refusals -= 1;
+        return (
+            axum::http::StatusCode::UNAUTHORIZED,
+            axum::Json(json!({"type": "error", "description": "Invalid Token"})),
+        );
+    }
+    if s.answers_lost {
+        for i in instruments {
+            s.active.insert((i, code));
+        }
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            axum::Json(json!({"type": "error", "description": "busy"})),
+        );
+    }
     if s.fail_posts.pop_front().is_some() {
         return (
             axum::http::StatusCode::SERVICE_UNAVAILABLE,
@@ -126,6 +149,10 @@ struct FakeBroker {
     accept: watch::Sender<bool>,
     /// Moved to end every connection open now.
     drop_all: watch::Sender<u64>,
+    /// The Socket.IO connections made so far.
+    connections: Arc<AtomicUsize>,
+    /// Sessions are refused at the Socket.IO connect from now on.
+    refuse_login: Arc<AtomicBool>,
     tasks: JoinSet<()>,
 }
 
@@ -138,6 +165,7 @@ async fn socket_connection(
     tcp: tokio::net::TcpStream,
     mut accept: watch::Receiver<bool>,
     mut drop_all: watch::Receiver<u64>,
+    refuse_login: Arc<AtomicBool>,
 ) {
     let epoch = *drop_all.borrow_and_update();
     let Ok(mut ws) = tokio_tungstenite::accept_async(tcp).await else {
@@ -151,6 +179,11 @@ async fn socket_connection(
         if matches!(m, Message::Text(ref t) if t == "40") {
             break;
         }
+    }
+    if refuse_login.load(Ordering::SeqCst) {
+        let refusal = r#"44{"message":"Invalid Token"}"#;
+        let _ = ws.send(Message::Text(refusal.into())).await;
+        return;
     }
     if accept.wait_for(|open| *open).await.is_err() {
         return;
@@ -198,10 +231,19 @@ impl FakeBroker {
         let socket = format!("ws://{}", listener.local_addr().unwrap());
         let (accept, accepted) = watch::channel(accepting);
         let (drop_all, every) = watch::channel(0);
+        let connections = Arc::new(AtomicUsize::new(0));
+        let refuse_login = Arc::new(AtomicBool::new(false));
+        let (came, refusing) = (connections.clone(), refuse_login.clone());
         tasks.spawn(async move {
-            let mut connections = JoinSet::new();
+            let mut open = JoinSet::new();
             while let Ok((tcp, _)) = listener.accept().await {
-                connections.spawn(socket_connection(tcp, accepted.clone(), every.clone()));
+                came.fetch_add(1, Ordering::SeqCst);
+                open.spawn(socket_connection(
+                    tcp,
+                    accepted.clone(),
+                    every.clone(),
+                    refusing.clone(),
+                ));
             }
         });
         FakeBroker {
@@ -210,6 +252,8 @@ impl FakeBroker {
             socket,
             accept,
             drop_all,
+            connections,
+            refuse_login,
             tasks,
         }
     }
@@ -249,6 +293,22 @@ fn row(symbol: &str, token: &str) -> SymToken {
 
 impl Stack {
     async fn up(accepting: bool, op_timeout: Duration) -> Stack {
+        Stack::on(WebSocketManager::new(), accepting, op_timeout).await
+    }
+
+    /// A connected stack whose manager looks at its socket every 2 s, so a
+    /// feed that asks to reconnect (a refused token) does so soon.
+    async fn watched_closely() -> Stack {
+        let manager = WebSocketManager::with_config(ManagerConfig {
+            stall_timeout: Duration::from_secs(8),
+            ..ManagerConfig::default()
+        });
+        let s = Stack::on(manager, true, Duration::from_secs(60)).await;
+        assert!(eventually(SETTLE, || s.manager.is_connected()).await);
+        s
+    }
+
+    async fn on(manager: WebSocketManager, accepting: bool, op_timeout: Duration) -> Stack {
         let broker = FakeBroker::start(accepting).await;
         let symbols = SymbolResolver::new();
         symbols.load(vec![
@@ -264,7 +324,7 @@ impl Stack {
         let token = AuthToken::new("inert-interactive")
             .with_feed(Some("inert-feed"))
             .with_user_id("inert-user");
-        let manager = Arc::new(WebSocketManager::new());
+        let manager = Arc::new(manager);
         manager
             .connect(xts.create_feed(&token).unwrap())
             .await
@@ -713,6 +773,125 @@ async fn quote_to_depth_refused_keeps_the_quote_stream() {
     );
     assert!(s.broker.holds(RELIANCE, QUOTE));
     assert_eq!(s.manager_mode("RELIANCE"), Some(FeedMode::Quote));
+    s.stop().await;
+}
+
+/// A refused token settles nothing: the subscribe follows the next session's
+/// set, and is a success once that session's broker has taken it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_refused_token_leaves_the_subscribe_to_the_next_session() {
+    let s = Stack::watched_closely().await;
+    let mut c = s.client().await;
+    s.broker.upstream.lock().token_refusals = 1;
+
+    c.send(&subscribe("RELIANCE", 2)).await;
+    let ack = c.recv_within(SETTLE).await.expect("the subscribe's reply");
+    assert_eq!(ack["status"], "success", "{}", ack);
+    assert!(
+        s.broker.connections.load(Ordering::SeqCst) >= 2,
+        "the feed reconnected for a new token"
+    );
+    assert!(
+        s.broker.holds(RELIANCE, QUOTE),
+        "taken before it was answered"
+    );
+    assert_eq!(s.registered(), 1);
+    assert_eq!(s.manager_mode("RELIANCE"), Some(FeedMode::Quote));
+    s.stop().await;
+}
+
+/// A refused token, and the next session's broker refuses the instrument:
+/// the owner hears that refusal and nothing is left held.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_refused_token_then_a_refused_instrument_is_the_owners_error() {
+    let s = Stack::watched_closely().await;
+    let mut c = s.client().await;
+    {
+        let mut up = s.broker.upstream.lock();
+        up.token_refusals = 1;
+        up.refuse_instrument.insert(RELIANCE);
+    }
+
+    c.send(&subscribe("RELIANCE", 2)).await;
+    let ack = c.recv_within(SETTLE).await.expect("the subscribe's reply");
+    assert_eq!(ack["status"], "partial", "{}", ack);
+    assert!(
+        refused_message(&ack).contains("instrument not allowed"),
+        "{}",
+        ack
+    );
+    assert_eq!(s.registered(), 0);
+    assert_eq!(s.manager.instrument_count(), 0);
+    assert!(s.bridge.applied().is_empty());
+    assert!(!s.broker.holds(RELIANCE, QUOTE));
+    assert!(
+        s.bridge.operations().refused.is_empty(),
+        "its owner was told"
+    );
+    s.stop().await;
+}
+
+/// A refused token, and the broker then refuses the next session's login:
+/// no set answers the subscribe. The owner is told it was not started when
+/// the wait is over, and nothing is left admitted.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_refused_token_then_a_refused_login_is_not_taken() {
+    let s = Stack::watched_closely().await;
+    let mut c = s.client().await;
+    s.broker.upstream.lock().token_refusals = 1;
+    s.broker.refuse_login.store(true, Ordering::SeqCst);
+
+    c.send(&subscribe("RELIANCE", 2)).await;
+    assert!(
+        eventually(SETTLE, || matches!(
+            s.manager.status(),
+            FeedStatus::AuthFailed { .. }
+        ))
+        .await,
+        "the login was refused: {:?}",
+        s.manager.status()
+    );
+    let ack = c
+        .recv_within(Duration::from_secs(60))
+        .await
+        .expect("the subscribe's reply");
+    assert_eq!(ack["status"], "partial", "{}", ack);
+    assert!(refused_message(&ack).contains("did not confirm"), "{}", ack);
+    assert_eq!(s.registered(), 0);
+    assert_eq!(s.manager.instrument_count(), 0);
+    assert!(s.bridge.applied().is_empty());
+    assert!(!s.broker.holds(RELIANCE, QUOTE));
+    let posts = s.broker.requests().iter().filter(|r| r.0 == "POST").count();
+    assert_eq!(posts, 1, "the next session never got as far as its set");
+    s.stop().await;
+}
+
+/// Every attempt failed for a passing reason: the owner hears the broker did
+/// not answer and holds nothing. The broker may have taken it all the same
+/// (the answers were what got lost), so it is told to let go.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn retries_exhausted_tell_the_owner_and_leave_nothing_behind() {
+    let s = Stack::connected().await;
+    let mut c = s.client().await;
+    s.broker.upstream.lock().answers_lost = true;
+
+    c.send(&subscribe("RELIANCE", 2)).await;
+    let ack = c
+        .recv_within(Duration::from_secs(60))
+        .await
+        .expect("the subscribe's reply");
+    assert_eq!(ack["status"], "partial", "{}", ack);
+    assert!(refused_message(&ack).contains("did not answer"), "{}", ack);
+    let posts = s.broker.requests().iter().filter(|r| r.0 == "POST").count();
+    assert_eq!(posts, 6, "the first try and five more");
+    assert_eq!(s.registered(), 0);
+    assert_eq!(s.manager.instrument_count(), 0);
+    assert!(s.bridge.applied().is_empty());
+    assert!(
+        eventually(SETTLE, || !s.broker.holds(RELIANCE, QUOTE)).await,
+        "nobody owns it, so the broker must not keep streaming it: {:?}",
+        s.broker.requests()
+    );
     s.stop().await;
 }
 
