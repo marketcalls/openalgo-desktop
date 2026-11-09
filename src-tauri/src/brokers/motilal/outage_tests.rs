@@ -1,34 +1,41 @@
 //! Motilal's wire key follows who holds an instrument. A packet names only
 //! its exchange character and scrip, so NSE cash RELIANCE and the NFO
 //! contract with the same code share ('N', 2885), and the desktop refuses
-//! the second while the first is held (`motilal/wire_keys.rs`). A release
-//! that reaches no socket has to free the key as well: nothing else tells
-//! the feed. The real manager, bridge, feed server and Motilal adapter; only
-//! Motilal's socket is faked. Review round 3, M2 (Codex B107-04, whose probe
-//! asserted the defect; these assert the right behaviour).
+//! the second while the first is held (`wire_keys`). A release that reaches
+//! no socket has to free the key, and a subscribe no socket has registered
+//! yet has to keep it. The real manager, bridge, feed server and Motilal
+//! adapter; only Motilal's socket is faked. Review round 3, M2 (Codex
+//! B107-04, whose probe asserted the defect; these assert the right
+//! behaviour). In the crate, so a test can pass a reservation's expiry
+//! through `claim_at` instead of waiting for it.
 
-use crate::feed_support::{eventually, Client, API_KEY, USER_ID};
+use super::wire_keys::RESERVATION_TTL;
+use super::MotilalBroker;
+use crate::brokers::common::streaming::{FeedMode, FeedSubscription};
+use crate::brokers::common::symbols::{SymToken, SymbolResolver};
+use crate::brokers::types::AuthToken;
+use crate::brokers::Broker;
+use crate::feed::auth::StaticAuth;
+use crate::feed::bridge::BrokerBridge;
+use crate::feed::{start, FeedConfig, FeedDeps, FeedHandle};
+use crate::services::broker_runtime::install_market_hooks;
+use crate::websocket::{FeedConfig as ManagerConfig, WebSocketManager};
 use futures_util::{SinkExt, StreamExt};
-use openalgo_desktop_lib::brokers::common::symbols::{SymToken, SymbolResolver};
-use openalgo_desktop_lib::brokers::motilal::MotilalBroker;
-use openalgo_desktop_lib::brokers::types::AuthToken;
-use openalgo_desktop_lib::brokers::Broker;
-use openalgo_desktop_lib::feed::auth::StaticAuth;
-use openalgo_desktop_lib::feed::bridge::BrokerBridge;
-use openalgo_desktop_lib::feed::{start, FeedConfig, FeedDeps, FeedHandle};
-use openalgo_desktop_lib::services::broker_runtime::install_market_hooks;
-use openalgo_desktop_lib::websocket::{FeedConfig as ManagerConfig, WebSocketManager};
 use serde_json::{json, Value};
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::net::TcpListener;
+use std::time::{Duration, Instant};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Notify};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 const LIMIT: Duration = Duration::from_secs(5);
+const API_KEY: &str = "feed-test-key-0123456789abcdef";
 const CASH: &str = "RELIANCE";
 const FO: &str = "NIFTY28OCT26FUT";
+const SPARE: &str = "INFY";
+const SPARE_FO: &str = "INFY28OCT26FUT";
 
 enum Control {
     Push(Vec<u8>),
@@ -153,19 +160,72 @@ impl Fake {
     }
 }
 
-fn row(symbol: &str, exchange: &str, broker_exchange: &str) -> SymToken {
+/// A feed client of the public 8765 protocol.
+struct Client {
+    ws: WebSocketStream<MaybeTlsStream<TcpStream>>,
+}
+
+impl Client {
+    async fn connect(url: &str) -> Self {
+        let (ws, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+        Self { ws }
+    }
+
+    async fn request(&mut self, v: Value) -> Value {
+        self.ws.send(Message::Text(v.to_string())).await.unwrap();
+        self.recv().await
+    }
+
+    async fn recv(&mut self) -> Value {
+        loop {
+            let message = tokio::time::timeout(LIMIT, self.ws.next())
+                .await
+                .expect("a frame from the feed server")
+                .expect("the feed server keeps the socket open")
+                .unwrap();
+            if let Message::Text(text) = message {
+                return serde_json::from_str(&text).unwrap();
+            }
+        }
+    }
+}
+
+async fn eventually(mut f: impl FnMut() -> bool) -> bool {
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    while tokio::time::Instant::now() < deadline {
+        if f() {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    f()
+}
+
+fn row(symbol: &str, exchange: &str, broker_exchange: &str, token: &str) -> SymToken {
     SymToken {
         symbol: symbol.into(),
         brsymbol: symbol.into(),
         name: symbol.into(),
         exchange: exchange.into(),
         brexchange: broker_exchange.into(),
-        token: "2885".into(),
+        token: token.into(),
         expiry: String::new(),
         strike: 0.0,
         lot_size: 1,
         instrument_type: if exchange == "NFO" { "FUT" } else { "EQ" }.into(),
         tick_size: 0.05,
+    }
+}
+
+fn subscription(symbol: &str, exchange: &str, token: &str) -> FeedSubscription {
+    FeedSubscription {
+        symbol: symbol.into(),
+        exchange: exchange.into(),
+        token: token.into(),
+        brsymbol: symbol.into(),
+        brexchange: exchange.into(),
+        mode: FeedMode::Quote,
+        depth: 5,
     }
 }
 
@@ -176,37 +236,49 @@ struct Rig {
     bridge: Arc<BrokerBridge>,
     server: FeedHandle,
     client: Client,
-    _broker: Arc<dyn Broker>,
+    broker: Arc<MotilalBroker>,
 }
 
 impl Rig {
     async fn start() -> Self {
+        Self::with_room(100).await
+    }
+
+    /// A feed with room for `room` instruments.
+    async fn with_room(room: usize) -> Self {
         let fake = Fake::start().await;
         let symbols = SymbolResolver::new();
-        symbols.load(vec![row(CASH, "NSE", "NSE"), row(FO, "NFO", "NSEFO")]);
-        let broker: Arc<dyn Broker> = Arc::new(MotilalBroker::with_urls(
+        symbols.load(vec![
+            row(CASH, "NSE", "NSE", "2885"),
+            row(FO, "NFO", "NSEFO", "2885"),
+            row(SPARE, "NSE", "NSE", "1594"),
+            row(SPARE_FO, "NFO", "NSEFO", "1594"),
+        ]);
+        let broker = Arc::new(MotilalBroker::with_urls(
             symbols.clone(),
             fake.url.replace("ws://", "http://"),
             fake.url.clone(),
             fake.url.clone(),
         ));
+        let session: Arc<dyn Broker> = broker.clone();
         let auth = AuthToken::new("at:::acc:::C1:::k");
         let manager = Arc::new(WebSocketManager::with_config(ManagerConfig {
             backoff_base: Duration::from_millis(10),
             backoff_max: Duration::from_millis(20),
             connect_timeout: Duration::from_secs(30),
             stall_timeout: Duration::from_secs(60),
+            max_instruments: room,
             ..ManagerConfig::default()
         }));
-        install_market_hooks(&manager, &broker, &auth);
+        install_market_hooks(&manager, &session, &auth);
         let bridge = BrokerBridge::new(manager.clone(), symbols);
         bridge.start();
         manager
-            .connect(broker.create_feed(&auth).unwrap())
+            .connect(session.create_feed(&auth).unwrap())
             .await
             .unwrap();
         assert!(
-            eventually(LIMIT, || manager.is_connected()).await,
+            eventually(|| manager.is_connected()).await,
             "the Motilal handshake completes"
         );
         let server = start(
@@ -218,7 +290,7 @@ impl Rig {
                 source: bridge.clone(),
                 auth: Arc::new(StaticAuth {
                     api_key: API_KEY.into(),
-                    user_id: USER_ID.into(),
+                    user_id: "<USER_ID>".into(),
                     broker: Some("motilal".into()),
                 }),
                 orders: None,
@@ -228,14 +300,17 @@ impl Rig {
         .await
         .unwrap();
         let mut client = Client::connect(&format!("ws://{}", server.local_addr())).await;
-        client.auth().await;
+        let authenticated = client
+            .request(json!({"action": "authenticate", "api_key": API_KEY}))
+            .await;
+        assert_eq!(authenticated["type"], "auth", "{authenticated}");
         Self {
             fake,
             manager,
             bridge,
             server,
             client,
-            _broker: broker,
+            broker,
         }
     }
 
@@ -264,7 +339,7 @@ impl Rig {
     async fn go_down(&mut self) {
         self.fake.control.send(Control::DropSocket).await.unwrap();
         assert!(
-            eventually(LIMIT, || !self.manager.is_connected()).await,
+            eventually(|| !self.manager.is_connected()).await,
             "the manager sees the socket drop"
         );
     }
@@ -273,7 +348,7 @@ impl Rig {
     async fn come_back(&mut self) {
         self.fake.reopen.notify_one();
         assert!(
-            eventually(LIMIT, || self.manager.is_connected()).await,
+            eventually(|| self.manager.is_connected()).await,
             "the feed reconnects"
         );
     }
@@ -288,6 +363,15 @@ impl Rig {
         self.request("subscribe", FO, "NFO").await
     }
 
+    /// As if a reservation's life had passed: the next claim, an unrelated
+    /// instrument's, sweeps what has expired by then.
+    fn reservations_expire(&self) {
+        let later = Instant::now() + RESERVATION_TTL + Duration::from_secs(1);
+        let unrelated = subscription("TCS", "NSE", "11536");
+        let swept = self.broker.wire_keys.claim_at(vec![unrelated], later);
+        assert!(swept[0].is_ok());
+    }
+
     /// A real last-trade packet on the shared key reaches the client as
     /// the NFO contract.
     async fn nfo_packet_arrives_as_nfo(&mut self) {
@@ -297,6 +381,16 @@ impl Rig {
         assert_eq!(frame["exchange"], "NFO");
         assert_eq!(frame["data"]["ltp"], 25010.5);
         assert_eq!(frame["data"]["oi"], 1500);
+    }
+
+    /// A real last-trade packet on the shared key reaches the client as
+    /// the cash instrument.
+    async fn cash_packet_arrives_as_cash(&mut self) {
+        self.fake.price(1301.5).await;
+        let frame = self.client.recv().await;
+        assert_eq!(frame["symbol"], CASH, "{frame}");
+        assert_eq!(frame["exchange"], "NSE");
+        assert_eq!(frame["data"]["ltp"], 1301.5);
     }
 
     async fn stop(mut self) {
@@ -311,6 +405,18 @@ impl Rig {
 
 fn accepted(reply: &Value) -> bool {
     reply["subscriptions"][0]["status"] == "success"
+}
+
+/// Refused because the cash instrument holds the code.
+fn assert_refused_for_cash(reply: &Value) {
+    let answer = &reply["subscriptions"][0];
+    assert_eq!(answer["status"], "error", "{reply}");
+    assert!(
+        answer["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("RELIANCE on NSE")),
+        "{reply}"
+    );
 }
 
 /// The control: a release a live socket carries frees the code, and the
@@ -368,20 +474,60 @@ async fn an_instrument_still_held_keeps_its_code_through_an_outage() {
     rig.hold_cash().await;
     rig.go_down().await;
     let during = rig.subscribe_fo().await;
-    assert_eq!(during["subscriptions"][0]["status"], "error", "{during}");
-    assert!(
-        during["subscriptions"][0]["message"]
-            .as_str()
-            .is_some_and(|m| m.contains("RELIANCE on NSE")),
-        "{during}"
-    );
+    assert_refused_for_cash(&during);
     rig.come_back().await;
     rig.fake.registration(b'C', 1).await;
     let after = rig.subscribe_fo().await;
-    assert_eq!(after["subscriptions"][0]["status"], "error", "{after}");
-    rig.fake.price(1301.5).await;
-    let frame = rig.client.recv().await;
-    assert_eq!(frame["symbol"], CASH, "{frame}");
-    assert_eq!(frame["exchange"], "NSE");
+    assert_refused_for_cash(&after);
+    rig.cash_packet_arrives_as_cash().await;
+    rig.stop().await;
+}
+
+/// A subscribe made while the socket is down is registered by no feed
+/// until the socket is back, however long that takes. It is held all the
+/// same: past a reservation's life a colliding subscribe is refused, during
+/// the outage and after the reconnect, and the packets stay its own.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_subscribe_during_an_outage_keeps_its_code_past_a_reservations_life() {
+    let mut rig = Rig::start().await;
+    rig.go_down().await;
+    let cash = rig.request("subscribe", CASH, "NSE").await;
+    assert!(accepted(&cash), "{cash}");
+
+    rig.reservations_expire();
+    let during = rig.subscribe_fo().await;
+    assert_refused_for_cash(&during);
+
+    rig.come_back().await;
+    rig.fake.registration(b'C', 1).await;
+    rig.reservations_expire();
+    let after = rig.subscribe_fo().await;
+    assert_refused_for_cash(&after);
+
+    rig.cash_packet_arrives_as_cash().await;
+    rig.stop().await;
+}
+
+/// A claim the manager never placed (refused for room after it was made)
+/// holds nothing for ever: it is a reservation, and it expires.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_claim_never_placed_still_expires() {
+    let mut rig = Rig::with_room(1).await;
+    rig.hold_cash().await;
+    let no_room = rig.request("subscribe", SPARE, "NSE").await;
+    assert_eq!(no_room["subscriptions"][0]["status"], "error", "{no_room}");
+
+    let keys = &rig.broker.wire_keys;
+    let colliding = subscription(SPARE_FO, "NFO", "1594");
+    let now = Instant::now();
+    assert!(
+        keys.claim_at(vec![colliding.clone()], now)[0].is_err(),
+        "the refused subscribe's claim was made"
+    );
+    let later = now + RESERVATION_TTL + Duration::from_secs(1);
+    assert!(
+        keys.claim_at(vec![colliding], later)[0].is_ok(),
+        "and it expires"
+    );
     rig.stop().await;
 }

@@ -251,3 +251,56 @@ async fn an_instrument_held_again_is_not_told_and_a_disconnect_clears_the_hook()
     m.disconnect().await.unwrap();
     assert!(m.let_go.lock().is_none());
 }
+
+/// The session hears what the manager placed, from an admission and from
+/// an all-or-none subscribe, and nothing of what it refused for room.
+#[tokio::test]
+async fn a_placed_instrument_is_told_held_and_one_refused_for_room_is_not() {
+    let m = WebSocketManager::with_config(fast());
+    m.registry.lock().set_limits(PoolLimits::single(1));
+    let told: Arc<Mutex<Vec<Vec<String>>>> = Arc::default();
+    m.set_held(Some(recorder(told.clone())));
+
+    let answers = m
+        .admit(vec![sub("A", FeedMode::Ltp), sub("B", FeedMode::Ltp)])
+        .await;
+    assert!(answers[0].is_ok() && answers[1].is_err());
+    assert_eq!(*told.lock(), vec![vec!["A".to_string()]]);
+
+    m.registry.lock().set_limits(PoolLimits::single(3));
+    m.subscribe(vec![sub("C", FeedMode::Ltp)]).await.unwrap();
+    assert_eq!(
+        *told.lock(),
+        vec![vec!["A".to_string()], vec!["C".to_string()]]
+    );
+}
+
+/// What a waited release did not let go of is told held again, and what
+/// nobody holds any more is not.
+#[tokio::test]
+async fn a_release_not_let_go_of_is_told_held_again() {
+    let m = WebSocketManager::with_config(fast());
+    let told: Arc<Mutex<Vec<Vec<String>>>> = Arc::default();
+    m.admit(vec![sub("A", FeedMode::Ltp)]).await;
+    m.set_held(Some(recorder(told.clone())));
+    m.tell_let_go_answered(
+        &[sub("A", FeedMode::Ltp), sub("B", FeedMode::Ltp)],
+        &[Err("still subscribed".to_string()), Err("gone".to_string())],
+    );
+    assert_eq!(*told.lock(), vec![vec!["A".to_string()]]);
+}
+
+/// The session ending lets go of everything still held, so a key no feed
+/// registered yet cannot outlive it; and the hooks go with it.
+#[tokio::test]
+async fn a_disconnect_lets_go_of_everything_held() {
+    let m = WebSocketManager::with_config(fast());
+    let told: Arc<Mutex<Vec<Vec<String>>>> = Arc::default();
+    m.set_let_go(Some(recorder(told.clone())));
+    m.set_held(Some(recorder(Arc::default())));
+    m.admit(vec![sub("A", FeedMode::Ltp)]).await;
+
+    m.disconnect().await.unwrap();
+    assert_eq!(*told.lock(), vec![vec!["A".to_string()]]);
+    assert!(m.let_go.lock().is_none() && m.held.lock().is_none());
+}

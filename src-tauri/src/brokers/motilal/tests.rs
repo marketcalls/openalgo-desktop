@@ -1238,7 +1238,36 @@ fn letting_go_of_a_reserved_instrument_frees_its_key_at_once() {
     assert!(keys.claim(vec![fo])[0].is_ok());
 }
 
-/// The session's let-go step frees what the manager names.
+/// Placed: the key stays the instrument's until the last consumer lets
+/// go, past a reservation's life, however long no socket registers it.
+#[test]
+fn a_placed_instrument_keeps_its_key_past_a_reservations_life() {
+    use super::wire_keys::{WireKeys, RESERVATION_TTL};
+    let (cash, fo) = colliding_pair();
+    let keys = WireKeys::default();
+    let t0 = std::time::Instant::now();
+    assert!(keys.claim_at(vec![cash.clone()], t0)[0].is_ok());
+    keys.held(std::slice::from_ref(&cash));
+    let later = t0 + RESERVATION_TTL + std::time::Duration::from_secs(1);
+    assert!(keys.claim_at(vec![fo.clone()], later)[0].is_err());
+    keys.let_go(std::slice::from_ref(&cash));
+    assert!(keys.claim_at(vec![fo], later)[0].is_ok());
+}
+
+/// The manager's word that an instrument is held stands even for a key a
+/// racing release just freed, and takes no key from another holder.
+#[test]
+fn being_held_restores_a_freed_key_and_leaves_another_holders() {
+    let (cash, fo) = colliding_pair();
+    let keys = super::wire_keys::WireKeys::default();
+    keys.held(std::slice::from_ref(&cash));
+    assert_eq!(keys.claim(vec![fo.clone()])[0], Err(COLLISION.to_string()));
+    keys.held(std::slice::from_ref(&fo));
+    assert_eq!(keys.claim(vec![fo])[0], Err(COLLISION.to_string()));
+}
+
+/// The session's steps are the wire keys: what the manager names held is
+/// held, and what it names let go of is free.
 #[test]
 fn the_session_let_go_step_is_the_wire_keys() {
     let broker = MotilalBroker::with_urls(
@@ -1248,7 +1277,12 @@ fn the_session_let_go_step_is_the_wire_keys() {
         "wss://example.invalid/ws",
     );
     let (cash, fo) = colliding_pair();
-    assert!(broker.wire_keys.claim(vec![cash.clone()])[0].is_ok());
+    let held = broker.feed_held().expect("Motilal's held step");
+    held(std::slice::from_ref(&cash));
+    assert_eq!(
+        broker.wire_keys.claim(vec![fo.clone()])[0],
+        Err(COLLISION.to_string())
+    );
     let let_go = broker.feed_let_go().expect("Motilal's let-go step");
     let_go(std::slice::from_ref(&cash));
     assert!(broker.wire_keys.claim(vec![fo])[0].is_ok());

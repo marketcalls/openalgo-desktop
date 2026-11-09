@@ -413,6 +413,12 @@ pub type Presubscribe = Arc<
 /// it holds: it must be quick and must not call back into the manager.
 pub type FeedLetGo = Arc<dyn Fn(&[FeedSubscription]) + Send + Sync>;
 
+/// What the broker session hears when the manager has placed instruments
+/// (`Broker::feed_held`): some consumer holds each of them, however long no
+/// socket registers them. Called with the manager's registry locked, like
+/// `FeedLetGo`.
+pub type FeedHeld = Arc<dyn Fn(&[FeedSubscription]) + Send + Sync>;
+
 /// Why the broker session's feed refuses a subscription outright (a mode,
 /// depth or exchange its web adapter refuses), in the web's words; `None`
 /// takes it. Every consumer of the feed hears it, not only feed clients.

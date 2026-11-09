@@ -25,7 +25,8 @@
 //! is a bounded broadcast whose slow receivers see `Lagged` and skip ahead.
 
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedLetGo, FeedRefusal, FeedSubscription, MarketEvent, Presubscribe, StopKind,
+    BrokerFeed, FeedHeld, FeedLetGo, FeedRefusal, FeedSubscription, MarketEvent, Presubscribe,
+    StopKind,
 };
 use crate::error::{AppError, Result};
 use parking_lot::Mutex;
@@ -202,10 +203,12 @@ pub struct WebSocketManager {
     /// answered after it puts nothing back.
     epoch: AtomicU64,
     /// The broker session's refusals, its step before a new instrument is
-    /// subscribed and what it hears when one is let go of (`presubscribe`).
+    /// subscribed and what it hears when one is held or let go of
+    /// (`presubscribe`).
     refusal: Mutex<Option<FeedRefusal>>,
     presubscribe: Mutex<Option<Presubscribe>>,
     let_go: Mutex<Option<FeedLetGo>>,
+    held: Mutex<Option<FeedHeld>>,
     /// The broker's own words for a subscribe past the room, where its web
     /// adapter refuses before the pool does (`set_room_refusal`).
     room_refusal: Mutex<Option<&'static str>>,
@@ -241,6 +244,7 @@ impl WebSocketManager {
             refusal: Mutex::new(None),
             presubscribe: Mutex::new(None),
             let_go: Mutex::new(None),
+            held: Mutex::new(None),
             room_refusal: Mutex::new(None),
         }
     }
@@ -420,11 +424,18 @@ impl WebSocketManager {
     pub async fn disconnect(&self) -> Result<()> {
         self.stop_all().await;
         self.epoch.fetch_add(1, Ordering::SeqCst);
-        self.registry.lock().clear();
+        let gone = {
+            let mut reg = self.registry.lock();
+            let gone = reg.effective_all();
+            reg.clear();
+            gone
+        };
+        self.tell_let_go(&gone);
         *self.factory.lock() = None;
         *self.refusal.lock() = None;
         *self.presubscribe.lock() = None;
         *self.let_go.lock() = None;
+        *self.held.lock() = None;
         *self.room_refusal.lock() = None;
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
@@ -498,6 +509,7 @@ impl WebSocketManager {
             }
             (placed, (deltas, reg.changes))
         };
+        self.tell_held(placed.iter().flatten());
         let not_taken = self.apply_admitted(deltas).await;
         let Some(why) = not_taken.refusals.values().next().cloned() else {
             return Ok(());
@@ -552,6 +564,7 @@ impl WebSocketManager {
             }
             (answers, placed, (deltas, reg.changes))
         };
+        self.tell_held(placed.iter().flatten());
         // Taken once the broker took it (review R107-03).
         let not_taken = self.apply_admitted(deltas).await;
         if !not_taken.refusals.is_empty() {
