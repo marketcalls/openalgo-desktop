@@ -42,6 +42,7 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinSet;
 
 mod limits;
+pub use limits::deep_book_timeout;
 #[cfg(test)]
 mod relay_tests;
 
@@ -333,17 +334,29 @@ async fn start_deep_feed(ctx: &AppState, broker: &Arc<dyn Broker>, auth: &AuthTo
     else {
         return;
     };
-    ctx.runtime
-        .depth_ws
-        .set_room_refusal(limits::depth_room_refusal(id));
-    let started = match broker.create_depth_feed(auth, levels) {
-        Ok(feed) => ctx
-            .runtime
-            .depth_ws
+    let feed = broker.create_depth_feed(auth, levels);
+    connect_deep_feed(&ctx.runtime.depth_ws, &ctx.bridge, id, levels, feed).await;
+}
+
+/// Start `broker`'s `levels`-level book socket from `feed` on `depth_ws`
+/// and tell `bridge` how its books are served: on that socket, falling back
+/// after the broker's silence timeout (`limits::deep_book_timeout`), or at
+/// the market feed's levels when the feed could not be made. Public so the
+/// feed corpus wires a session's deep books as a session does.
+pub async fn connect_deep_feed(
+    depth_ws: &WebSocketManager,
+    bridge: &bridge::BrokerBridge,
+    broker: &str,
+    levels: u8,
+    feed: Result<Box<dyn BrokerFeed>, AppError>,
+) {
+    depth_ws.set_room_refusal(limits::depth_room_refusal(broker));
+    let started = match feed {
+        Ok(feed) => depth_ws
             .connect_pool(
                 feed,
                 Arc::new(|| None::<Box<dyn BrokerFeed>>),
-                limits::depth_limits(id),
+                limits::depth_limits(broker),
             )
             .await
             .map_err(|e| e.to_string()),
@@ -351,13 +364,12 @@ async fn start_deep_feed(ctx: &AppState, broker: &Arc<dyn Broker>, auth: &AuthTo
     };
     match started {
         Ok(()) => {
-            ctx.bridge.set_deep_levels(Some(levels));
-            ctx.bridge
-                .set_deep_book_timeout(limits::deep_book_timeout(id));
+            bridge.set_deep_levels(Some(levels));
+            bridge.set_deep_book_timeout(limits::deep_book_timeout(broker));
         }
         Err(e) => {
-            tracing::warn!("Market depth feed for {} not started: {}", id, e);
-            ctx.bridge.set_deep_unavailable(levels);
+            tracing::warn!("Market depth feed for {} not started: {}", broker, e);
+            bridge.set_deep_unavailable(levels);
         }
     }
 }

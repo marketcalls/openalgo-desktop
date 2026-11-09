@@ -112,7 +112,7 @@ pub(crate) fn depth_room_refusal(broker: &str) -> Option<&'static str> {
 /// P-10): Dhan's 20 levels, 30 s from the subscription and after the last
 /// book (web broker/dhan/streaming/dhan_adapter.py:409-412, 972-1066). Fyers'
 /// 50-level TBT book has no such fallback on the web.
-pub(crate) fn deep_book_timeout(broker: &str) -> Option<Duration> {
+pub fn deep_book_timeout(broker: &str) -> Option<Duration> {
     (broker == "dhan").then_some(Duration::from_secs(30))
 }
 
