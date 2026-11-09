@@ -7,7 +7,7 @@
   "data": {
     "symbol": "NIFTY25NOV26FUT",
     "exchange": "NFO",
-    "mode": 3,
+    "mode": 2,
     "ltp": 24410.5,
     "ltt": 1791002709000,
     "timestamp": "<receipt_ms>",

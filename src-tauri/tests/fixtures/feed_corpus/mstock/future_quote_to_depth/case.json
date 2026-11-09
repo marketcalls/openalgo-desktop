@@ -37,12 +37,6 @@
       "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) over the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one, and then sends the last OI the instrument's full packet carried on this connection (feed/bridge/snapshot.rs merges by presence), never a 0 it was not sent.",
       "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376",
       "approved": true
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "A Quote frame cut from a full packet carries the whole packet's dict, book and circuits included, as the web's one-dict publish does (Fold::Richer). The web writes the holder's subscription mode into that dict (mstock_adapter.py:198-203, market_data.update({'mode': mode}) per subscription), so its Quote topic says 2; the desktop's renderer writes the dict's own mode, 3. A dialect switch for the holder's mode is lane wire's (asked of the lead 2026-11-09).",
-      "ref": "audit C08; feed/protocol/market.rs canonical (data.mode = content)"
     }
   ]
 }

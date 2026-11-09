@@ -197,7 +197,7 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 | indmoney | Q `bid_price`, `bid_qty`, `ask_price`, `ask_qty`, `oi_change`, `oi`; no Depth on the web | number | best bid and ask, OI change, `carried(OpenInterest)` |
 | kotak | L `last_trade_time`; Q `percent_change`; D `totalbuyqty`, `totalsellqty` | none | nothing new |
 | motilal | L `volume`; Q `ltq` (no `last_quantity`); D circuits; no `ltt`, no change on an index | number | the scrip's quote so far at Quote level (each field group absent until its packet), OI from m (or A for a derivative), circuits from W |
-| mstock | L `last_trade_time`, `exchange_timestamp`; Q `prev_close`, `last_trade_quantity`; D circuits; no change on an index; an index's `last_quantity`, `average_price` and book totals from Q when the packet fills them | number | `extras.exchange_time_ms`, circuits, `mark_cleared` on an index's 0-filled order flow (audit RB: true trade time) |
+| mstock | L `last_trade_time`, `exchange_timestamp`; Q `prev_close`, `last_trade_quantity`; D circuits; no change on an index; an index's `last_quantity`, `average_price` and book totals from Q when the packet fills them; a lower holder gets the whole packet | number (the holder's) | `extras.exchange_time_ms`, circuits, `mark_cleared` on an index's 0-filled order flow (audit RB: true trade time) |
 | nubra | Q `prev_close`, `bid`, `ask` | label | best bid and ask |
 | paytm | L `close`, `change_absolute`, `change_percent`; Q `last_trade_quantity`, `52_week_high`, `52_week_low`; D `oi_change` | number | 52-week range, OI change |
 | pocketful | L `change`, `oi`, `bid_price`, `ask_price`; Q `last_trade_quantity` | number | `carried(Change, OpenInterest)` on compact packets, best bid and ask |
