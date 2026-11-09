@@ -383,6 +383,30 @@ fn a_book_sends_only_what_it_carries() {
     assert_eq!(u.depth.unwrap().buy[0].orders, Some(0));
 }
 
+/// A book packet's broker-only fields (Fyers' depth packet `update_type`)
+/// go into the Depth frame built on it, over the tick's for the same key.
+#[test]
+fn a_book_names_its_own_broker_fields() {
+    use crate::brokers::common::streaming::{BrokerField, BrokerValue};
+    let key = InstrumentKey::new("SBIN", "NSE");
+    let mut tick = full_tick("SBIN", "NSE");
+    tick.broker_fields
+        .set(BrokerField::UpdateType, BrokerValue::Text("snapshot"));
+    let mut book = NormalizedDepth {
+        symbol: "SBIN".into(),
+        exchange: "NSE".into(),
+        ..Default::default()
+    };
+    book.broker_fields
+        .set(BrokerField::UpdateType, BrokerValue::Text("live"));
+    let u = depth_update(key, &book, Some(&tick), AbsentFields::default());
+    let fields = u.quote.map(|q| q.broker_fields).unwrap_or_default();
+    assert_eq!(
+        fields.get(BrokerField::UpdateType),
+        Some(BrokerValue::Text("live"))
+    );
+}
+
 /// Once a book has come in a connection, a full tick carries it to Depth
 /// holders (lead decision 2026-11-09, the Samco ruling), also where the
 /// broker's Depth holder waits for a book (Definedge); before the first
@@ -414,6 +438,7 @@ fn a_full_tick_after_a_book_carries_that_book() {
     assert!(!crate::feed::protocol::reaches(
         &first,
         Mode::Depth,
+        5,
         "definedge"
     ));
     let book = depth_update(
@@ -422,7 +447,13 @@ fn a_full_tick_after_a_book_carries_that_book() {
         Some(map[&key].tick()),
         map[&key].book_lacks(),
     );
-    keep_book(&mut map, &key, LastBook::of(&book).expect("a book"), 1);
+    keep_book(
+        &mut map,
+        &key,
+        LastBook::of(&book).expect("a book"),
+        1,
+        false,
+    );
 
     let mut next = full_tick("SBIN", "NSE");
     next.ltp = 1168.0;
@@ -430,7 +461,12 @@ fn a_full_tick_after_a_book_carries_that_book() {
     let u = snapshot_update(key.clone(), &s).expect("a price");
     assert_eq!(u.ltp, 1168.0, "the tick's price, not the book's");
     assert_eq!(u.depth.as_ref().map(|b| b.buy[0].price), Some(1167.6));
-    assert!(crate::feed::protocol::reaches(&u, Mode::Depth, "definedge"));
+    assert!(crate::feed::protocol::reaches(
+        &u,
+        Mode::Depth,
+        5,
+        "definedge"
+    ));
     let mut quote = next.clone();
     quote.mode = 2;
     let q = snapshot_update(key.clone(), &merge(Some(&s), &quote, 1)).expect("a price");
@@ -443,8 +479,31 @@ fn a_full_tick_after_a_book_carries_that_book() {
         "a new connection"
     );
 
+    // A full packet that says it has no book (HDFC's empty depth list): no
+    // book in its frame, and the last book back with the next packet.
+    let mut bookless = next.clone();
+    bookless.book_absent = true;
+    let s_none = merge(Some(&s), &bookless, 1);
+    let none = snapshot_update(key.clone(), &s_none).expect("a price");
+    assert!(
+        none.depth.is_none() && none.deep_book.is_none(),
+        "never the old book"
+    );
+    let again = snapshot_update(key.clone(), &merge(Some(&s_none), &next, 1)).expect("a price");
+    assert_eq!(
+        again.depth.as_ref().map(|b| b.buy[0].price),
+        Some(1167.6),
+        "kept"
+    );
+
     let mut early = HashMap::new();
-    keep_book(&mut early, &key, LastBook::of(&book).expect("a book"), 1);
+    keep_book(
+        &mut early,
+        &key,
+        LastBook::of(&book).expect("a book"),
+        1,
+        false,
+    );
     let s = merge(early.get(&key), &next, 1);
     assert!(
         snapshot_update(key, &s).and_then(|u| u.depth).is_some(),

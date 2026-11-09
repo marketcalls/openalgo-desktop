@@ -6,6 +6,21 @@
 //! in the broker's usual form (`feed::dialect`'s list of doubles, else an
 //! integer for a count and a double for a price).
 
+/// The text a broker's web adapter writes a trade time as, where it passes
+/// the broker's own text through: Definedge's `ltt` is sometimes epoch
+/// seconds as a string and sometimes the time of day. An adapter marks the
+/// packet (`NormalizedTick::time_text`); unmarked, each text source has its
+/// own form (`feed::dialect::Source::TradeTimeText`, `TradeTimeOfDay`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimeText {
+    /// `YYYY-MM-DD HH:MM:SS` in IST.
+    DateTime,
+    /// `HH:MM:SS` in IST.
+    TimeOfDay,
+    /// Epoch seconds, as a string (`"1791000000"`).
+    EpochSeconds,
+}
+
 /// A numeric value of a packet, whichever key carries it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]

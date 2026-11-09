@@ -42,9 +42,13 @@ fn depth_update(key: InstrumentKey, ltp: f64, levels: usize) -> MarketUpdate {
         depth: Some(DepthBook {
             buy: (0..levels).map(|i| lv(ltp - i as f64 * 0.05)).collect(),
             sell: (0..levels).map(|i| lv(ltp + i as f64 * 0.05)).collect(),
+            ..Default::default()
         }),
         exact_mode: false,
         token: None,
+        broker_symbol: None,
+        deep_live: None,
+        deep_book: None,
     }
 }
 
