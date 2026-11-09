@@ -79,6 +79,7 @@ async fn a_message_is_one_packet_of_its_numbered_session() {
             PacketKind::Opened => "opened".to_string(),
             PacketKind::Closed => "closed".to_string(),
             PacketKind::Events(e) => e.len().to_string(),
+            PacketKind::Refused(_) => "refused".to_string(),
         };
         seen.push((p.from, events));
     }

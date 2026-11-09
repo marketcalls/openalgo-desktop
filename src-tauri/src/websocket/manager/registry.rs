@@ -203,6 +203,17 @@ impl Registry {
         change(before, after).map(|d| (conn, d))
     }
 
+    /// Forget `s`'s instrument and every reference to it: the broker will
+    /// not stream it (a session's whole set came back with it refused).
+    pub(super) fn forget_instrument(&mut self, s: &FeedSubscription) {
+        self.changes += 1;
+        if let Some(e) = self.entries.remove(&s.instrument_key()) {
+            if let Some(n) = self.per_conn.get_mut(e.conn) {
+                *n = n.saturating_sub(1);
+            }
+        }
+    }
+
     /// The connection carrying `s`'s instrument, if it is held.
     pub(super) fn conn_of(&self, s: &FeedSubscription) -> Option<usize> {
         self.entries.get(&s.instrument_key()).map(|e| e.conn)

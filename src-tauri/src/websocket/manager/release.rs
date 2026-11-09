@@ -29,6 +29,9 @@ pub(super) enum Written {
     /// Written. For a broker that answers releases itself, the
     /// instruments of each such release and where its answer comes.
     Sent(Vec<(Vec<FeedSubscription>, ReleaseAnswer)>),
+    /// The session's whole set, sent since the change was made, carries
+    /// it: nothing more goes to the socket for it.
+    Carried,
     /// The socket did not take it: the session is replaced, and the
     /// references the release dropped are back in the registry, so the
     /// next connection subscribes them again.
@@ -66,7 +69,7 @@ impl WebSocketManager {
                 .map(|i| subs[i].clone())
                 .collect();
             let refused = match self.send_waited(conn, (mine, seq), undo).await {
-                None => continue,
+                None | Some(Written::Carried) => continue,
                 Some(Written::Failed) => {
                     for i in (0..subs.len()).filter(on_conn) {
                         answers[i] = Err(RELEASE_NOT_TAKEN.to_string());

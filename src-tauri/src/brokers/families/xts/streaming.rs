@@ -693,18 +693,29 @@ impl BrokerFeed for XtsFeed {
         Vec::new()
     }
 
+    fn answers_admissions(&self) -> bool {
+        true
+    }
+
     fn release_frames(
         &mut self,
         subs: &[FeedSubscription],
     ) -> (Vec<Message>, Option<ReleaseAnswer>) {
-        release::frames(self, subs, false)
+        release::frames(self, subs, release::Kind::Release)
     }
 
     fn admission_frames(
         &mut self,
         subs: &[FeedSubscription],
     ) -> (Vec<Message>, Option<ReleaseAnswer>) {
-        release::frames(self, subs, true)
+        release::frames(self, subs, release::Kind::Admission)
+    }
+
+    fn resync_frames(
+        &mut self,
+        subs: &[FeedSubscription],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        release::frames(self, subs, release::Kind::Sync)
     }
 
     fn mode_upgrade_frames(
@@ -712,6 +723,13 @@ impl BrokerFeed for XtsFeed {
         changes: &[(FeedSubscription, FeedSubscription)],
     ) -> (Vec<Message>, Option<ReleaseAnswer>) {
         release::upgrade_frames(self, changes)
+    }
+
+    fn mode_downgrade_frames(
+        &mut self,
+        changes: &[(FeedSubscription, FeedSubscription)],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        release::downgrade_frames(self, changes)
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

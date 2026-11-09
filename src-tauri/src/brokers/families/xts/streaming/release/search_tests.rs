@@ -43,7 +43,7 @@ async fn a_search_out_of_time_answers_the_rest_as_not_checked() {
         .collect();
     let (to, answer) = oneshot::channel();
     let waited = Waited(Arc::new(Mutex::new(Answer {
-        admission: true,
+        kind: Kind::Admission,
         search_until: Some(Instant::now()),
         commands_left: 1,
         instruments: Vec::new(),
@@ -71,6 +71,6 @@ async fn a_search_out_of_time_answers_the_rest_as_not_checked() {
     assert_eq!(*calls.lock(), 1, "only the batch itself");
     assert_eq!(report.refused.len(), 50);
     assert!(report.refused.iter().all(|(_, why)| why == NOT_CHECKED));
-    waited.ran(&report);
+    waited.ran(&report, false);
     assert!(answer.await.unwrap().is_empty(), "no instrument is known");
 }

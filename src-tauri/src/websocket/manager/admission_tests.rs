@@ -217,3 +217,60 @@ async fn a_subscribe_made_while_the_session_sends_its_set_reaches_the_broker() {
     m.disconnect().await.unwrap();
     srv.abort();
 }
+
+/// A broker that answers admissions and never accepts the session.
+struct NeverUp {
+    feed: MockFeed,
+}
+
+impl BrokerFeed for NeverUp {
+    fn broker(&self) -> &'static str {
+        "mock"
+    }
+    fn ws_request(&self) -> crate::error::Result<crate::brokers::common::streaming::WsRequest> {
+        self.feed.ws_request()
+    }
+    fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
+        self.feed.subscribe_frames(subs)
+    }
+    fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
+        self.feed.unsubscribe_frames(subs)
+    }
+    fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
+        self.feed.parse(msg)
+    }
+    fn awaits_auth_ack(&self) -> bool {
+        true
+    }
+    fn answers_admissions(&self) -> bool {
+        true
+    }
+}
+
+/// Review B2: a subscribe made before the session is up, when the session
+/// never comes up: no success for what nobody answered.
+#[tokio::test]
+async fn a_subscribe_before_a_session_that_never_comes_up_is_not_taken() {
+    let (url, _seen, srv) = server(|_| (vec![], false)).await;
+    let m = WebSocketManager::with_config(FeedConfig {
+        stall_timeout: Duration::from_secs(3600),
+        ..fast()
+    });
+    m.connect(Box::new(NeverUp {
+        feed: MockFeed::new(url),
+    }))
+    .await
+    .unwrap();
+
+    tokio::time::pause();
+    let answers = m.admit(vec![sub("X", FeedMode::Ltp)]).await;
+    tokio::time::resume();
+    assert!(
+        matches!(answers.as_slice(), [Err(why)] if why.contains("did not confirm")),
+        "{:?}",
+        answers
+    );
+    assert!(m.subscriptions().is_empty());
+    m.disconnect().await.unwrap();
+    srv.abort();
+}

@@ -441,6 +441,10 @@ impl BrokerBridge {
                 snapshot::forget_deep_session(&mut self.state.lock().last_tick, packet.from);
                 return;
             }
+            PacketKind::Refused(refused) => {
+                self.state.lock().replay_refused(refused);
+                return;
+            }
             PacketKind::Opened | PacketKind::Closed => return,
         };
         let events: Vec<&FeedEvent> = events.iter().map(|e| e.as_ref()).collect();
@@ -650,6 +654,10 @@ impl MarketDataSource for BrokerBridge {
         };
         self.changed.notify_one();
         Box::pin(async move { released.await.unwrap_or(Ok(())) })
+    }
+
+    fn keep(&self, key: &InstrumentKey, mode: Mode, depth: u8) {
+        self.state.lock().keep((key.clone(), mode, depth));
     }
 
     fn updates(&self) -> broadcast::Receiver<Arc<MarketUpdate>> {

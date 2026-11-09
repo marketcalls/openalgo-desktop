@@ -13,7 +13,7 @@
 //! The same events still go out one by one on the manager's tick channel
 //! for readers that want single events (scalping, strategies, sandbox).
 
-use crate::brokers::common::streaming::MarketEvent;
+use crate::brokers::common::streaming::{MarketEvent, ReleaseRefusals};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -46,6 +46,9 @@ pub enum PacketKind {
     Closed,
     /// The market events of one broker message, in order.
     Events(Vec<MarketEvent>),
+    /// The session `from` was refused these instruments of its whole set,
+    /// with why, and the manager has let go of them (review B2).
+    Refused(ReleaseRefusals),
 }
 
 #[derive(Debug)]
@@ -64,7 +67,7 @@ impl Packet {
     pub fn events_through(&self) -> u64 {
         match &self.kind {
             PacketKind::Events(events) => self.events_before + events.len() as u64,
-            PacketKind::Opened | PacketKind::Closed => self.events_before,
+            PacketKind::Opened | PacketKind::Closed | PacketKind::Refused(_) => self.events_before,
         }
     }
 }
@@ -126,6 +129,12 @@ impl PacketOut {
     pub(super) fn close(&self, from: SessionId) {
         let before = self.events.load(Ordering::Relaxed);
         self.publish(from, PacketKind::Closed, before);
+    }
+
+    /// The session `from` was refused these instruments: say so.
+    pub(super) fn refused(&self, from: SessionId, refused: ReleaseRefusals) {
+        let before = self.events.load(Ordering::Relaxed);
+        self.publish(from, PacketKind::Refused(refused), before);
     }
 
     /// A number no session opened so far exceeds and no later task's
