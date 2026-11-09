@@ -39,25 +39,29 @@
       "key": "average_price",
       "kind": "web-defect",
       "reason": "Noren's index touchline carries no average price; the web's Zebu adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
-      "ref": "broker/zebu/streaming/zebu_adapter.py normalisers"
+      "ref": "broker/zebu/streaming/zebu_adapter.py normalisers",
+      "approval": "index-quote-zero-left-out"
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "Noren's index touchline carries no last quantity; the web's Zebu adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
-      "ref": "broker/zebu/streaming/zebu_adapter.py normalisers"
+      "ref": "broker/zebu/streaming/zebu_adapter.py normalisers",
+      "approval": "index-quote-zero-left-out"
     },
     {
       "key": "last_trade_time",
       "kind": "web-defect",
       "reason": "The frame carries no ltt: the web's Zebu adapter sends last_trade_time as null (data.get(ltt)); the desktop sends no null keys and leaves it out (lead ruling 2026-11-09).",
-      "ref": "broker/zebu/streaming/zebu_adapter.py normalisers (last_trade_time = data.get(ltt))"
+      "ref": "broker/zebu/streaming/zebu_adapter.py normalisers (last_trade_time = data.get(ltt))",
+      "approval": "no-json-null"
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "Noren's index touchline carries no volume; the web's Zebu adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
-      "ref": "broker/zebu/streaming/zebu_adapter.py normalisers"
+      "ref": "broker/zebu/streaming/zebu_adapter.py normalisers",
+      "approval": "index-quote-zero-left-out"
     }
   ]
 }

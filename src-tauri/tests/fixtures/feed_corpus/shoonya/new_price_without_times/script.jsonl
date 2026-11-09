@@ -1,0 +1,15 @@
+{"step": "upstream_receives", "frames": [{"json": {"t": "a", "uid": "U1", "actid": "U1", "source": "API", "accesstoken": "tok"}}]}
+{"step": "push", "frame": {"json": {"t": "ak", "uid": "U1", "s": "OK"}}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "o", "actid": "U1"}}]}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NSE|2885"}}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "note": "An LTP holder beside the Quote one: no new broker request."}
+{"step": "push", "frame": "frames/tk.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "receive", "client": "b", "frame": "expected/ltp.json"}
+{"step": "push", "frame": "frames/tf_price_only.json", "note": "R107-10: a new price, and neither ft, ltt nor pc."}
+{"step": "receive", "client": "a", "frame": "expected/quote_new_price.json"}
+{"step": "receive", "client": "b", "frame": "expected/ltp_new_price.json"}
+{"step": "push", "frame": "frames/tf_volume_only.json", "note": "No new price: the price keeps its own trade time (none since the last lp), and no feed time."}
+{"step": "receive", "client": "a", "frame": "expected/quote_volume.json"}
+{"step": "receive", "client": "b", "frame": "expected/ltp_volume.json"}

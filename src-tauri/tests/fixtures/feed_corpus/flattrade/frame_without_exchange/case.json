@@ -45,13 +45,15 @@
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Flattrade Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
-      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer"
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer",
+      "approval": "lost-data-kept"
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Flattrade Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
-      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer"
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer",
+      "approval": "lost-data-kept"
     }
   ]
 }

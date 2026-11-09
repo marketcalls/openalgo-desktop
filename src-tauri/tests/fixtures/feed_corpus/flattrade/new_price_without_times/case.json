@@ -1,0 +1,72 @@
+{
+  "broker": "flattrade",
+  "summary": "A new price that carries no times: after Flattrade's snapshot with its feed time (ft), trade time (ltt) and change (pc), a partial with only a new lp goes out without the old feed time, trade time or change percent (worked out again from the new price), and a partial with only a new volume keeps the price's own (absent) times (audit R107-10).",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._process_market_message",
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._normalize_market_data",
+      "broker/flattrade/streaming/flattrade_adapter.py::MarketDataCache",
+      "broker/flattrade/streaming/flattrade_adapter.py::QuoteNormalizer"
+    ],
+    "notes": [
+      "Lead decision (review-fixes.md): a per-packet time never carries over. The web's adapter merges every raw key into its cache and so sends the old ft and ltt (and the old pc) with the new price: declared as web defects.",
+      "Client a holds Quote and client b LTP on one touchline subscription."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "flattrade_timestamp",
+      "kind": "web-defect",
+      "reason": "The web's Flattrade adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old feed time ft: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
+      "ref": "audit R107-10, BR-107-04; broker/flattrade/streaming/flattrade_adapter.py MarketDataCache.update",
+      "approval": "inherited-omissions"
+    },
+    {
+      "key": "last_trade_time",
+      "kind": "web-defect",
+      "reason": "The web's Flattrade adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old trade time ltt: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
+      "ref": "audit R107-10, BR-107-04; broker/flattrade/streaming/flattrade_adapter.py MarketDataCache.update",
+      "approval": "inherited-omissions"
+    },
+    {
+      "key": "percent_change",
+      "kind": "web-defect",
+      "reason": "The web's Flattrade adapter merges every raw key into its scrip cache, so a packet that carries a new price and no time still goes out with Noren's old change pc: a value of an earlier packet presented as this one's. The desktop sends a packet's times only from that packet, and a change worked out from the new price (lead decision, review-fixes.md: a per-packet time never carries over).",
+      "ref": "audit R107-10, BR-107-04; broker/flattrade/streaming/flattrade_adapter.py MarketDataCache.update",
+      "approval": "never-copy-web-defect"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Flattrade Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Flattrade Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer",
+      "approval": "lost-data-kept"
+    }
+  ]
+}

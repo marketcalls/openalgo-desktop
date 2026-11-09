@@ -45,6 +45,7 @@ mod jainamxts;
 mod kotak;
 mod motilal;
 mod mstock;
+mod noren_family;
 mod nubra;
 mod paytm;
 mod pocketful;
@@ -117,7 +118,6 @@ const WITHOUT_BROKER: &[&str] = &[
     "deltaexchange",
     "dhan_sandbox",
     "fivepaisaxts",
-    "flattrade",
     "fyers",
     "hdfcsecurities",
     "hdfcsky",
@@ -131,10 +131,7 @@ const WITHOUT_BROKER: &[&str] = &[
     "pocketful",
     "rmoney",
     "rupeezy",
-    "shoonya",
-    "tradesmart",
     "upstox",
     "wisdom",
-    "zebu",
     "zerodha",
 ];
