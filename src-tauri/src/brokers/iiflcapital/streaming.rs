@@ -346,7 +346,9 @@ impl IiflFeed {
 /// OI topic last sent, in Quote frames too. An OI not known yet (none
 /// since the subscription or the connection began, or an instrument with
 /// no OI stream) is left out, never sent as 0; an index has no book and
-/// no OI, whose zeros the web passes on and the docs leave out.
+/// no OI, whose zeros the web passes on and the docs leave out. The web
+/// sends no change: an instrument's is left out, an index's goes under
+/// the docs' keys (lead decision 2026-11-09, `feed::dialect`).
 fn quote_extras(t: &mut NormalizedTick, sub: &FeedSubscription, p: &MarketPacket, oi: Option<i64>) {
     let index = is_index(&sub.exchange);
     match oi.filter(|_| !index) {
@@ -357,6 +359,7 @@ fn quote_extras(t: &mut NormalizedTick, sub: &FeedSubscription, p: &MarketPacket
         None => t.mark_absent(QuoteField::OpenInterest),
     }
     if !index {
+        t.mark_absent(QuoteField::Change);
         t.extras.bid_price = Some(p.best_bid_price);
         t.extras.bid_quantity = Some(p.best_bid_quantity);
         t.extras.ask_price = Some(p.best_ask_price);
