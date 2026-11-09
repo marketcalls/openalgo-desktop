@@ -27,5 +27,34 @@
       "The review's input: book.hex then book_empty.hex with both modes held."
     ]
   },
-  "deviations": []
+  "deviations": [
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "The web pads a short side of Nubra's book to five zero levels (price 0, an integer) Nubra never sent; the desktop sends the levels Nubra sent.",
+      "ref": "nubra_adapter.py:870-875",
+      "approval": "book-levels-as-sent"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "Nubra's order book carries the last traded quantity; the web drops it from the frames it builds on the book, the desktop keeps it (lost data).",
+      "ref": "nubra_adapter.py:878-892",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "ask",
+      "kind": "web-defect",
+      "reason": "The book has no asks after this message; the web sends ask 0, the desktop leaves the key out (a side the book does not have is not a price; R107-06, the review: omission is the authorized alternative to the zero).",
+      "ref": "nubra_adapter.py:878-892",
+      "approval": "leave-out-unsent"
+    },
+    {
+      "key": "bid",
+      "kind": "web-defect",
+      "reason": "The book has no bids after this message; the web sends bid 0, the desktop leaves the key out (a side the book does not have is not a price; R107-06, the review: omission is the authorized alternative to the zero).",
+      "ref": "nubra_adapter.py:878-892",
+      "approval": "leave-out-unsent"
+    }
+  ]
 }

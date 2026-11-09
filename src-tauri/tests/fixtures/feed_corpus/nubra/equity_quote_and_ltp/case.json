@@ -25,5 +25,13 @@
     ],
     "notes": []
   },
-  "deviations": []
+  "deviations": [
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "Before the day bucket the web sends open 0 (ohlcv.get('open', 0)); a field the stream has not sent is left out.",
+      "ref": "nubra_adapter.py:700-715",
+      "approval": "leave-out-unsent"
+    }
+  ]
 }

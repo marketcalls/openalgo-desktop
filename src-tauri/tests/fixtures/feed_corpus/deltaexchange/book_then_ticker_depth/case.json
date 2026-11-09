@@ -32,25 +32,29 @@
       "key": "ltp",
       "kind": "desktop-decision",
       "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the symbol's first ticker; the web's merged cache has no ltp until a ticker came.",
-      "ref": "feed::bridge::depth_update"
+      "ref": "feed::bridge::depth_update",
+      "approval": "per-broker-wire-shape"
     },
     {
       "key": "depth",
       "kind": "web-defect",
       "reason": "The web pads a short side of Delta's book to five zero levels Delta never sent and gives them no order count; the desktop sends the levels Delta sent (lead rule on book levels: padding a web adapter adds is a web defect).",
-      "ref": "delta_adapter.py:606-617"
+      "ref": "delta_adapter.py:606-617",
+      "approval": "book-levels-as-sent"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "Delta's ticker carries no average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
-      "ref": "delta_adapter.py:584"
+      "ref": "delta_adapter.py:584",
+      "approval": "leave-out-unsent"
     },
     {
       "key": "oi_change",
       "kind": "web-defect",
       "reason": "The web sends a constant oi_change of 0 on every ticker (_normalise_ticker's defaults) whatever Delta sent; a value the desktop does not know is left out.",
-      "ref": "delta_adapter.py:584"
+      "ref": "delta_adapter.py:584",
+      "approval": "leave-out-unsent"
     }
   ]
 }

@@ -36,7 +36,8 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does.",
-      "ref": "dhan_adapter.py:900; feed::dialect (Dhan last_trade_time in seconds, openalgo#2377)"
+      "ref": "dhan_adapter.py:900; feed::dialect (Dhan last_trade_time in seconds, openalgo#2377)",
+      "approval": "zerodha-dhan-web-defects"
     }
   ]
 }

@@ -37,19 +37,22 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web reads the exchange timestamp (byte 60) as ltt and sends it in epoch seconds; the packet's last trade time is at byte 44, and feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
-      "ref": "audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'; zerodha_websocket.py:826"
+      "ref": "audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'; zerodha_websocket.py:826",
+      "approval": "zerodha-dhan-web-defects"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The web reads OI from byte 180, inside the last ask level, so it sends that level's order count and padding as OI; OI is at byte 48.",
-      "ref": "audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md; zerodha_websocket.py:827"
+      "ref": "audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md; zerodha_websocket.py:827",
+      "approval": "zerodha-dhan-web-defects"
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "As oi: the web's value comes from byte 180.",
-      "ref": "zerodha_websocket.py:829"
+      "ref": "zerodha_websocket.py:829",
+      "approval": "zerodha-dhan-web-defects"
     }
   ]
 }

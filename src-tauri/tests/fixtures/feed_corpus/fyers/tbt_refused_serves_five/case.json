@@ -28,5 +28,13 @@
       "fyers_websocket_adapter.py:373-381: TBT unavailable, falling back to 5-level depth."
     ]
   },
-  "deviations": []
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "desktop-decision",
+      "reason": "Fyers refused the 50-level socket, so the 50-level Depth subscription is served on the HSM depth feed's five levels at once (lead decision on the deep book); the web's oracle cannot model the refused TBT socket and publishes nothing for this packet (its adapter falls back to 5-level depth, fyers_websocket_adapter.py:373-381).",
+      "ref": "fyers_websocket_adapter.py:373-381",
+      "approval": "per-broker-wire-shape"
+    }
+  ]
 }

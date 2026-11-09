@@ -1,1 +1,14 @@
-{}
+{
+  "broker": "deltaexchange",
+  "data": {
+    "exchange": "CRYPTO",
+    "ltp": 63840.5,
+    "mode": 3,
+    "symbol": "BTCUSDFUT",
+    "timestamp": "<receipt_ms>"
+  },
+  "exchange": "CRYPTO",
+  "mode": 3,
+  "symbol": "BTCUSDFUT",
+  "type": "market_data"
+}

@@ -1,1 +1,92 @@
-{}
+{
+  "broker": "fyers",
+  "data": {
+    "average_price": 800.1,
+    "avg_trade_price": 800.1,
+    "change": 11.5,
+    "change_percent": 1.46,
+    "close": 790.0,
+    "data_type": "Depth",
+    "depth": {
+      "buy": [
+        {
+          "orders": 1,
+          "price": 801.45,
+          "quantity": 10
+        },
+        {
+          "orders": 2,
+          "price": 801.4,
+          "quantity": 25
+        },
+        {
+          "orders": 3,
+          "price": 801.35,
+          "quantity": 40
+        },
+        {
+          "orders": 4,
+          "price": 801.3,
+          "quantity": 55
+        },
+        {
+          "orders": 5,
+          "price": 801.25,
+          "quantity": 70
+        }
+      ],
+      "sell": [
+        {
+          "orders": 2,
+          "price": 801.5,
+          "quantity": 20
+        },
+        {
+          "orders": 3,
+          "price": 801.55,
+          "quantity": 35
+        },
+        {
+          "orders": 4,
+          "price": 801.6,
+          "quantity": 50
+        },
+        {
+          "orders": 5,
+          "price": 801.65,
+          "quantity": 65
+        },
+        {
+          "orders": 6,
+          "price": 801.7,
+          "quantity": 80
+        }
+      ]
+    },
+    "exchange": "NSE",
+    "exchange_time": 1793170001,
+    "high": 805.0,
+    "last_quantity": 7,
+    "last_trade_quantity": 7,
+    "last_trade_time": 1793170000,
+    "last_traded_time": 1793170000,
+    "low": 795.0,
+    "lower_circuit": 711.0,
+    "ltp": 801.5,
+    "open": 798.0,
+    "percent_change": 1.46,
+    "subscription_mode": 3,
+    "symbol": "SBIN",
+    "timestamp": "<receipt_ms>",
+    "token": "3045",
+    "total_buy_quantity": 91000,
+    "total_sell_quantity": 88000,
+    "update_type": "snapshot",
+    "upper_circuit": 869.0,
+    "volume": 523000
+  },
+  "exchange": "NSE",
+  "mode": 3,
+  "symbol": "SBIN",
+  "type": "market_data"
+}

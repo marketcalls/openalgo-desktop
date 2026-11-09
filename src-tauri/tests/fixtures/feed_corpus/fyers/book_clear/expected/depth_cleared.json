@@ -1,1 +1,40 @@
-{}
+{
+  "broker": "fyers",
+  "data": {
+    "average_price": 800.1,
+    "avg_trade_price": 800.1,
+    "change": 11.5,
+    "change_percent": 1.46,
+    "close": 790.0,
+    "data_type": "Depth",
+    "depth": {
+      "buy": [],
+      "sell": []
+    },
+    "exchange": "NSE",
+    "exchange_time": 1793170001,
+    "high": 805.0,
+    "last_quantity": 7,
+    "last_trade_quantity": 7,
+    "last_trade_time": 1793170000,
+    "last_traded_time": 1793170000,
+    "low": 795.0,
+    "lower_circuit": 711.0,
+    "ltp": 801.5,
+    "open": 798.0,
+    "percent_change": 1.46,
+    "subscription_mode": 3,
+    "symbol": "SBIN",
+    "timestamp": "<receipt_ms>",
+    "token": "3045",
+    "total_buy_quantity": 91000,
+    "total_sell_quantity": 88000,
+    "update_type": "live",
+    "upper_circuit": 869.0,
+    "volume": 523000
+  },
+  "exchange": "NSE",
+  "mode": 3,
+  "symbol": "SBIN",
+  "type": "market_data"
+}
