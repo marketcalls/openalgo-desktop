@@ -13,16 +13,6 @@
       "brexchange": "NSECM"
     }
   ],
-  "depth_levels": {
-    "NSE": [
-      5,
-      20
-    ],
-    "NFO": [
-      5,
-      20
-    ]
-  },
   "http": [
     {
       "path": "/apimarketdata/instruments/subscription",
