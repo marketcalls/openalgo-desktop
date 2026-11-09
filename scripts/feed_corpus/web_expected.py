@@ -217,7 +217,10 @@ class Deliveries:
             if mode in d["serves"] and (i, mode) not in self.used:
                 self.used.add((i, mode))
                 return self.pub(d)
-        rest = [(i, d) for i, d in ds if d["topic_mode"] >= mode and (i, f"fold{mode}") not in self.used]
+        rest = [
+            (i, d) for i, d in ds
+            if mode not in d["serves"] and d["topic_mode"] >= mode and (i, f"fold{mode}") not in self.used
+        ]
         rest.sort(key=lambda x: (x[1]["topic_mode"] != mode, x[1]["topic_mode"], x[0]))
         if rest:
             i, d = rest[0]
@@ -282,7 +285,8 @@ def diff(case_dir: Path, out: dict) -> list[str]:
             if p is None:
                 lines.append(f"(line {n}: the web delivers no such frame either)")
             else:
-                lines.append(f"missing-frame: line {n}: web {json.dumps(p['data'], sort_keys=True)}, desktop nothing")
+                key = w.get("deviation", "missing-frame")
+                lines.append(f"{key}: line {n}: web {json.dumps(p['data'], sort_keys=True)}, desktop nothing")
         elif step["step"] == "receive":
             frame = step["frame"]
             frame = json.loads((case_dir / frame).read_text()) if isinstance(frame, str) else frame

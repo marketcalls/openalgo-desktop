@@ -342,6 +342,9 @@ delivery point: by a receive, or, for a frame the web sends and the
 desktop does not, by a `silence` step that names it, one step per such
 frame, `{"step": "silence", "client": "a", "web": {"symbol": "BTCUSD.P",
 "exchange": "CRYPTO", "mode": 3}}` (a deviation with key `missing-frame`).
+Where a case has web-only frames of more than one cause, each cause gets
+its own reason and approval: the step adds `"deviation":
+"missing-frame:<label>"` in `web`, and the case declares that key.
 A web frame no step accounts for fails the case, naming it; the web's
 fan-out to a lower-mode holder that answers none of its held modes need
 not be (the approved `one-frame-per-held-mode` rule). A

@@ -41,13 +41,13 @@
       "kind": "desktop-decision",
       "reason": "A book before the first price: the web's merged entry has no ltp yet and leaves it out; the desktop's Depth frame keeps ltp (0) and timestamp, which the SDK's Depth callback reads (1.0.6 decision).",
       "ref": "CLAUDE.md (depth frame before its instrument's first tick); groww_adapter.py:64-73",
-      "approval": "per-broker-wire-shape"
+      "approved": true
     },
     {
       "key": "missing-frame",
-      "kind": "web-defect",
-      "reason": "A book message carries no trade price. The web proxy fans the Depth publication down to the Quote client, a frame with the book's best bid and ask and no ltp; the desktop sends a Quote holder nothing for a packet with no trade price (lead rule), and the book goes to the Depth holder.",
-      "ref": "groww_adapter.py:966-967; websocket_proxy/server.py (fan-out to lower modes)",
+      "kind": "desktop-decision",
+      "reason": "A book packet carries no trade price. The web's listener sends the Depth publication to every client up to that mode, so the Quote client gets a book frame with no new trade; the desktop sends a Quote holder nothing for a packet with no price.",
+      "ref": "websocket_proxy/server.py zmq_listener (for m in range(1, mode + 1))",
       "approval": "no-price-packet"
     }
   ]
