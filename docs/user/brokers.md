@@ -172,10 +172,18 @@ NCOM) contracts but its API does not trade them, so OpenAlgo loads NSE,
 BSE, NFO and BFO only.
 
 Delta Exchange is a crypto exchange: its symbols use the `CRYPTO` exchange.
-Its live feed carries the last price, open, high, low, close, volume and
-open interest, like every broker's feed; the best bid and ask come from
-quotes and market depth. OpenAlgo does not read Delta's private account
+Its live feed carries the last price, open, high, low, close, volume, open
+interest and the best bid and ask, like every broker's feed. OpenAlgo does not read Delta's private account
 channels (OpenAlgo web opens them but passes nothing on from them).
+
+**Dhan (Sandbox) streams simulated prices, not market prices.** Dhan's
+sandbox has no live feed, so OpenAlgo makes one up, exactly as OpenAlgo web
+does: each instrument starts at a price worked out from its symbol (for an
+option, from the strikes listed for its underlying) and takes a small
+random step every second; open, high, low, close, volume, open interest and
+the order book are drawn around that price. Charts, the watchlist and
+analyzer mode's fills all use these simulated prices. Use the sandbox to try
+your setup, your orders and your tools, never to judge a strategy's results.
 
 ## Signing in to OpenAlgo, and the daily broker sign-in
 
