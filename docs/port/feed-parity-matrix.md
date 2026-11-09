@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 19. Open gaps: 12. Deviations pending approval: 34.
+Cases: 20. Open gaps: 12. Deviations pending approval: 34.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -48,7 +48,7 @@ Cases: 19. Open gaps: 12. Deviations pending approval: 34.
 | upstox | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | wisdom | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | zebu | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| zerodha | deviation pending approval: `ltp_mode`, `two_clients_mode_change` | deviation pending approval: `index_quote`, `quote_mode`, `reconnect_replays`, `refused_reconnect`, `two_clients_mode_change` | open gap: `full_depth_future`, `index_full` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_postbacks` |
+| zerodha | deviation pending approval: `ltp_mode`, `two_clients_mode_change` | deviation pending approval: `deliberate_disconnect` (by hand), `index_quote`, `quote_mode`, `reconnect_replays`, `refused_reconnect`, `two_clients_mode_change` | open gap: `full_depth_future`, `index_full` | not offered by the web | not offered by the web | not offered by the web | matches web: `order_postbacks` |
 
 ## Scenarios covered
 

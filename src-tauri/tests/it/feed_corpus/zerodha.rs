@@ -25,6 +25,7 @@ corpus_cases!(
         two_clients_mode_change,
         reconnect_replays,
         refused_reconnect,
+        deliberate_disconnect,
         order_postbacks,
     ]
 );

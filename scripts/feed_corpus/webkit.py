@@ -26,9 +26,18 @@ Rules the extraction follows:
   passes in `stubs`.
 - Annotations are not evaluated (`from __future__ import annotations`), and
   decorators other than staticmethod, classmethod and property are dropped.
-- `time.time()` returns RECEIPT_S, a fixed instant no packet carries, so a
-  receipt time in the output is recognised and written `"<receipt_ms>"`
-  (milliseconds) or `"<receipt_s>"` (seconds), as the corpus writes it.
+- `time.time()` returns RECEIPT_S, a fixed instant no packet carries, plus
+  the script line being replayed in seconds (`set_step`), so a receipt
+  time in the output is recognised and written `"<receipt_ms>"`
+  (milliseconds) or `"<receipt_s>"` (seconds) when the push being replayed
+  stamped it, and `"<receipt_ms:N>"` when the step on line N did (a book
+  that carries an earlier ticker's time), as the corpus writes it.
+- `datetime`'s `now`, `today` and `utcnow` read the same frozen clock, so
+  a time of day the web dates by the day of receipt (Definedge's depth
+  ltt "HH:MM:SS") falls on the frozen IST day and is written
+  `"<ist_today_ms:HH:MM:SS>"`, as the corpus writes it.
+- `random` is a generator seeded the same for every case, so a synthetic
+  feed's draws (Dhan Sandbox) are the same on every run.
 """
 
 from __future__ import annotations
@@ -41,16 +50,37 @@ import types
 from pathlib import Path
 from typing import Any
 
-# 2100-01-01T00:00:00Z: the frozen clock; no broker packet carries it.
-RECEIPT_S = 4102444800.0
+# 2100-01-01T00:00:00+05:30, IST midnight: the frozen clock; no broker
+# packet carries it.
+RECEIPT_S = 4102425000.0
 RECEIPT_MS = int(RECEIPT_S * 1000)
+# A script has fewer lines than this, so RECEIPT_S + line is a step's time:
+# the steps' times stay before 02:47 IST, and a market's time of day on the
+# frozen date (`<ist_today_ms:..>`) is never one of them.
+MAX_LINES = 10_000
+# The script line being replayed (0 before the first).
+_STEP = {"line": 0}
+# The seed of the `random` a web file imports.
+RANDOM_SEED = 107
+
+
+def set_step(line: int) -> None:
+    """The frozen clock moves to the step on script line `line`."""
+    if not 0 <= line < MAX_LINES:
+        raise SystemExit(f"a script line past {MAX_LINES}")
+    _STEP["line"] = line
+
+
+def now_s() -> int:
+    """The frozen clock, in whole seconds."""
+    return int(RECEIPT_S) + _STEP["line"]
 
 # Standard-library modules a web file may import and the lifted code may
 # use. Anything else it imports is left out.
 STDLIB = {
     "base64", "binascii", "calendar", "collections", "collections.abc", "copy",
     "dataclasses", "datetime", "decimal", "enum", "functools", "gzip", "hashlib",
-    "io", "itertools", "json", "logging", "math", "operator", "os", "re",
+    "io", "itertools", "json", "logging", "math", "operator", "os", "random", "re",
     "struct", "sys", "threading", "time", "typing", "urllib.parse", "uuid",
     "zlib", "zoneinfo",
 }
@@ -78,31 +108,84 @@ class NullLogger:
 
 
 def frozen_time() -> types.ModuleType:
-    """`time` with its clock stopped at RECEIPT_S."""
+    """`time` with its clock stopped at the step being replayed."""
     import time as real
 
     m = types.ModuleType("time")
     for name in dir(real):
         if not name.startswith("__"):
             setattr(m, name, getattr(real, name))
-    m.time = lambda: RECEIPT_S
-    m.time_ns = lambda: int(RECEIPT_S * 1_000_000_000)
+    m.time = lambda: float(now_s())
+    m.time_ns = lambda: now_s() * 1_000_000_000
     m.sleep = lambda *_: None
+    m.localtime = lambda secs=None: real.localtime(now_s() if secs is None else secs)
+    m.gmtime = lambda secs=None: real.gmtime(now_s() if secs is None else secs)
+    m.strftime = lambda fmt, t=None: real.strftime(fmt, m.localtime() if t is None else t)
     return m
+
+
+def frozen_datetime() -> types.ModuleType:
+    """`datetime` whose `now`, `today` and `utcnow` read the frozen clock, so
+    a time of day the web dates by today (Definedge's depth ltt) is dated
+    by the step being replayed."""
+    import datetime as real
+
+    m = types.ModuleType("datetime")
+    for name in dir(real):
+        if not name.startswith("__"):
+            setattr(m, name, getattr(real, name))
+
+    class datetime(real.datetime):  # noqa: N801 (the module's own name)
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(now_s(), tz)
+
+        @classmethod
+        def today(cls):
+            return cls.fromtimestamp(now_s())
+
+        @classmethod
+        def utcnow(cls):
+            return cls.fromtimestamp(now_s(), real.timezone.utc).replace(tzinfo=None)
+
+    class date(real.date):  # noqa: N801 (the module's own name)
+        @classmethod
+        def today(cls):
+            return cls.fromtimestamp(now_s())
+
+    m.datetime = datetime
+    m.date = date
+    return m
+
+
+def seeded_random():
+    """`random`, seeded: its module functions are a `Random`'s methods."""
+    import random
+
+    return random.Random(RANDOM_SEED)
+
+
+def _stdlib_module(name: str):
+    import importlib
+
+    if name == "time":
+        return frozen_time()
+    if name == "datetime":
+        return frozen_datetime()
+    if name == "random":
+        return seeded_random()
+    return importlib.import_module(name)
 
 
 def _stdlib_imports(tree: ast.Module, ns: dict) -> None:
     """Execute the file's standard-library imports into `ns`."""
-    import importlib
-
     for node in tree.body:
         if isinstance(node, ast.Import):
             for a in node.names:
                 if a.name in STDLIB:
-                    mod = frozen_time() if a.name == "time" else importlib.import_module(a.name)
-                    ns[a.asname or a.name.split(".")[0]] = mod
+                    ns[a.asname or a.name.split(".")[0]] = _stdlib_module(a.name)
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module in STDLIB:
-            mod = frozen_time() if node.module == "time" else importlib.import_module(node.module)
+            mod = _stdlib_module(node.module)
             for a in node.names:
                 if a.name != "*" and hasattr(mod, a.name):
                     ns[a.asname or a.name] = getattr(mod, a.name)
@@ -178,6 +261,34 @@ def load(web_root: Path, sources: list[Source], stubs: dict[str, Any] | None = N
     return ns
 
 
+def stamped_at(seconds: int) -> int | None:
+    """The script line whose step the frozen clock read `seconds` at."""
+    line = seconds - int(RECEIPT_S)
+    return line if 0 <= line < MAX_LINES else None
+
+
+def placeholder(unit: str, line: int) -> str:
+    """A receipt time stamped at `line`, as the corpus writes it."""
+    return f"<receipt_{unit}>" if line == _STEP["line"] else f"<receipt_{unit}:{line}>"
+
+
+IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
+DAY_MS = 24 * 60 * 60 * 1000
+
+
+def ist_time_of_day(ms: int) -> str | None:
+    """`HH:MM:SS` (or `HH:MM:SS.mmm`) when epoch `ms` falls on the IST day
+    of the step being replayed: a time of day dated by the day of receipt
+    (harness/compare.rs `<ist_today_ms:..>`)."""
+    midnight = (now_s() * 1000 + IST_OFFSET_MS) // DAY_MS * DAY_MS - IST_OFFSET_MS
+    after = ms - midnight
+    if not 0 <= after < DAY_MS:
+        return None
+    s, milli = divmod(after, 1000)
+    text = f"{s // 3600:02d}:{s // 60 % 60:02d}:{s % 60:02d}"
+    return f"{text}.{milli:03d}" if milli else text
+
+
 def receipt(v: Any) -> Any:
     """`v` as JSON, with the frozen clock's values written as placeholders."""
     if isinstance(v, dict):
@@ -189,10 +300,18 @@ def receipt(v: Any) -> Any:
         return out
     if isinstance(v, (list, tuple)):
         return [receipt(x) for x in v]
-    if type(v) is int and v == RECEIPT_MS:
-        return "<receipt_ms>"
-    if (type(v) is int and v == int(RECEIPT_S)) or (type(v) is float and v == RECEIPT_S):
-        return "<receipt_s>"
+    if type(v) is int and (v - RECEIPT_MS) % 1000 == 0:
+        line = stamped_at(v // 1000)
+        if line is not None:
+            return placeholder("ms", line)
+    if type(v) is int or (type(v) is float and v.is_integer()):
+        line = stamped_at(int(v))
+        if line is not None:
+            return placeholder("s", line)
+    if type(v) is int:
+        tod = ist_time_of_day(v)
+        if tod is not None:
+            return f"<ist_today_ms:{tod}>"
     if v is None or isinstance(v, (bool, int, float, str)):
         return v
     raise SystemExit(f"a published value is not JSON: {v!r}")

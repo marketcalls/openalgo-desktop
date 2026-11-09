@@ -1,0 +1,5 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [408065]}}, {"json": {"a": "mode", "v": ["quote", [408065]]}}], "connection": 1}
+{"step": "disconnect", "socket": "main"}
+{"step": "upstream_receives", "frames": [{"close": null}], "connection": 1}
+{"step": "upstream_connections", "count": 1, "ms": 300}

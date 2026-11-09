@@ -59,6 +59,8 @@ struct State {
     refuse: Option<(u16, usize)>,
     /// Upgrades refused so far.
     refused: usize,
+    /// Record the feed's close (a `disconnect` step asked for it).
+    record_close: bool,
 }
 
 pub(crate) struct Upstream {
@@ -151,6 +153,7 @@ impl Upstream {
         let msg = match wire {
             Wire::Text(t) => Message::Text(t.clone()),
             Wire::Binary(b) => Message::Binary(b.clone()),
+            Wire::Closed(_) | Wire::Ended => return Err("a close is not pushed".to_string()),
         };
         tx.send(Out::Frame(msg))
             .await
@@ -171,6 +174,13 @@ impl Upstream {
     /// Refuse the next `times` upgrades with HTTP `status` (a broker's 429).
     pub(crate) fn refuse(&self, status: u16, times: usize) {
         self.state.lock().refuse = Some((status, times));
+    }
+
+    /// From now on, record the feed closing a connection (its close frame,
+    /// or an end without one) as a frame it sent: the manager is about to
+    /// close it deliberately.
+    pub(crate) fn expect_close(&self) {
+        self.state.lock().record_close = true;
     }
 
     /// Connections opened and upgrades refused so far.
@@ -236,14 +246,25 @@ async fn serve(
     ignore: Arc<Vec<String>>,
 ) {
     let (mut write, mut read) = ws.split();
+    let mut closed = false;
     loop {
         tokio::select! {
             msg = read.next() => {
                 let wire = match msg {
                     Some(Ok(Message::Text(t))) if !ignore.contains(&t) => Wire::Text(t),
                     Some(Ok(Message::Binary(b))) => Wire::Binary(b),
+                    Some(Ok(Message::Close(frame))) if state.lock().record_close && !closed => {
+                        closed = true;
+                        Wire::Closed(frame.map(|f| u16::from(f.code)))
+                    }
                     Some(Ok(_)) => continue,
-                    _ => break,
+                    _ => {
+                        let mut st = state.lock();
+                        if st.record_close && !closed {
+                            st.received.push(Received { connection: n, wire: Wire::Ended });
+                        }
+                        break;
+                    }
                 };
                 state.lock().received.push(Received { connection: n, wire });
             }
