@@ -600,10 +600,15 @@ fn decodes_snapquote_packet() {
     assert_eq!(s.total_buy_qty, 111_111);
     assert_eq!(s.total_sell_qty, 222_222);
     assert_eq!(s.volume, 3_333_333);
-    let depth = to_depth(&QuoteKey::new("NSE", "SBIN"), &s);
-    assert_eq!(depth.ltp, 811.5);
+    // No trade price in a snapquote: never its average (811.5).
+    let depth = to_depth(&QuoteKey::new("NSE", "SBIN"), &s, None);
+    assert_eq!(depth.ltp, 0.0);
     assert_eq!(depth.prev_close, 805.0);
     assert_eq!((depth.ltq, depth.oi), (0, 0));
+    let d = decode_detailed(&detailed_packet(1, 3045, 81_225)).unwrap();
+    let depth = to_depth(&QuoteKey::new("NSE", "SBIN"), &s, Some(&d));
+    assert_eq!((depth.ltp, depth.ltq), (812.25, 25));
+    assert_eq!(depth.volume, 3_333_333, "the book's own");
     assert_eq!(depth.bids.len(), 5);
     assert!(decode_snapquote(&[4u8; 165]).is_none());
 }
