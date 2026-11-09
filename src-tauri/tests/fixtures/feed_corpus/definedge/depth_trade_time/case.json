@@ -1,0 +1,55 @@
+{
+  "broker": "definedge",
+  "summary": "The depth feed's trade time of day (ltt, HH:MM:SS) is the trade time: Quote and Depth frames carry it as epoch ms on the IST day the tick arrived, where the web forwards the text as ltt, with copies as last_trade_time and, in Depth, ltt_time.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_websocket.py::DefinedGeWebSocket._on_message",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._last_trade_time",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._add_reference_keys",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._normalize_raw_data",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._normalize_raw_depth_data"
+    ],
+    "notes": [
+      "The clock lies within the first hour of the IST day so the run's own time of day never makes it more than an hour ahead of receipt, which the desktop would date the day before (streaming.rs clock_on_day_of)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "last_trade_time",
+      "kind": "open",
+      "reason": "The web copies the depth feed's trade time of day, as Definedge sent it (HH:MM:SS), to last_trade_time in Quote and Depth (_add_reference_keys). BrokerValue::Text holds a &'static str only (Fyers' fixed snapshot / live), and Source::TradeTimeText writes YYYY-MM-DD HH:MM:SS (Tradejini's), so Definedge's own text, sent as it came, has no carrier yet: wire, an owned text value for a BrokerField (or a source for the trade time as the broker's text).",
+      "ref": "definedge_adapter.py:937-938; feed/dialect/names.rs Source::TradeTimeText"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms",
+      "approved": true
+    },
+    {
+      "key": "ltt_time",
+      "kind": "open",
+      "reason": "The web's Depth payload carries the depth feed's trade time of day, as Definedge sent it, as ltt_time (_normalize_raw_depth_data). BrokerValue::Text holds a &'static str only (Fyers' fixed snapshot / live), and Source::TradeTimeText writes YYYY-MM-DD HH:MM:SS (Tradejini's), so Definedge's own text, sent as it came, has no carrier yet: wire, an owned text value for a BrokerField (or a source for the trade time as the broker's text).",
+      "ref": "definedge_adapter.py:1164-1165; brokers/common/streaming/fields.rs BrokerValue"
+    }
+  ]
+}

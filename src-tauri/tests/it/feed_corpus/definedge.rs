@@ -48,5 +48,6 @@ corpus_cases!(
         order_updates,
         order_login_refused,
         depth_20_refused,
+        depth_trade_time,
     ]
 );
