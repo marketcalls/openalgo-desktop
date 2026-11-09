@@ -10,6 +10,6 @@
 {"step": "push", "frame": "frames/auth_ok.hex"}
 {"step": "upstream_receives", "frames": [{"hex": "0017040201001100010e73667c6e73655f636d7c333034350200010b"}], "connection": 2}
 {"step": "push", "frame": "frames/quote_update.hex"}
-{"step": "silence", "client": "a", "note": "A topic id from before the drop: nothing to apply it to."}
+{"step": "silence", "client": "a", "note": "A topic id from before the drop: nothing to apply it to.", "web": {"symbol": "SBIN", "exchange": "NSE", "mode": 2}}
 {"step": "push", "frame": "frames/quote_snapshot.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_after_reconnect.json"}

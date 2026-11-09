@@ -1,1 +1,24 @@
-{}
+{
+  "broker": "upstox",
+  "data": {
+    "average_price": 1299.7,
+    "close": 1295.0,
+    "exchange": "NSE",
+    "indicative_equilibrium_price": 0.0,
+    "last_quantity": 2,
+    "last_trade_quantity": 2,
+    "last_trade_time": 1740729562000,
+    "ltp": 1301.75,
+    "ltt": 1740729562000,
+    "symbol": "RELIANCE",
+    "timestamp": 1740729568600,
+    "token": "NSE_EQ|INE002A01018",
+    "total_buy_quantity": 9020,
+    "total_sell_quantity": 8020,
+    "volume": 50006
+  },
+  "exchange": "NSE",
+  "mode": 2,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}

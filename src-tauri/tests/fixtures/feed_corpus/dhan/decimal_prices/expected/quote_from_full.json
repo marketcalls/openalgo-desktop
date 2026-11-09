@@ -59,7 +59,7 @@
         }
       ]
     },
-    "depth_level": 0,
+    "depth_level": 5,
     "exchange": "NSE",
     "high": 957.45,
     "last_quantity": 3,
