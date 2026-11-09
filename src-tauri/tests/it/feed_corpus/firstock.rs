@@ -35,5 +35,6 @@ corpus_cases!(
         depth_future_book_clear,
         index_quote,
         reconnect_subscribes_again,
+        reconnect_starts_afresh,
     ]
 );

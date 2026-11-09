@@ -1,6 +1,6 @@
 {
   "broker": "firstock",
-  "summary": "A Quote client gets a full tick with its trade time, then a tick with only a new price: Firstock's V2 ticks are deltas merged over the snapshot, and the new price comes without a trade time, so the Quote frame has no old trade's time (it falls back to the receipt time); the next tick with a price and its time carries that time again.",
+  "summary": "A Quote client gets a full tick with its trade time, then a tick with only a new price: Firstock's ticks are partial updates, so the time it left out has not changed and the Quote frame keeps it, as on the web; the next tick with a price and its time carries that time.",
   "scenarios": [
     "first-full-packet",
     "partial-packet",
@@ -24,16 +24,16 @@
       "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._normalize_market_data"
     ],
     "notes": [
-      "Audit R107-10 (codex/WEBSOCKET_PARITY_REVIEW_1.0.7.md): the old trade time inherited by a new price. The time-bearing tick is ltp_then_quote's full packet."
+      "A tick leaves out what has not changed: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. The time-bearing tick is ltp_then_quote's full packet."
     ]
   },
   "deviations": [
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). On a tick with a new price and no trade time the web sends the previous trade's time from its snapshot: a trade time goes with the price it came with and never carries over to a new one (lead rule, .lane/107/decisions.md and review-fixes.md: a per-packet time never carries over; audit R107-10). The desktop sends the trade time in ms, and for the price without its time the time it made the tick, as for any packet without one.",
-      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0)); firstock_websocket.py::_on_message (merges each tick into the snapshot)",
-      "approval": "inherited-omissions"
+      "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
+      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))",
+      "approval": "lost-data-kept"
     },
     {
       "key": "oi",

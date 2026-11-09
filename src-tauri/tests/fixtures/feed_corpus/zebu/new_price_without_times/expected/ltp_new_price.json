@@ -9,6 +9,7 @@
     "exchange": "NSE",
     "mode": 1,
     "ltp": 1413.0,
-    "timestamp": "<receipt_ms>"
+    "timestamp": "<receipt_ms>",
+    "zebu_timestamp": 1794199542
   }
 }

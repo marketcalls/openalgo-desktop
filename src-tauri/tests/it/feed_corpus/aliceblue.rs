@@ -59,6 +59,7 @@ corpus_cases!(
         depth_bid_side_zeroed,
         index_quote,
         reconnect_logs_in_again,
+        reconnect_starts_afresh,
         order_lifecycle,
     ]
 );

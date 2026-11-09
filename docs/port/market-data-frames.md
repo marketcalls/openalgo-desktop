@@ -62,6 +62,25 @@ a cleared book side) is sent.
 - The page's `MarketDataManager` already merges by presence (`??`) within
   one session; the zeros it kept came from the server.
 
+## Partial-update feeds
+
+Noren (Shoonya, Flattrade, Zebu, TradeSmart), Firstock and AliceBlue send a
+snapshot and then partial updates: a field a packet leaves out has not
+changed, it is not unknown (Firstock's docs: "except for t, e, and tk other
+fields may / may not be present"; the web: "Use cache to handle partial
+updates"; AliceBlue "sends 0 for unchanged values"). A second-resolution
+`ft`, `ltt` or `i_last_trade_time` is simply not resent on a tick in the
+same second, nor `pc` when its rounded figure did not move. On these feeds
+those fields are market state: a new price without them keeps the cached
+values within a connection, exactly as the web does, with no deviation, and
+a reconnect starts afresh. "A per-packet time never carries over" holds for
+brokers whose packets are complete. Dropping them, as the 1.0.7 review's
+R107-10 asked before it was withdrawn, makes `ltt` and `last_trade_time`
+come and go on ordinary same-second ticks and replaces Noren's own `pc`
+with a recomputed figure. The corpus pins both halves: per broker,
+`new_price_without_times`, `price_without_its_time` or
+`absent_fields_and_a_price_without_time`, and `reconnect_starts_afresh`.
+
 ## Change and open interest (C04, C05)
 
 - The change since the previous close goes with every instrument, futures

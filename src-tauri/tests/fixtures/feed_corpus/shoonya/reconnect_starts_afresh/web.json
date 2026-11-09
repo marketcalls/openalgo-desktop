@@ -1,0 +1,107 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "shoonya",
+  "inputs_sha256": "b330415402c37cdc5b89cd42885a2486d2fff854560ef241ec6c9ad3aa11b24f",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "mode": 2,
+            "ltp": 1412.3,
+            "volume": 4567890,
+            "open": 1405.0,
+            "high": 1415.8,
+            "low": 1401.2,
+            "close": 1403.0,
+            "average_price": 1409.65,
+            "percent_change": 0.66,
+            "last_quantity": 12,
+            "last_trade_time": "10:15:42",
+            "shoonya_timestamp": 1794199542,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "mode": 2,
+            "ltp": 1414.05,
+            "volume": 4601234,
+            "open": 1405.0,
+            "high": 1416.0,
+            "low": 1401.2,
+            "close": 1403.0,
+            "average_price": 1409.65,
+            "percent_change": 0.0,
+            "last_quantity": 40,
+            "last_trade_time": null,
+            "shoonya_timestamp": 0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "serves": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

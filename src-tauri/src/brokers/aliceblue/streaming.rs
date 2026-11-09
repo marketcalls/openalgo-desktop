@@ -312,7 +312,11 @@ impl DepthSnap {
 /// last non-zero value, volumes take any non-negative value, depth sides
 /// are merged level by level and only levels with a price are published.
 /// `known` is what this session has had a value for, so a field AliceBlue
-/// never sent is left out rather than sent as 0 (audit C03).
+/// never sent is left out rather than sent as 0 (audit C03). A `tf` is a
+/// partial update (AliceBlue "sends 0 for unchanged values" and leaves
+/// fields out): the feed time `ft` stays like the rest, as on the web, for
+/// the connection. See "Partial-update feeds" in
+/// docs/port/market-data-frames.md.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FeedSnap {
     pub ltp: f64,
@@ -374,13 +378,11 @@ impl FeedSnap {
         if v.get("cv").is_some() {
             self.change = Some(num(v.get("cv")));
         }
-        let ft = int(v.get("ft"));
-        if ft > 0 {
-            self.ft_ms = if ft > 100_000_000_000 { ft } else { ft * 1000 };
-        } else if num(v.get("lp")) != 0.0 {
-            // A new price without its own time has none, never the previous
-            // packet's (audit R107-10; the web keeps the old one).
-            self.ft_ms = 0;
+        if v.get("ft").is_some() {
+            let ft = int(v.get("ft"));
+            if ft > 0 {
+                self.ft_ms = if ft > 100_000_000_000 { ft } else { ft * 1000 };
+            }
         }
         merge_levels(&mut self.bids, v, "bp", "bq", "bo");
         merge_levels(&mut self.asks, v, "sp", "sq", "so");

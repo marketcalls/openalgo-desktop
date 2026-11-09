@@ -9,6 +9,8 @@
     "exchange": "NSE",
     "mode": 1,
     "ltp": 1413.0,
-    "timestamp": "<receipt_ms>"
+    "timestamp": "<receipt_ms>",
+    "shoonya_timestamp": 1794199542,
+    "last_trade_time": "10:15:42"
   }
 }

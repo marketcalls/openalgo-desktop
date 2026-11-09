@@ -6,7 +6,7 @@
   "broker": "aliceblue",
   "data": {
     "ltp": 1296.0,
-    "ltt": "<receipt_ms>",
+    "ltt": 1794302700000,
     "volume": 4567890,
     "total_buy_quantity": 1200,
     "open": 1288.0,

@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "tradesmart",
-  "inputs_sha256": "104177114629bbe408f90e99ca163070ccc2308f30450c0dd6ceabee7f7f6a89",
+  "inputs_sha256": "4df7e86e0ef0afe7a85a2d6990b93201353052444dbbbe48bab6ad753ac405c4",
   "instruments": [
     {
       "symbol": "RELIANCE",

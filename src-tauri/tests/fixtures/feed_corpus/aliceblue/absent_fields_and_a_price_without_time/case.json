@@ -1,6 +1,6 @@
 {
   "broker": "aliceblue",
-  "summary": "A Quote client on an equity whose tk snapshot carries no average price, trade quantity, book totals or OI: the Quote frame leaves them out rather than sending 0. A tf delta then brings a new price and a buy total without a feed time: the total appears, and the new price does not take the earlier packet's time (ltt falls back to the receipt time); the next delta with a time brings it.",
+  "summary": "A Quote client on an equity whose tk snapshot carries no average price, trade quantity, book totals or OI: the Quote frame leaves them out rather than sending 0. A tf delta then brings a new price and a buy total without a feed time: the total appears and the feed time, which the partial update did not change, stays as on the web; the next delta with a time brings it.",
   "scenarios": [
     "first-full-packet",
     "partial-packet",
@@ -28,7 +28,8 @@
       "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received"
     ],
     "notes": [
-      "Audit R107-10 (codex/WEBSOCKET_PARITY_REVIEW_1.0.7.md): a per-packet time never carries over to a new price; the review's coverage table asks AliceBlue for an absent-field sequence.",
+      "A tf leaves out what has not changed: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown.",
+      "The review's coverage table asks AliceBlue for an absent-field sequence.",
       "AliceBlue (Noren) leaves a field it has no value for out of tk and tf."
     ]
   },
@@ -36,9 +37,9 @@
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, and a string (\"1794302700\"); the protocol's WebSocket timestamps are epoch milliseconds (docs/prompt/websockets-format.md). On the tf with a new price and no ft the web sends the earlier packet's time from its snapshot: a per-packet time never carries over to a new price (lead rule, .lane/107/decisions.md and review-fixes.md; audit R107-10). The desktop sends the time in ms, as a number, and for the price without its time the time it made the tick, as for any packet without one.",
-      "ref": "aliceblue_adapter.py:1248-1257 (_update_market_snapshot keeps ft); aliceblue_mapping.py:146",
-      "approval": "market-state-overlay"
+      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, and a string (\"1794302700\"); the protocol's WebSocket timestamps are epoch milliseconds (docs/prompt/websockets-format.md), so the unit is wrong, as for Dhan. The desktop sends the trade time in ms, as a number.",
+      "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146",
+      "approval": "lost-data-kept"
     },
     {
       "key": "average_price",

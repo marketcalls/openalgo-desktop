@@ -5,7 +5,7 @@
 {"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NSE|2885"}}]}
 {"step": "push", "frame": "frames/tk.json", "note": "A snapshot without ap, ltq, tbq, tsq or toi."}
 {"step": "receive", "client": "a", "frame": "expected/quote_sparse.json"}
-{"step": "push", "frame": "frames/tf_untimed.json", "note": "A new price and a buy total, no ft."}
+{"step": "push", "frame": "frames/tf_untimed.json", "note": "A new price and a buy total, no ft: the feed time has not changed."}
 {"step": "receive", "client": "a", "frame": "expected/quote_untimed.json"}
 {"step": "push", "frame": "frames/tf_timed.json", "note": "A price with its time and a trade quantity."}
 {"step": "receive", "client": "a", "frame": "expected/quote_timed.json"}

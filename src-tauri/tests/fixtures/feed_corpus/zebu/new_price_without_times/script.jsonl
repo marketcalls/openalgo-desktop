@@ -7,9 +7,9 @@
 {"step": "push", "frame": "frames/tk.json"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
 {"step": "receive", "client": "b", "frame": "expected/ltp.json"}
-{"step": "push", "frame": "frames/tf_price_only.json", "note": "R107-10: a new price, and neither ft, ltt nor pc."}
+{"step": "push", "frame": "frames/tf_price_only.json", "note": "A new price, and neither ft, ltt nor pc: they have not changed."}
 {"step": "receive", "client": "a", "frame": "expected/quote_new_price.json"}
 {"step": "receive", "client": "b", "frame": "expected/ltp_new_price.json"}
-{"step": "push", "frame": "frames/tf_volume_only.json", "note": "No new price: the price keeps its own trade time (none since the last lp), and no feed time."}
+{"step": "push", "frame": "frames/tf_volume_only.json", "note": "No new price: the cached times and change stay."}
 {"step": "receive", "client": "a", "frame": "expected/quote_volume.json"}
 {"step": "receive", "client": "b", "frame": "expected/ltp_volume.json"}

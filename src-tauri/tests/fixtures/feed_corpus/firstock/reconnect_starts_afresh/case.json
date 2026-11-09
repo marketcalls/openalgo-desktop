@@ -1,0 +1,46 @@
+{
+  "broker": "firstock",
+  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first tick after the reconnect has no trade time, and the frame does not take the last connection's (it falls back to the receipt time).",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/firstock/streaming/firstock_websocket.py::FirstockWebSocket._on_message",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._process_market_data",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._resubscribe_all"
+    ],
+    "notes": [
+      "Partial updates overlay within a connection only: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. The desktop drops its snapshots on a new connection; the web's Firstock adapter keeps its own (declared)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web's Firstock snapshot survives the reconnect, so the first tick of the new connection, which has no i_last_trade_time, goes out with the last connection's trade time: a value from before the outage presented as current (and in epoch seconds where feed timestamps are epoch ms, as in every Firstock case). The desktop starts each connection afresh and falls back to the receipt time.",
+      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0)); market_snapshots kept across a reconnect",
+      "approval": "merge-restart-on-reconnect"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The web's Quote sends oi 0 for an equity whose tick carries no open interest (data.get(\"i_open_interest\", 0)); a value the broker did not send is left out, never sent as 0 (docs/api/websocket-streaming/quote.md, web openalgo#2376). The desktop's Quote leaves it out.",
+      "ref": "firstock_adapter.py:849",
+      "approval": "leave-out-unsent"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "broker": "flattrade",
+  "summary": "After the broker drops the socket, nothing of the last connection carries over: the first packet after the reconnect has a price but no feed time (ft), trade time (ltt) or change (pc), and the frame has no old times and a change worked out from the broker's close.",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._process_market_message",
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._normalize_market_data",
+      "broker/flattrade/streaming/flattrade_adapter.py::MarketDataCache",
+      "broker/flattrade/streaming/flattrade_adapter.py::QuoteNormalizer"
+    ],
+    "notes": [
+      "Partial updates overlay within a connection only: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. The desktop drops its cached snapshots on a new connection; the web's Flattrade adapter keeps its cache (declared)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "last_trade_time",
+      "kind": "web-defect",
+      "reason": "The web's Flattrade adapter keeps its scrip cache across a reconnect (only Shoonya's _resubscribe_all clears it), so the first packet of the new connection, which has no trade time (ltt), goes out with the last connection's: a value from before the outage presented as current. The desktop starts each connection afresh.",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py _resubscribe_all (keeps MarketDataCache; only Shoonya's clears it)",
+      "approval": "merge-restart-on-reconnect"
+    },
+    {
+      "key": "flattrade_timestamp",
+      "kind": "web-defect",
+      "reason": "The web's Flattrade adapter keeps its scrip cache across a reconnect (only Shoonya's _resubscribe_all clears it), so the first packet of the new connection, which has no feed time (ft), goes out with the last connection's: a value from before the outage presented as current. The desktop starts each connection afresh.",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py _resubscribe_all (keeps MarketDataCache; only Shoonya's clears it)",
+      "approval": "merge-restart-on-reconnect"
+    },
+    {
+      "key": "percent_change",
+      "kind": "web-defect",
+      "reason": "The web's Flattrade adapter keeps its scrip cache across a reconnect (only Shoonya's _resubscribe_all clears it), so the first packet of the new connection, which has no change (pc), goes out with the last connection's: a value from before the outage presented as current. The desktop starts each connection afresh.",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py _resubscribe_all (keeps MarketDataCache; only Shoonya's clears it)",
+      "approval": "merge-restart-on-reconnect"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Flattrade Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer",
+      "approval": "lost-data-kept"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Flattrade Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py QuoteNormalizer",
+      "approval": "lost-data-kept"
+    }
+  ]
+}

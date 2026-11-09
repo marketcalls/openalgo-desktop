@@ -65,7 +65,9 @@ broker, symbol, time and the frame text.
   concatenated packets; IIFL Capital's OI after a reconnect.
 - **Shoonya, Flattrade, Zebu, TradeSmart:** the silence watchdog on a real
   quiet session (no false reconnect after hours); whether frames always
-  carry the exchange; real `toi` and `oi` values on an NFO contract.
+  carry the exchange; real `toi` and `oi` values on an NFO contract; on a
+  busy symbol, a new `lp` without `ft` or `ltt` is within about a second of
+  the last time sent.
 - **XTS (CompositEdge, 5paisa XTS, IBulls, IIFL, Jainam, RMoney, Wisdom):**
   which shape a 1501 has; whether Depth 20 carries 20 levels; whether 1510
   and 1505 arrive unasked; whole prices as JSON integers; compressed binary
