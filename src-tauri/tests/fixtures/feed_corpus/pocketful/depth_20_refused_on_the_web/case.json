@@ -26,5 +26,21 @@
     "notes": [
       "The web answers a Depth subscribe at any level but 5 with INVALID_DEPTH, \"Invalid depth level 20. Must be 5\", status partial (pocketful_adapter.py:256-259, websocket_proxy/server.py:1318-1334); the desktop refuses it at admission with the same words (feed/refusals.rs, lane life; PF-02)."
     ]
-  }
+  },
+  "deviations": [
+    {
+      "key": "ltp",
+      "kind": "web-defect",
+      "reason": "A snapquote carries no trade price (packet_decoder.py:83-137, averageTradePrice at 126); the web publishes its average trade price as ltp (pocketful_adapter.py:676), so a client reads the day's average as the last trade. The desktop sends the average as average_price and ltp from a real trade only: the last one known, or 0 before the instrument's first (the 1.0.6 rule for a book before any price). R107-07.",
+      "ref": "pocketful_adapter.py:676; packet_decoder.py:129; R107-07",
+      "approval": "pocketful-average-not-ltp"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "A snapquote carries no trade price (packet_decoder.py:83-137, averageTradePrice at 126); the web publishes its average trade price as ltp (pocketful_adapter.py:676), so a client reads the day's average as the last trade. The desktop sends the average as average_price and ltp from a real trade only: the last one known, or 0 before the instrument's first (the 1.0.6 rule for a book before any price). R107-07.",
+      "ref": "pocketful_adapter.py:674-686; R107-07",
+      "approval": "pocketful-average-not-ltp"
+    }
+  ]
 }

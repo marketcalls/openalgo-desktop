@@ -37,42 +37,42 @@
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "arrow_adapter.py:214-225",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "arrow_adapter.py:214-225",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "arrow_adapter.py:214-225",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "arrow_adapter.py:214-225",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "arrow_adapter.py:214-225",
-      "approved": true
+      "approval": "leave-out-unsent"
     },
     {
       "key": "open_interest",
       "kind": "web-defect",
       "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Arrow's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "arrow_adapter.py:214-225",
-      "approved": true
+      "approval": "leave-out-unsent"
     }
   ]
 }

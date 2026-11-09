@@ -44,7 +44,7 @@
       "kind": "web-defect",
       "reason": "When the Depth holder leaves, the web proxy asks the Arrow adapter to unsubscribe mode 3 only, and the adapter unsubscribes the whole token from Arrow (arrow_websocket.py:344-365) and forgets it (arrow_adapter.py:167): the Quote holder still subscribed on the web receives nothing more. The desktop moves Arrow back to quote and keeps streaming to it.",
       "ref": "arrow_adapter.py:157-171; arrow_websocket.py:344-365; websocket_proxy/server.py::_unsubscribe_owned_subscription",
-      "approved": true
+      "approval": "never-copy-web-defect"
     }
   ]
 }

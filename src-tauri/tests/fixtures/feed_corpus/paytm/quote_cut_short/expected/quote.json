@@ -1,0 +1,28 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "paytm",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": 2,
+    "ltp": 1500.05,
+    "ltt": 1791000300000,
+    "timestamp": "<receipt_ms>",
+    "volume": 3456789,
+    "average_price": 1498.75,
+    "total_buy_quantity": 120000,
+    "total_sell_quantity": 98000,
+    "open": 1492.5,
+    "high": 1510.2,
+    "low": 1485.1,
+    "close": 1488.3,
+    "change_absolute": 11.75,
+    "change_percent": 0.79,
+    "last_trade_quantity": 25,
+    "52_week_high": 1608.95,
+    "52_week_low": 1201.5
+  }
+}

@@ -538,7 +538,10 @@ async fn pocketful_quotes_and_depth_over_the_socket() {
         (812.0, 100, 3)
     );
     assert_eq!(d.asks[4].price, 812.3);
-    assert_eq!(d.ltp, 811.5);
+    // The snapquote's 811.5 is its average trade price, not a trade: the
+    // depth's price is the detailed packet's, streamed beside the book
+    // (lead decision 2026-11-09, review round; the web answers 811.5).
+    assert_eq!(d.ltp, 812.25);
     assert_eq!(d.volume, 4242);
     assert!(
         saw_frame(

@@ -286,6 +286,12 @@
       "date": "2026-11-09",
       "source": "lead's message to bk-b, 2026-11-09 (HDFC questions)",
       "rule": "(a) Approved: index ltt left out where the web uses the packet or receipt time as a trade time (no trade on an index; the 1.0.6 rule \"no receipt time passed off as a trade time\"; only a golden fixture outranks it, as with Zerodha's 44-byte quote)."
+    },
+    "iifl-capital-index-change": {
+      "by": "lead",
+      "date": "2026-11-09",
+      "source": "lead message to bk-d",
+      "rule": "Send the docs' keys `change` / `change_percent` on the IIFL index Quote, computed from the packet's own close, and no canonical price_change* (wire's key rule switches those off per broker)."
     }
   }
 }

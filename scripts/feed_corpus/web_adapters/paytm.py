@@ -56,4 +56,10 @@ class Paytm(Glue):
 
     def push(self, socket, frame):
         if isinstance(frame, bytes):
-            self.ad._on_data(None, self.ws._parse_binary_data(frame))
+            # `_on_message` (paytm_websocket.py:101-108): a packet the parser
+            # cannot read (cut short) is logged and dropped.
+            try:
+                parsed = self.ws._parse_binary_data(frame)
+            except Exception:
+                return
+            self.ad._on_data(None, parsed)

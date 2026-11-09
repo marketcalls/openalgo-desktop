@@ -1,0 +1,29 @@
+{
+  "broker": "rupeezy",
+  "summary": "A Quote subscription: of a frame holding an ohlcv packet, a packet of no known size and an ohlcv cut short, only the whole one becomes a frame; a frame whose count says more packets than it carries gives the ones it has.",
+  "scenarios": [
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rupeezy/streaming/rupeezy_websocket.py::split_message",
+      "broker/rupeezy/streaming/rupeezy_websocket.py::parse_packet",
+      "broker/rupeezy/streaming/rupeezy_adapter.py::RupeezyWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "split_message (rupeezy_websocket.py:131-145) cuts packets by their length prefix and stops when the frame ends; parse_packet (:58-121) returns None for a size that is no layout's."
+    ]
+  }
+}

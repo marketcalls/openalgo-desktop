@@ -600,10 +600,15 @@ fn decodes_snapquote_packet() {
     assert_eq!(s.total_buy_qty, 111_111);
     assert_eq!(s.total_sell_qty, 222_222);
     assert_eq!(s.volume, 3_333_333);
-    let depth = to_depth(&QuoteKey::new("NSE", "SBIN"), &s);
-    assert_eq!(depth.ltp, 811.5);
+    // No trade price in a snapquote: never its average (811.5).
+    let depth = to_depth(&QuoteKey::new("NSE", "SBIN"), &s, None);
+    assert_eq!(depth.ltp, 0.0);
     assert_eq!(depth.prev_close, 805.0);
     assert_eq!((depth.ltq, depth.oi), (0, 0));
+    let d = decode_detailed(&detailed_packet(1, 3045, 81_225)).unwrap();
+    let depth = to_depth(&QuoteKey::new("NSE", "SBIN"), &s, Some(&d));
+    assert_eq!((depth.ltp, depth.ltq), (812.25, 25));
+    assert_eq!(depth.volume, 3_333_333, "the book's own");
     assert_eq!(depth.bids.len(), 5);
     assert!(decode_snapquote(&[4u8; 165]).is_none());
 }
@@ -695,6 +700,7 @@ fn feed_frames_and_heartbeat() {
         vec![
             json!({"a":"subscribe","v":[[1,3045]],"m":"compact_marketdata"}),
             json!({"a":"subscribe","v":[[1,26000]],"m":"marketdata"}),
+            json!({"a":"subscribe","v":[[2,41918]],"m":"marketdata"}),
             json!({"a":"subscribe","v":[[2,41918]],"m":"full_snapquote"}),
         ]
     );
@@ -718,6 +724,7 @@ fn feed_frames_and_heartbeat() {
         texts,
         vec![
             json!({"a":"subscribe","v":[[1,11],[1,12]],"m":"compact_marketdata"}),
+            json!({"a":"subscribe","v":[[1,13]],"m":"marketdata"}),
             json!({"a":"subscribe","v":[[1,13]],"m":"full_snapquote"}),
             json!({"a":"subscribe","v":[[2,14]],"m":"compact_marketdata"}),
         ]
@@ -758,7 +765,7 @@ fn feed_ticks_and_depth_use_subscription_names() {
     let ev = f.parse(&Message::Binary(snapquote_packet(1, 3045)));
     match &ev[..] {
         [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
-            assert_eq!(t.ltp, 811.5);
+            assert_eq!((t.ltp, t.average_price), (0.0, 811.5), "R107-07");
             assert_eq!(t.mode, 3);
             assert_eq!(d.symbol, "SBIN");
             assert_eq!(d.buy[0].price, 812.0);
@@ -1007,4 +1014,155 @@ async fn data_calls_never_queue_ahead_of_an_order() {
         .await
         .unwrap_err();
     assert_eq!(e.client_message(), BUSY_MESSAGE);
+}
+
+/// R107-07: a snapquote has no trade price (`packet_decoder.py:83-137`).
+/// Its average trade price goes out as the average, never as `ltp`: the
+/// tick does not know a price (so it only updates the snapshot) and the
+/// book brings none, so a Depth frame shows the last real trade price.
+#[test]
+fn a_snapquote_average_is_not_a_trade_price() {
+    use crate::brokers::common::streaming::QuoteField;
+    let mut f = PocketfulFeed::new("wss://x", "c", "t", master());
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", "NSE", FeedMode::Depth)]);
+    let ev = f.parse(&Message::Binary(snapquote_packet(1, 3045)));
+    match &ev[..] {
+        [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
+            assert_eq!(t.mode, 3, "the packet's own mode");
+            assert!(!t.knows(QuoteField::Ltp), "no trade price: {:?}", t);
+            assert_eq!(t.ltp, 0.0);
+            assert!(t.knows(QuoteField::AveragePrice));
+            assert_eq!(t.average_price, 811.5);
+            assert_eq!((t.open, t.close, t.volume), (800.0, 805.0, 3_333_333));
+            assert!(d.absent.contains(QuoteField::Ltp), "{:?}", d);
+            assert_eq!(d.ltp, 0.0);
+            assert_eq!(d.buy[0].price, 812.0);
+        }
+        other => panic!("{:?}", other),
+    }
+}
+
+/// R107-07, lead decision 2026-11-09: a Depth subscription also runs the
+/// detailed stream, whose packets carry the trade price a snapquote lacks;
+/// both go when Depth goes.
+#[test]
+fn a_depth_subscription_streams_the_trade_price_beside_the_book() {
+    let mut f = PocketfulFeed::new("wss://x", "c", "t", master());
+    let texts = |frames: Vec<Message>| -> Vec<Value> {
+        frames
+            .iter()
+            .map(|m| match m {
+                Message::Text(t) => json(t),
+                other => panic!("{:?}", other),
+            })
+            .collect()
+    };
+    let frames = f.subscribe_frames(&[
+        sub("SBIN", "NSE", "3045", "NSE", FeedMode::Depth),
+        sub("INFY", "NSE", "1594", "NSE", FeedMode::Quote),
+    ]);
+    assert_eq!(
+        texts(frames),
+        vec![
+            json!({"a":"subscribe","v":[[1,3045],[1,1594]],"m":"marketdata"}),
+            json!({"a":"subscribe","v":[[1,3045]],"m":"full_snapquote"}),
+        ]
+    );
+    let un = f.unsubscribe_frames(&[sub("SBIN", "NSE", "3045", "NSE", FeedMode::Depth)]);
+    assert_eq!(
+        texts(un),
+        vec![
+            json!({"a":"unsubscribe","v":[[1,3045]],"m":"marketdata"}),
+            json!({"a":"unsubscribe","v":[[1,3045]],"m":"full_snapquote"}),
+        ]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// REST depth: the book and the trade price beside it
+// ---------------------------------------------------------------------------
+
+/// The market data socket of one depth request: it takes the two
+/// subscribes, sends `packets` `gap` apart, and stays open until the client
+/// closes it, since a socket that ended would end the client's wait too.
+async fn depth_socket(packets: Vec<Vec<u8>>, gap: Duration) -> String {
+    use futures_util::{SinkExt, StreamExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+        let mut subscribes = 0;
+        while subscribes < 2 {
+            match ws.next().await {
+                Some(Ok(Message::Text(t))) if t.contains("\"subscribe\"") => subscribes += 1,
+                Some(Ok(_)) => {}
+                _ => return,
+            }
+        }
+        for (i, packet) in packets.into_iter().enumerate() {
+            if i > 0 {
+                tokio::time::sleep(gap).await;
+            }
+            let _ = ws.send(Message::Binary(packet)).await;
+        }
+        while let Some(Ok(_)) = ws.next().await {}
+    });
+    format!("ws://{}", addr)
+}
+
+fn depth_broker(ws: &str) -> PocketfulBroker {
+    PocketfulBroker::with_base_url(master(), "http://127.0.0.1:1", ws, "http://127.0.0.1:1")
+}
+
+fn depth_session() -> AuthToken {
+    AuthToken::new("t").with_user_id("c")
+}
+
+/// A book with no detailed packet behind it (a quiet contract) must not
+/// hold a depth panel for the whole 15 s: the web answers on the snapquote
+/// alone. It waits 2 s for the trade price and answers with what it has,
+/// ltp 0, never the snapquote's average (lead decision, review round).
+#[tokio::test]
+async fn a_book_with_no_trade_price_does_not_hold_the_depth_answer() {
+    let ws = depth_socket(vec![snapquote_packet(1, 3045)], Duration::ZERO).await;
+    let b = depth_broker(&ws);
+    let started = std::time::Instant::now();
+    let d = super::data::get_market_depth(&b, &depth_session(), &QuoteKey::new("NSE", "SBIN"))
+        .await
+        .unwrap();
+    let took = started.elapsed();
+    assert_eq!((d.ltp, d.ltq), (0.0, 0), "no trade price known");
+    assert_eq!(d.bids[0].price, 812.0, "the book it has");
+    assert!(took >= Duration::from_millis(1900), "waited: {:?}", took);
+    assert!(took < Duration::from_secs(10), "held for {:?}", took);
+}
+
+/// Both packets in, in either order: the answer goes at once with the
+/// detailed packet's price. The allowance here is longer than the whole
+/// wait, so any extra wait would show as the full 15 s.
+#[tokio::test]
+async fn a_depth_answers_as_soon_as_both_packets_are_in() {
+    let trade = || detailed_packet(1, 3045, 81_225);
+    let book = || snapquote_packet(1, 3045);
+    for (order, packets) in [
+        ("price first", vec![trade(), book()]),
+        ("book first", vec![book(), trade()]),
+    ] {
+        let ws = depth_socket(packets, Duration::from_millis(50)).await;
+        let b = depth_broker(&ws);
+        let started = std::time::Instant::now();
+        let d = super::data::depth_within(
+            &b,
+            &depth_session(),
+            &QuoteKey::new("NSE", "SBIN"),
+            Duration::from_secs(60),
+        )
+        .await
+        .unwrap();
+        let took = started.elapsed();
+        assert_eq!((d.ltp, d.ltq), (812.25, 25), "{}", order);
+        assert_eq!(d.bids[0].price, 812.0, "{}", order);
+        assert!(took < Duration::from_secs(10), "{}: {:?}", order, took);
+    }
 }

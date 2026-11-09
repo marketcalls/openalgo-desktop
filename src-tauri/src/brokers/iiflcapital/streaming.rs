@@ -379,6 +379,11 @@ pub fn ticks(sub: &FeedSubscription, p: &MarketPacket, oi: Option<i64>) -> Vec<F
         timestamp_ms: now,
         ..Default::default()
     };
+    // A trade time of 0 is no trade yet: no `ltt`, never the receipt time
+    // (the web sends 0; lead decision 2026-11-09, review round).
+    if p.ltt <= 0 {
+        t.mark_absent(QuoteField::LastTradeTime);
+    }
     if sub.mode != FeedMode::Ltp {
         t.open = p.open;
         t.high = p.high;

@@ -2,8 +2,9 @@
 //!
 //! Pocketful has no REST quote endpoint. Like the web, a request opens the
 //! market-data socket, subscribes the instruments (detailed market data for
-//! quotes, `full_snapquote` for depth), takes the first packet per
-//! instrument, unsubscribes and closes. Every step is bounded: connect
+//! quotes; for depth `full_snapquote` and, unlike the web, the detailed
+//! data beside it for the trade price a snapquote lacks), takes the first
+//! packet per instrument and type, unsubscribes and closes. Every step is bounded: connect
 //! within `CONNECT_TIMEOUT`, collect for at most the web's wait (10 s quote,
 //! 15 s depth, 3-15 s for a batch), and the socket is closed on every exit
 //! path (dropped if the close itself stalls). Multiquotes go in batches of
@@ -29,6 +30,11 @@ pub const MULTIQUOTE_BATCH: usize = 50;
 /// web `_QUOTE_WAIT_SECONDS` / `_DEPTH_WAIT_SECONDS`.
 pub const QUOTE_WAIT: Duration = Duration::from_secs(10);
 pub const DEPTH_WAIT: Duration = Duration::from_secs(15);
+/// How long a depth answer may still wait for the trade price once its
+/// book is in. The web answers on the snapquote alone, so a quiet contract
+/// that sends no detailed packet must not hold a depth panel for all of
+/// `DEPTH_WAIT` (lead decision 2026-11-09).
+const TRADE_AFTER_BOOK: Duration = Duration::from_secs(2);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const SEND_TIMEOUT: Duration = Duration::from_secs(5);
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -64,10 +70,34 @@ pub(crate) async fn snapshot(
     mode: u8,
     wait: Duration,
 ) -> Result<HashMap<u32, Packet>> {
+    let got = packets(b, auth, instruments, &[mode], wait, None).await?;
+    Ok(got.into_iter().map(|((tok, _), p)| (tok, p)).collect())
+}
+
+/// The Pocketful type a packet is of, for the snapshot's own types.
+fn packet_mode(p: &Packet) -> Option<u8> {
+    match p {
+        Packet::Detailed(_) => Some(MODE_DETAILED),
+        Packet::Snapquote(_) => Some(MODE_SNAPQUOTE),
+        _ => None,
+    }
+}
+
+/// `snapshot` for several Pocketful types at once: the first packet per
+/// token and type, keyed by both. With `after_book`, a snapquote cuts what
+/// is left of `wait` to that long.
+async fn packets(
+    b: &PocketfulBroker,
+    auth: &AuthToken,
+    instruments: &[(u8, u32)],
+    modes: &[u8],
+    wait: Duration,
+    after_book: Option<Duration>,
+) -> Result<HashMap<(u32, u8), Packet>> {
     let client_id = b.client_id(auth).await?;
     let token = PocketfulBroker::token(auth)?;
     let url = feed_url(&b.urls.ws, &client_id, token);
-    let mut got: HashMap<u32, Packet> = HashMap::new();
+    let mut got: HashMap<(u32, u8), Packet> = HashMap::new();
     if instruments.is_empty() {
         return Ok(got);
     }
@@ -92,16 +122,18 @@ pub(crate) async fn snapshot(
         }
     };
     let wanted: std::collections::HashSet<u32> = instruments.iter().map(|(_, t)| *t).collect();
-    let deadline = Instant::now() + wait;
+    let mut deadline = Instant::now() + wait;
     let outcome: Result<()> = async {
-        for (code, tok) in instruments {
-            send(&mut ws, sub_frame("subscribe", *code, *tok, mode)).await?;
+        for &mode in modes {
+            for (code, tok) in instruments {
+                send(&mut ws, sub_frame("subscribe", *code, *tok, mode)).await?;
+            }
         }
-        if mode == MODE_SNAPQUOTE {
+        if modes.contains(&MODE_SNAPQUOTE) {
             // web `_get_market_depth_websocket` sends a heartbeat first.
             send(&mut ws, heartbeat_frame()).await?;
         }
-        while got.len() < wanted.len() {
+        while got.len() < wanted.len() * modes.len() {
             let next = tokio::time::timeout_at(deadline, ws.next()).await;
             let msg = match next {
                 Err(_) => break, // wait is over
@@ -120,20 +152,22 @@ pub(crate) async fn snapshot(
                 continue;
             }
             if let Some(p) = decode_frame(&msg) {
-                let matches_mode = matches!(
-                    (&p, mode),
-                    (Packet::Detailed(_), MODE_DETAILED) | (Packet::Snapquote(_), MODE_SNAPQUOTE)
-                );
-                if let Some((_, tok)) = p.token() {
-                    if matches_mode && wanted.contains(&tok) {
-                        got.entry(tok).or_insert(p);
+                let mode = packet_mode(&p).filter(|m| modes.contains(m));
+                if let (Some(mode), Some((_, tok))) = (mode, p.token()) {
+                    if wanted.contains(&tok) {
+                        got.entry((tok, mode)).or_insert(p);
+                        if let Some(rest) = after_book.filter(|_| mode == MODE_SNAPQUOTE) {
+                            deadline = deadline.min(Instant::now() + rest);
+                        }
                     }
                 }
             }
         }
         // Release the instruments before closing (web `finally` unsubscribe).
-        for (code, tok) in instruments {
-            send(&mut ws, sub_frame("unsubscribe", *code, *tok, mode)).await?;
+        for &mode in modes {
+            for (code, tok) in instruments {
+                send(&mut ws, sub_frame("unsubscribe", *code, *tok, mode)).await?;
+            }
         }
         Ok(())
     }
@@ -199,8 +233,11 @@ pub fn to_quote(key: &QuoteKey, d: &Detailed) -> Quote {
 }
 
 /// web `_get_market_depth_websocket` from a snapquote packet: five levels
-/// a side, `ltp` is the average trade price, no LTQ or OI.
-pub fn to_depth(key: &QuoteKey, s: &Snapquote) -> MarketDepth {
+/// a side, in the web's shape. A snapquote has no trade price: `ltp`, the
+/// last quantity and OI come from the detailed packet streamed beside it,
+/// 0 without one, never the snapquote's average trade price, which the
+/// web passes off as `ltp` (lead decision 2026-11-09, review round).
+pub fn to_depth(key: &QuoteKey, s: &Snapquote, trade: Option<&Detailed>) -> MarketDepth {
     let pad = |side: &[DepthLevel]| -> Vec<DepthLevel> {
         (0..5)
             .map(|i| side.get(i).copied().unwrap_or_default())
@@ -211,14 +248,14 @@ pub fn to_depth(key: &QuoteKey, s: &Snapquote) -> MarketDepth {
         exchange: key.exchange.clone(),
         bids: pad(&s.bids),
         asks: pad(&s.asks),
-        ltp: s.average_price,
-        ltq: 0,
+        ltp: trade.map_or(0.0, |d| d.ltp),
+        ltq: trade.map_or(0, |d| d.ltq),
         open: s.open,
         high: s.high,
         low: s.low,
         prev_close: s.close,
         volume: s.volume,
-        oi: 0,
+        oi: trade.map_or(0, |d| d.oi),
         total_buy_qty: s.total_buy_qty,
         total_sell_qty: s.total_sell_qty,
     }
@@ -249,11 +286,27 @@ pub async fn get_market_depth(
     auth: &AuthToken,
     key: &QuoteKey,
 ) -> Result<MarketDepth> {
+    depth_within(b, auth, key, TRADE_AFTER_BOOK).await
+}
+
+/// `get_market_depth`, the trade price allowed `after_book` once the book
+/// is in.
+pub(super) async fn depth_within(
+    b: &PocketfulBroker,
+    auth: &AuthToken,
+    key: &QuoteKey,
+    after_book: Duration,
+) -> Result<MarketDepth> {
     let inst = resolve_instrument(b, key)?;
-    let mode = pocketful_mode(FeedMode::Depth);
-    let mut got = snapshot(b, auth, &[inst], mode, DEPTH_WAIT).await?;
-    match got.remove(&inst.1) {
-        Some(Packet::Snapquote(s)) => Ok(to_depth(key, &s)),
+    let book = pocketful_mode(FeedMode::Depth);
+    let modes = [MODE_DETAILED, book];
+    let mut got = packets(b, auth, &[inst], &modes, DEPTH_WAIT, Some(after_book)).await?;
+    let trade = match got.remove(&(inst.1, MODE_DETAILED)) {
+        Some(Packet::Detailed(d)) => Some(d),
+        _ => None,
+    };
+    match got.remove(&(inst.1, book)) {
+        Some(Packet::Snapquote(s)) => Ok(to_depth(key, &s, trade.as_ref())),
         _ => Err(no_data("market depth", key)),
     }
 }

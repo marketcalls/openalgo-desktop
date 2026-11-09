@@ -1,16 +1,30 @@
 //! Arrow: the market data socket (`ArrowFeed`) and the order-update socket
-//! (`ArrowOrderFeed`), both authenticated by the query (`appID`, `token`).
+//! (`ArrowOrderFeed`), both authenticated by the query (`appID`, `token`),
+//! as `ArrowBroker::create_feed` and `create_order_feed` build them for a
+//! session (`appID:token`).
 
 use super::harness::{corpus_cases, Env, Feeds};
-use openalgo_desktop_lib::brokers::arrow::streaming::{ArrowFeed, ArrowOrderFeed};
+use openalgo_desktop_lib::brokers::arrow::{ArrowBroker, ArrowUrls};
+use openalgo_desktop_lib::brokers::types::AuthToken;
+use openalgo_desktop_lib::brokers::Broker;
+use std::sync::Arc;
 
 fn feeds(env: &Env) -> Feeds {
-    Feeds::market(ArrowFeed::new(&env.url("main"), "app", "jwt")).with_orders(ArrowOrderFeed::new(
-        &env.url("orders"),
-        "app",
-        "jwt",
+    let broker = Arc::new(ArrowBroker::with_base_url(
         env.symbols(),
-    ))
+        ArrowUrls {
+            rest: env.http_url(),
+            history: env.http_url(),
+            ws_market: env.url("main"),
+            ws_orders: env.url("orders"),
+        },
+    ));
+    let auth = AuthToken::new("app:jwt");
+    let feed = broker.create_feed(&auth).expect("Arrow's market feed");
+    let orders = broker.create_order_feed(&auth).expect("Arrow's order feed");
+    Feeds::boxed(feed)
+        .with_order_feed(orders)
+        .with_broker(broker, &auth)
 }
 
 corpus_cases!(

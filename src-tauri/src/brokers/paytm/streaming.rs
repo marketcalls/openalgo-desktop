@@ -238,7 +238,9 @@ fn code_mode(code: u8) -> u8 {
 /// broker's change, an LTP packet's included; QUOTE and FULL their 52-week
 /// range, FULL its OI change. The index packets carry no trades, average
 /// price or book totals (and INDEX_QUOTE no time, INDEX_FULL no OI), which
-/// the web fills with 0 and a frame here leaves out.
+/// the web fills with 0 and a frame here leaves out. A trade time of 0 is
+/// no trade yet: no `ltt`, never the receipt time (the web sends 0; lead
+/// decision 2026-11-09, review round).
 fn mark_packet(code: u8, p: &[u8], t: &mut NormalizedTick) {
     use QuoteField as F;
     const NO_TRADES: [QuoteField; 5] = [
@@ -270,6 +272,9 @@ fn mark_packet(code: u8, p: &[u8], t: &mut NormalizedTick) {
             t.mark_absent(F::OpenInterest);
         }
         _ => {}
+    }
+    if t.last_trade_time_ms <= 0 {
+        t.mark_absent(F::LastTradeTime);
     }
 }
 
