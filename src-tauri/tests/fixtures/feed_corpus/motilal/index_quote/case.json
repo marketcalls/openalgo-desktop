@@ -71,18 +71,6 @@
       "kind": "web-defect",
       "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
       "ref": "motilal_adapter.py _normalize_quote_data"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "Once the previous close is known the desktop works out an index's change for every broker (feed/bridge/snapshot.rs), and Motilal's web adapter sends none, so it is to be left out; open until lane wire's per-broker rule for the change keys is in base (lead 2026-11-09). Motilal sends no change, and its tick marks none.",
-      "ref": "feed/bridge/snapshot.rs merge; motilal_adapter.py _normalize_quote_data"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "Once the previous close is known the desktop works out an index's change for every broker (feed/bridge/snapshot.rs), and Motilal's web adapter sends none, so it is to be left out; open until lane wire's per-broker rule for the change keys is in base (lead 2026-11-09). Motilal sends no change, and its tick marks none.",
-      "ref": "feed/bridge/snapshot.rs merge; motilal_adapter.py _normalize_quote_data"
     }
   ]
 }

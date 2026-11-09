@@ -34,12 +34,6 @@
   },
   "deviations": [
     {
-      "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends the canonical last_quantity in every broker's Quote frames, with Motilal's own name ltq beside it carrying the same value (feed/dialect/names.rs: one canonical set and each web name beside it); Motilal's web Quote dict sends ltq only.",
-      "ref": "feed/dialect/names.rs MOTILAL; motilal_adapter.py _normalize_quote_data"
-    },
-    {
       "key": "oi",
       "kind": "web-defect",
       "reason": "Motilal's last-trade packet and its m packet carry this future's open interest; the web's Quote dict drops it from every Quote frame (motilal_adapter.py _normalize_quote_data has no oi): lost data (audit C05). The desktop's Quote frame keeps it, as oi, the name the web's Depth dict uses.",

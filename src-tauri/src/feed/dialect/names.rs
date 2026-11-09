@@ -654,7 +654,11 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "tradesmart" => d(Number, TRADESMART).no_ltt(),
         "groww" => d(Number, GROWW).floats(&["volume"]),
         "indmoney" => d(Number, INDMONEY).richer(),
-        "motilal" => d(Number, MOTILAL).no_ltt(),
+        // motilal_adapter.py: the last quantity as `ltq` only, no change.
+        "motilal" => d(Number, MOTILAL)
+            .no_ltt()
+            .no_index_change()
+            .instrument_key(Key::LastQuantity, Modes::NEVER),
         // mstock_adapter.py:340-433: no change on any instrument.
         "mstock" => d(Number, MSTOCK).richer().no_index_change(),
         "paytm" => d(Number, PAYTM)

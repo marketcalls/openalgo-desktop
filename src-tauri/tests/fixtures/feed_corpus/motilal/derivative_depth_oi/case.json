@@ -41,21 +41,15 @@
       "ref": "motilal_adapter.py _normalize_depth_data"
     },
     {
-      "key": "last_quantity",
-      "kind": "web-defect",
-      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, under last_quantity and Motilal's ltq (lead decision 2026-11-09: market data the broker sent is kept).",
-      "ref": "motilal_adapter.py _normalize_depth_data"
-    },
-    {
       "key": "ltq",
       "kind": "web-defect",
-      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, under last_quantity and Motilal's ltq (lead decision 2026-11-09: market data the broker sent is kept).",
+      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
       "ref": "motilal_adapter.py _normalize_depth_data"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
-      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, under last_quantity and Motilal's ltq (lead decision 2026-11-09: market data the broker sent is kept).",
+      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
       "ref": "motilal_adapter.py _normalize_depth_data"
     },
     {

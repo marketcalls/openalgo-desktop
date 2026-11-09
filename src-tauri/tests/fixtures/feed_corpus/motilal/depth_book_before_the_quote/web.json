@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "d44ac7590b7ab0240f4330b008fb41629d8f26d7c61d760f642b9dd17bc5b0c5",
+  "inputs_sha256": "80693597e660822a6bc3ee81b83e741ab6de5fc28c2a0054b467a7bb5a17b3a8",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -121,7 +121,7 @@
       ]
     },
     {
-      "line": 12,
+      "line": 13,
       "published": [
         {
           "kind": "market",
@@ -204,7 +204,7 @@
       ]
     },
     {
-      "line": 13,
+      "line": 15,
       "published": [
         {
           "kind": "market",
@@ -287,7 +287,7 @@
       ]
     },
     {
-      "line": 15,
+      "line": 17,
       "published": [
         {
           "kind": "market",

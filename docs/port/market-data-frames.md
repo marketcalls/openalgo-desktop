@@ -178,7 +178,7 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 | iiflcapital | Q `bid`, `ask`, `bid_quantity`, `ask_quantity` | label | best bid and ask |
 | indmoney | Q `bid_price`, `bid_qty`, `ask_price`, `ask_qty`, `oi_change`, `oi`; no Depth on the web | number | best bid and ask, OI change, `carried(OpenInterest)` |
 | kotak | L `last_trade_time`; Q `percent_change`; D `totalbuyqty`, `totalsellqty` | none | nothing new |
-| motilal | L `volume`; Q `ltq`; D circuits | number | `carried(Volume)` on LTP, circuits |
+| motilal | L `volume`; Q `ltq` (no `last_quantity`); D circuits; no `ltt`, no change on an index | number | the scrip's quote so far at Quote level (each field group absent until its packet), OI from m (or A for a derivative), circuits from W |
 | mstock | L `last_trade_time`, `exchange_timestamp`; Q `prev_close`, `last_trade_quantity`; D circuits; no change on an index | number | `extras.exchange_time_ms`, circuits (audit RB: true trade time) |
 | nubra | Q `prev_close`, `bid`, `ask` | label | best bid and ask |
 | paytm | L `close`, `change_absolute`, `change_percent`; Q `last_trade_quantity`, `52_week_high`, `52_week_low`; D `oi_change` | number | 52-week range, OI change |
