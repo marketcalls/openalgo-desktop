@@ -32,25 +32,29 @@
       "key": "open",
       "kind": "web-defect",
       "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
-      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick"
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
-      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick"
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
-      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick"
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
-      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick"
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick",
+      "approved": true
     }
   ]
 }

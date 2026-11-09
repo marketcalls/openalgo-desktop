@@ -38,37 +38,43 @@
       "key": "depth",
       "kind": "web-defect",
       "reason": "Motilal has sent book level 1 only; the web pads the four levels that never arrived with integer zeros ({\"price\": 0, \"quantity\": 0, \"orders\": 0}, _normalize_depth_data), invented levels; the desktop sends the level received (lead decision 2026-11-09: no invented level).",
-      "ref": "motilal_adapter.py _normalize_depth_data"
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
     },
     {
       "key": "ltq",
       "kind": "web-defect",
       "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
-      "ref": "motilal_adapter.py _normalize_depth_data"
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, the last quantity under Motilal's own name ltq (lead decision 2026-11-09: market data the broker sent is kept).",
-      "ref": "motilal_adapter.py _normalize_depth_data"
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
     },
     {
       "key": "upper_circuit",
       "kind": "web-defect",
       "reason": "No circuit packet (W) has arrived: the web sends the limit as 0 (quote.get('upper_circuit', 0)), an invented price band; the desktop sends a circuit limit only once Motilal has sent it.",
-      "ref": "motilal_adapter.py _normalize_depth_data"
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
     },
     {
       "key": "lower_circuit",
       "kind": "web-defect",
       "reason": "No circuit packet (W) has arrived: the web sends the limit as 0 (quote.get('upper_circuit', 0)), an invented price band; the desktop sends a circuit limit only once Motilal has sent it.",
-      "ref": "motilal_adapter.py _normalize_depth_data"
+      "ref": "motilal_adapter.py _normalize_depth_data",
+      "approved": true
     },
     {
       "key": "missing-frame",
       "kind": "web-defect",
       "reason": "Before any trade the web's poll publishes Depth as soon as the scrip has any quote packet (circuit limits, day OHLC) and a book level, with ltp 0 (motilal_adapter.py _poll_market_data gates on the quote dict, _normalize_depth_data quote.get('ltp', 0)), a price nothing traded at; the desktop sends the book once Motilal's first trade arrives (audit RB-09).",
-      "ref": "motilal_adapter.py _poll_market_data, _normalize_depth_data"
+      "ref": "motilal_adapter.py _poll_market_data, _normalize_depth_data",
+      "approved": true
     }
   ]
 }
