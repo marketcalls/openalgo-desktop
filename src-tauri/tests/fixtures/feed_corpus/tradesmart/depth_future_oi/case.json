@@ -42,18 +42,6 @@
       "kind": "web-defect",
       "reason": "The web's TradeSmart adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
       "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers (last_trade_time = data.get(ltt))"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The web's TradeSmart adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The web's TradeSmart adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
     }
   ]
 }

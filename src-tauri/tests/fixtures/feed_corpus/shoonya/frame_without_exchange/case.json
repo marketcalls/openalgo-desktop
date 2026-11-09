@@ -48,18 +48,6 @@
       "ref": "broker/shoonya/streaming/shoonya_adapter.py normalisers (last_trade_time = data.get(ltt))"
     },
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/shoonya/streaming/shoonya_adapter.py normalisers"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/shoonya/streaming/shoonya_adapter.py normalisers"
-    },
-    {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Shoonya Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",

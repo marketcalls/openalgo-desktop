@@ -49,18 +49,6 @@
       "kind": "web-defect",
       "reason": "Noren's toi is the total open interest (Shoonya's adapter names it open_interest); the web's Flattrade adapter sends it only as total_traded_value, a turnover name, so a client reading oi loses it. The desktop sends total_traded_value as the web does and keeps oi (lead ruling 2026-11-09).",
       "ref": "broker/flattrade/streaming/flattrade_adapter.py DepthNormalizer (total_traded_value = toi); audit FB-07"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The web's Flattrade adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/flattrade/streaming/flattrade_adapter.py normalisers"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The web's Flattrade adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/flattrade/streaming/flattrade_adapter.py normalisers"
     }
   ]
 }

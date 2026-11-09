@@ -54,18 +54,6 @@
       "ref": "broker/shoonya/streaming/shoonya_adapter.py normalisers (last_trade_time = data.get(ltt))"
     },
     {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/shoonya/streaming/shoonya_adapter.py normalisers"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/shoonya/streaming/shoonya_adapter.py normalisers"
-    },
-    {
       "key": "volume",
       "kind": "web-defect",
       "reason": "Noren's index touchline carries no volume; the web's Shoonya adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",

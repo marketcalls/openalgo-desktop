@@ -43,24 +43,6 @@
       "kind": "web-defect",
       "reason": "The web's Shoonya adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
       "ref": "broker/shoonya/streaming/shoonya_adapter.py normalisers (last_trade_time = data.get(ltt))"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter names OI open_interest only, in Depth; the desktop sends it as open_interest and also as the canonical oi. Lead ruling 2026-11-09: Shoonya Depth renders open_interest only, by lane wire's per-broker key rule (pending).",
-      "ref": "shoonya_adapter.py DepthNormalizer; feed/protocol/market.rs canonical"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/shoonya/streaming/shoonya_adapter.py normalisers"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
-      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/shoonya/streaming/shoonya_adapter.py normalisers"
     }
   ]
 }

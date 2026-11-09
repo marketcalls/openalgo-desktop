@@ -415,7 +415,7 @@ const fn noren(timestamp: &'static str, oi_in_depth: &'static str) -> [WebName; 
     ]
 }
 
-/// Shoonya publishes OI as `open_interest` in Depth (canonical already).
+/// Shoonya publishes OI as `open_interest` in Depth, and no `oi`.
 const SHOONYA: &[WebName] = &noren("shoonya_timestamp", "open_interest");
 /// Flattrade and Zebu name the total OI `total_traded_value`.
 const FLATTRADE: &[WebName] = &noren("flattrade_timestamp", "total_traded_value");
@@ -650,10 +650,29 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
         "dhan" => d(Number, DHAN).richer(),
         "firstock" => d(Number, FIRSTOCK).no_index_change(),
         "fivepaisa" => d(Number, FIVEPAISA).depth_needs_book(),
-        "shoonya" => d(Number, SHOONYA).no_ltt(),
-        "flattrade" => d(Number, FLATTRADE).no_ltt(),
-        "zebu" => d(Number, ZEBU).no_ltt(),
-        "tradesmart" => d(Number, TRADESMART).no_ltt(),
+        // The Noren adapters' dicts (`<member>_adapter.py` normalisers): no
+        // ltt; the change only as Noren's pc (`percent_change`), never
+        // price_change*; a Depth topic only from depth packets. Shoonya
+        // names OI `open_interest` alone; Flattrade and Zebu send it only
+        // as `total_traded_value` and the desktop keeps `oi` beside it (a
+        // web defect, lead ruling 2026-11-09); TradeSmart's is `oi`.
+        "shoonya" => d(Number, SHOONYA)
+            .no_ltt()
+            .no_index_change()
+            .key(Key::Oi, Modes::NEVER)
+            .depth_needs_book(),
+        "flattrade" => d(Number, FLATTRADE)
+            .no_ltt()
+            .no_index_change()
+            .depth_needs_book(),
+        "zebu" => d(Number, ZEBU)
+            .no_ltt()
+            .no_index_change()
+            .depth_needs_book(),
+        "tradesmart" => d(Number, TRADESMART)
+            .no_ltt()
+            .no_index_change()
+            .depth_needs_book(),
         "groww" => d(Number, GROWW).floats(&["volume"]),
         "indmoney" => d(Number, INDMONEY).richer(),
         "motilal" => d(Number, MOTILAL).no_ltt(),
