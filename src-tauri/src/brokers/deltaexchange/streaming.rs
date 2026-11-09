@@ -154,12 +154,22 @@ impl DeltaFeed {
                 });
             merge_ticker(t, e, spot, self.books.get(br));
             t.timestamp_ms = now;
-            let tick = t.clone();
-            out.push(FeedEvent::Tick(tick.clone()));
-            if sub.mode == FeedMode::Depth {
-                if let Some((buy, sell)) = self.books.get(br) {
-                    out.push(FeedEvent::Depth(book_event(sub, &tick, buy, sell, now)));
+            let mut tick = t.clone();
+            match (sub.mode, self.books.get(br)) {
+                (FeedMode::Depth, Some((buy, sell))) => {
+                    let book = book_event(sub, &tick, buy, sell, now);
+                    out.push(FeedEvent::Tick(tick));
+                    out.push(FeedEvent::Depth(book));
                 }
+                // No book yet on this connection: a full tick, so a Depth
+                // holder still hears it, its frame without a book (lead
+                // decision 2026-11-09; the web publishes the merged dict on
+                // the Depth topic).
+                (FeedMode::Depth, None) => {
+                    tick.mode = FeedMode::Depth.code();
+                    out.push(FeedEvent::Tick(tick));
+                }
+                _ => out.push(FeedEvent::Tick(tick)),
             }
         }
         out
