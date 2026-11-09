@@ -9,7 +9,7 @@ use super::bridge::snapshot::{self, LastBook, Snapshot};
 use super::bridge::{depth_update, snapshot_update};
 use super::protocol::{market_data, reaches};
 use super::{InstrumentKey, MarketUpdate, Mode};
-use crate::brokers::common::streaming::FeedEvent;
+use crate::brokers::common::streaming::{FeedEvent, QuoteField};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -57,7 +57,12 @@ impl Frames {
                 FeedEvent::Tick(t) => {
                     let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
                     let merged = snapshot::merge(self.last.get(&key), t, 0);
-                    let update = snapshot_update(key.clone(), &merged);
+                    // As the bridge: a packet without a price only updates
+                    // the snapshot.
+                    let update = t
+                        .knows(QuoteField::Ltp)
+                        .then(|| snapshot_update(key.clone(), &merged))
+                        .flatten();
                     self.last.insert(key, merged);
                     match update {
                         Some(u) => u,
