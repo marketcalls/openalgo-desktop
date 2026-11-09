@@ -46,7 +46,8 @@ use super::socketio::{self, EioPacket, SioPacket};
 use super::{BinaryDecoder, EventCode, MarketKeys, XtsConfig};
 use crate::brokers::common::mapping::Exchange;
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedEvent, FeedSubscription, Message, PrepareError, ReleaseAnswer, WsRequest,
+    BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, PrepareError, ReleaseAnswer,
+    WsRequest,
 };
 use crate::error::{AppError, Result};
 use crate::security::Secret;
@@ -711,8 +712,14 @@ impl XtsFeed {
         let Some(sub) = self.book.get(&(seg, id.trim().to_string())) else {
             return Vec::new();
         };
-        if self.cfg.hooks.oi_events && mapping::i(v, "MessageCode") == 1510 {
+        let code = mapping::i(v, "MessageCode");
+        if self.cfg.hooks.oi_events && code == 1510 {
             return normalise::open_interest(v, sub).into_iter().collect();
+        }
+        if self.cfg.hooks.touchline_by_holding && code == 1501 && sub.mode == FeedMode::Ltp {
+            let mut ltp = v.clone();
+            set_code(&mut ltp, 1512);
+            return normalise_message(&ltp, sub);
         }
         normalise_message(v, sub)
     }
@@ -731,7 +738,11 @@ impl XtsFeed {
                 if hooks.text_1105_as_ltp {
                     set_code(&mut v, 1512);
                 }
-                return self.normalise(&v);
+                let mut events = self.normalise(&v);
+                if hooks.text_1105_doubles {
+                    events.iter_mut().for_each(normalise::parsed_as_floats);
+                }
+                return events;
             }
             Value::String(s) => match serde_json::from_str::<Value>(s) {
                 Ok(v) => {

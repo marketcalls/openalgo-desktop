@@ -13,7 +13,8 @@
 use super::super::mapping;
 use crate::brokers::common::streaming::QuoteField as F;
 use crate::brokers::common::streaming::{
-    now_ms, AbsentFields, FeedEvent, FeedSubscription, NormalizedDepth, NormalizedTick, QuoteField,
+    now_ms, AbsentFields, FeedEvent, FeedSubscription, NormalizedDepth, NormalizedTick, Number,
+    NumberForm, QuoteField,
 };
 use crate::brokers::types::DepthLevel;
 use serde_json::Value;
@@ -207,4 +208,24 @@ pub(crate) fn open_interest(v: &Value, sub: &FeedSubscription) -> Option<FeedEve
         absent: AbsentFields::ALL.without(F::OpenInterest),
         ..Default::default()
     }))
+}
+
+/// The counts of a 1105 text event go out as JSON doubles where the
+/// member's web client parses its values with `float()` (Jainam, RMoney):
+/// `ltq` 4.0, `volume` 4500200.0. Only the counts this packet carried are
+/// marked; a value kept from an earlier packet keeps its usual form.
+pub(crate) fn parsed_as_floats(event: &mut FeedEvent) {
+    let FeedEvent::Tick(t) = event else {
+        return;
+    };
+    for (field, number) in [
+        (F::LastQuantity, Number::LastQuantity),
+        (F::Volume, Number::Volume),
+        (F::TotalBuyQuantity, Number::TotalBuyQuantity),
+        (F::TotalSellQuantity, Number::TotalSellQuantity),
+    ] {
+        if t.knows(field) {
+            t.numbers.set(number, NumberForm::Double);
+        }
+    }
 }

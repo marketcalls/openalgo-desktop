@@ -93,11 +93,23 @@ pub struct XtsHooks {
     pub data_stall_watchdog: bool,
     /// Where a payload's `MessageCode` comes from (audit FB-05).
     pub event_code: EventCode,
-    /// A 1105 text event is an LTP (1512) message: jainamxts
-    /// `_process_1105_data` and rmoney `_process_binary_format` mark it so.
-    /// The other members' web adapters drop it for want of a code; the
-    /// desktop reads it there as the touchline its codes 110-119 are.
+    /// A 1105 text event is an LTP (1512) message: rmoney
+    /// `_process_binary_format` marks it so and its adapter publishes it on
+    /// the LTP topic alone. Otherwise the desktop reads it as the touchline
+    /// its codes 110-119 are: Jainam's client marks it 1512 too, but its
+    /// adapter publishes every message to every held mode in that mode's
+    /// dict, which is the frames a touchline makes under its per-mode fold;
+    /// the template members' web adapters drop it for want of a code.
     pub text_1105_as_ltp: bool,
+    /// A 1105 text event's counts are JSON doubles, as jainamxts
+    /// `_process_1105_data` and rmoney `_process_binary_format` parse its
+    /// values with `float()` (`NumberForm::Double` for that packet).
+    pub text_1105_doubles: bool,
+    /// A 1501 touchline of an instrument held at LTP only is an LTP
+    /// message: RMoney subscribes LTP with 1501, and its adapter publishes
+    /// a 1501 at mode 1 unless a Quote or Depth subscription of the symbol
+    /// is active (rmoney_adapter.py _process_json_data).
+    pub touchline_by_holding: bool,
     /// RMoney's payload variants (audit FB-04, `streaming/variants.rs`).
     pub payload_variants: bool,
     /// A 1510 open-interest event updates the instrument's OI (jainamxts

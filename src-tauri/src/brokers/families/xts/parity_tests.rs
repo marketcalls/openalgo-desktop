@@ -9,13 +9,18 @@ use super::streaming::{FeedSource, XtsFeed};
 use super::{XtsBroker, XtsConfig};
 use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth, NormalizedTick,
-    QuoteField,
+    Number, NumberForm, QuoteField,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::{compositedge, ibulls, jainamxts, rmoney, Broker};
 use serde_json::{json, Value};
 
 fn feed(cfg: &'static XtsConfig) -> XtsFeed {
+    held_at(cfg, FeedMode::Depth)
+}
+
+/// A feed holding RELIANCE (NSECM 2885) at `mode`.
+fn held_at(cfg: &'static XtsConfig, mode: FeedMode) -> XtsFeed {
     let mut f = XtsFeed::new(
         cfg,
         reqwest::Client::new(),
@@ -29,7 +34,7 @@ fn feed(cfg: &'static XtsConfig) -> XtsFeed {
         token: "2885".into(),
         brsymbol: "RELIANCE-EQ".into(),
         brexchange: "NSECM".into(),
-        mode: FeedMode::Depth,
+        mode,
         depth: 5,
     });
     f
@@ -233,20 +238,60 @@ fn jainam_and_rmoney_take_the_code_from_the_event() {
     assert_eq!((t[0].mode, b.len()), (3, 1));
 }
 
-/// FB-05: Jainam and RMoney read a 1105 text event as LTP (1512); the
-/// desktop reads it as a touchline for the members whose web adapter drops
-/// it.
+/// FB-05: RMoney reads a 1105 text event as LTP (1512), as its client marks
+/// it and its adapter publishes it on the LTP topic alone. Jainam's client
+/// marks it 1512 too, but its adapter publishes it to every held mode in
+/// that mode's dict: a touchline under Jainam's per-mode fold, as the
+/// template members' 1105 is read. Jainam and RMoney parse its values with
+/// `float()`, so the counts it carried are doubles for that packet.
 #[test]
-fn jainam_and_rmoney_read_1105_text_as_ltp() {
+fn the_1105_text_event_is_read_as_each_member_publishes_it() {
     let text = json!("t:1_2885,110:2503.25,111:4,112:4512345,114:2490");
-    for (cfg, mode) in [
-        (&jainamxts::CONFIG, 1),
-        (&rmoney::CONFIG, 1),
-        (&ibulls::CONFIG, 2),
+    for (cfg, mode, doubles) in [
+        (&rmoney::CONFIG, 1, true),
+        (&jainamxts::CONFIG, 2, true),
+        (&ibulls::CONFIG, 2, false),
     ] {
         let (t, _) = decode(&mut feed(cfg), "1105-json-partial", text.clone());
         assert_eq!((t[0].mode, t[0].ltp), (mode, 2503.25), "{}", cfg.id);
         assert!(!t[0].knows(QuoteField::LastTradeTime), "{}", cfg.id);
+        let double = Some(NumberForm::Double);
+        assert_eq!(
+            t[0].numbers.form(Number::LastQuantity) == double,
+            doubles,
+            "{}",
+            cfg.id
+        );
+        assert_eq!(t[0].numbers.form(Number::Volume) == double, doubles);
+        assert_eq!(
+            t[0].numbers.form(Number::TotalBuyQuantity),
+            None,
+            "not sent"
+        );
+    }
+}
+
+/// RMoney subscribes LTP with 1501, and its adapter publishes a 1501 at
+/// mode 1 while the symbol is held at LTP only, at mode 2 once Quote or
+/// Depth is held (rmoney_adapter.py _process_json_data). The other members
+/// read a 1501 as Quote.
+#[test]
+fn rmoney_reads_a_1501_by_what_is_held() {
+    let quote = json!({"MessageCode": 1501, "ExchangeSegment": 1, "ExchangeInstrumentID": 2885,
+                       "Touchline": touchline()});
+    for (cfg, held, mode) in [
+        (&rmoney::CONFIG, FeedMode::Ltp, 1),
+        (&rmoney::CONFIG, FeedMode::Quote, 2),
+        (&rmoney::CONFIG, FeedMode::Depth, 2),
+        (&ibulls::CONFIG, FeedMode::Ltp, 2),
+    ] {
+        let (t, _) = decode(&mut held_at(cfg, held), "1501-json-full", quote.clone());
+        assert_eq!(t[0].mode, mode, "{} {:?}", cfg.id, held);
+        assert!(
+            t[0].knows(QuoteField::Volume),
+            "the quote is kept: {}",
+            cfg.id
+        );
     }
 }
 
