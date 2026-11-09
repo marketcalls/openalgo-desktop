@@ -813,7 +813,7 @@ fn feed_ticks_depth_and_partial_merge() {
     let FeedEvent::Tick(t) = &ev[0] else { panic!() };
     assert_eq!(t.symbol, "NIFTY25AUG2624500CE");
     assert_eq!(t.exchange, "NFO");
-    assert_eq!((t.mode, t.ltp, t.oi, t.volume), (2, 100.5, 900, 12345));
+    assert_eq!((t.mode, t.ltp, t.oi, t.volume), (3, 100.5, 900, 12345));
     assert!(
         t.knows(QuoteField::OpenInterest),
         "a future's Quote packet has OI"
@@ -956,7 +956,7 @@ fn ticks_say_what_their_packet_carries() {
     let [FeedEvent::Tick(fut), FeedEvent::Tick(eq), FeedEvent::Tick(idx)] = ev.as_slice() else {
         panic!("{:?}", ev)
     };
-    assert_eq!((fut.mode, fut.oi), (2, 900));
+    assert_eq!((fut.mode, fut.oi), (3, 900));
     assert!(fut.knows(QuoteField::OpenInterest));
     assert_eq!(
         (fut.extras.lower_circuit, fut.extras.upper_circuit),

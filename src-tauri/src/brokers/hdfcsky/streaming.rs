@@ -497,6 +497,7 @@ impl HdfcSkyFeed {
                 index: t.kind == Kind::Index,
                 band: (t.lower_limit, t.upper_limit),
                 ltt: t.ltt,
+                book: t.has_depth(),
             },
         );
         let mut out = Vec::with_capacity(2);

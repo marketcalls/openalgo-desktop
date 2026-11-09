@@ -471,6 +471,7 @@ impl HdfcSecuritiesFeed {
                 index: p.kind == Kind::Index,
                 band: (p.lower_limit, p.upper_limit),
                 ltt: p.ltt,
+                book: p.depth.is_some(),
             },
         );
         let depth = (sub.mode == FeedMode::Depth)

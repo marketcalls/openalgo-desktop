@@ -19,6 +19,8 @@ pub(crate) struct PacketFacts {
     pub band: (f64, f64),
     /// `lastTradeTime` as sent.
     pub ltt: i64,
+    /// The packet carries book levels.
+    pub book: bool,
 }
 
 /// Shape a tick that copies a full packet's quote fields, as both feeds
@@ -28,9 +30,18 @@ pub(crate) struct PacketFacts {
 ///
 /// A last traded price of 0 is one the packet did not send (proto3), an
 /// instrument not traded yet: the tick marks it absent, so no LTP or Quote
-/// frame shows a zero price (the web publishes ltp 0), while the packet's
-/// book still reaches Depth holders with ltp 0, as a book before the first
+/// frame shows a zero price (the web publishes ltp 0). Such a packet is no
+/// full tick either (mode 2, so the bridge pairs no book with it): its book
+/// goes on its own to Depth holders, with ltp 0, as a book before the first
 /// quote does.
+///
+/// A full packet without book levels goes to Quote and LTP holders only
+/// (mode 2). The web sends its Depth frame with no `depth` key: proto3
+/// cannot tell an empty level list from one not sent, and it may mean a
+/// cleared book. On the desktop a full tick would carry the connection's
+/// last book to Depth holders, which could show liquidity that is gone; a
+/// frame without the book needs a bridge switch (lane wire), and until then
+/// a Depth holder gets no frame for such a packet.
 pub(crate) fn finish(t: &mut NormalizedTick, p: PacketFacts) {
     t.extras.lower_circuit = limit(p.band.0);
     t.extras.upper_circuit = limit(p.band.1);
@@ -38,6 +49,13 @@ pub(crate) fn finish(t: &mut NormalizedTick, p: PacketFacts) {
     mark_carriage(t, p.subscribed, p.index);
     if t.ltp == 0.0 {
         t.mark_absent(QuoteField::Ltp);
+    }
+    if t.ltp == 0.0 || (!p.book && !p.index) {
+        t.mode = t.mode.min(2);
+        // A derivative's OI is still in the packet, beyond mode 2.
+        if t.mode == 2 && !t.absent.contains(QuoteField::OpenInterest) {
+            t.mark_carried(QuoteField::OpenInterest);
+        }
     }
     t.derive_change();
 }
@@ -58,9 +76,11 @@ fn has_open_interest(exchange: &str) -> bool {
 /// Say what a tick's packet carries (audit C03 to C05). The subscription
 /// type decides the packet: an `LTP` scrip gets its price and trade time,
 /// with the previous close only when one is sent; an `ALL` scrip gets the
-/// full packet, whose OI counts on a derivative segment only. An index
-/// packet is a full packet at every mode, Depth included (the web publishes
-/// it on the Depth topic too), with no volume, order flow or OI.
+/// full packet (mode 3: the quote, the book and the OI), whose OI counts on
+/// a derivative segment only, and which reaches Depth holders with or
+/// without a book in it, as the web publishes it on the Depth topic. An
+/// index packet is a full packet at every mode too, with no volume, order
+/// flow or OI.
 fn mark_carriage(t: &mut NormalizedTick, subscribed: FeedMode, index: bool) {
     use QuoteField as F;
     if subscribed == FeedMode::Ltp {
@@ -85,9 +105,9 @@ fn mark_carriage(t: &mut NormalizedTick, subscribed: FeedMode, index: bool) {
         }
         return;
     }
-    t.mode = 2;
-    if has_open_interest(&t.exchange) {
-        t.mark_carried(F::OpenInterest);
+    t.mode = 3;
+    if !has_open_interest(&t.exchange) {
+        t.mark_absent(F::OpenInterest);
     }
 }
 

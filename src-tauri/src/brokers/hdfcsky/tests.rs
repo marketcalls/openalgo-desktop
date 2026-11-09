@@ -854,7 +854,7 @@ fn ticks_say_what_their_packet_carries() {
     );
     assert_eq!(i.change, 100.5);
     let FeedEvent::Tick(n) = &ev[1] else { panic!() };
-    assert_eq!((n.exchange.as_str(), n.mode), ("NSE", 2));
+    assert_eq!((n.exchange.as_str(), n.mode), ("NSE", 3));
     assert!(
         !n.knows(QuoteField::OpenInterest),
         "a cash equity has no OI"
@@ -886,7 +886,7 @@ fn ticks_say_what_their_packet_carries() {
     let FeedEvent::Tick(bse) = &ev[3] else {
         panic!()
     };
-    assert_eq!((bse.exchange.as_str(), bse.mode), ("BSE", 2));
+    assert_eq!((bse.exchange.as_str(), bse.mode), ("BSE", 3));
 }
 
 /// HDFC's `lastTradeTime` is epoch seconds and the frames carry epoch ms;
@@ -935,6 +935,7 @@ fn a_packet_without_a_trade_sends_only_its_book() {
         panic!("{:?}", ev)
     };
     assert!(!t.knows(QuoteField::Ltp), "no trade, no price");
+    assert_eq!(t.mode, 2, "no full tick: its book goes on its own");
     assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
     for mode in [Mode::Ltp, Mode::Quote] {
         let frames = Frames::new("hdfcsky").at(&ev, mode);
@@ -946,6 +947,26 @@ fn a_packet_without_a_trade_sends_only_its_book() {
     };
     assert_eq!(b["ltp"], 0.0, "{}", b);
     assert_eq!(b["depth"]["buy"].as_array().map(Vec::len), Some(5), "{}", b);
+    assert!(b.get("ltt").is_none(), "no trade, no trade time: {}", b);
+    assert_eq!(b["open"], 1400.0, "what the packet did send is kept: {}", b);
+}
+
+/// A full packet with no book levels reaches Quote and LTP holders only:
+/// handed to Depth holders it would carry the connection's last book, a
+/// book this packet may say is gone (lead ruling 2026-11-09).
+#[test]
+fn a_full_packet_without_a_book_is_no_depth_tick() {
+    let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
+    let mut p = mbp_packet(2885, pt::NSE_CM_ALL);
+    if let Some(m) = p.mbp_data.as_mut() {
+        m.market_depth_dto_list = None;
+    }
+    let ev = f.parse(&Message::Binary(frame(vec![p])));
+    let [FeedEvent::Tick(t)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!((t.mode, t.ltp), (2, 1410.5));
 }
 
 /// An `ALL` future carries its OI (even a zero one: a derivative's packet
@@ -979,7 +1000,7 @@ fn derivatives_carry_oi_and_indices_no_order_flow() {
         assert!(!i.knows(field), "an index has no {:?}", field);
     }
     assert!(i.knows(QuoteField::Open) && i.knows(QuoteField::Close));
-    assert_eq!(n.mode, 2);
+    assert_eq!(n.mode, 3, "an ALL packet is a full tick");
     assert!(n.knows(QuoteField::OpenInterest), "a future's OI 0 is sent");
     assert_eq!(
         (n.extras.lower_circuit, n.extras.upper_circuit),
