@@ -1,1 +1,236 @@
-{}
+{
+  "broker": "dhan",
+  "data": {
+    "average_price": 1298.25,
+    "close": 1280.5,
+    "depth": {
+      "buy": [
+        {
+          "orders": 1,
+          "price": 1300.0,
+          "quantity": 100
+        },
+        {
+          "orders": 2,
+          "price": 1299.95,
+          "quantity": 110
+        },
+        {
+          "orders": 3,
+          "price": 1299.9,
+          "quantity": 120
+        },
+        {
+          "orders": 4,
+          "price": 1299.85,
+          "quantity": 130
+        },
+        {
+          "orders": 5,
+          "price": 1299.8,
+          "quantity": 140
+        },
+        {
+          "orders": 6,
+          "price": 1299.75,
+          "quantity": 150
+        },
+        {
+          "orders": 7,
+          "price": 1299.7,
+          "quantity": 160
+        },
+        {
+          "orders": 8,
+          "price": 1299.65,
+          "quantity": 170
+        },
+        {
+          "orders": 9,
+          "price": 1299.6,
+          "quantity": 180
+        },
+        {
+          "orders": 10,
+          "price": 1299.55,
+          "quantity": 190
+        },
+        {
+          "orders": 11,
+          "price": 1299.5,
+          "quantity": 200
+        },
+        {
+          "orders": 12,
+          "price": 1299.45,
+          "quantity": 210
+        },
+        {
+          "orders": 13,
+          "price": 1299.4,
+          "quantity": 220
+        },
+        {
+          "orders": 14,
+          "price": 1299.35,
+          "quantity": 230
+        },
+        {
+          "orders": 15,
+          "price": 1299.3,
+          "quantity": 240
+        },
+        {
+          "orders": 16,
+          "price": 1299.25,
+          "quantity": 250
+        },
+        {
+          "orders": 17,
+          "price": 1299.2,
+          "quantity": 260
+        },
+        {
+          "orders": 18,
+          "price": 1299.15,
+          "quantity": 270
+        },
+        {
+          "orders": 19,
+          "price": 1299.1,
+          "quantity": 280
+        },
+        {
+          "orders": 20,
+          "price": 1299.05,
+          "quantity": 290
+        }
+      ],
+      "sell": [
+        {
+          "orders": 2,
+          "price": 1300.1,
+          "quantity": 150
+        },
+        {
+          "orders": 3,
+          "price": 1300.15,
+          "quantity": 160
+        },
+        {
+          "orders": 4,
+          "price": 1300.2,
+          "quantity": 170
+        },
+        {
+          "orders": 5,
+          "price": 1300.25,
+          "quantity": 180
+        },
+        {
+          "orders": 6,
+          "price": 1300.3,
+          "quantity": 190
+        },
+        {
+          "orders": 7,
+          "price": 1300.35,
+          "quantity": 200
+        },
+        {
+          "orders": 8,
+          "price": 1300.4,
+          "quantity": 210
+        },
+        {
+          "orders": 9,
+          "price": 1300.45,
+          "quantity": 220
+        },
+        {
+          "orders": 10,
+          "price": 1300.5,
+          "quantity": 230
+        },
+        {
+          "orders": 11,
+          "price": 1300.55,
+          "quantity": 240
+        },
+        {
+          "orders": 12,
+          "price": 1300.6,
+          "quantity": 250
+        },
+        {
+          "orders": 13,
+          "price": 1300.65,
+          "quantity": 260
+        },
+        {
+          "orders": 14,
+          "price": 1300.7,
+          "quantity": 270
+        },
+        {
+          "orders": 15,
+          "price": 1300.75,
+          "quantity": 280
+        },
+        {
+          "orders": 16,
+          "price": 1300.8,
+          "quantity": 290
+        },
+        {
+          "orders": 17,
+          "price": 1300.85,
+          "quantity": 300
+        },
+        {
+          "orders": 18,
+          "price": 1300.9,
+          "quantity": 310
+        },
+        {
+          "orders": 19,
+          "price": 1300.95,
+          "quantity": 320
+        },
+        {
+          "orders": 20,
+          "price": 1301.0,
+          "quantity": 330
+        },
+        {
+          "orders": 21,
+          "price": 1301.05,
+          "quantity": 340
+        }
+      ]
+    },
+    "depth_level": 20,
+    "exchange": "NSE",
+    "high": 1310.0,
+    "last_quantity": 25,
+    "last_trade_time": 1761700002,
+    "low": 1285.0,
+    "ltp": 1300.75,
+    "ltt": 1761700002000,
+    "mode": 3,
+    "oi": 150,
+    "oi_high": 160,
+    "oi_low": 140,
+    "open": 1290.0,
+    "prev_oi": 120,
+    "symbol": "RELIANCE",
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 9000,
+    "total_sell_quantity": 7000,
+    "volume": 40000
+  },
+  "exchange": "NSE",
+  "mode": 3,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}

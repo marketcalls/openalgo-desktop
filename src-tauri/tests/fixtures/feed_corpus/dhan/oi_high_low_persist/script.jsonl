@@ -6,7 +6,8 @@
 {"step": "silence", "client": "a"}
 {"step": "push", "frame": "frames/full.hex"}
 {"step": "receive", "client": "a", "frame": "expected/full.json"}
-{"step": "silence", "client": "b", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "A 20-level holder gets no 5-level book in between."}
+{"step": "receive", "client": "b", "frame": "expected/quote_before_its_book.json", "web": false, "note": "The holder at 20 levels gets the full packet's quote without its 5-level book, until its own book comes."}
+{"step": "silence", "client": "b", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 3}, "note": "The web's frame for this packet carries the 5-level book."}
 {"step": "push", "frame": "frames/quote.hex", "note": "Code 4: no OI high or low in it; a Depth-only holder hears nothing from it."}
 {"step": "silence", "client": "a"}
 {"step": "push", "frame": "frames/ticker.hex", "note": "Code 2: the LTP alone."}

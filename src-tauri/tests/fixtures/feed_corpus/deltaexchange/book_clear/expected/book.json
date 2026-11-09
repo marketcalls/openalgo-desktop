@@ -44,7 +44,9 @@
     "oi": 1407713.0,
     "open": 64025.0,
     "symbol": "BTCUSDFUT",
-    "timestamp": "<receipt_ms>"
+    "timestamp": "<receipt_ms>",
+    "totalbuyqty": 4663,
+    "totalsellqty": 878
   },
   "exchange": "CRYPTO",
   "mode": 3,

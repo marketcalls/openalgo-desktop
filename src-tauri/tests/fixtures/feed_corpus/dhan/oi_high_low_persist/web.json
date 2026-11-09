@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "dhan",
-  "inputs_sha256": "dafddf009921107780bbbf038ac07333052e11d4fc621ace46ea091fdeca1775",
+  "inputs_sha256": "0245a87b258d50acb80fa043d7d201765c1687ec1ec51176ab182bf43f34b16b",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -110,7 +110,7 @@
       ],
       "deliveries": [
         {
-          "client": "b",
+          "client": "a",
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
@@ -119,7 +119,7 @@
           ]
         },
         {
-          "client": "a",
+          "client": "b",
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
@@ -130,7 +130,7 @@
       ]
     },
     {
-      "line": 10,
+      "line": 11,
       "published": [
         {
           "kind": "market",
@@ -161,7 +161,7 @@
       "deliveries": []
     },
     {
-      "line": 12,
+      "line": 13,
       "published": [
         {
           "kind": "market",
@@ -183,12 +183,12 @@
       "deliveries": []
     },
     {
-      "line": 14,
+      "line": 15,
       "published": [],
       "deliveries": []
     },
     {
-      "line": 15,
+      "line": 16,
       "published": [
         {
           "kind": "market",
@@ -413,7 +413,7 @@
       ],
       "deliveries": [
         {
-          "client": "b",
+          "client": "a",
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
@@ -422,7 +422,7 @@
           ]
         },
         {
-          "client": "a",
+          "client": "b",
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
@@ -433,12 +433,12 @@
       ]
     },
     {
-      "line": 21,
+      "line": 22,
       "published": [],
       "deliveries": []
     },
     {
-      "line": 22,
+      "line": 23,
       "published": [
         {
           "kind": "market",
@@ -663,7 +663,7 @@
       ],
       "deliveries": [
         {
-          "client": "b",
+          "client": "a",
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,
@@ -672,7 +672,7 @@
           ]
         },
         {
-          "client": "a",
+          "client": "b",
           "publication": 0,
           "mode": 3,
           "topic_mode": 3,

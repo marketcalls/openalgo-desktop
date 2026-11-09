@@ -1,0 +1,30 @@
+{
+  "broker": "dhan",
+  "data": {
+    "average_price": 1298.25,
+    "close": 1280.5,
+    "depth_level": 20,
+    "exchange": "NSE",
+    "high": 1310.0,
+    "last_quantity": 25,
+    "last_trade_time": 1761700000,
+    "low": 1285.0,
+    "ltp": 1300.5,
+    "ltt": 1761700000000,
+    "mode": 3,
+    "oi": 150,
+    "oi_high": 160,
+    "oi_low": 140,
+    "open": 1290.0,
+    "prev_oi": 120,
+    "symbol": "RELIANCE",
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 9000,
+    "total_sell_quantity": 7000,
+    "volume": 40000
+  },
+  "exchange": "NSE",
+  "mode": 3,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}
