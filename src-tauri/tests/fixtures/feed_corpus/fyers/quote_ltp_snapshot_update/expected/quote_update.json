@@ -26,7 +26,7 @@
     "subscription_mode": 2,
     "symbol": "SBIN",
     "timestamp": "<receipt_ms>",
-    "token": "10100000003045",
+    "token": "3045",
     "total_buy_quantity": 91000,
     "total_sell_quantity": 88000,
     "update_type": "live",

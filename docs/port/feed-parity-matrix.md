@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 51. Open gaps: 6. Deviations pending approval: 106.
+Cases: 51. Open gaps: 0. Deviations pending approval: 107.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -23,7 +23,7 @@ Cases: 51. Open gaps: 6. Deviations pending approval: 106.
 | fivepaisa | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | fivepaisaxts | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | flattrade | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| fyers | open gap: `quote_ltp_snapshot_update` | open gap: `index_quote`, `quote_ltp_snapshot_update` | open gap: `depth_before_first_quote` | not offered by the web | not offered by the web | open gap: `tbt_50_depth` | matches web: `order_lifecycle` |
+| fyers | deviation pending approval: `quote_ltp_snapshot_update` | deviation pending approval: `index_quote`, `quote_ltp_snapshot_update` | deviation pending approval: `depth_before_first_quote` | not offered by the web | not offered by the web | deviation pending approval: `tbt_50_depth` | matches web: `order_lifecycle` |
 | groww | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | hdfcsecurities | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | hdfcsky | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -129,11 +129,9 @@ Cases: 51. Open gaps: 6. Deviations pending approval: 106.
 | dhan_sandbox | `simulated_option_quote` | `total_buy_quantity` | random-values | no | A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead. |
 | dhan_sandbox | `simulated_option_quote` | `total_sell_quantity` | random-values | no | A simulated value drawn at random, as the web draws it (maintainer, 2026-11-09: port the web's simulated feed exactly; only the random values differ). Its type and the case's invariants are checked instead. |
 | fyers | `depth_before_first_quote` | `timestamp` | web-defect | no | The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them. |
-| fyers | `depth_before_first_quote` | `token` | open | no | The web's Fyers frames carry the broker's exchange token; the desktop's frames do not. Lane wire to decide whether the carrier passes broker tokens. |
-| fyers | `depth_before_first_quote` | `update_type` | open | no | The web writes update_type on every message, a depth (dp) one too (fyers_adapter.py:555); a desktop book (NormalizedDepth) carries no broker fields, so a book before the first quote goes without it. With lane wire (broker fields on a book). |
 | fyers | `depth_before_first_quote` | `ltp` | desktop-decision | no | A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote; the web's Fyers depth before the first quote has no ltp (CLAUDE.md, the compatibility contract). |
 | fyers | `index_quote` | `timestamp` | web-defect | no | The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them. |
-| fyers | `index_quote` | `token` | open | no | The web's Fyers frames carry the broker's exchange token; the desktop's frames do not. Lane wire to decide whether the carrier passes broker tokens. |
+| fyers | `index_quote` | `token` | web-defect | no | An HSM index record has no exchange token; the web sends a placeholder "" (fyers_mapping.py:82, exchange_token default). A value the stream does not carry is left out (lead approval 2026-11-09). |
 | fyers | `index_quote` | `bid_price` | web-defect | no | An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry. |
 | fyers | `index_quote` | `ask_price` | web-defect | no | An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry. |
 | fyers | `index_quote` | `bid_size` | web-defect | no | An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry. |
@@ -148,11 +146,8 @@ Cases: 51. Open gaps: 6. Deviations pending approval: 106.
 | fyers | `index_quote` | `total_buy_quantity` | web-defect | no | An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry. |
 | fyers | `index_quote` | `total_sell_quantity` | web-defect | no | An HSM index record carries no trade, book, volume, OI or circuit; the web's quote mapper sends each as 0 (fyers_data.get(..., 0)), the desktop leaves them out, as web openalgo#2376 asks of a field the stream does not carry. |
 | fyers | `quote_ltp_snapshot_update` | `timestamp` | web-defect | no | The web's Fyers adapter stamps timestamp with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them. |
-| fyers | `quote_ltp_snapshot_update` | `token` | open | no | The web's Fyers frames carry the broker's exchange token; the desktop's frames do not. Lane wire to decide whether the carrier passes broker tokens. |
 | fyers | `quote_ltp_snapshot_update` | `oi` | web-defect | no | The web sends oi 0 for an equity whose HSM record carried no OI (fyers_data.get('OI', 0)); a field the stream does not carry is left out, never sent as 0 (web openalgo#2376), as the desktop does. |
-| fyers | `tbt_50_depth` | `depth_levels` | open | no | The web's 50-level frame carries depth_levels, feed_time, is_50_depth and the TBT totals as total_buy_qty / total_sell_qty; the carrier has none of these yet (lane wire step 2: Fyers 50-level meta keys). |
 | fyers | `tbt_50_depth` | `timestamp` | web-defect | no | The web stamps the 50-level frame with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them. |
-| fyers | `tbt_50_depth` | `token` | open | no | The web's 50-level frame names the Fyers ticker (NSE:SBIN-EQ) as token, its HSM frames the exchange token; the desktop sends the master's fytoken in both (lane wire step 2: Fyers 50-level meta keys). |
 | fyers | `tbt_50_depth` | `update_type` | desktop-decision | no | The 50-level book frame carries the instrument's latest quote, the quote's update_type with it (1.0.6 decision, kept: the depth frame keeps ltp, timestamp and the latest quote); the web's TBT frame has the book's keys alone. |
 | nubra | `equity_depth_orderbook` | `last_quantity` | web-defect | no | Nubra's order book carries the last traded quantity; the web drops it from the Depth frame, the desktop keeps it (lead decision: market data a web adapter drops from a mode is kept, lost data). |
 | nubra | `equity_depth_orderbook` | `depth` | web-defect | no | The web pads a short side of Nubra's book to five zero levels (price 0, an integer) Nubra never sent; the desktop sends the levels Nubra sent (lead rule on book levels). |

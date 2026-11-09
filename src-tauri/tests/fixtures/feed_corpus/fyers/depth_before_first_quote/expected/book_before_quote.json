@@ -63,7 +63,8 @@
     "subscription_mode": 3,
     "symbol": "SBIN",
     "timestamp": "<receipt_ms>",
-    "token": "10100000003045"
+    "token": "3045",
+    "update_type": "snapshot"
   },
   "exchange": "NSE",
   "mode": 3,

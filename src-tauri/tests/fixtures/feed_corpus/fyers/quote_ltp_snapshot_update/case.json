@@ -36,12 +36,6 @@
       "ref": "fyers_mapping.py:178; fyers_adapter.py:553"
     },
     {
-      "key": "token",
-      "kind": "open",
-      "reason": "The web's Fyers frames carry the broker's exchange token; the desktop's frames do not. Lane wire to decide whether the carrier passes broker tokens.",
-      "ref": "fyers_mapping.py:150"
-    },
-    {
       "key": "oi",
       "kind": "web-defect",
       "reason": "The web sends oi 0 for an equity whose HSM record carried no OI (fyers_data.get('OI', 0)); a field the stream does not carry is left out, never sent as 0 (web openalgo#2376), as the desktop does.",

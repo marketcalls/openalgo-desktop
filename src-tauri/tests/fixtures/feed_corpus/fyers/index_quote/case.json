@@ -37,9 +37,9 @@
     },
     {
       "key": "token",
-      "kind": "open",
-      "reason": "The web's Fyers frames carry the broker's exchange token; the desktop's frames do not. Lane wire to decide whether the carrier passes broker tokens.",
-      "ref": "fyers_mapping.py:150"
+      "kind": "web-defect",
+      "reason": "An HSM index record has no exchange token; the web sends a placeholder \"\" (fyers_mapping.py:82, exchange_token default). A value the stream does not carry is left out (lead approval 2026-11-09).",
+      "ref": "fyers_mapping.py:82; lead 2026-11-09"
     },
     {
       "key": "bid_price",

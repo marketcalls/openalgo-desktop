@@ -43,7 +43,7 @@
         }
       ]
     },
-    "depth_levels": 50,
+    "depth_levels": 3,
     "exchange": "NSE",
     "exchange_time": 1793170001,
     "feed_time": 1793170002,
@@ -61,7 +61,7 @@
     "subscription_mode": 3,
     "symbol": "SBIN",
     "timestamp": "<receipt_ms>",
-    "token": "10100000003045",
+    "token": "NSE:SBIN-EQ",
     "total_buy_qty": 91000,
     "total_buy_quantity": 91000,
     "total_sell_qty": 88000,

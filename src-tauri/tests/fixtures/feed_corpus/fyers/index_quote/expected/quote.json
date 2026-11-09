@@ -15,7 +15,6 @@
     "subscription_mode": 2,
     "symbol": "NIFTY",
     "timestamp": "<receipt_ms>",
-    "token": "101000000026000",
     "update_type": "snapshot"
   },
   "exchange": "NSE_INDEX",

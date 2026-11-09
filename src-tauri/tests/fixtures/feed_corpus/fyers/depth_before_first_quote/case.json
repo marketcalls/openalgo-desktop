@@ -34,18 +34,6 @@
       "ref": "fyers_mapping.py:178; fyers_adapter.py:553"
     },
     {
-      "key": "token",
-      "kind": "open",
-      "reason": "The web's Fyers frames carry the broker's exchange token; the desktop's frames do not. Lane wire to decide whether the carrier passes broker tokens.",
-      "ref": "fyers_mapping.py:150"
-    },
-    {
-      "key": "update_type",
-      "kind": "open",
-      "reason": "The web writes update_type on every message, a depth (dp) one too (fyers_adapter.py:555); a desktop book (NormalizedDepth) carries no broker fields, so a book before the first quote goes without it. With lane wire (broker fields on a book).",
-      "ref": "fyers_adapter.py:464,555"
-    },
-    {
       "key": "ltp",
       "kind": "desktop-decision",
       "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote; the web's Fyers depth before the first quote has no ltp (CLAUDE.md, the compatibility contract).",
