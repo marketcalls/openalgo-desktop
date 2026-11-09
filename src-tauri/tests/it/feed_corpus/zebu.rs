@@ -20,5 +20,6 @@ corpus_cases!(
         order_updates,
         frame_without_exchange,
         new_price_without_times,
+        quote_without_order_flow,
     ]
 );

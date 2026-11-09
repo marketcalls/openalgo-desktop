@@ -1,0 +1,51 @@
+{
+  "broker": "shoonya",
+  "summary": "A Quote subscription on an NFO future whose Shoonya touchline snapshot carries the price, the day's range, the previous close and the volume but no average price, last quantity, book totals or OI: the frame leaves those out instead of sending 0.",
+  "scenarios": [
+    "absent-field",
+    "first-full-packet",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "59182",
+      "brsymbol": "NIFTY25NOV26F",
+      "brexchange": "NFO",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/shoonya/streaming/shoonya_adapter.py::ShoonyaWebSocketAdapter._process_market_message",
+      "broker/shoonya/streaming/shoonya_adapter.py::ShoonyaWebSocketAdapter._normalize_market_data",
+      "broker/shoonya/streaming/shoonya_adapter.py::MarketDataCache",
+      "broker/shoonya/streaming/shoonya_adapter.py::QuoteNormalizer"
+    ],
+    "notes": [
+      "Web openalgo#2376 and docs/api/websocket-streaming/quote.md: a field the feed does not carry is left out. The web's adapter fills each from safe_float/safe_int's default (0) where its Quote dict names it: declared as web defects."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "This snapshot carries no average price; the web's Shoonya adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/shoonya/streaming/shoonya_adapter.py normalisers"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "This snapshot carries no last quantity; the web's Shoonya adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/shoonya/streaming/shoonya_adapter.py normalisers"
+    }
+  ]
+}
