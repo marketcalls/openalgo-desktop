@@ -750,8 +750,14 @@ fn named_modes(broker: &str) -> Option<Dialect> {
         "zerodha" => d(Label, ZERODHA).open_interest().no_ltt_on_ltp_copies(),
         "sahi" => d(Label, SAHI).open_interest().index_book(),
         "iiflcapital" => d(Label, IIFLCAPITAL).open_interest().no_index_change(),
-        // nubra_adapter.py `_on_index_data`: no change keys on an index.
-        "nubra" => d(Label, NUBRA).no_ltt().no_index_change(),
+        // nubra_adapter.py `_on_index_data`: no change keys on an index;
+        // `_on_orderbook_data`: the book's totals (the sums of its levels) go
+        // with the Depth frame only, not with the Quote built on the book.
+        "nubra" => d(Label, NUBRA)
+            .no_ltt()
+            .no_index_change()
+            .instrument_key(Key::TotalBuyQuantity, Modes::DEPTH)
+            .instrument_key(Key::TotalSellQuantity, Modes::DEPTH),
         "arrow" => d(Absent, ARROW_HDFC)
             .open_interest()
             .richer()
