@@ -1,6 +1,6 @@
 {
   "broker": "sahi",
-  "summary": "A Depth subscription on NIFTY (NSE_INDEX): Sahi's DepthTick for an index carries a price and no levels. The Depth client gets one frame per tick, as on the web: the feed makes no book event for an index, whose price frame already reaches the Depth holder.",
+  "summary": "A Depth subscription on NIFTY (NSE_INDEX): Sahi's DepthTick for an index carries a price and no levels. The Depth client gets one frame per tick, as on the web (the feed makes no book event for an index), with the empty book {buy: [], sell: []}.",
   "scenarios": [
     "index",
     "book-clear"
@@ -28,9 +28,10 @@
   "deviations": [
     {
       "key": "depth",
-      "kind": "open",
-      "reason": "The web pads an index's empty book to five rows of price 0.0 a side (sahi_mapping.py::_depth_side); the desktop's index frame has no depth key (feed/protocol/market.rs leaves the book out for an index). Lead ruling R1: the desktop sends the empty book {buy: [], sell: []}, an approved web defect (indices lack tradable depth; never invent zero prices), once lane wire's per-broker index-book rule lands.",
-      "ref": "sahi_mapping.py:94-102; feed/protocol/market.rs market_data; decisions.md (Index Depth per broker)"
+      "kind": "web-defect",
+      "reason": "web sends zero rows; docs: indices lack tradable depth, never invent zero prices. The web pads the index's empty book to five rows of price 0.0 a side (sahi_mapping.py::_depth_side); the desktop sends the empty book {buy: [], sell: []} (lead ruling R1, the Sahi dialect's index_book).",
+      "ref": "sahi_mapping.py:94-102; feed/dialect/names.rs (sahi: index_book); decisions.md (Index Depth per broker)",
+      "approved": true
     },
     {
       "key": "oi",

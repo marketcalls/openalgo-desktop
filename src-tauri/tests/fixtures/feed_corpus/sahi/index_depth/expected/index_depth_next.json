@@ -10,6 +10,10 @@
     "mode": "full",
     "ltp": 24568.1,
     "timestamp": "<receipt_ms>",
-    "volume": 0
+    "volume": 0,
+    "depth": {
+      "buy": [],
+      "sell": []
+    }
   }
 }
