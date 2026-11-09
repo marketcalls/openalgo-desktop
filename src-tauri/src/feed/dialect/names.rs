@@ -434,10 +434,12 @@ const FYERS: &[WebName] = &[
     n("close", S::Close, L),
     n("volume", S::Volume, L),
     n("oi", S::Oi, L),
-    n("bid_price", S::Extra(E::BidPrice), L),
-    n("ask_price", S::Extra(E::AskPrice), L),
-    n("bid_size", S::Extra(E::BidQuantity), L),
-    n("ask_size", S::Extra(E::AskQuantity), L),
+    // fyers_adapter.py: a book (dp) frame carries the quote's LTP and
+    // totals, not its best bid and ask.
+    nt("bid_price", S::Extra(E::BidPrice), L, Q),
+    nt("ask_price", S::Extra(E::AskPrice), L, Q),
+    nt("bid_size", S::Extra(E::BidQuantity), L, Q),
+    nt("ask_size", S::Extra(E::AskQuantity), L, Q),
     n("upper_circuit", S::Extra(E::UpperCircuit), L),
     n("lower_circuit", S::Extra(E::LowerCircuit), L),
     n("last_traded_time", S::TradeTime(Unit::Seconds), L),
@@ -529,8 +531,10 @@ const MSTOCK: &[WebName] = &[
 
 const NUBRA: &[WebName] = &[
     n("prev_close", S::Close, Q),
-    n("bid", S::Extra(E::BidPrice), Q),
-    n("ask", S::Extra(E::AskPrice), Q),
+    // nubra_adapter.py: the index channel's quote names the best bid and
+    // ask; the order book's Depth frame does not.
+    nt("bid", S::Extra(E::BidPrice), Q, Q),
+    nt("ask", S::Extra(E::AskPrice), Q, Q),
 ];
 
 const PAYTM: &[WebName] = &[

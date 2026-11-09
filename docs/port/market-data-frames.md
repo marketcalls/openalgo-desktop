@@ -173,7 +173,7 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 | firstock | Q `oi`, circuits (Depth's `oi` is the total OI) | number | `carried(OpenInterest)` on Quote, circuits |
 | fivepaisa | L `last_trade_time`; Q `last_trade_quantity`, `percent_change`, `bid_price`, `bid_quantity`, `ask_price`, `ask_quantity` | number | best bid and ask |
 | flattrade, shoonya, tradesmart, zebu (Noren) | L `<broker>_timestamp` (s); Q `percent_change`; D `depth_level`, circuits, `52_week_high`, `52_week_low`, OI as `open_interest` (Shoonya), `oi` (TradeSmart, also in Quote) or `total_traded_value` (Flattrade, Zebu) | number | `extras.exchange_time_ms` from `ft`, circuits, 52-week range; TradeSmart `carried(OpenInterest)` on Quote |
-| fyers | L the whole symbol-feed dict: OHLC, `volume`, `oi`, `bid_price`, `ask_price`, `bid_size`, `ask_size`, circuits, `last_traded_time`, `last_trade_time`, `exchange_time` (s), `avg_trade_price`, `average_price`, `last_trade_quantity`, `last_quantity`, book totals, `change`, `change_percent`, `percent_change`, `data_type`, `subscription_mode` | none | best bid and ask, circuits, exchange time; LTP-mode packets carry the quote (`carried`) |
+| fyers | L the whole symbol-feed dict: OHLC, `volume`, `oi`, `bid_price`, `ask_price`, `bid_size`, `ask_size` (up to Quote), circuits, `last_traded_time`, `last_trade_time`, `exchange_time` (s), `avg_trade_price`, `average_price`, `last_trade_quantity`, `last_quantity`, book totals, `change`, `change_percent`, `percent_change`, `data_type`, `subscription_mode` | none | best bid and ask, circuits, exchange time, `update_type`; LTP-mode packets carry the quote (`carried`) |
 | groww | L OHLC, `volume`, `value`, `broker`, `topic`, `subscription_mode`; D `bid`, `bid_price`, `bid_qty`, `bid_size`, `bid_quantity`, `ask`, `ask_price`, `offer_price`, `ask_qty`, `ask_size`, `ask_quantity`, `offer_quantity` | number | `BrokerField::TradedValue`, best bid and ask from the book |
 | hdfcsecurities, hdfcsky | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; Q `oi` (quote packets); D circuits | none | circuits from CIRC packets (`extras`), `carried(OpenInterest)` on quote packets |
 | iiflcapital | Q `bid`, `ask`, `bid_quantity`, `ask_quantity` | label | best bid and ask |
@@ -181,7 +181,7 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 | kotak | L `last_trade_time`; Q `percent_change`; D `totalbuyqty`, `totalsellqty` | none | nothing new |
 | motilal | L `volume`; Q `ltq`; D circuits | number | `carried(Volume)` on LTP, circuits |
 | mstock | L `last_trade_time`, `exchange_timestamp`; Q `prev_close`, `last_trade_quantity`; D circuits | number | `extras.exchange_time_ms`, circuits (audit RB: true trade time) |
-| nubra | Q `prev_close`, `bid`, `ask`; no change keys on an index | label | best bid and ask, the message time |
+| nubra | Q `prev_close`; Quote only `bid`, `ask`; no change keys on an index; Depth refused on an index | label | best bid and ask, the message time |
 | paytm | L `close`, `change_absolute`, `change_percent`; Q `last_trade_quantity`, `52_week_high`, `52_week_low`; D `oi_change` | number | 52-week range, OI change |
 | pocketful | L `change`, `oi`, `bid_price`, `ask_price`; Q `last_trade_quantity` | number | `carried(Change, OpenInterest)` on compact packets, best bid and ask |
 | rupeezy | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; D circuits | none | circuits (parsed, not yet carried) |
