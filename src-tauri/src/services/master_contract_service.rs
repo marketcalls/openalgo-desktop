@@ -1034,7 +1034,13 @@ mod tests {
             subs.load(Ordering::SeqCst) > day_one
         })
         .await;
-        assert_eq!(ctx.bridge.applied().len(), 1);
+        // The broker hears the subscribe before the bridge records it as
+        // taken (`settle_admissions`): wait for the record too. More than
+        // one entry never settles back to one, so it still fails.
+        until("the bridge to hold SBIN", || {
+            ctx.bridge.applied().len() == 1
+        })
+        .await;
         ctx.runtime.teardown(ctx).await;
         server.abort();
         orders_server.abort();
