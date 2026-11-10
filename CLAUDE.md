@@ -1057,6 +1057,15 @@ Every flaky test found so far was a race, not a slow machine:
   so a migration that changes its indexes goes through
   `master_swap::create_indexes`; a view or trigger on `symtoken` would follow
   the rename to the dropped table, so add none.
+- **SQLite keeps no queue of writers.** A waiting statement polls, and a
+  thread that has just committed can begin its next write between two
+  polls. On a Windows runner a write polled about 3,300 times over the whole
+  5 s and failed "database is locked" (`concurrent_searches_lose_no_count`,
+  eight threads writing in a loop). A checkout while a statement is waiting
+  steps back 2 ms first (`db::sqlite::writer_turn`). The same build failed
+  that test 2 times in 80 on one Windows runner and 112 in 160 on another,
+  so judge a change to this by runs side by side, never against an older
+  run.
 - **Open a writing transaction IMMEDIATE** (`db::sqlite::write_transaction`,
   or `BEGIN IMMEDIATE`). A read transaction that upgrades to a write is not
   retried by the busy handler: a deferred transaction that reads first
@@ -1275,6 +1284,19 @@ differences with their reasons):
 - **What the desktop sends the broker is part of parity**: match it unless
   it provably has no effect at the broker (logout frames included,
   `BrokerFeed::farewell_frames`).
+- **One slow broker answer holds nothing else up.** A reconcile pass in the
+  bridge only plans; admissions and releases run in tasks the bridge owns,
+  and a tick loop never awaits a subscribe. A waited subscribe once held
+  every other client's subscribe and the sandbox's prices.
+- **A waited answer follows every path to the broker.** XTS refuses on the
+  HTTP call, so first subscribes, cold-start replays, upgrades and
+  downgrades all go through `BrokerFeed::admission_frames`,
+  `mode_upgrade_frames` or `mode_downgrade_frames`. An upgrade or downgrade
+  asks for the new mode first and lets the old one go only once the new one
+  was taken (`Command::then_release`).
+- **A retry joins the release already in flight** and answers with its
+  outcome: asking again while the broker has not answered never reports
+  success.
 - Adding or changing a broker's feed means corpus cases for every mode it
   offers, its order stream, a reconnect and a book clear, with `web.json`
   computed by its glue, before the change is done.

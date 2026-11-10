@@ -212,6 +212,9 @@ choose Update when no live strategy or active workflow is running.
 
 ### Maintenance
 
+- When many things were being saved at once, a save could fail with "database
+  is locked", on Windows most of all. A save that is waiting now gets its
+  turn.
 - Live market data, and the answer to each subscribe and unsubscribe, are now
   tested broker by broker against OpenAlgo web's own handling of the same
   broker messages, and every difference is recorded with its reason and the

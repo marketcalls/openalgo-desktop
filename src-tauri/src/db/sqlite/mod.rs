@@ -31,6 +31,7 @@ pub mod tunnel;
 pub mod user;
 pub mod watchlist;
 pub mod webui;
+mod writer_turn;
 
 use crate::error::Result;
 pub use durability::Durability;
@@ -52,6 +53,7 @@ thread_local! {
 
 /// Take a connection from `pool`, counted against this thread.
 pub(crate) fn checkout(pool: &Pool<SqliteConnectionManager>) -> Result<DbConn> {
+    writer_turn::give_way();
     let started = std::time::Instant::now();
     let conn = pool.get();
     let waited = started.elapsed();
@@ -252,6 +254,7 @@ fn retry_busy(attempt: i32) -> bool {
         static WAITING_SINCE: std::cell::Cell<Option<std::time::Instant>> =
             const { std::cell::Cell::new(None) };
     }
+    writer_turn::note_poll();
     let now = std::time::Instant::now();
     let since = WAITING_SINCE.with(|s| {
         if attempt == 0 || s.get().is_none() {
