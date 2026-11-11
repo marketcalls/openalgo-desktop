@@ -85,9 +85,8 @@ pub fn auth_type(broker: &str) -> AuthType {
 
 /// Brokers that sign in from the saved API key and secret alone, with no
 /// extra input (web brlogin signs these in on the first visit to
-/// `/<broker>/callback`): the XTS direct logins, Delta Exchange, Sahi (its
-/// key id and secret mint the day's token) and Dhan's sandbox, whose
-/// access token is the saved secret. Samco also needs no
+/// `/<broker>/callback`): the XTS direct logins, Delta Exchange and Dhan's
+/// sandbox, whose access token is the saved secret. Samco also needs no
 /// input but has its own connect page (the static IP check).
 pub const SAVED_KEY_BROKERS: &[&str] = &[
     "deltaexchange",
@@ -96,7 +95,6 @@ pub const SAVED_KEY_BROKERS: &[&str] = &[
     "ibulls",
     "iifl",
     "jainamxts",
-    "sahi",
     "wisdom",
 ];
 
@@ -477,6 +475,13 @@ const GROWW_LOGIN: &[LoginField] = &[
     masked_optional("password", "Access token (if you paste one from Groww)"),
 ];
 
+/// Sahi: the TOTP code of a TOTP API key; left blank, the stored key id
+/// and secret sign in alone (a Regular key, approved in Sahi's dashboard).
+const SAHI_LOGIN: &[LoginField] = &[masked_optional(
+    "totp",
+    "TOTP (if your Sahi API key is a TOTP key)",
+)];
+
 /// Kotak Neo (web BrokerTOTP.tsx): the stored API key is the UCC and
 /// the secret the Neo access token; the form carries the mobile
 /// number and TOTP (step one) and the MPIN (step two), posted
@@ -551,6 +556,7 @@ pub fn login_fields(broker: &str) -> &'static [LoginField] {
         "mstock" => MSTOCK_LOGIN,
         "dhan" => DHAN_LOGIN,
         "motilal" => MOTILAL_LOGIN,
+        "sahi" => SAHI_LOGIN,
         // Samco Trade API v3.2 signs in server to server with the stored API
         // key and secret; the form has no fields (web SamcoAuth page).
         _ => &[],
@@ -669,6 +675,18 @@ mod tests {
         assert!(f.contains("state=st2"));
         assert!(f.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Ffyers%2Fcallback"));
         assert!(authorize_url("angel", "k", "r", "s").is_none());
+    }
+
+    #[test]
+    fn sahi_login_asks_only_for_an_optional_totp() {
+        let f = login_fields("sahi");
+        assert_eq!(f.len(), 1);
+        assert_eq!(
+            (f[0].name, f[0].required, f[0].secret),
+            ("totp", false, true)
+        );
+        assert_eq!(credential_slot("totp"), Some(CredentialSlot::Totp));
+        assert_eq!(auth_type("sahi"), AuthType::Form);
     }
 
     #[test]
@@ -1048,16 +1066,11 @@ mod tests {
         for b in ["shoonya", "zebu", "tradesmart", "rmoney"] {
             assert_eq!(sign_in(b), SignIn::Redirect, "{}", b);
         }
-        for b in [
-            "fivepaisaxts",
-            "jainamxts",
-            "ibulls",
-            "iifl",
-            "sahi",
-            "wisdom",
-        ] {
+        for b in ["fivepaisaxts", "jainamxts", "ibulls", "iifl", "wisdom"] {
             assert_eq!(sign_in(b), SignIn::SavedKeys, "{}", b);
         }
+        // Sahi's card asks for a TOTP key's code (optional, as Groww's).
+        assert_eq!(sign_in("sahi"), SignIn::Form);
         assert_eq!(sign_in("deltaexchange"), SignIn::SavedKeys);
         assert_eq!(sign_in("dhan_sandbox"), SignIn::SavedKeys);
         // XTS members that sign in by redirect stay redirects.

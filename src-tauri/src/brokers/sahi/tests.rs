@@ -804,3 +804,101 @@ impl Captured {
         String::from_utf8_lossy(&self.0.lock()).into_owned()
     }
 }
+
+// ---------------------------------------------------------------------------
+// TOTP keys (docs.sahi.com, Authentication, "Choose a key type")
+// ---------------------------------------------------------------------------
+
+#[test]
+fn the_card_code_is_six_digits_or_blank() {
+    assert_eq!(auth::totp_code(None).unwrap(), None);
+    assert_eq!(auth::totp_code(Some("   ")).unwrap(), None);
+    assert_eq!(
+        auth::totp_code(Some(" 042 917 ")).unwrap(),
+        Some("042917".to_string())
+    );
+    for bad in ["12345", "1234567", "12a456", "abcdef"] {
+        let e = auth::totp_code(Some(bad)).unwrap_err();
+        assert!(e.client_message().contains("6-digit code"), "{}", bad);
+    }
+}
+
+#[test]
+fn totp_refusals_name_the_cause() {
+    let msg = |status: u16, code: &str| {
+        auth::login_error(
+            StatusCode::from_u16(status).unwrap(),
+            &json!({ "code": code }),
+        )
+        .client_message()
+    };
+    assert!(msg(401, "InvalidTotp").contains("did not accept the TOTP code"));
+    assert!(msg(403, "Forbidden").contains("not enabled for your Sahi account"));
+    assert!(msg(403, "Forbidden").contains("enter its code when you log in"));
+    assert!(msg(400, "InvalidRequest").contains("leave the code blank"));
+    assert!(msg(429, "TooManyRequests").contains("wrong TOTP codes"));
+}
+
+#[tokio::test]
+async fn the_card_code_reaches_the_mint_and_a_blank_one_does_not() {
+    let seen: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let s = seen.clone();
+    let app = Router::new()
+        .route(
+            "/api/v1/apikeys/token",
+            post(move |Json(b): Json<Value>| async move {
+                s.lock().push(b);
+                Json(json!({"access_token": "tokA", "expires_at": "x"}))
+            }),
+        )
+        .route(
+            "/v1/profile",
+            get(|| async { Json(json!({"user_id": "AB1234"})) }),
+        );
+    let b = broker(&serve(app).await);
+    let creds = BrokerCredentials {
+        api_key: "pk_1".into(),
+        api_secret: Some("sahi_sk_1".into()),
+        totp: Some("042917".into()),
+        ..Default::default()
+    };
+    b.authenticate(creds.clone()).await.unwrap();
+    let regular = BrokerCredentials {
+        totp: None,
+        ..creds.clone()
+    };
+    b.authenticate(regular).await.unwrap();
+    let sent = seen.lock().clone();
+    assert_eq!(
+        sent[0],
+        json!({"key_id": "pk_1", "secret": "sahi_sk_1", "totp": "042917"})
+    );
+    // A Regular key sends no totp: Sahi refuses one.
+    assert_eq!(sent[1], json!({"key_id": "pk_1", "secret": "sahi_sk_1"}));
+    let bad = BrokerCredentials {
+        totp: Some("12a456".into()),
+        ..creds
+    };
+    let e = b.authenticate(bad).await.unwrap_err();
+    assert!(e.client_message().contains("6-digit code"));
+    assert_eq!(
+        seen.lock().len(),
+        2,
+        "a malformed code is refused before sending"
+    );
+}
+
+#[test]
+fn product_must_suit_the_segment() {
+    let ok = |p, e| product_on_segment(p, e).is_ok();
+    assert!(ok(Product::Cnc, Exchange::Nse) && ok(Product::Cnc, Exchange::Bse));
+    assert!(ok(Product::Nrml, Exchange::Nfo) && ok(Product::Nrml, Exchange::Bfo));
+    assert!(ok(Product::Mis, Exchange::Nse) && ok(Product::Mis, Exchange::Bfo));
+    assert!(!ok(Product::Cnc, Exchange::Nfo));
+    assert!(!ok(Product::Nrml, Exchange::Nse));
+    let o = order("NIFTY27OCT2625000CE", Exchange::Nfo, PriceType::Limit);
+    let e = place_body(&o).unwrap_err();
+    assert!(e
+        .client_message()
+        .contains("Sahi does not take CNC orders on NFO"));
+}

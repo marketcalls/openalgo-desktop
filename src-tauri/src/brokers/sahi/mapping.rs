@@ -137,6 +137,26 @@ pub fn segment(exchange: Exchange) -> Result<&'static str> {
     }
 }
 
+/// Whether Sahi takes `product` on `exchange` (docs.sahi.com, Conventions,
+/// "Product"): delivery on NSE and BSE, carry-forward on NFO and BFO,
+/// intraday on all four. Any other pair Sahi refuses with 400, so it is
+/// refused here first with the product to use.
+pub fn product_on_segment(product: Product, exchange: Exchange) -> Result<()> {
+    let ok = match product {
+        Product::Cnc => matches!(exchange, Exchange::Nse | Exchange::Bse),
+        Product::Nrml => matches!(exchange, Exchange::Nfo | Exchange::Bfo),
+        Product::Mis => true,
+    };
+    if ok {
+        Ok(())
+    } else {
+        Err(AppError::Validation(format!(
+            "Sahi does not take {} orders on {}. Use CNC or MIS on NSE and BSE, and NRML or MIS on NFO and BFO.",
+            product, exchange
+        )))
+    }
+}
+
 /// Sahi order status to OpenAlgo's (web `ORDER_STATUS_MAP`). PartialFilled
 /// is terminal (the remainder was cancelled or an IOC expired), so it reads
 /// as cancelled; a stop order waiting for its trigger is reported as Open.
@@ -182,6 +202,7 @@ fn price_fields(
 pub fn place_body(o: &ResolvedOrder) -> Result<Value> {
     let mut body = Map::new();
     body.insert("exchange_segment".into(), json!(segment(o.exchange)?));
+    product_on_segment(o.product, o.exchange)?;
     body.insert("symbol".into(), json!(o.brsymbol()));
     body.insert("txn_type".into(), json!(action_code(o.action)));
     body.insert("qty".into(), json!(o.quantity));

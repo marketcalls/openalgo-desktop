@@ -301,7 +301,6 @@ async fn every_broker_signs_in_the_way_the_server_tells_the_broker_page() {
             "ibulls",
             "iifl",
             "jainamxts",
-            "sahi",
             "wisdom"
         ]
     );

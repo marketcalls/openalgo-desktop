@@ -228,6 +228,27 @@ const brokerFields: Record<string, BrokerConfig> = {
     callbackUrl: '/groww/callback',
     warning: 'Leave both fields empty to sign in with the API key and secret saved for Groww.',
   },
+  // Desktop: Sahi's code is for a TOTP API key; a Regular key leaves it
+  // blank and signs in with the saved key id and secret. The field name
+  // follows catalog::login_fields.
+  sahi: {
+    fields: [
+      {
+        name: 'totp',
+        label: 'TOTP',
+        type: 'text',
+        placeholder: 'Enter 6-digit TOTP',
+        maxLength: 6,
+        pattern: '[0-9]{6}',
+        inputMode: 'numeric',
+        optional: true,
+        hint: 'Only if your Sahi API key is a TOTP key: the current code from your authenticator app.',
+      },
+    ],
+    callbackUrl: '/sahi/callback',
+    warning:
+      'Leave it empty for a Regular key: approve the key in the Sahi API Dashboard today, then sign in.',
+  },
   mstock: {
     fields: [
       { name: 'password', label: 'Password', type: 'password', placeholder: 'Enter your Password' },
@@ -354,6 +375,7 @@ const brokerNames: Record<string, string> = {
   motilal: 'Motilal Oswal',
   mstock: 'MStock',
   nubra: 'Nubra (Nuvama)',
+  sahi: 'Sahi',
   samco: 'Samco',
   shoonya: 'Shoonya',
   tradejini: 'Tradejini',
