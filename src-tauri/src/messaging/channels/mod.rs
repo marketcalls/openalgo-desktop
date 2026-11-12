@@ -33,6 +33,7 @@
 //! | `webhook/` | Slack and Discord: the URL rules, the post, its answers |
 //! | `lane.rs` | each webhook channel's bounded queue of posts |
 //! | `notify.rs` | the rules for a caller's own text (REST, Flow) |
+//! | `page.rs` | what the /alerts, /slack and /discord pages read and change |
 //! | `subscriber.rs` | the bus subscribers |
 
 pub mod bots;
@@ -40,6 +41,7 @@ pub mod categories;
 pub mod formatting;
 pub mod lane;
 pub mod notify;
+pub mod page;
 pub mod settings;
 pub mod store;
 pub mod subscriber;

@@ -24,6 +24,7 @@ macro_rules! r {
 pub mod account;
 pub mod admin;
 pub mod agent;
+pub mod alert_channels;
 pub mod analyzer;
 pub mod app_config;
 pub mod auth;
@@ -108,6 +109,7 @@ pub fn table() -> Vec<RouteSpec> {
         strategy_portfolio(),
         telegram::table(),
         whatsapp::table(),
+        alert_channels::table(),
         historify::table(),
         broker_config::table(),
         // The /trading terminal (web custom_indicators.py, openscript*.py).

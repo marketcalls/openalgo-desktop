@@ -267,6 +267,8 @@ mod flow_rules;
 mod flow_reads;
 // Flow's route rules the wave-6 sweep asked to pin.
 mod flow_rules_w6;
+// The /alerts page API and the Slack and Discord notify endpoints (web #2435).
+mod alert_channels;
 
 // ------------------------------------------------------------------ fixtures
 

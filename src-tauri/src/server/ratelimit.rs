@@ -63,6 +63,7 @@ fn request_window(bucket: Bucket, ip: &IpAddr) -> bool {
                     | Bucket::AgentApi
                     | Bucket::AgentStream
                     | Bucket::AgentTest
+                    | Bucket::AlertTest
             ))
 }
 
@@ -126,6 +127,10 @@ pub enum Bucket {
     /// The Agent's routes that reach a provider to test it (web
     /// `AGENT_TEST_RATE_LIMIT`, 12 per minute).
     AgentTest,
+    /// An alert channel's test message (web `TEST_RATE_LIMIT` in
+    /// `blueprints/alert_channels.py`, 5 per minute): a real send to a real
+    /// account.
+    AlertTest,
 }
 
 impl Bucket {
@@ -146,6 +151,7 @@ impl Bucket {
             Bucket::AgentApi => (240, Duration::from_secs(60)),
             Bucket::AgentStream => (30, Duration::from_secs(60)),
             Bucket::AgentTest => (12, Duration::from_secs(60)),
+            Bucket::AlertTest => (5, Duration::from_secs(60)),
         }
     }
 
