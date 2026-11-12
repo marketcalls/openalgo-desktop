@@ -1,9 +1,12 @@
-//! What `/api/v1/telegram/notify` and `/api/v1/whatsapp/notify` do once
-//! the API key checked out (web `restx_api/telegram_bot.py`,
-//! `restx_api/whatsapp_bot.py`): find the recipients, then send now or on
-//! an owned task.
+//! What `/api/v1/telegram/notify`, `/api/v1/whatsapp/notify`,
+//! `/api/v1/slack/notify` and `/api/v1/discord/notify` do once the API key
+//! checked out (web `restx_api/telegram_bot.py`, `whatsapp_bot.py`,
+//! `webhook_alerts.py`): find the recipients, then send now or on an owned
+//! task.
 
 use super::core::Reply;
+use crate::messaging::channels::notify::{self, Delivery};
+use crate::messaging::channels::webhook::WebhookKind;
 use crate::messaging::format::{py_str, truthy};
 use crate::messaging::telegram::{db as tg_db, TelegramService};
 use crate::messaging::whatsapp::{db as wa_db, normalize_phone, phone_to_jid, WhatsAppService};
@@ -215,4 +218,36 @@ async fn whatsapp_send_now(ctx: &AppState, targets: &[String], text: &str) -> Re
         "message": format!("Delivered to {}, failed {}", delivered, refused),
         "data": report,
     }))
+}
+
+/// `/api/v1/slack/notify` and `/api/v1/discord/notify`: the caller's text
+/// to the channel's saved webhook, under the channel's switch on /alerts
+/// (`messaging::channels::notify`). Queued unless `wait_for_delivery` is
+/// true.
+pub async fn webhook(ctx: &Arc<AppState>, kind: WebhookKind, data: &Map<String, Value>) -> Reply {
+    if let Some(problem) = notify::message_problem(kind, data.get("message")) {
+        return Reply::error(400, problem);
+    }
+    let wait = match data.get("wait_for_delivery") {
+        None => false,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => return Reply::error(400, "'wait_for_delivery' must be true or false."),
+    };
+    let how = Delivery {
+        wait,
+        shorten: false,
+    };
+    match notify::notify(ctx, kind, data.get("message"), how).await {
+        Ok(r) => Reply::new(
+            r.status_code,
+            json!({"status": if r.ok { "success" } else { "error" }, "message": r.message}),
+        ),
+        Err(e) => {
+            tracing::error!("A {} notify could not be sent: {}", kind.label(), e);
+            Reply::error(
+                500,
+                format!("The {} message could not be sent. Try again.", kind.label()),
+            )
+        }
+    }
 }

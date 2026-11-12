@@ -32,6 +32,10 @@ pub enum ApiRate {
     TelegramBroadcast,
     /// `WHATSAPP_RATE_LIMIT`, 30 per minute (`whatsapp/notify`).
     WhatsApp,
+    /// `NOTIFY_RATE_LIMIT`, 30 per minute, fixed in the web's code
+    /// (`restx_api/webhook_alerts.py`): about what Slack and Discord accept
+    /// on one webhook.
+    AlertNotify,
     /// `SECTOR_ROTATION_API_RATE_LIMIT`, 30 per minute (the map and its
     /// options; not in `.sample.env`, so the decorator's default).
     SectorRotation,
@@ -43,9 +47,11 @@ impl ApiRate {
         match self {
             ApiRate::Api => (100, 1),
             ApiRate::Order | ApiRate::SmartOrder => (10, 1),
-            ApiRate::Greeks | ApiRate::Telegram | ApiRate::WhatsApp | ApiRate::SectorRotation => {
-                (30, 60)
-            }
+            ApiRate::Greeks
+            | ApiRate::Telegram
+            | ApiRate::WhatsApp
+            | ApiRate::AlertNotify
+            | ApiRate::SectorRotation => (30, 60),
             ApiRate::TelegramBroadcast => (5, 60),
         }
     }
@@ -125,6 +131,8 @@ const ENDPOINTS: &[(&str, ApiRate)] = &[
     ("telegram/preferences", ApiRate::Telegram),
     ("telegram/webhook", ApiRate::Api),
     ("whatsapp/notify", ApiRate::WhatsApp),
+    ("slack/notify", ApiRate::AlertNotify),
+    ("discord/notify", ApiRate::AlertNotify),
     ("sectorrotation", ApiRate::SectorRotation),
     ("sectorrotation/options", ApiRate::SectorRotation),
     ("strategy/list", ApiRate::Api),
@@ -224,6 +232,14 @@ mod tests {
         assert_eq!(rate("/api/v1/multioptiongreeks"), ApiRate::Api);
         assert_eq!(rate("/api/v1/whatsapp/notify"), ApiRate::WhatsApp);
         assert_eq!(rate("/api/v1/telegram/notify"), ApiRate::Telegram);
+        assert_eq!(rate("/api/v1/slack/notify"), ApiRate::AlertNotify);
+        assert_eq!(rate("/api/v1/discord/notify"), ApiRate::AlertNotify);
+        assert_ne!(
+            endpoint_for("/api/v1/slack/notify"),
+            endpoint_for("/api/v1/discord/notify"),
+            "each in its own window"
+        );
+        assert_eq!(ApiRate::AlertNotify.limit(), (30, 60));
         assert_eq!(
             rate("/api/v1/telegram/broadcast"),
             ApiRate::TelegramBroadcast

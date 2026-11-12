@@ -16,7 +16,7 @@
 //! | `gtt.rs` | placegttorder, modifygttorder, cancelgttorder, gttorderbook |
 //!
 //! | `chart.rs` | chart (GET and POST) |
-//! | `notify.rs` | telegram/notify, whatsapp/notify |
+//! | `notify.rs` | telegram/notify, whatsapp/notify, slack/notify, discord/notify |
 //! | `telegram.rs` | telegram/config, start, stop, users, broadcast, stats, preferences, webhook |
 //! | `strategy.rs` | strategy/* |
 //! | `sector_rotation.rs` | sectorrotation, sectorrotation/options |
@@ -388,8 +388,8 @@ pub fn router() -> Router<Arc<AppState>> {
         )
 }
 
-/// Telegram and WhatsApp (web `restx_api/telegram_bot.py`,
-/// `whatsapp_bot.py`).
+/// Telegram, WhatsApp, Slack and Discord (web `restx_api/telegram_bot.py`,
+/// `whatsapp_bot.py`, `webhook_alerts.py`).
 fn messaging() -> Router<Arc<AppState>> {
     Router::new()
         .route("/api/v1/telegram/notify", post(notify::telegram_notify))
@@ -408,4 +408,7 @@ fn messaging() -> Router<Arc<AppState>> {
         )
         .route("/api/v1/telegram/webhook", post(telegram::webhook))
         .route("/api/v1/whatsapp/notify", post(notify::whatsapp_notify))
+        // Slack and Discord (web restx_api/webhook_alerts.py)
+        .route("/api/v1/slack/notify", post(notify::slack_notify))
+        .route("/api/v1/discord/notify", post(notify::discord_notify))
 }

@@ -17,6 +17,10 @@
 //!    (`webhook`, `lane`) and never wait on the network in the subscriber.
 //!    Slack, Discord and WhatsApp share one formatter (`formatting`).
 //!
+//! The /alerts page (`server::routes::alert_channels`) reads and changes
+//! the same settings; the `/api/v1/slack/notify` and `/discord/notify`
+//! endpoints and the Flow nodes post through `notify`, under the same rules.
+//!
 //! What lives where:
 //!
 //! | File | What |
@@ -28,12 +32,14 @@
 //! | `bots.rs` | Telegram and WhatsApp: status, test message, WhatsApp text |
 //! | `webhook/` | Slack and Discord: the URL rules, the post, its answers |
 //! | `lane.rs` | each webhook channel's bounded queue of posts |
+//! | `notify.rs` | the rules for a caller's own text (REST, Flow) |
 //! | `subscriber.rs` | the bus subscribers |
 
 pub mod bots;
 pub mod categories;
 pub mod formatting;
 pub mod lane;
+pub mod notify;
 pub mod settings;
 pub mod store;
 pub mod subscriber;
