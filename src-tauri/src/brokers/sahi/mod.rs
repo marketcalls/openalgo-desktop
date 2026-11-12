@@ -332,8 +332,14 @@ impl Broker for SahiBroker {
         "/logos/sahi.svg"
     }
 
+    /// The login card's one field: a TOTP key's code (web #2441).
     fn login_kind(&self) -> LoginKind {
-        LoginKind::ApiKeySecret
+        LoginKind::DirectTotp { fields: &["totp"] }
+    }
+
+    /// A Regular key signs in with the code left blank.
+    fn requires_totp(&self) -> bool {
+        false
     }
 
     fn supported_exchanges(&self) -> &'static [Exchange] {

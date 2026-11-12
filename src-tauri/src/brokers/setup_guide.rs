@@ -520,7 +520,7 @@ fn guide_r_to_t(broker: &str) -> Option<SetupGuide> {
                     "The secret shown once when that key was created (it starts with sahi_sk_).",
                 ),
             ] },
-            banner: "Login with Sahi signs you in with one click using the API key and secret you saved. Approve the key in Sahi's API Dashboard once each trading day first, and register the internet address this computer's traffic leaves from as a static IP on your Sahi account: Sahi refuses orders from any other address.",
+            banner: "Login with Sahi opens a short form in OpenAlgo with one optional field. For a TOTP key, enter the code your authenticator app shows; for a Regular key, leave it blank and approve the key in Sahi's API Dashboard once each trading day first. Register the internet address this computer's traffic leaves from as a static IP on your Sahi account: Sahi refuses orders from any other address.",
             redirect_hint: "",
         },
         "samco" => SetupGuide {

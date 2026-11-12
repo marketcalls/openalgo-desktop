@@ -461,7 +461,9 @@ fn categories_follow_the_published_table() {
 fn adapter_identity() {
     let b = SahiBroker::new(SymbolResolver::new());
     assert_eq!((b.id(), b.name()), ("sahi", "Sahi"));
-    assert_eq!(b.login_kind(), LoginKind::ApiKeySecret);
+    // The login card's optional TOTP code (web #2441).
+    assert_eq!(b.login_kind(), LoginKind::DirectTotp { fields: &["totp"] });
+    assert!(!b.requires_totp());
     assert!(b.capabilities().streaming && !b.capabilities().gtt);
     assert!(!b.supported_exchanges().contains(&Exchange::Mcx));
 }
@@ -727,6 +729,114 @@ async fn sign_in_reads_the_profile() {
     assert!(e.client_message().contains("not approved for today"));
     let none = BrokerCredentials::default();
     assert!(b.authenticate(none).await.is_err());
+}
+
+/// A token endpoint that records every body it is sent and answers with
+/// `reply` (web test_sahi_auth.py's `mint` fixture); no profile scope.
+async fn token_mint(reply: (Http, Value)) -> (SahiBroker, Arc<Mutex<Vec<Value>>>) {
+    let sent: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let seen = sent.clone();
+    let app = Router::new().route(
+        "/api/v1/apikeys/token",
+        post(move |Json(b): Json<Value>| {
+            let reply = reply.clone();
+            async move {
+                seen.lock().push(b);
+                (reply.0, Json(reply.1))
+            }
+        }),
+    );
+    (broker(&serve(app).await), sent)
+}
+
+fn sahi_keys(totp: Option<&str>) -> BrokerCredentials {
+    BrokerCredentials {
+        api_key: "pk_1".into(),
+        api_secret: Some("sahi_sk_1".into()),
+        totp: totp.map(str::to_string),
+        ..Default::default()
+    }
+}
+
+fn token_issued() -> (Http, Value) {
+    (
+        Http::OK,
+        json!({"access_token": "tokA", "expires_at": "x", "scope": "s"}),
+    )
+}
+
+/// Web test/test_sahi_auth.py `test_regular_key_sends_no_totp` and
+/// `test_totp_key_sends_the_code_from_the_card` (web #2441): a Regular
+/// key's mint carries no `totp` (Sahi refuses one); a TOTP key's carries
+/// the card's code, spaces removed, as a string.
+#[tokio::test]
+async fn a_regular_key_sends_no_code_and_a_totp_key_sends_the_cards() {
+    for blank in [None, Some(""), Some("   ")] {
+        let (b, sent) = token_mint(token_issued()).await;
+        let r = b.authenticate(sahi_keys(blank)).await.unwrap();
+        assert_eq!(r.auth_token, "tokA");
+        assert_eq!(
+            *sent.lock(),
+            [json!({"key_id": "pk_1", "secret": "sahi_sk_1"})],
+            "{:?}",
+            blank
+        );
+    }
+    let (b, sent) = token_mint(token_issued()).await;
+    b.authenticate(sahi_keys(Some(" 042 917 "))).await.unwrap();
+    assert_eq!(
+        *sent.lock(),
+        [json!({"key_id": "pk_1", "secret": "sahi_sk_1", "totp": "042917"})]
+    );
+}
+
+/// Web `test_a_code_that_is_not_six_digits_is_refused_before_sending` and
+/// `test_the_api_secret_is_sent_as_saved`.
+#[tokio::test]
+async fn a_code_that_is_not_six_digits_is_refused_before_sending() {
+    for bad in ["12345", "1234567", "12a456", "abcdef"] {
+        let (b, sent) = token_mint(token_issued()).await;
+        let e = b.authenticate(sahi_keys(Some(bad))).await.unwrap_err();
+        assert!(e.client_message().contains("6-digit code"), "{bad}: {e:?}");
+        assert!(sent.lock().is_empty(), "{bad}");
+    }
+    // Nothing after ::: is read: the secret goes to Sahi as saved.
+    let (b, sent) = token_mint(token_issued()).await;
+    let keys = BrokerCredentials {
+        api_secret: Some("sahi_sk_1:::X".into()),
+        ..sahi_keys(None)
+    };
+    b.authenticate(keys).await.unwrap();
+    assert_eq!(sent.lock()[0]["secret"], "sahi_sk_1:::X");
+}
+
+/// Web `test_a_wrong_code_says_so` and `test_login_refusals_name_the_cause`.
+#[tokio::test]
+async fn login_refusals_name_the_cause() {
+    let (b, _) = token_mint((
+        Http::UNAUTHORIZED,
+        json!({"code": "InvalidTotp", "message": "The TOTP code is not valid",
+               "server_time": "2026-10-27T03:45:12Z"}),
+    ))
+    .await;
+    let e = b.authenticate(sahi_keys(Some("042917"))).await.unwrap_err();
+    assert!(e.client_message().contains("did not accept the TOTP code"));
+    for (status, code, expected) in [
+        (403, "Forbidden", "not approved for today"),
+        (403, "Forbidden", "not enabled for your Sahi account"),
+        (403, "Forbidden", "enter its code when you log in"),
+        (400, "InvalidRequest", "leave the code blank"),
+        (429, "TooManyRequests", "wrong TOTP codes"),
+        (401, "Locked", "frozen or locked"),
+        (401, "Unauthorized", "pk_"),
+    ] {
+        let m = auth::login_error(
+            StatusCode::from_u16(status).unwrap(),
+            &json!({"code": code}),
+        )
+        .client_message();
+        assert!(m.contains(expected), "{status} {code}: {m}");
+    }
 }
 
 // ---------------------------------------------------------------------------

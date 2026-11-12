@@ -85,10 +85,11 @@ pub fn auth_type(broker: &str) -> AuthType {
 
 /// Brokers that sign in from the saved API key and secret alone, with no
 /// extra input (web brlogin signs these in on the first visit to
-/// `/<broker>/callback`): the XTS direct logins, Delta Exchange, Sahi (its
-/// key id and secret mint the day's token) and Dhan's sandbox, whose
-/// access token is the saved secret. Samco also needs no
-/// input but has its own connect page (the static IP check).
+/// `/<broker>/callback`): the XTS direct logins, Delta Exchange and Dhan's
+/// sandbox, whose access token is the saved secret. Samco also needs no
+/// input but has its own connect page (the static IP check). Sahi left
+/// this list with its TOTP keys (web #2441): its login card asks for the
+/// code, blank for a Regular key.
 pub const SAVED_KEY_BROKERS: &[&str] = &[
     "deltaexchange",
     "dhan_sandbox",
@@ -96,7 +97,6 @@ pub const SAVED_KEY_BROKERS: &[&str] = &[
     "ibulls",
     "iifl",
     "jainamxts",
-    "sahi",
     "wisdom",
 ];
 
@@ -536,6 +536,11 @@ const MOTILAL_LOGIN: &[LoginField] = &[
     masked_optional("totp", "TOTP"),
 ];
 
+/// Sahi (web BrokerTOTP.tsx, #2441): the code a TOTP key needs at each
+/// login; a Regular key, approved in Sahi's API Dashboard, leaves it blank
+/// and nothing is sent. The stored keys are the key id and the secret.
+const SAHI_LOGIN: &[LoginField] = &[masked_optional("totp", "TOTP code")];
+
 /// Extra fields a broker's login form shows (beyond the stored API key and
 /// secret). Empty for brokers that sign in by redirect or need nothing.
 pub fn login_fields(broker: &str) -> &'static [LoginField] {
@@ -551,6 +556,7 @@ pub fn login_fields(broker: &str) -> &'static [LoginField] {
         "mstock" => MSTOCK_LOGIN,
         "dhan" => DHAN_LOGIN,
         "motilal" => MOTILAL_LOGIN,
+        "sahi" => SAHI_LOGIN,
         // Samco Trade API v3.2 signs in server to server with the stored API
         // key and secret; the form has no fields (web SamcoAuth page).
         _ => &[],
@@ -999,6 +1005,8 @@ mod tests {
         assert_eq!(names("motilal"), ["userid", "password", "dob", "totp"]);
         assert!(names("samco").is_empty());
         assert!(!login_fields("motilal")[3].required);
+        assert_eq!(names("sahi"), ["totp"]);
+        assert!(!login_fields("sahi")[0].required);
         assert!(!callback_carries_state("aliceblue"));
         assert!(CLIENT_ID_BROKERS.contains(&"aliceblue"));
         assert_eq!(credential_slot("dob"), Some(CredentialSlot::Dob));
@@ -1048,16 +1056,11 @@ mod tests {
         for b in ["shoonya", "zebu", "tradesmart", "rmoney"] {
             assert_eq!(sign_in(b), SignIn::Redirect, "{}", b);
         }
-        for b in [
-            "fivepaisaxts",
-            "jainamxts",
-            "ibulls",
-            "iifl",
-            "sahi",
-            "wisdom",
-        ] {
+        for b in ["fivepaisaxts", "jainamxts", "ibulls", "iifl", "wisdom"] {
             assert_eq!(sign_in(b), SignIn::SavedKeys, "{}", b);
         }
+        // Sahi's card asks for a TOTP key's code (web #2441).
+        assert_eq!(sign_in("sahi"), SignIn::Form);
         assert_eq!(sign_in("deltaexchange"), SignIn::SavedKeys);
         assert_eq!(sign_in("dhan_sandbox"), SignIn::SavedKeys);
         // XTS members that sign in by redirect stay redirects.

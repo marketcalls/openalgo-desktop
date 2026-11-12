@@ -133,4 +133,42 @@ describe('BrokerTOTP login card', () => {
     await waitFor(() => expect(posted).toHaveLength(1))
     expect([...posted[0].keys()]).toEqual(['csrf_token'])
   })
+
+  // Web #2441: Sahi's card asks for a TOTP key's code; a Regular key, approved
+  // in Sahi's API Dashboard, leaves it blank and nothing is sent for it.
+  function postedForms() {
+    const posted: FormData[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.body instanceof FormData) posted.push(init.body)
+        return {
+          ok: true,
+          json: async () =>
+            url === '/auth/csrf-token' ? { csrf_token: 'tok' } : { status: 'success' },
+        }
+      })
+    )
+    return posted
+  }
+
+  it('asks Sahi only for an optional TOTP code, and signs in with it blank', async () => {
+    const posted = postedForms()
+    renderAt('/broker/sahi/totp')
+    expect(screen.getByRole('heading', { level: 1, name: 'Login with Sahi' })).toBeInTheDocument()
+    expect(screen.getByLabelText(/TOTP code/)).not.toBeRequired()
+    expect(screen.queryByLabelText(/User ID/)).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Log in to Sahi' }))
+    await waitFor(() => expect(posted).toHaveLength(1))
+    expect([...posted[0].keys()]).toEqual(['csrf_token'])
+  })
+
+  it("sends a Sahi TOTP key's code as typed", async () => {
+    const posted = postedForms()
+    renderAt('/broker/sahi/totp')
+    await userEvent.type(screen.getByLabelText(/TOTP code/), '042917')
+    await userEvent.click(screen.getByRole('button', { name: 'Log in to Sahi' }))
+    await waitFor(() => expect(posted).toHaveLength(1))
+    expect(posted[0].get('totp')).toBe('042917')
+  })
 })

@@ -301,7 +301,6 @@ async fn every_broker_signs_in_the_way_the_server_tells_the_broker_page() {
             "ibulls",
             "iifl",
             "jainamxts",
-            "sahi",
             "wisdom"
         ]
     );
@@ -317,6 +316,46 @@ async fn every_broker_signs_in_the_way_the_server_tells_the_broker_page() {
         seen.values().map(Vec::len).sum::<usize>(),
         catalog::ALL_BROKERS.len()
     );
+    ctx.runtime.teardown(ctx).await;
+}
+
+/// Web test/test_broker_keys.py
+/// `test_sahi_logs_in_from_its_card_with_an_optional_code` (web #2441):
+/// Sahi's callback opens its login card; the card's TOTP code reaches the
+/// adapter for a TOTP key, and a blank one sends nothing for a Regular key,
+/// whose saved key id and secret alone mint the token.
+#[tokio::test]
+async fn sahi_logs_in_from_its_card_with_an_optional_code() {
+    let (t, mocks) = every_broker();
+    let ctx = &t.ctx;
+    ctx.limiter.freeze(Some(std::time::Instant::now()));
+    let sahi = mocks.iter().find(|m| m.id == "sahi").unwrap();
+    // A Regular key signs in from the saved keys with no code.
+    *sahi.saved_keys_sign_in.lock() = true;
+    activate(ctx, "sahi");
+    let (cookie, csrf, _) = user_session(ctx);
+    let (_, h, _) = send_to(ctx, navigate("/sahi/callback", &cookie)).await;
+    assert_eq!(location(&h), "/broker/sahi/totp");
+    for (typed, sent) in [("042917", Some("042917")), ("", None)] {
+        let (s, _, v) = send_to(
+            ctx,
+            with_session(
+                post_json("/sahi/callback", json!({ "totp": typed })),
+                &cookie,
+                Some(&csrf),
+            ),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK, "{:?}: {}", typed, v);
+        assert_eq!(v["redirect"], "/dashboard", "{:?}", typed);
+        let a = sahi.last_auth.lock().clone().unwrap();
+        assert_eq!(a.totp.as_deref(), sent, "{:?}", typed);
+        assert_eq!(a.api_secret.as_deref(), Some("appsecret"));
+        assert_eq!(ctx.get_broker_session().unwrap().broker_id, "sahi");
+        BrokerAuthService::revoke(ctx, SessionEndReason::Logout)
+            .await
+            .unwrap();
+    }
     ctx.runtime.teardown(ctx).await;
 }
 
