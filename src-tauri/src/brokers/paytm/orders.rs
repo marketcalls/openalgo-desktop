@@ -29,9 +29,30 @@ fn working(o: &PaytmOrder) -> bool {
     WORKING.contains(&o.status.trim().to_ascii_uppercase().as_str())
 }
 
-/// The body `place_order_api` posts (web `transform_data`). Trigger price
-/// is sent for stop orders, which Paytm needs to accept them.
-pub fn place_order_body(o: &ResolvedOrder) -> Value {
+/// SL and SL-M, which Paytm takes as `SL` and `SLM` with a trigger price
+/// (web `STOP_ORDER_TYPES`).
+fn is_stop(p: PriceType) -> bool {
+    matches!(p, PriceType::Sl | PriceType::SlM)
+}
+
+/// web `require_trigger_price` (#2404): an SL or SL-M order needs a finite
+/// trigger price above 0, or it is refused before it is sent. Without one
+/// the web sent a protective stop as a market order that executed at once.
+fn require_trigger(pricetype: PriceType, trigger: f64) -> Result<()> {
+    if is_stop(pricetype) && !(trigger.is_finite() && trigger > 0.0) {
+        return Err(AppError::Validation(format!(
+            "A trigger price is required for an {} order. Set the trigger price and place the order again.",
+            pricetype.as_str()
+        )));
+    }
+    Ok(())
+}
+
+/// The body `place_order_api` posts (web `transform_data`): a stop order
+/// carries its trigger price, and an SL-M, which executes at market once
+/// triggered, the price "0" (the web's string).
+pub fn place_order_body(o: &ResolvedOrder) -> Result<Value> {
+    require_trigger(o.pricetype, o.trigger_price)?;
     let mut body = json!({
         "security_id": o.token(),
         "exchange": paytm_exchange(o.exchange),
@@ -44,10 +65,13 @@ pub fn place_order_body(o: &ResolvedOrder) -> Value {
         "segment": segment(o.exchange),
         "source": "M",
     });
-    if matches!(o.pricetype, PriceType::Sl | PriceType::SlM) {
+    if is_stop(o.pricetype) {
         body["trigger_price"] = json!(o.trigger_price);
     }
-    body
+    if o.pricetype == PriceType::SlM {
+        body["price"] = json!("0");
+    }
+    Ok(body)
 }
 
 /// Fields of a book row echoed back verbatim (strings stay strings).
@@ -56,16 +80,19 @@ fn echo(o: &PaytmOrder, key: &str) -> Value {
 }
 
 /// The body `modify_order` posts: the book row's identity fields plus the
-/// new quantity, price, trigger, product and order type.
-pub fn modify_order_body(m: &ResolvedModify, o: &PaytmOrder) -> Value {
-    let market = m.pricetype == PriceType::Market;
-    json!({
+/// new quantity, price, trigger, product and order type. An order that
+/// executes at market (MKT, SLM) sends the price "0", the web's string; a
+/// stop order needs its trigger price (#2404).
+pub fn modify_order_body(m: &ResolvedModify, o: &PaytmOrder) -> Result<Value> {
+    require_trigger(m.pricetype, m.trigger_price)?;
+    let at_market = matches!(m.pricetype, PriceType::Market | PriceType::SlM);
+    Ok(json!({
         "order_no": o.order_no,
         "exchange": echo(o, "exchange"),
         "segment": echo(o, "segment"),
         "security_id": echo(o, "security_id"),
         "quantity": m.quantity,
-        "price": if market { 0.0 } else { m.price },
+        "price": if at_market { json!("0") } else { json!(m.price) },
         "trigger_price": m.trigger_price,
         "validity": "DAY",
         "product": paytm_product(m.product),
@@ -75,7 +102,7 @@ pub fn modify_order_body(m: &ResolvedModify, o: &PaytmOrder) -> Value {
         "off_mkt_flag": if o.off_mkt_flag.is_empty() { "N".to_string() } else { o.off_mkt_flag.clone() },
         "serial_no": echo(o, "serial_no"),
         "group_id": echo(o, "group_id"),
-    })
+    }))
 }
 
 /// The body `cancel_order` posts (web copies the book row, `ext_info`
@@ -120,7 +147,7 @@ pub async fn place_order(
     auth: &AuthToken,
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
-    let body = place_order_body(o);
+    let body = place_order_body(o)?;
     let env = b.call(Method::POST, PLACE, auth, Some(&body)).await?;
     let id = order_no(&env.data).ok_or_else(|| {
         // Accepted without a number: the order may exist (LOG-08).
@@ -182,7 +209,7 @@ pub async fn modify_order(
             m.order_id, o.status
         )));
     }
-    let body = modify_order_body(m, o);
+    let body = modify_order_body(m, o)?;
     let env = b.call(Method::POST, MODIFY, auth, Some(&body)).await?;
     Ok(OrderResponse {
         order_id: order_no(&env.data).unwrap_or_else(|| m.order_id.clone()),

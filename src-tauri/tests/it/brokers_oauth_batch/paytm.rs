@@ -331,6 +331,47 @@ fn modify_req(order_id: &str, pricetype: &str) -> ResolvedModify {
     ResolvedModify::resolve(order_id, &m, &master()).unwrap()
 }
 
+/// Web test/test_paytm_stop_loss_orders.py `TestPlaceOrderApi` and
+/// `TestModifyOrder` (#2404): an SL-M reaches Paytm as SLM with its trigger
+/// and the price "0"; a stop without a trigger is refused and never sent;
+/// a LIMIT modified to SL-M sends SLM, "0" and the trigger, and a stop
+/// modify without a valid trigger is refused before anything is sent.
+#[tokio::test]
+async fn paytm_stop_orders_carry_their_trigger_or_are_not_sent() {
+    let (b, fake, auth) = setup().await;
+    let r = b
+        .place_order(&auth, &order("SBIN", "NSE", "SELL", "SL-M", "MIS"))
+        .await
+        .unwrap();
+    assert_eq!(r.order_id, "261003000009999");
+    let sent = &fake.calls("POST", "/orders/v1/place/regular")[0].body;
+    assert_eq!(
+        (&sent["order_type"], &sent["price"], &sent["trigger_price"]),
+        (&json!("SLM"), &json!("0"), &json!(799.0))
+    );
+
+    let mut no_trigger = order("SBIN", "NSE", "SELL", "SL", "MIS");
+    no_trigger.trigger_price = 0.0;
+    let e = b.place_order(&auth, &no_trigger).await.unwrap_err();
+    assert!(matches!(e, AppError::Validation(_)), "{e:?}");
+    assert!(e.client_message().contains("trigger price is required"));
+    assert_eq!(fake.calls("POST", "/orders/v1/place/regular").len(), 1);
+
+    let mut slm = modify_req("261003000000101", "SL-M");
+    (slm.price, slm.trigger_price) = (0.0, 600.0);
+    b.modify_order(&auth, &slm).await.unwrap();
+    let sent = &fake.calls("POST", "/orders/v1/modify/regular")[0].body;
+    assert_eq!(
+        (&sent["order_type"], &sent["price"], &sent["trigger_price"]),
+        (&json!("SLM"), &json!("0"), &json!(600.0))
+    );
+    let mut sl = modify_req("261003000000101", "SL");
+    sl.trigger_price = 0.0;
+    let e = b.modify_order(&auth, &sl).await.unwrap_err();
+    assert!(e.client_message().contains("trigger price is required"));
+    assert_eq!(fake.calls("POST", "/orders/v1/modify/regular").len(), 1);
+}
+
 #[tokio::test]
 async fn paytm_modify_and_cancel_look_up_the_book_row() {
     let (b, fake, auth) = setup().await;
