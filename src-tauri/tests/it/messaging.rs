@@ -644,6 +644,45 @@ async fn telegram_mode_buttons_need_the_linked_user_in_a_private_chat() {
     h.ctx.messaging.telegram.shutdown().await;
 }
 
+/// Web `test/test_telegram_link_ownership.py` (81fe8eb41),
+/// `test_the_commands_refuse_a_link_that_is_not_the_owners` and
+/// `test_a_regenerated_api_key_ends_what_the_old_link_could_do`: `/mode`
+/// reads this desktop's own setting, not through the linked key, so it
+/// answers a chat only while its key is the current API key. It needs no
+/// broker session, as on the web.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn telegram_mode_answers_only_a_link_with_the_current_api_key() {
+    let _serial = SERIAL.lock().await;
+    let h = H::new(false);
+    let (fake, base, _j) = spawn_fake().await;
+    h.start_telegram(&base).await;
+    h.link(42);
+    let told_the_mode = |f: &Fake| {
+        f.texts()
+            .iter()
+            .filter(|t| t.starts_with("*Trading Mode*"))
+            .count()
+    };
+
+    fake.push(msg(42, 42, "/mode"));
+    assert!(wait_for(|| told_the_mode(&fake) == 1, 5000).await);
+
+    ApiKeyService::regenerate(&h.ctx, USER).unwrap();
+    fake.push(msg(42, 42, "/mode"));
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.contains("linked API key is no longer valid")),
+            5000
+        )
+        .await
+    );
+    assert_eq!(told_the_mode(&fake), 1, "the old link was told the mode");
+    h.ctx.messaging.telegram.shutdown().await;
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_link_never_calls_the_given_host_even_without_a_broker() {
     let _serial = SERIAL.lock().await;
