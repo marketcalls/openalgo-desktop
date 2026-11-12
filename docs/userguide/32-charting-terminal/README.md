@@ -156,6 +156,8 @@ Under **When it fires** you choose how you are told:
 | Desktop notification | on | Your system's notification, shown only while the terminal is hidden |
 | Telegram | off | A message through your Telegram bot; it must be running with your account linked ([23 - Telegram Bot](../23-telegram-bot/README.md)) |
 | WhatsApp | off | A message through your paired WhatsApp ([23 - Telegram Bot](../23-telegram-bot/README.md#whatsapp)) |
+| Slack | off | A post to your Slack channel; its webhook must be saved on the Slack page ([23 - Telegram Bot](../23-telegram-bot/README.md#slack-and-discord)) |
+| Discord | off | A post to your Discord channel; its webhook must be saved on the Discord page ([23 - Telegram Bot](../23-telegram-bot/README.md#slack-and-discord)) |
 
 A message may carry placeholders such as `{{ticker}}`, `{{price}}`,
 `{{close}}` and `{{interval}}`; the form lists them.

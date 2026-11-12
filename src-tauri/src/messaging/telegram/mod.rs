@@ -23,7 +23,7 @@ pub mod page;
 mod texts;
 
 use crate::events::OrderMeta;
-use crate::messaging::alerts::{self, Channel};
+use crate::messaging::alerts;
 use crate::security::Secret;
 use crate::state::AppState;
 use api::{BotApi, TgError, DEFAULT_API_BASE};
@@ -481,7 +481,6 @@ impl TelegramService {
             return;
         }
         let text = alerts::order_alert_text(
-            Channel::Telegram,
             &meta.api_type,
             &meta.request_data,
             &meta.response_data,

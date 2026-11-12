@@ -89,3 +89,70 @@ async fn whatsapp_sends_to_the_number_or_to_self() {
     assert_eq!(out.failure_message(), logged_out);
     assert_eq!(logs(&c)[1].0, "error");
 }
+
+/// Web test/test_alerts_flow_mcp.py::test_the_executor_dispatches_the_node_with_its_variables_filled_in
+#[tokio::test]
+async fn slack_and_discord_post_the_message_with_its_variables_filled_in() {
+    let (client, c) = ctx();
+    c.vars.set("sym", json!("NIFTY"));
+    for node in [&SlackAlert as &dyn FlowNode, &DiscordAlert] {
+        let out = run(node, &c, json!({"message": "Bought {{sym}}"})).await;
+        assert!(!out.is_error());
+    }
+    let sent: Vec<(&str, String)> = client
+        .alerts()
+        .into_iter()
+        .map(|a| (a.channel, a.message))
+        .collect();
+    assert_eq!(
+        sent,
+        vec![
+            ("slack", "Bought NIFTY".to_string()),
+            ("discord", "Bought NIFTY".to_string())
+        ]
+    );
+    assert_eq!(
+        logs(&c)[0],
+        ("info".into(), "Sending Slack alert: Bought NIFTY".into())
+    );
+    assert_eq!(
+        logs(&c)[3].1,
+        "Discord result: {'data': {'message': 'Alert queued successfully'}, 'status': 'success'}"
+    );
+}
+
+/// Web test/test_alerts_flow_mcp.py::test_the_run_log_keeps_a_preview_not_the_whole_message:
+/// every run's log is stored, and one variable can make a message as long
+/// as the channel allows.
+#[tokio::test]
+async fn the_run_log_keeps_a_preview_not_the_whole_message() {
+    for node in [&SlackAlert as &dyn FlowNode, &DiscordAlert] {
+        let (client, c) = ctx();
+        let message = "z".repeat(5000);
+        run(node, &c, json!({"message": message})).await;
+        assert_eq!(
+            client.alerts()[0].message,
+            message,
+            "the channel gets it all"
+        );
+        let lines = logs(&c);
+        assert!(lines.iter().all(|(_, m)| m.len() < 400), "{:?}", lines);
+        assert!(
+            lines[0].1.ends_with("... (5000 characters)"),
+            "{}",
+            lines[0].1
+        );
+    }
+}
+
+/// A refused post is the node's failure, as for Telegram.
+#[tokio::test]
+async fn a_refused_post_fails_the_node() {
+    let (client, c) = ctx();
+    let off = "Slack alerts are turned off. Turn them on from the Alerts page in OpenAlgo.";
+    client.alert_reply(json!({"status": "error", "error": off}));
+    let out = run(&SlackAlert, &c, json!({"message": "x"})).await;
+    assert!(out.is_error());
+    assert_eq!(out.failure_message(), off);
+    assert_eq!(logs(&c)[1].0, "error");
+}

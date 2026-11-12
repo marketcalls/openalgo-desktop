@@ -109,7 +109,7 @@ impl FieldErrors {
     }
 }
 
-fn is_json(req: &Request) -> bool {
+pub(crate) fn is_json(req: &Request) -> bool {
     req.headers()
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())

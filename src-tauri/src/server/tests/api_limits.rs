@@ -53,3 +53,25 @@ async fn greeks_and_whatsapp_allow_30_a_minute() {
         assert_eq!(v, json!({"message": "30 per 1 minute"}), "{}", path);
     }
 }
+
+/// Web test/test_alerts_api.py::test_slack_and_discord_each_have_their_own_rate_limit:
+/// 30 a minute each (`NOTIFY_RATE_LIMIT`), in windows of their own.
+#[tokio::test]
+async fn slack_and_discord_notify_each_allow_30_a_minute() {
+    let h = H::new();
+    let key = h.setup();
+    let body = json!({"apikey": key, "message": "hi"});
+    for _ in 0..30 {
+        let (s, v) = h
+            .json(post_json("/api/v1/slack/notify", body.clone()))
+            .await;
+        assert_ne!(s, StatusCode::TOO_MANY_REQUESTS, "{}", v);
+    }
+    let (s, v) = h
+        .json(post_json("/api/v1/slack/notify", body.clone()))
+        .await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(v, json!({"message": "30 per 1 minute"}));
+    let (s, v) = h.json(post_json("/api/v1/discord/notify", body)).await;
+    assert_ne!(s, StatusCode::TOO_MANY_REQUESTS, "{}", v);
+}

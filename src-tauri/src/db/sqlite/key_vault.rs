@@ -339,7 +339,7 @@ pub struct Witness {
 /// The first encrypted value in the database: the account's TOTP secret,
 /// else the API key, else saved broker keys, else a stored broker session,
 /// else the tunnel's ngrok authtoken, else an Agent key, else a Flow
-/// webhook secret.
+/// webhook secret, else a Slack or Discord alert webhook.
 /// `None` when nothing is encrypted yet (then any key will do).
 pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
     let first = |sql: &str| -> Result<Option<(String, String, String)>> {
@@ -394,7 +394,10 @@ pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
     if let Some(w) = crate::agent::models::secrets::witness(conn)? {
         return Ok(Some(w));
     }
-    crate::flow::store::witness(conn)
+    if let Some(w) = crate::flow::store::witness(conn)? {
+        return Ok(Some(w));
+    }
+    crate::messaging::channels::store::witness(conn)
 }
 
 /// Every value the data key encrypts, dropped for a fresh start (a
@@ -412,7 +415,9 @@ pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
 /// pairing, the tunnel's ngrok authtoken (its switch and domain stay), and
 /// the Agent's keys and ChatGPT sign-in (its models stay, untested where
 /// they needed one: `agent::models::secrets::wipe`), and every Flow
-/// webhook secret, with its webhook turned off (`flow::store::drop_secrets`).
+/// webhook secret, with its webhook turned off (`flow::store::drop_secrets`),
+/// and the Slack and Discord alert webhooks, with their channels switched
+/// off (`messaging::channels::store::drop_secrets`).
 ///
 /// A new encrypted column must be added here and to `witness` (and the
 /// test that fills every one of them).
@@ -436,6 +441,7 @@ pub fn drop_encrypted_values(conn: &Connection) -> Result<()> {
     super::tunnel::forget_authtoken(conn)?;
     crate::agent::models::secrets::wipe(conn)?;
     crate::flow::store::drop_secrets(conn)?;
+    crate::messaging::channels::store::drop_secrets(conn)?;
     Ok(())
 }
 
@@ -512,7 +518,10 @@ mod tests {
              INSERT INTO ag_setting (key, value) VALUES ('trading_enabled', 'true');
              INSERT INTO flow_workflows (name, nodes, edges, webhook_token, webhook_secret,
                  webhook_secret_nonce, webhook_enabled, created_at, updated_at)
-             VALUES ('Gap fade', '[]', '[]', 'tok', 'c', 'n', 1, 't', 't');",
+             VALUES ('Gap fade', '[]', '[]', 'tok', 'c', 'n', 1, 't', 't');
+             INSERT INTO alert_channels (channel, enabled, categories, webhook_url, updated_at)
+             VALUES ('slack', 1, 'orders_placed', 'v1:n:c', 't'),
+                    ('telegram', 0, 'gtt_orders', NULL, 't');",
         )
         .unwrap();
         conn.execute_batch("BEGIN IMMEDIATE").unwrap();
@@ -562,6 +571,16 @@ mod tests {
             n("SELECT webhook_enabled FROM flow_workflows"),
             0,
             "a webhook never runs without its secret"
+        );
+        assert_eq!(
+            n("SELECT COUNT(*) FROM alert_channels WHERE webhook_url IS NOT NULL OR enabled = 1"),
+            0,
+            "Slack is off without its webhook"
+        );
+        assert_eq!(
+            one("SELECT categories FROM alert_channels WHERE channel = 'telegram'").as_deref(),
+            Some("gtt_orders"),
+            "a channel's routing is kept"
         );
         assert_eq!(
             n("SELECT COUNT(*) FROM ag_provider_model WHERE is_default = 1 OR last_test_ok = 1"),

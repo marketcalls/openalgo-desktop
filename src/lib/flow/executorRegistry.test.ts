@@ -153,9 +153,9 @@ describe('the run executes exactly the node types the validator accepts (F-697)'
     ])
   })
 
-  it('registers each node type once, 58 in all', () => {
+  it('registers each node type once, 60 in all', () => {
     expect(new Set(registered).size).toBe(registered.length)
-    expect(registered).toHaveLength(58)
+    expect(registered).toHaveLength(60)
   })
 
   it('leaves the three gates to the walk, which evaluates them itself', () => {
@@ -164,8 +164,8 @@ describe('the run executes exactly the node types the validator accepts (F-697)'
     expect(source(join(FLOW, 'executor/walk.rs'))).toMatch(/GATE_TYPES\.contains\(&node_type\)/)
   })
 
-  it('equals VALID_NODE_TYPES with the gates, 61 types', () => {
+  it('equals VALID_NODE_TYPES with the gates, 63 types', () => {
     expect([...registered, ...gates].sort()).toEqual([...validator].sort())
-    expect(validator).toHaveLength(61)
+    expect(validator).toHaveLength(63)
   })
 })

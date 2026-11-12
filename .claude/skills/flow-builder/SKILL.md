@@ -71,7 +71,7 @@ them as errors unless you know why.
 
 ## Workflow
 
-1. **Read `reference/nodes.md`.** All 61 node types, their required fields, and
+1. **Read `reference/nodes.md`.** All 63 node types, their required fields, and
    every `data` key each one actually reads. Generated from the validator and
    the executor, so it cannot drift.
 2. **Pick the trigger.** Exactly one, and it is the execution root:
@@ -230,6 +230,6 @@ mode, which routes orders to sandbox mode, `0` sends them to a live broker.
 | Path | |
 |---|---|
 | `flow_builder::check_the_workflow_file` (test, `src-tauri`) | the gate; wraps the importer's own validator |
-| `reference/nodes.md` | all 61 node types, the web's page, pinned by tests |
+| `reference/nodes.md` | all 63 node types, the web's page, pinned by tests |
 | `agent::skills::flow_builder` (tests) | fail if a node type is undocumented or the page drifts |
 | `docs/prompt/flow-import-format.md` | the long-form contract (`reference/flow-import-format.md` here) |

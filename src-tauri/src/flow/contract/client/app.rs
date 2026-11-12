@@ -12,6 +12,8 @@
 
 use super::{handle_response, ApiCall, FlowClient, UNKNOWN_OUTCOME};
 use crate::mcp::dispatch::{self, Transport};
+use crate::messaging::channels::notify;
+use crate::messaging::channels::webhook::WebhookKind;
 use crate::security::Secret;
 use crate::state::AppState;
 use async_trait::async_trait;
@@ -193,6 +195,42 @@ impl FlowClient for AppFlowClient {
                 .await
         })
         .await
+    }
+
+    async fn slack(&self, message: &Value) -> Value {
+        self.webhook_alert(WebhookKind::Slack, message).await
+    }
+
+    async fn discord(&self, message: &Value) -> Value {
+        self.webhook_alert(WebhookKind::Discord, message).await
+    }
+}
+
+impl AppFlowClient {
+    /// The web client's `_webhook_alert`: the notify rules of
+    /// `/api/v1/<channel>/notify` (switched on at /alerts, a webhook
+    /// saved), queued rather than awaited so a slow provider never holds
+    /// the run, and a message over the channel's limit shortened, not
+    /// refused: nobody is watching a running workflow to send it again.
+    async fn webhook_alert(&self, kind: WebhookKind, message: &Value) -> Value {
+        let Some(app) = self.app.upgrade() else {
+            return json!({"status": "error", "error": "OpenAlgo is shutting down."});
+        };
+        let how = notify::Delivery {
+            wait: false,
+            shorten: true,
+        };
+        match notify::notify(&app, kind, Some(message), how).await {
+            Ok(r) if r.ok => json!({"status": "success", "data": {"message": r.message}}),
+            Ok(r) => json!({"status": "error", "error": r.message}),
+            Err(e) => {
+                tracing::error!("Could not send a {} alert from Flow: {}", kind.label(), e);
+                json!({"status": "error", "error": format!(
+                    "The {} alert could not be sent. The OpenAlgo log has the details.",
+                    kind.label()
+                )})
+            }
+        }
     }
 }
 

@@ -418,7 +418,7 @@ The trader's view is in [OpenScript](openscript.md).
 
 ## MCP
 
-`mcp/` is native Rust (`rmcp`). One tool registry (`mcp/catalog/`, 49 tools
+`mcp/` is native Rust (`rmcp`). One tool registry (`mcp/catalog/`, 51 tools
 with the web's names, descriptions and input schemas, pinned by a contract
 test) calls the same `/api/v1` handler stack in process.
 

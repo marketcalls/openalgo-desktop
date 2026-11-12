@@ -84,6 +84,8 @@ const TITLES: Record<string, string> = {
   log: 'Log',
   telegramAlert: 'Telegram Alert',
   whatsappAlert: 'WhatsApp Alert',
+  slackAlert: 'Slack Alert',
+  discordAlert: 'Discord Alert',
   variable: 'Variable',
   mathExpression: 'Math Expression',
   httpRequest: 'HTTP Request',
@@ -129,7 +131,7 @@ describe('the header title of every node type (F-502)', () => {
       .map((d) => d.type)
       .filter((type) => type !== LATER_NODE.type)
     expect(Object.keys(TITLES).sort()).toEqual([...palette].sort())
-    expect(Object.keys(TITLES)).toHaveLength(61)
+    expect(Object.keys(TITLES)).toHaveLength(63)
   })
 
   it.each(Object.entries(TITLES))('%s is titled %s', (type, expected) => {

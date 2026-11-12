@@ -326,6 +326,7 @@ impl AuthService {
     pub fn clear_caches(state: &AppState) {
         state.api_keys.clear();
         state.trading.facts.clear();
+        crate::messaging::channels::settings::clear_cache(state);
     }
 
     /// A new password without the old one, which starts fresh: new keys
@@ -494,8 +495,9 @@ impl AuthService {
     /// can be decrypted. Every credential that reaches this machine from
     /// outside stops working in the same transaction: MCP tokens are
     /// revoked, strategy, Chartink and Flow webhooks get new secret addresses
-    /// (nobody holds them yet; every Flow workflow is stopped), and Telegram
-    /// and WhatsApp links are removed.
+    /// (nobody holds them yet; every Flow workflow is stopped), Telegram
+    /// and WhatsApp links are removed, and the Slack and Discord alert
+    /// webhooks are forgotten.
     /// Strategy, Chartink and log history is kept.
     ///
     /// Only the desktop window calls this (the `reset_account` command,
@@ -523,6 +525,7 @@ impl AuthService {
                 crate::messaging::whatsapp::db::clear_session(&conn)?;
                 crate::db::sqlite::tunnel::forget_authtoken(&conn)?;
                 crate::agent::models::secrets::wipe(&conn)?;
+                crate::messaging::channels::store::drop_secrets(&conn)?;
                 // The keys go with the account; the next setup makes new
                 // ones (KEY-01).
                 crate::db::sqlite::key_vault::delete(&conn)?;

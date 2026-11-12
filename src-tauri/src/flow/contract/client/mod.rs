@@ -6,8 +6,8 @@
 //! failure `{"status": "error", "error": <the reply's message>, "code":
 //! <HTTP status>}`. Nodes read those dicts exactly as the web's do.
 //!
-//! The trait has three required methods: [`FlowClient::api`], one
-//! `/api/v1` call, and the two alert senders. Every named method is a
+//! The trait has five required methods: [`FlowClient::api`], one
+//! `/api/v1` call, and the four alert senders. Every named method is a
 //! provided method that builds the payload the web's client builds and goes
 //! through `api`, so the in-app client ([`app::AppFlowClient`]) and the
 //! test fake ([`fake::FakeFlowClient`]) agree on the payloads by
@@ -194,6 +194,13 @@ pub trait FlowClient: Send + Sync {
     /// A WhatsApp text through the paired device; `to` empty or `None`
     /// sends to the paired number itself (web `whatsapp`).
     async fn whatsapp(&self, message: &str, to: Option<&str>) -> Value;
+
+    /// A post to the Slack webhook saved on /slack (web `slack`). The
+    /// message is the node's interpolated value, as the web passes it.
+    async fn slack(&self, message: &Value) -> Value;
+
+    /// A post to the Discord webhook saved on /discord (web `discord`).
+    async fn discord(&self, message: &Value) -> Value;
 
     // --- Orders -----------------------------------------------------------
 

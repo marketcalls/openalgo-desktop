@@ -64,8 +64,7 @@ Choose your initial at the right of the top bar.
 | **Action Center** | Orders waiting for approval in Semi-Auto mode |
 | **Agent** | Ask about your account and the market in a chat, on a model you set up in **Admin**, **Agent Config**; it asks for your approval before every order |
 | **Master Contract** | Symbol list status per exchange, **Force Download**, **Reload Cache** |
-| **Telegram Bot** | Telegram alerts and commands |
-| **WhatsApp Bot** | WhatsApp alerts and commands |
+| **Alerts** | Where order alerts go: Telegram, WhatsApp, Slack and Discord, each switched on or off, with the order events it receives and a test message; links to each channel's own page ([chapter 23](../23-telegram-bot/README.md)) |
 | **Holdings** | Your delivery holdings (not shown for a crypto broker) |
 | **Flow Editor** | Drag-and-drop workflows: triggers, conditions, orders and alerts ([chapter 21](../21-flow-visual-builder/README.md)) |
 | **Scalping** | The keyboard-driven scalping terminal |

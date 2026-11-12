@@ -2,7 +2,7 @@
  * The node palette, the canvas registry and the defaults a dropped node
  * starts from are three lists in two files. A type missing from one of them
  * is a node a trader can drop but not see, see but not configure, or import
- * but not render. This pins the three to each other and to the web's 61
+ * but not render. This pins the three to each other and to the web's 63
  * types, and renders every type on a real canvas from its defaults.
  */
 
@@ -19,8 +19,8 @@ const palette = Object.values(NODE_DEFINITIONS)
   .map((definition) => definition.type)
 
 describe('the three node lists agree', () => {
-  it('registers the web 61 node types', () => {
-    expect(registered).toHaveLength(61)
+  it('registers the web 63 node types', () => {
+    expect(registered).toHaveLength(63)
   })
 
   it('gives every registered type a default and every default a component', () => {
@@ -34,7 +34,7 @@ describe('the three node lists agree', () => {
   it('files the palette under the web categories', () => {
     expect(
       Object.fromEntries(Object.entries(NODE_DEFINITIONS).map(([k, v]) => [k, v.length]))
-    ).toEqual({ TRIGGERS: 4, ACTIONS: 10, CONDITIONS: 9, DATA: 31, UTILITIES: 7 })
+    ).toEqual({ TRIGGERS: 4, ACTIONS: 10, CONDITIONS: 9, DATA: 31, UTILITIES: 9 })
   })
 })
 

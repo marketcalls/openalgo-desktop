@@ -199,7 +199,7 @@ async fn stdio_bridge_speaks_mcp_to_the_running_app() {
     let tools = list["result"]["tools"]
         .as_array()
         .unwrap_or_else(|| panic!("{}", list));
-    assert_eq!(tools.len(), 49);
+    assert_eq!(tools.len(), 51);
     let fixture: Value =
         serde_json::from_str(include_str!("../fixtures/mcp/tools_list.json")).unwrap();
     for t in tools {

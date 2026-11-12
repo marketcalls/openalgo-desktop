@@ -46,11 +46,12 @@ const SKILL_MD: &str = include_str!(concat!(
 ));
 
 /// SHA-256 of the web's `.claude/skills/flow-builder/reference/nodes.md`
-/// at web commit 96e5927e5 (unchanged at dd198ba99), line endings as LF.
+/// at web commit fdda2c211 (Slack and Discord alerts; unchanged at
+/// 12bb3069b), line endings as LF.
 /// A web change to the page is carried over by copying it again and
 /// updating this, never by editing the page here.
 const WEB_NODES_MD_SHA256: &str =
-    "2330e0d0f0622a905f129728354885991291c52d10d86ca7c7f2be03f4ba3b20";
+    "90205479c74482717768847fac99558a37d98a5fb8cacb7f7a43ec4718933c64";
 
 /// Read by the runtime for every node, not by any one node (`validate.py`
 /// `UNIVERSAL_KEYS`).
@@ -447,7 +448,7 @@ fn every_node_type_is_listed_fielded_and_explained() {
         (vec![], vec![], vec![]),
         "GAPS: listed, fielded, explained"
     );
-    assert_eq!(VALID_NODE_TYPES.len(), 61);
+    assert_eq!(VALID_NODE_TYPES.len(), 63);
 }
 
 // ------------------------------------------------------- the two layers

@@ -54,6 +54,14 @@ impl FlowClient for Gated {
     async fn whatsapp(&self, _: &str, _: Option<&str>) -> Value {
         Value::Null
     }
+
+    async fn slack(&self, _: &Value) -> Value {
+        Value::Null
+    }
+
+    async fn discord(&self, _: &Value) -> Value {
+        Value::Null
+    }
 }
 
 fn req(symbol: &str) -> History {

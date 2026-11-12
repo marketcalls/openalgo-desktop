@@ -39,7 +39,8 @@ async fn s01_account_reset_is_not_reachable_over_http() {
 }
 
 /// S-07: a reset leaves nothing usable behind: MCP tokens, strategy,
-/// Chartink and Flow webhook secrets, Telegram and WhatsApp links.
+/// Chartink and Flow webhook secrets, Telegram and WhatsApp links, the
+/// Slack and Discord alert webhooks.
 #[tokio::test]
 async fn s07_account_reset_revokes_every_outside_credential() {
     let h = H::new();
@@ -88,6 +89,16 @@ async fn s07_account_reset_revokes_every_outside_credential() {
             [],
         )
         .unwrap();
+        crate::messaging::channels::store::save_webhook(
+            &c,
+            &h.ctx().security,
+            "discord",
+            "https://discord.com/api/webhooks/1/not-a-real-discord-token",
+            true,
+            &["orders_placed"],
+            now,
+        )
+        .unwrap();
         (mcp_token, strategy_hash)
     };
 
@@ -123,6 +134,15 @@ async fn s07_account_reset_revokes_every_outside_credential() {
         .unwrap();
     assert_ne!(flow.0, "flow-token");
     assert_eq!((flow.1, flow.2, flow.3), (None, false, false));
+    // The Discord webhook goes, and Discord is off without it.
+    assert_eq!(
+        crate::messaging::channels::store::load(&c, "discord").unwrap(),
+        Some(crate::messaging::channels::store::StoredChannel {
+            enabled: false,
+            categories: vec!["orders_placed".into()],
+            webhook_saved: false,
+        })
+    );
     drop(c);
     assert_eq!(count(&h, "SELECT COUNT(*) FROM telegram_users"), 0);
     assert_eq!(count(&h, "SELECT COUNT(*) FROM whatsapp_users"), 0);

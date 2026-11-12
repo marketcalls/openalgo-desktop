@@ -1,12 +1,14 @@
-//! Telegram and WhatsApp, native (no Python): the web's bots, alert
-//! services and their subscribers.
+//! Telegram and WhatsApp, native (no Python): the web's bots and alert
+//! services; and the alert channels (`channels`: Telegram, WhatsApp, Slack
+//! and Discord, routed from the /alerts page).
 //!
-//! `Messaging` lives on the app context. Its two services own their tasks
-//! (Telegram polling, WhatsApp pairing and client) and end them on stop and
-//! at app exit (`shutdown`). Order alerts are two bus subscribers registered
-//! by `register`.
+//! `Messaging` lives on the app context. Its two bot services own their
+//! tasks (Telegram polling, WhatsApp pairing and client) and end them on
+//! stop and at app exit (`shutdown`). Order alerts are one bus subscriber
+//! per channel, registered by `register`.
 
 pub mod alerts;
+pub mod channels;
 pub mod format;
 pub mod openalgo;
 pub mod sealed;
@@ -186,6 +188,8 @@ impl SenderThrottle {
 pub struct Messaging {
     pub telegram: telegram::TelegramService,
     pub whatsapp: whatsapp::WhatsAppService,
+    /// The alert channels' settings cache, Slack's and Discord's lanes.
+    pub channels: channels::AlertChannels,
     /// Failed `/link` key checks per sender.
     pub link_throttle: SenderThrottle,
     /// Reply caps of the Telegram bot.
@@ -235,17 +239,18 @@ pub fn account_username(ctx: &AppState) -> Option<String> {
         .map(|u| u.username)
 }
 
-/// Register the alert subscribers. Call once, inside the runtime.
+/// Register the alert subscribers, one per channel. Call once, inside the
+/// runtime.
 pub fn register(ctx: &Arc<AppState>) {
-    let weak = Arc::downgrade(ctx);
-    ctx.bus.subscribe(
-        Arc::new(alerts::TelegramAlerts::new(weak.clone())),
-        Lane::BestEffort,
-    );
-    ctx.bus.subscribe(
-        Arc::new(alerts::WhatsAppAlerts::new(weak)),
-        Lane::BestEffort,
-    );
+    for channel in channels::ChannelName::ALL {
+        ctx.bus.subscribe(
+            Arc::new(channels::subscriber::ChannelAlerts::new(
+                Arc::downgrade(ctx),
+                channel,
+            )),
+            Lane::BestEffort,
+        );
+    }
 }
 
 /// Bring the bots back, as the web's start-up does: Telegram when it was

@@ -13,7 +13,7 @@
 //! refused (N-httpRequest-07); the answer is capped at 5 MB
 //! (N-httpRequest-16).
 
-mod client;
+pub(crate) mod client;
 pub mod guard;
 pub mod url;
 

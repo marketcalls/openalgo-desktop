@@ -4,7 +4,7 @@
 //! family's other nodes: the conditions, Math Expression, the timing
 //! nodes, the alerts and HTTP Request.
 
-use super::alerts::{TelegramAlert, WhatsappAlert};
+use super::alerts::{DiscordAlert, SlackAlert, TelegramAlert, WhatsappAlert};
 use super::conditions::{FundCheck, PositionCheck, PriceCondition, VarCondition};
 use super::http::HttpRequest;
 use super::math::MathExpression;
@@ -38,6 +38,8 @@ pub const FAMILY: NodeFamily = NodeFamily {
             Arc::new(MathExpression),
             Arc::new(TelegramAlert),
             Arc::new(WhatsappAlert),
+            Arc::new(SlackAlert),
+            Arc::new(DiscordAlert),
             Arc::new(HttpRequest),
         ]
     },

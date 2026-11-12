@@ -1,7 +1,7 @@
 /**
  * The utility nodes' config forms, as the web draws them: delay, wait until,
- * log, the Telegram and WhatsApp alerts, variable, math expression and HTTP
- * request. Labels, placeholders, help sentences, Select choices, the fields
+ * log, the Telegram, WhatsApp, Slack and Discord alerts, variable, math
+ * expression and HTTP request. Labels, placeholders, help sentences, Select choices, the fields
  * each choice shows, and what an edit stores, with the number fallbacks.
  * Pins parity F-600 to F-607.
  */
@@ -168,6 +168,32 @@ describe('whatsappAlert (F-604)', () => {
     expect(
       screen.getByText('Requires the WhatsApp bot to be paired from the /whatsapp page first.')
     ).toBeInTheDocument()
+  })
+})
+
+describe.each([
+  [
+    'slackAlert',
+    'Posts to the webhook saved on the Slack page. Slack must be turned on from the Alerts page. Messages over 4000 characters are shortened.',
+  ],
+  [
+    'discordAlert',
+    'Posts to the webhook saved on the Discord page. Discord must be turned on from the Alerts page. Messages over 2000 characters are shortened.',
+  ],
+])('%s (web fdda2c211)', (type, note) => {
+  it('takes a message, lists the variables and says where it posts', () => {
+    openPanel(type)
+    const message = under('Message', 'textarea')
+    expect(message).toHaveValue('')
+    expect(message).toHaveAttribute('placeholder', 'Order placed for {{orderResult.symbol}}')
+    fireEvent.change(message, { target: { value: 'Filled' } })
+    expect(stored().message).toBe('Filled')
+    expect(screen.getByText('Variables:')).toBeInTheDocument()
+    expect(
+      screen.getByText('{{orderResult.orderid}}, {{quote.ltp}}, {{timestamp}}')
+    ).toBeInTheDocument()
+    expect(screen.getByText(note)).toBeInTheDocument()
+    expect(labelled('To (optional)')).toBeNull()
   })
 })
 

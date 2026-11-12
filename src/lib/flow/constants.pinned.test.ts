@@ -326,6 +326,8 @@ describe('the node catalogue (F-252)', () => {
       UTILITIES: [
         ['telegramAlert', 'Telegram Alert', 'Send Telegram notification', 'utility'],
         ['whatsappAlert', 'WhatsApp Alert', 'Send WhatsApp notification', 'utility'],
+        ['slackAlert', 'Slack Alert', 'Post to the saved Slack webhook', 'utility'],
+        ['discordAlert', 'Discord Alert', 'Post to the saved Discord webhook', 'utility'],
         ['delay', 'Delay', 'Wait for duration', 'utility'],
         ['waitUntil', 'Wait Until', 'Wait until specific time', 'utility'],
         ['log', 'Log', 'Log a message', 'utility'],
@@ -511,6 +513,8 @@ describe('what a new node starts with (F-253..F-258, IND-081)', () => {
       to: '',
       message: 'Workflow executed successfully',
     })
+    expect(DEFAULT_NODE_DATA.slackAlert).toEqual({ message: 'Workflow executed successfully' })
+    expect(DEFAULT_NODE_DATA.discordAlert).toEqual({ message: 'Workflow executed successfully' })
     expect(DEFAULT_NODE_DATA.delay).toEqual({ delayValue: 1, delayUnit: 'seconds' })
     expect(DEFAULT_NODE_DATA.waitUntil).toEqual({ targetTime: '09:30' })
     expect(DEFAULT_NODE_DATA.log).toEqual({ message: 'Log message here', level: 'info' })

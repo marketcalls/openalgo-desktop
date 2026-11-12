@@ -91,6 +91,8 @@ const SHELLS: Array<[type: string, classes: string, mono: number, displayName: s
     0,
     'WhatsappAlertNode',
   ],
+  ['slackAlert', 'workflow-node min-w-[120px] border-l-muted-foreground', 0, 'SlackAlertNode'],
+  ['discordAlert', 'workflow-node min-w-[120px] border-l-muted-foreground', 0, 'DiscordAlertNode'],
   ['delay', 'workflow-node min-w-[100px] border-l-muted-foreground', 1, 'DelayNode'],
   ['waitUntil', 'workflow-node node-utility min-w-[120px]', 1, 'WaitUntilNode'],
   ['variable', 'workflow-node node-utility min-w-[120px]', 2, 'VariableNode'],

@@ -111,7 +111,7 @@ minute.
 
 ## What the analysis tools cover
 
-The tools are the same 49 as on OpenAlgo web. The analysis tools
+The tools are the same 51 as on OpenAlgo web. The analysis tools
 (`calculate_indicator`, the snapshots, `detect_signals`,
 `screen_instruments`, `multi_timeframe_analysis`, `correlation_beta`)
 compute 27 of the web's indicators, and limit how much one call may ask

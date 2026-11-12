@@ -117,6 +117,14 @@ impl FlowClient for FakeFlowClient {
     async fn whatsapp(&self, message: &str, to: Option<&str>) -> Value {
         self.alert("whatsapp", message, to)
     }
+
+    async fn slack(&self, message: &Value) -> Value {
+        self.alert("slack", &crate::flow::contract::pyfmt::str(message), None)
+    }
+
+    async fn discord(&self, message: &Value) -> Value {
+        self.alert("discord", &crate::flow::contract::pyfmt::str(message), None)
+    }
 }
 
 #[cfg(test)]
