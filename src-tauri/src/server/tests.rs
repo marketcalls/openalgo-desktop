@@ -225,6 +225,8 @@ mod security;
 mod session_rollover;
 // The live-update socket admits only a signed-in session (web 471e1ddf7).
 mod socketio_connect;
+// No broker postback is accepted: the desktop serves none (web 76ebb8593).
+mod broker_postback;
 // Every catalogue broker's sign-in, started the way the broker page does.
 mod sign_in;
 // Broker Configuration and Select Broker: keys per broker, one logged in.
