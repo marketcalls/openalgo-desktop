@@ -83,6 +83,10 @@ pub fn modify_order_form(m: &ResolvedModify) -> Vec<(&'static str, String)> {
     f
 }
 
+/// What the trader reads when Tradejini said ok without an order id (web
+/// `NO_ORDER_ID_MESSAGE`).
+const NO_ORDER_ID_MESSAGE: &str = "Tradejini accepted the order but did not return an order id. Check the order book before placing it again.";
+
 fn d_order_id(v: &Value) -> Option<String> {
     v.get("d")
         .map(|d| mapping::s(d, "orderId"))
@@ -107,12 +111,10 @@ pub async fn place_order(
         )
         .await?;
     let id = d_order_id(&v).ok_or_else(|| {
-        // Accepted without an id: the order may exist (LOG-08).
+        // Accepted without an id, whatever shape `d` has: the order may
+        // exist (LOG-08; web #2444 `NO_ORDER_ID_MESSAGE`).
         tracing::warn!("Tradejini accepted an order without an order id");
-        AppError::uncertain(
-            "Tradejini accepted the order but returned no order id. Check the order book before placing it again.",
-            None,
-        )
+        AppError::uncertain(NO_ORDER_ID_MESSAGE, None)
     })?;
     let msg = v.get("d").map(|d| mapping::s(d, "msg"));
     Ok(OrderResponse {
