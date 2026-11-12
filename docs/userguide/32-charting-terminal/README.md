@@ -3,8 +3,8 @@
 ## Introduction
 
 The charting terminal at `/trading` is where you read a chart and trade from
-it. It uses `openalgo-charts` 2.6.7, the same charting engine as OpenAlgo web:
-19 chart types, 112 built-in indicators plus your own, and 87 drawing tools,
+it. It uses `openalgo-charts` 2.7.2, the same charting engine as OpenAlgo web:
+19 chart types, 112 built-in indicators plus your own, and 90 drawing tools,
 on the same broker session and market data feed as the rest of the app. It
 also runs OpenScript studies, backtests and live strategies.
 
@@ -111,11 +111,24 @@ does not hold them.
 
 ## Drawing tools
 
-All 87 drawing tools are on the left rail: lines and rays, channels and
-pitchforks, Fibonacci and Gann tools, patterns (XABCD, Elliott waves,
-harmonics), shapes, text and notes, and the volume studies **Anchored VWAP**
-and **Fixed Range Volume Profile**. A group button reuses the tool you last
-picked from it; the small corner opens the whole group.
+All 90 drawing tools are on the left rail: lines and rays, channels and
+pitchforks, Fibonacci and Gann tools, patterns (XABCD, head and shoulders,
+harmonics) and Elliott waves, shapes, text and notes, and the volume studies
+**Anchored VWAP** and **Fixed Range Volume Profile**. A group button reuses
+the tool you last picked from it; the small corner opens the whole group.
+Each tool's icon shows its drawing with an open ring at every point you
+place.
+
+The **Elliott waves** section of the Patterns group holds five counts:
+impulse (1 2 3 4 5), correction (A B C), triangle (A B C D E), double
+combination (W X Y) and triple combination (W X Y X Z). Click the origin
+first, point 0, where the first wave starts, then the end of each wave. The
+origin has no label; the waves are numbered from the second point, in
+parentheses, each label centred over its point, and the count is drawn as
+you place it. Counts are labelled in the Intermediate degree; there is no
+control yet for another degree or label style. An impulse or correction
+drawn in OpenAlgo Desktop 1.0.7 or earlier has its origin on the end of its
+first wave; drag that point away to draw the first wave.
 
 - **Magnet** snaps an anchor to the nearest open, high, low or close.
 - **Keep tool selected** (the padlock) keeps the tool after each drawing.

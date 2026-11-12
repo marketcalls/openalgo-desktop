@@ -28,17 +28,22 @@ impl OpenAlgoClient {
         Self { ctx, api_key }
     }
 
-    /// The web's `get_auth_token_broker`: a valid key and a live broker
-    /// session, else the endpoint's 403 body.
-    async fn authorized(&self) -> Result<(), Value> {
+    /// Whether the linked key is this desktop's API key now, broker session
+    /// or not (web `_linked_owner`, 81fe8eb41): what a command that reads
+    /// this desktop's own settings checks. A check that fails reads as no.
+    pub async fn key_is_current(&self) -> bool {
         let ctx = self.ctx.clone();
         let key = self.api_key.clone();
         // Argon2 off the async workers (the result is cached after the first).
-        let valid =
-            tokio::task::spawn_blocking(move || ApiKeyService::is_valid(&ctx, key.expose()))
-                .await
-                .unwrap_or(false);
-        if valid && self.ctx.is_broker_connected() {
+        tokio::task::spawn_blocking(move || ApiKeyService::is_valid(&ctx, key.expose()))
+            .await
+            .unwrap_or(false)
+    }
+
+    /// The web's `get_auth_token_broker`: a valid key and a live broker
+    /// session, else the endpoint's 403 body.
+    async fn authorized(&self) -> Result<(), Value> {
+        if self.key_is_current().await && self.ctx.is_broker_connected() {
             Ok(())
         } else {
             Err(json!({"status": "error", "message": INVALID_API_KEY}))

@@ -404,6 +404,16 @@ impl Bot {
             self.send(chat, LINK_FIRST, false, None).await;
             return;
         }
+        // The mode is read here, not through the linked key, so a link
+        // whose key was regenerated since says nothing (web 81fe8eb41).
+        let current = match Self::client(ctx, from.id) {
+            Some(c) => c.key_is_current().await,
+            None => false,
+        };
+        if !current {
+            self.send(chat, KEY_NO_LONGER_VALID, false, None).await;
+            return;
+        }
         let analyze = ctx.sqlite.get_analyze_mode().unwrap_or(false);
         let (current, label, data) = if analyze {
             ("Analyze Mode", "Switch to Live", "mode_live")

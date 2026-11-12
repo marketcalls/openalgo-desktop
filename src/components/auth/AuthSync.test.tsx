@@ -2,7 +2,9 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/stores/authStore'
-import { AuthSync, beforeBroker } from './AuthSync'
+import { useBrokerStore } from '@/stores/brokerStore'
+import { useThemeStore } from '@/stores/themeStore'
+import { AuthSync, beforeBroker, syncBrokerSession } from './AuthSync'
 
 /**
  * Answers for /auth/session-status, in order; other URLs get a bare success.
@@ -278,5 +280,77 @@ describe('beforeBroker', () => {
     for (const p of ['/dashboard', '/scalping', '/positions', '/orderbook', '/trading']) {
       expect(beforeBroker(p), p).toBe(false)
     }
+  })
+})
+
+/**
+ * Issue 2417 (web 9d83c5de1): a broker login that completes inside the app
+ * (the TOTP and Samco pages) moves on without a page reload, so AuthSync never
+ * ran for it and the API key stayed unset; every order ticket's button was
+ * disabled until the trader reloaded. syncBrokerSession re-reads the session for them.
+ */
+describe('syncBrokerSession', () => {
+  function respondWith(body: unknown, ok = true) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok, json: async () => body }) as Response)
+    )
+  }
+
+  beforeEach(() => {
+    useAuthStore.setState({
+      user: null,
+      apiKey: null,
+      isAuthenticated: false,
+      apiKeyChecked: false,
+    })
+    vi.spyOn(useBrokerStore.getState(), 'fetchCapabilities').mockResolvedValue()
+    vi.spyOn(useThemeStore.getState(), 'syncAppMode').mockResolvedValue()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('loads the API key, capabilities and app mode after an in-app login', async () => {
+    respondWith({
+      status: 'success',
+      logged_in: true,
+      user: 'trader',
+      broker: 'angel',
+      api_key: 'key-123',
+      active_sessions: 1,
+    })
+    await expect(syncBrokerSession()).resolves.toBe(true)
+    expect(useAuthStore.getState().apiKey).toBe('key-123')
+    expect(useAuthStore.getState().user?.broker).toBe('angel')
+    expect(useBrokerStore.getState().fetchCapabilities).toHaveBeenCalled()
+    expect(useThemeStore.getState().syncAppMode).toHaveBeenCalled()
+  })
+
+  // Desktop: the page the login goes to is not held back waiting for a key
+  // the server was just asked for (AuthSync's apiKeyChecked).
+  it('lets a page that waits for the key go ahead', async () => {
+    respondWith({ status: 'success', logged_in: true, user: 'trader', broker: 'angel' })
+    await expect(syncBrokerSession()).resolves.toBe(true)
+    expect(useAuthStore.getState()).toMatchObject({ apiKey: null, apiKeyChecked: true })
+  })
+
+  it('changes nothing when the server reports no broker session', async () => {
+    respondWith({ status: 'success', authenticated: true, logged_in: false })
+    await expect(syncBrokerSession()).resolves.toBe(false)
+    expect(useAuthStore.getState().apiKey).toBeNull()
+  })
+
+  it('changes nothing when the request fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('offline')
+      })
+    )
+    await expect(syncBrokerSession()).resolves.toBe(false)
+    expect(useAuthStore.getState().apiKey).toBeNull()
   })
 })

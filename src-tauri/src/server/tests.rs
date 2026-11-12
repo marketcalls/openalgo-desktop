@@ -223,6 +223,10 @@ fn cookie_from(headers: &axum::http::HeaderMap) -> Option<String> {
 mod security;
 // A login from before the daily boundary is not a current one (web e2bdd061e).
 mod session_rollover;
+// The live-update socket admits only a signed-in session (web 471e1ddf7).
+mod socketio_connect;
+// No broker postback is accepted: the desktop serves none (web 76ebb8593).
+mod broker_postback;
 // Every catalogue broker's sign-in, started the way the broker page does.
 mod sign_in;
 // Broker Configuration and Select Broker: keys per broker, one logged in.
@@ -243,6 +247,8 @@ mod api_limits;
 mod broker_busy;
 // docs-17, docs-30, docs-32: /api/v1 answers brought to the web's.
 mod api_parity;
+// /api/v1/instruments from the master in memory (web #2406).
+mod instruments;
 // The built-in ngrok tunnel in the app (services::tunnel, server::tunnel).
 mod tunnel;
 // The Agent's configuration routes (the config part of blueprints/agent.py).

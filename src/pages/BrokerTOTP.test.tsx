@@ -2,6 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from '@/stores/authStore'
+import { useBrokerStore } from '@/stores/brokerStore'
+import { useThemeStore } from '@/stores/themeStore'
 import BrokerTOTP from './BrokerTOTP'
 
 afterEach(() => {
@@ -132,5 +135,55 @@ describe('BrokerTOTP login card', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Log in to Groww' }))
     await waitFor(() => expect(posted).toHaveLength(1))
     expect([...posted[0].keys()]).toEqual(['csrf_token'])
+  })
+})
+
+/** The API key the dashboard found in memory when it opened. */
+let keyAtDashboard: string | null = null
+function Dashboard() {
+  keyAtDashboard = useAuthStore.getState().apiKey
+  return <div>dashboard</div>
+}
+
+// Web 9d83c5de1 (#2423): a login on this card moves on without a page reload,
+// so it reads the session itself and the dashboard opens with the API key.
+describe('BrokerTOTP after a login', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('has the API key in memory before the dashboard opens', async () => {
+    useAuthStore.setState({
+      user: null,
+      apiKey: null,
+      isAuthenticated: false,
+      apiKeyChecked: false,
+    })
+    vi.spyOn(useBrokerStore.getState(), 'fetchCapabilities').mockResolvedValue()
+    vi.spyOn(useThemeStore.getState(), 'syncAppMode').mockResolvedValue()
+    const session = { status: 'success', authenticated: true, logged_in: true, user: 'trader' }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => ({
+        ok: true,
+        json: async () =>
+          url === '/auth/csrf-token'
+            ? { csrf_token: 'tok' }
+            : url === '/auth/session-status'
+              ? { ...session, broker: 'groww', api_key: 'KEY-1' }
+              : { status: 'success' },
+      }))
+    )
+    render(
+      <MemoryRouter initialEntries={['/broker/groww/totp']}>
+        <Routes>
+          <Route path="/broker/:broker/totp" element={<BrokerTOTP />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Log in to Groww' }))
+    await screen.findByText('dashboard')
+    expect(keyAtDashboard).toBe('KEY-1')
   })
 })

@@ -87,6 +87,20 @@ afterEach(() => {
 })
 
 describe('Broker Configuration', () => {
+  it('gives the broker list a solid background, so the open list can be read', async () => {
+    // Issue 2432. The browser paints a native select's open list with the
+    // select's own background over white, and its text in the select's colour.
+    // With the text input look (transparent, and the input token at 30% in
+    // dark mode) the list came out white with near-white broker names on it.
+    serve()
+    renderPage()
+    const classes = (await select()).className.split(/\s+/)
+    expect(classes).toContain('bg-background')
+    expect(classes).toContain('text-foreground')
+    // No see-through background in any variant: bg-transparent, dark:bg-input/30.
+    expect(classes.filter((c) => /bg-transparent|bg-[\w-]+\/\d+/.test(c))).toEqual([])
+  })
+
   it('lists every broker and marks the configured and the active one', async () => {
     list = brokerList([
       brokerEntry('zerodha', 'Zerodha', 'redirect'),
@@ -356,6 +370,26 @@ describe('Broker Configuration', () => {
       { url: '/api/broker/rate-plan/fyers', method: 'PUT', body: { plan: 'prime' } },
     ])
     expect(screen.queryByText('End your Fyers session?')).toBeNull()
+  })
+
+  // Desktop: the API plan is a native select too, so its open list needs the
+  // same solid background as the broker list (web ca83d3062, issue 2432).
+  it('gives the API plan list a solid background too', async () => {
+    list = brokerList([
+      {
+        ...saved(brokerEntry('fyers', 'Fyers', 'redirect'), {}),
+        rate_plans: [
+          { id: 'standard', label: 'Standard', hint: 'Market data: 5 requests a second.' },
+        ],
+        rate_plan: 'standard',
+      },
+    ])
+    serve()
+    renderPage('fyers')
+    const classes = (await screen.findByLabelText('API plan')).className.split(/\s+/)
+    expect(classes).toContain('bg-background')
+    expect(classes).toContain('text-foreground')
+    expect(classes.filter((c) => /bg-transparent|bg-[\w-]+\/\d+/.test(c))).toEqual([])
   })
 
   it('offers no API plan for a broker with one set of limits', async () => {
