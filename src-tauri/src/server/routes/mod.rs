@@ -3,6 +3,24 @@
 //! route cannot be added without saying who may call it. The guard test
 //! walks the same table.
 
+/// One row of a route table: method, path, access and handler. Defined
+/// before the modules so each area's own `table()` can use it.
+macro_rules! r {
+    ($m:ident, $path:expr, $acc:ident, $f:path) => {
+        $crate::server::routes::RouteSpec {
+            path: $path,
+            method: axum::http::Method::$m,
+            access: $crate::server::routes::Access::$acc,
+            make: || r!(@route $m, $f),
+        }
+    };
+    (@route GET, $f:path) => { axum::routing::get($f) };
+    (@route POST, $f:path) => { axum::routing::post($f) };
+    (@route PUT, $f:path) => { axum::routing::put($f) };
+    (@route DELETE, $f:path) => { axum::routing::delete($f) };
+    (@route PATCH, $f:path) => { axum::routing::patch($f) };
+}
+
 pub mod account;
 pub mod admin;
 pub mod agent;
@@ -45,12 +63,7 @@ pub mod webui;
 pub mod whatsapp;
 use crate::server::middleware::{require_user, require_user_for_json};
 use crate::state::AppState;
-use axum::{
-    http::Method,
-    middleware,
-    routing::{delete, get, patch, post, put, MethodRouter},
-    Router,
-};
+use axum::{http::Method, middleware, routing::MethodRouter, Router};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,22 +83,6 @@ pub struct RouteSpec {
     pub method: Method,
     pub access: Access,
     pub make: fn() -> MethodRouter<Arc<AppState>>,
-}
-
-macro_rules! r {
-    ($m:ident, $path:expr, $acc:ident, $f:path) => {
-        RouteSpec {
-            path: $path,
-            method: Method::$m,
-            access: Access::$acc,
-            make: || r!(@route $m, $f),
-        }
-    };
-    (@route GET, $f:path) => { get($f) };
-    (@route POST, $f:path) => { post($f) };
-    (@route PUT, $f:path) => { put($f) };
-    (@route DELETE, $f:path) => { delete($f) };
-    (@route PATCH, $f:path) => { patch($f) };
 }
 
 /// Every session route, by area.
@@ -109,7 +106,8 @@ pub fn table() -> Vec<RouteSpec> {
         strategy_controls(),
         strategy_records(),
         strategy_portfolio(),
-        messaging(),
+        telegram::table(),
+        whatsapp::table(),
         historify::table(),
         broker_config::table(),
         // The /trading terminal (web custom_indicators.py, openscript*.py).
@@ -922,57 +920,6 @@ fn strategy_portfolio() -> Vec<RouteSpec> {
             User,
             strategy_portfolio::delete
         ),
-    ]
-}
-
-/// Telegram and WhatsApp (web `blueprints/telegram.py`, `whatsapp.py`).
-fn messaging() -> Vec<RouteSpec> {
-    vec![
-        // Telegram (web blueprints/telegram.py). GET /telegram/config is
-        // the page for a browser and the settings for a JSON request.
-        r!(POST, "/telegram/config", User, telegram::configuration),
-        r!(GET, "/telegram/config", UserJson, telegram::api_config),
-        r!(POST, "/telegram/bot/start", User, telegram::bot_start),
-        r!(POST, "/telegram/bot/stop", User, telegram::bot_stop),
-        r!(GET, "/telegram/bot/status", User, telegram::bot_status),
-        r!(POST, "/telegram/broadcast", User, telegram::broadcast),
-        r!(
-            POST,
-            "/telegram/user/{telegram_id}/unlink",
-            User,
-            telegram::unlink_user
-        ),
-        r!(POST, "/telegram/test-message", User, telegram::test_message),
-        r!(POST, "/telegram/send-message", User, telegram::send_message),
-        r!(GET, "/telegram/api/index", User, telegram::api_index),
-        r!(GET, "/telegram/api/config", User, telegram::api_config),
-        r!(GET, "/telegram/api/users", User, telegram::api_users),
-        r!(
-            GET,
-            "/telegram/api/analytics",
-            User,
-            telegram::api_analytics
-        ),
-        // WhatsApp (web blueprints/whatsapp.py)
-        r!(GET, "/whatsapp/config", User, whatsapp::get_config),
-        r!(POST, "/whatsapp/config", User, whatsapp::update_config),
-        r!(POST, "/whatsapp/pair", User, whatsapp::pair),
-        r!(GET, "/whatsapp/pair/status", User, whatsapp::pair_status),
-        r!(POST, "/whatsapp/unlink", User, whatsapp::unlink),
-        r!(POST, "/whatsapp/bot/start", User, whatsapp::bot_start),
-        r!(POST, "/whatsapp/bot/stop", User, whatsapp::bot_stop),
-        r!(GET, "/whatsapp/bot/status", User, whatsapp::bot_status),
-        r!(GET, "/whatsapp/users", User, whatsapp::users),
-        r!(
-            POST,
-            "/whatsapp/user/{jid}/unlink",
-            User,
-            whatsapp::unlink_user
-        ),
-        r!(POST, "/whatsapp/broadcast", User, whatsapp::broadcast),
-        r!(POST, "/whatsapp/test-message", User, whatsapp::test_message),
-        r!(POST, "/whatsapp/send", User, whatsapp::send),
-        r!(GET, "/whatsapp/stats", User, whatsapp::stats),
     ]
 }
 

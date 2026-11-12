@@ -342,3 +342,30 @@ pub async fn api_analytics(State(ctx): Ctx, _u: User) -> Response {
     })
     .await
 }
+
+/// The Telegram page routes (web `blueprints/telegram.py`), each with its
+/// access rule.
+pub fn table() -> Vec<super::RouteSpec> {
+    vec![
+        // GET /telegram/config is the page for a browser and the settings
+        // for a JSON request.
+        r!(POST, "/telegram/config", User, configuration),
+        r!(GET, "/telegram/config", UserJson, api_config),
+        r!(POST, "/telegram/bot/start", User, bot_start),
+        r!(POST, "/telegram/bot/stop", User, bot_stop),
+        r!(GET, "/telegram/bot/status", User, bot_status),
+        r!(POST, "/telegram/broadcast", User, broadcast),
+        r!(
+            POST,
+            "/telegram/user/{telegram_id}/unlink",
+            User,
+            unlink_user
+        ),
+        r!(POST, "/telegram/test-message", User, test_message),
+        r!(POST, "/telegram/send-message", User, send_message),
+        r!(GET, "/telegram/api/index", User, api_index),
+        r!(GET, "/telegram/api/config", User, api_config),
+        r!(GET, "/telegram/api/users", User, api_users),
+        r!(GET, "/telegram/api/analytics", User, api_analytics),
+    ]
+}

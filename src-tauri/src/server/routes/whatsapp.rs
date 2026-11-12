@@ -301,3 +301,24 @@ pub async fn stats(
         }
     }
 }
+
+/// The WhatsApp page routes (web `blueprints/whatsapp.py`), each with its
+/// access rule.
+pub fn table() -> Vec<super::RouteSpec> {
+    vec![
+        r!(GET, "/whatsapp/config", User, get_config),
+        r!(POST, "/whatsapp/config", User, update_config),
+        r!(POST, "/whatsapp/pair", User, pair),
+        r!(GET, "/whatsapp/pair/status", User, pair_status),
+        r!(POST, "/whatsapp/unlink", User, unlink),
+        r!(POST, "/whatsapp/bot/start", User, bot_start),
+        r!(POST, "/whatsapp/bot/stop", User, bot_stop),
+        r!(GET, "/whatsapp/bot/status", User, bot_status),
+        r!(GET, "/whatsapp/users", User, users),
+        r!(POST, "/whatsapp/user/{jid}/unlink", User, unlink_user),
+        r!(POST, "/whatsapp/broadcast", User, broadcast),
+        r!(POST, "/whatsapp/test-message", User, test_message),
+        r!(POST, "/whatsapp/send", User, send),
+        r!(GET, "/whatsapp/stats", User, stats),
+    ]
+}
