@@ -223,6 +223,8 @@ fn cookie_from(headers: &axum::http::HeaderMap) -> Option<String> {
 mod security;
 // A login from before the daily boundary is not a current one (web e2bdd061e).
 mod session_rollover;
+// The live-update socket admits only a signed-in session (web 471e1ddf7).
+mod socketio_connect;
 // Every catalogue broker's sign-in, started the way the broker page does.
 mod sign_in;
 // Broker Configuration and Select Broker: keys per broker, one logged in.

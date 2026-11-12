@@ -1132,7 +1132,7 @@ pub(super) async fn closed_within(ws: &mut Ws, secs: u64) -> bool {
 }
 
 /// Whether `event` arrives on the connection within `secs`.
-async fn receives(ws: &mut Ws, event: &str, secs: u64) -> bool {
+pub(super) async fn receives(ws: &mut Ws, event: &str, secs: u64) -> bool {
     use futures_util::StreamExt;
     use tokio_tungstenite::tungstenite::Message;
     let want = format!("42[\"{}\"", event);
@@ -1146,7 +1146,7 @@ async fn receives(ws: &mut Ws, event: &str, secs: u64) -> bool {
     }
 }
 
-fn session_id(cookie: &str) -> String {
+pub(super) fn session_id(cookie: &str) -> String {
     cookie
         .split(';')
         .find_map(|kv| kv.trim().strip_prefix("session="))
