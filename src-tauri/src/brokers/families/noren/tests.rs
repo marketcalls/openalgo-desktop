@@ -677,6 +677,26 @@ fn mo(pricetype: PriceType, price: f64, trigger: f64) -> MppOrder<'static> {
     }
 }
 
+/// Web test/test_mpp_slab_instrument_type.py
+/// `TestBrokerCallSite::test_flattrade_market_buy_reliance` (web #2388): a
+/// MARKET BUY of RELIANCE at LTP 1339.7 goes as LMT 1346.4 (the 0.5%
+/// equity slab), not 1353.1 (the 1% option slab its CE ending gave it).
+#[test]
+fn flattrade_prices_a_cash_symbol_ending_in_ce_as_equity() {
+    let q = Some(MppQuote {
+        ltp: 1339.7,
+        tick: Some(0.1),
+    });
+    let m = MppOrder {
+        symbol: "RELIANCE",
+        ..mo(PriceType::Market, 0.0, 0.0)
+    };
+    assert_eq!(
+        mpp_place(flattrade::config().mpp, &m, q, 0.1).unwrap(),
+        ("LMT", "1346.4".into())
+    );
+}
+
 #[test]
 fn mpp_scopes() {
     let q = Some(MppQuote {
