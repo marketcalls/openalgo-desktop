@@ -41,7 +41,8 @@ async fn the_tool_posts_through_the_endpoint() {
         ("send_discord_alert", WebhookKind::Discord, DISCORD_URL),
     ] {
         let (t, p) = signed_up();
-        *p.status.lock() = 204;
+        // 200 is what both providers answer a post with (Slack takes only 200).
+        *p.status.lock() = 200;
         settings::save_webhook(&t.ctx, &url(kind, saved)).unwrap();
         let v = answer(&t, tool, &args("Breakout on NIFTY", true)).await;
         assert_eq!(v["status"], "success", "{}", v);
