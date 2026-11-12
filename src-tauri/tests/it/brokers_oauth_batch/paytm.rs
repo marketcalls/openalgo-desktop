@@ -365,10 +365,35 @@ async fn paytm_modify_and_cancel_look_up_the_book_row() {
     assert_eq!(c["order_no"], "261003000000101");
     assert_eq!(c["mkt_type"], "NL");
     assert_eq!(c["txn_type"], "B");
-    // Only `Pending` orders are cancellable.
-    assert!(b.cancel_order(&auth, "261003000000102").await.is_err());
+    // Web test_paytm_cancel_order_errors.py (#2374): an order Paytm still
+    // works is cancellable whatever the case of its status (an Open one
+    // was refused), its `ext_info` sent back unchanged; a traded order is
+    // refused (400) and an unknown one not found (404), in the web's words.
+    let r = b.cancel_order(&auth, "261003000000105").await.unwrap();
+    assert_eq!(r.order_id, "261003000000105");
+    let c = &fake.calls("POST", "/orders/v1/cancel/regular")[1].body;
+    assert_eq!(c["order_no"], "261003000000105");
+    assert_eq!(
+        c["ext_info"],
+        json!({"source": "mobile", "metadata": {"tag": "keep-me"}})
+    );
+    assert!(fake.calls("POST", "/orders/v1/cancel/regular")[0]
+        .body
+        .get("ext_info")
+        .is_none());
+    let e = b.cancel_order(&auth, "261003000000102").await.unwrap_err();
+    assert!(matches!(e, AppError::Validation(_)), "{e:?}");
+    assert_eq!(
+        e.client_message(),
+        "Order 261003000000102 cannot be cancelled. Current status: Traded"
+    );
+    let e = b.cancel_order(&auth, "OA123").await.unwrap_err();
+    assert!(matches!(e, AppError::NotFound(_)), "{e:?}");
+    assert_eq!(e.client_message(), "Order OA123 not found");
+    // Cancel-all takes every working order a single cancel takes (the
+    // web's cancel-all still takes Pending alone: a gap not copied).
     let all = b.cancel_all_orders(&auth).await.unwrap();
-    assert_eq!(all.cancelled, ["261003000000101"]);
+    assert_eq!(all.cancelled, ["261003000000101", "261003000000105"]);
     assert!(all.failed.is_empty());
 }
 

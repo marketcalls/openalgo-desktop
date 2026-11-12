@@ -20,8 +20,14 @@ pub const ORDERS: &str = "/orders/v1/user/orders";
 pub const POSITIONS: &str = "/orders/v1/position";
 pub const HOLDINGS: &str = "/holdings/v1/get-user-holdings-data";
 
-/// Statuses `modify_order` accepts (web `MODIFIABLE_STATUSES`).
-const MODIFIABLE: &[&str] = &["OPEN", "TRIGGER PENDING", "MODIFIED", "PENDING"];
+/// Statuses of an order Paytm still works, upper-cased: what `modify_order`
+/// and `cancel_order` accept (web `MODIFIABLE_STATUSES`, and
+/// `cancellable_statuses` since #2374).
+const WORKING: &[&str] = &["OPEN", "TRIGGER PENDING", "MODIFIED", "PENDING"];
+
+fn working(o: &PaytmOrder) -> bool {
+    WORKING.contains(&o.status.trim().to_ascii_uppercase().as_str())
+}
 
 /// The body `place_order_api` posts (web `transform_data`). Trigger price
 /// is sent for stop orders, which Paytm needs to accept them.
@@ -72,7 +78,8 @@ pub fn modify_order_body(m: &ResolvedModify, o: &PaytmOrder) -> Value {
     })
 }
 
-/// The body `cancel_order` posts (web copies the book row).
+/// The body `cancel_order` posts (web copies the book row, `ext_info`
+/// included when the row has it, unchanged).
 pub fn cancel_order_body(o: &PaytmOrder) -> Value {
     let mut body = json!({"order_no": o.order_no, "source": "N"});
     for k in [
@@ -91,6 +98,9 @@ pub fn cancel_order_body(o: &PaytmOrder) -> Value {
         "group_id",
     ] {
         body[k] = echo(o, k);
+    }
+    if let Some(ext) = o.raw.get("ext_info") {
+        body["ext_info"] = ext.clone();
     }
     body
 }
@@ -151,11 +161,9 @@ async fn positions_read(
     book_read::typed(rows, unread)
 }
 
+/// web `modify_order` / `cancel_order`: 404 "Order <id> not found".
 fn not_found(order_id: &str) -> AppError {
-    AppError::NotFound(format!(
-        "Order {} was not found in today's Paytm Money order book.",
-        order_id
-    ))
+    AppError::NotFound(format!("Order {} not found", order_id))
 }
 
 pub async fn modify_order(
@@ -168,7 +176,7 @@ pub async fn modify_order(
         .iter()
         .find(|o| o.order_no == m.order_id)
         .ok_or_else(|| not_found(&m.order_id))?;
-    if !MODIFIABLE.contains(&o.status.trim().to_ascii_uppercase().as_str()) {
+    if !working(o) {
         return Err(AppError::Validation(format!(
             "Order {} cannot be modified. Current status: {}",
             m.order_id, o.status
@@ -191,12 +199,6 @@ async fn cancel_row(b: &PaytmBroker, auth: &AuthToken, o: &PaytmOrder) -> Result
     })
 }
 
-/// Paytm cancels only orders whose `status` is `Pending` (web
-/// `cancel_order`).
-fn cancellable(o: &PaytmOrder) -> bool {
-    o.status == "Pending"
-}
-
 pub async fn cancel_order(
     b: &PaytmBroker,
     auth: &AuthToken,
@@ -207,7 +209,7 @@ pub async fn cancel_order(
         .iter()
         .find(|o| o.order_no == order_id)
         .ok_or_else(|| not_found(order_id))?;
-    if !cancellable(o) {
+    if !working(o) {
         return Err(AppError::Validation(format!(
             "Order {} cannot be cancelled. Current status: {}",
             order_id, o.status
@@ -218,7 +220,10 @@ pub async fn cancel_order(
 
 pub async fn cancel_all_orders(b: &PaytmBroker, auth: &AuthToken) -> Result<CancelAllResult> {
     let mut result = CancelAllResult::default();
-    for o in raw_orders(b, auth).await?.iter().filter(|o| cancellable(o)) {
+    // Every working order, as a single cancel takes them. The web's
+    // `cancel_all_orders_api` still selects `Pending` alone, so an Open
+    // order survives its cancel-all: a gap not copied.
+    for o in raw_orders(b, auth).await?.iter().filter(|o| working(o)) {
         match cancel_row(b, auth, o).await {
             Ok(_) => result.cancelled.push(o.order_no.clone()),
             Err(e) => {
