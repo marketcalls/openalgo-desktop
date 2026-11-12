@@ -139,7 +139,7 @@ fn margin_bodies(b: &KotakBroker, legs: &[MarginLeg]) -> Result<Vec<Value>> {
     if !missing.is_empty() {
         tracing::warn!("Kotak margin legs not prepared: {}", missing.join(", "));
         return Err(AppError::Validation(format!(
-            "Symbol not found: {}. Check the symbol name and expiry date.",
+            "Could not prepare these legs for the margin check: {}. Check the symbol, exchange and expiry date.",
             missing.join(", ")
         )));
     }

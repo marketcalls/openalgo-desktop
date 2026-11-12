@@ -764,6 +764,34 @@ async fn a_leg_missing_from_the_master_fails_the_basket() {
     assert!(m.calls("POST", "/quick/user/check-margin").is_empty());
 }
 
+/// Web test/test_margin_2156.py
+/// `test_kotak_unsupported_exchange_is_not_called_a_symbol_error` (web
+/// #2439): a leg Kotak cannot price is not always a wrong symbol (an index,
+/// NCDEX), so the refusal names the exchange as a cause too.
+#[tokio::test]
+async fn a_leg_on_an_exchange_kotak_does_not_price_names_the_exchange() {
+    let m = Mock::default();
+    let s = serve(&m).await;
+    let leg = MarginLeg {
+        key: QuoteKey::new("NSE_INDEX", "NIFTY"),
+        action: Action::Buy,
+        quantity: 1,
+        product: Product::Mis,
+        pricetype: PriceType::Market,
+        price: 0.0,
+        trigger_price: 0.0,
+    };
+    let e = broker(&s)
+        .calculate_margin(&auth(&s), &[leg])
+        .await
+        .unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        "Could not prepare these legs for the margin check: NIFTY (NSE_INDEX). Check the symbol, exchange and expiry date."
+    );
+    assert!(m.calls("POST", "/quick/user/check-margin").is_empty());
+}
+
 // ---------------------------------------------------------------------------
 // Market data
 // ---------------------------------------------------------------------------

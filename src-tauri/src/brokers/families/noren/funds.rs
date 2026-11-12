@@ -101,7 +101,7 @@ fn resolved_legs(b: &NorenBroker, legs: &[MarginLeg]) -> Result<Vec<SymToken>> {
             missing.join(", ")
         );
         return Err(AppError::Validation(format!(
-            "Symbol not found: {}. Check the symbol name and expiry date.",
+            "Could not prepare these legs for the margin check: {}. Check the symbol, exchange and expiry date.",
             missing.join(", ")
         )));
     }

@@ -899,6 +899,50 @@ fn margin_in_use_is_read_from_limits() {
     assert_eq!(limits_margin_used(&Value::Null), None);
 }
 
+/// Web test/test_margin_2156.py
+/// `test_flattrade_busy_limits_call_reaches_margin_service` (web #2439): a
+/// `/Limits` read the data budget refuses before sending stays the busy
+/// refusal (the margin service answers it as the web's busy result), never
+/// a generic failure.
+#[tokio::test]
+async fn a_busy_limits_read_is_the_busy_refusal() {
+    let app = axum::Router::new().fallback(|| async {
+        axum::Json(serde_json::json!({"stat":"Ok","marginusedtrade":"186778.30"}))
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let host = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+    let cfg = flattrade::config();
+    let mut b = NorenBroker::with_endpoints(
+        cfg,
+        shoonya_master(),
+        NorenEndpoints::rebased(cfg, &host, "ws://127.0.0.1:1"),
+    );
+    // One data send a minute: GetBasketMargin takes it, and /Limits would
+    // wait about a minute, past the queue bound.
+    b.data_limiter = std::sync::Arc::new(transport::Limiter::new(Some(Window {
+        per_second: 1,
+        per_minute: 1,
+    })));
+    let leg = MarginLeg {
+        key: QuoteKey::new("NSE", "SBIN"),
+        action: Action::Buy,
+        quantity: 1,
+        product: Product::Cnc,
+        pricetype: PriceType::Limit,
+        price: 800.0,
+        trigger_price: 0.0,
+    };
+    let e = b
+        .calculate_margin(&AuthToken::new("U1:::tok"), &[leg])
+        .await
+        .unwrap_err();
+    assert!(matches!(e, crate::error::AppError::Busy(_)), "{e:?}");
+    server.abort();
+}
+
 #[test]
 fn basket_margin_body_first_leg_flat() {
     let legs = vec![
