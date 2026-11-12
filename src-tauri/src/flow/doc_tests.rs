@@ -343,14 +343,16 @@ fn the_alert_nodes_describe_the_desktops_own_bots() {
     let navigation = repo("src/config/navigation.ts");
     let telegram = flat(section(&doc, "#### telegramAlert"));
     let whatsapp = flat(section(&doc, "#### whatsappAlert"));
-    for (node, menu) in [(&telegram, "Telegram Bot"), (&whatsapp, "WhatsApp Bot")] {
+    // One profile menu entry, Alerts, leads to every channel's page (web
+    // marketcalls/openalgo#2435).
+    assert!(navigation.contains("label: 'Alerts'"));
+    for (node, channel) in [(&telegram, "Telegram"), (&whatsapp, "WhatsApp")] {
         assert!(
             node.contains(&format!(
-                "**Desktop:** the bot is the desktop's own (**{menu}** in the profile menu"
+                "**Desktop:** the bot is the desktop's own (**Alerts** in the profile menu, then **{channel}**"
             )),
-            "{menu}"
+            "{channel}"
         );
-        assert!(navigation.contains(&format!("label: '{menu}'")), "{menu}");
     }
     for sentence in [
         "Telegram bot is stopped",

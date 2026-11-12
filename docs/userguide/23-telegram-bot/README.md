@@ -1,10 +1,18 @@
-# 23 - Telegram Bot (and WhatsApp)
+# 23 - Telegram Bot (and WhatsApp, Slack, Discord)
 
 ## Introduction
 
 OpenAlgo Desktop has a Telegram bot and a WhatsApp bot built in. Both send you
 an alert when an order is placed, modified or cancelled, and both answer
-commands such as `/positions` and `/pnl` from your phone.
+commands such as `/positions` and `/pnl` from your phone. It can also post the
+same alerts to a Slack or Discord channel (see [Slack and Discord](#slack-and-discord)).
+
+Every channel is on one page: **Alerts** in the profile menu. Each channel has
+an on/off switch, a **Send test** button, and the order events it receives:
+orders placed, orders modified, orders cancelled, positions closed, basket,
+split and options orders, and GTT orders. Telegram and WhatsApp are on for
+every event until you change them; Slack and Discord are off until you save
+their webhook. The page links to each channel's own page.
 
 In the desktop, both bots are native: they run inside OpenAlgo Desktop and
 need no Python. The Telegram bot answers the same commands as OpenAlgo web's,
@@ -24,7 +32,8 @@ out or quit.
 
 ### Step 2: Give the token to OpenAlgo
 
-1. Open **Telegram Bot** from the profile menu, then **Configuration**.
+1. Open **Alerts** from the profile menu, choose **Open Telegram settings**
+   (or **Set up Telegram**), then **Configuration**.
 2. Paste the token in **Bot Token** and choose **Save Configuration**. Once
    saved, the page shows "Token is configured" and the field becomes **Update
    Token (optional)**; leave it blank to keep the saved token.
@@ -90,7 +99,8 @@ placed, smart order, basket, split, options and multi-leg order, modify,
 cancel, cancel all, position close, and GTT placed, modified, cancelled,
 triggered or expired. Sandbox orders are marked **ANALYZE MODE - No Real
 Order**. Failed and invalid requests are not alerted, as on the web. Alerts
-are not sent while the bot is stopped.
+are not sent while the bot is stopped, nor for the events you switched off for
+Telegram on the **Alerts** page.
 
 ### The Telegram Bot pages
 
@@ -123,7 +133,7 @@ running and your account linked. See
 
 ### Pairing
 
-1. Open **WhatsApp Bot** from the profile menu.
+1. Open **Alerts** from the profile menu, then **Set up WhatsApp**.
 2. Choose **Start pairing**. A QR code appears (it refreshes about every 30
    seconds), with a **pair code** below it.
 3. On your phone open WhatsApp, **Linked devices**, **Link a device**, and scan
@@ -171,12 +181,48 @@ receive alerts. If WhatsApp itself logs the device out, the page and every
 send say "WhatsApp logged this device out, so alerts cannot be sent. Pair it
 again from the /whatsapp page in OpenAlgo."
 
+## Slack and Discord
+
+OpenAlgo can post your order alerts to a Slack or Discord channel through an
+**incoming webhook**: an address the channel gives you, which lets anyone who
+holds it post into that channel. There is no bot to run.
+
+1. Create the webhook. In Slack: an app with **Incoming Webhooks** switched on,
+   then **Add New Webhook to Workspace** and the channel; the address starts
+   with `https://hooks.slack.com/services/`. In Discord: the channel's
+   **Edit Channel**, **Integrations**, **Webhooks**, **New Webhook**, **Copy
+   Webhook URL**; the address starts with `https://discord.com/api/webhooks/`.
+2. In OpenAlgo open **Alerts** from the profile menu, then **Set up Slack** or
+   **Set up Discord**, paste the address and save it. Saving switches the
+   channel on.
+3. Choose **Send test** to check that the message arrives.
+
+The address is treated like a password: OpenAlgo accepts only Slack's or
+Discord's own webhook addresses, keeps it encrypted with the keys your
+password unlocks, never shows it again (to change it, save a new one), and
+never writes it to a log. A post goes only to Slack's or Discord's servers on
+the internet, never to your own computer or home network. Nothing in an alert
+can mention a whole channel: Slack's `<!channel>` and Discord's `@everyone`
+are shown as text.
+
+Alerts are sent in the background and never hold up an order. If Slack or
+Discord stops answering, up to 100 alerts wait for it, and more are dropped;
+a failed alert is not sent again later, because by then the market has moved.
+Anyone who can read the channel sees your alerts.
+
+Programs can post their own messages too, with your API key, at
+`/api/v1/slack/notify` and `/api/v1/discord/notify` (30 a minute each), as on
+OpenAlgo web. A Flow workflow can post with the **Slack** and **Discord**
+nodes ([chapter 21](../21-flow-visual-builder/README.md)), and a chart alert
+on `/trading` can go to Slack or Discord like Telegram.
+
 ## After a forgotten password or an account reset
 
 Setting a new password from the sign-in page (Forgot password) cannot open
-what the old password locked, which includes the Telegram token and the
-WhatsApp session. Add your Telegram bot token again and pair WhatsApp again.
-**Reset account** unlinks both.
+what the old password locked, which includes the Telegram token, the
+WhatsApp session and the Slack and Discord webhooks. Add your Telegram bot
+token again, pair WhatsApp again and save the webhooks again. **Reset
+account** unlinks all of them.
 
 ## Troubleshooting
 
@@ -190,6 +236,8 @@ WhatsApp session. Add your Telegram bot token again and pair WhatsApp again.
 | `/closeall` refused | Semi-Auto is on. Close positions in the app, or switch to Auto. |
 | WhatsApp shows Not paired after it worked | WhatsApp logged the device out, or the password was reset. Pair again. |
 | "Pairing timed out" | Choose **Start pairing** again and scan within the time. |
+| No alerts on Slack or Discord | The channel is switched off, or the event is not ticked for it, on the **Alerts** page; or no webhook is saved. |
+| "no longer accepts this webhook" | The webhook was deleted in Slack or Discord, or its channel archived. Create a new one and save it. |
 
 ---
 

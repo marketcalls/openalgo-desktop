@@ -53,7 +53,7 @@ so and points to OpenAlgo web.
 
 ## Monitoring and alerts (chapters 23-26)
 
-- [23 - Telegram bot (and WhatsApp)](./23-telegram-bot/README.md)
+- [23 - Telegram bot (and WhatsApp, Slack, Discord)](./23-telegram-bot/README.md)
 - [24 - PnL tracker](./24-pnl-tracker/README.md)
 - [25 - Latency monitor](./25-latency-monitor/README.md)
 - [26 - Traffic logs](./26-traffic-logs/README.md)
@@ -89,7 +89,7 @@ so and points to OpenAlgo web.
 | Receive TradingView alerts | [Chapter 16](./16-tradingview-integration/README.md) |
 | Automate a strategy without code | [Chapter 21](./21-flow-visual-builder/README.md) |
 | Connect Claude Desktop or Claude Code | [MCP guide](../user/mcp.md) |
-| Get Telegram or WhatsApp alerts | [Chapter 23](./23-telegram-bot/README.md) |
+| Get Telegram, WhatsApp, Slack or Discord alerts | [Chapter 23](./23-telegram-bot/README.md) |
 | Use the options tools | [Chapter 31](./31-tools/README.md) |
 | Update the app | [Updating OpenAlgo Desktop](../user/updating.md) |
 

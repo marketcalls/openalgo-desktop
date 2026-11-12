@@ -1898,8 +1898,8 @@ Delivery is owned by the workflow API key: the message goes to the Telegram
 account linked for that API-key owner. A workflow cannot supply a
 recipient override to target another OpenAlgo user.
 
-**Desktop:** the bot is the desktop's own (**Telegram Bot** in the profile
-menu), and the workflow API key is the app's current API key, so the message
+**Desktop:** the bot is the desktop's own (**Alerts** in the profile menu,
+then **Telegram**), and the workflow API key is the app's current API key, so the message
 goes to the Telegram account you linked with `/link`. The bot must be running,
 your account linked and its notifications on; otherwise the node fails with
 `Telegram bot is stopped`, `No Telegram account linked for user: ...` or
@@ -1928,8 +1928,8 @@ it reads `*Flow Alert*`, a rule, your text and `Time: HH:MM:SS` in IST.
 Sends a WhatsApp message via the paired bot device. Requires pairing from the
 `/whatsapp` page first.
 
-**Desktop:** the bot is the desktop's own (**WhatsApp Bot** in the profile
-menu, page `/whatsapp`), paired as one of your WhatsApp linked devices. An
+**Desktop:** the bot is the desktop's own (**Alerts** in the profile menu,
+then **WhatsApp**, page `/whatsapp`), paired as one of your WhatsApp linked devices. An
 unpaired or disconnected device fails the node with the page's own reason (for
 example `WhatsApp is not paired or not connected. Pair the device from
 /whatsapp.`), and a `to` that is not a phone number fails it with `Invalid
