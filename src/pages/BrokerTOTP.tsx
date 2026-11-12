@@ -2,6 +2,7 @@ import { AlertTriangle, ArrowLeft, ExternalLink, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { fetchCSRFToken } from '@/api/client'
+import { syncBrokerSession } from '@/components/auth/AuthSync'
 import { BrokerAuthSignOut } from '@/components/auth/BrokerAuthSignOut'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -476,6 +477,9 @@ export default function BrokerTOTP() {
 
       if (data.status === 'success' || response.ok) {
         login(formData.userid || formData.mobile || '', broker || '')
+        // No page reload follows, so load the API key, capabilities and app
+        // mode now; without the key every order ticket stays disabled.
+        await syncBrokerSession()
         showToast.success('Authentication successful')
         navigate('/dashboard')
       } else {
