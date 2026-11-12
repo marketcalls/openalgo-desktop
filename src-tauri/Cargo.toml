@@ -1,6 +1,6 @@
 [package]
 name = "openalgo-desktop"
-version = "1.0.7"
+version = "1.0.8"
 description = "OpenAlgo Desktop - Algorithmic Trading Platform"
 authors = ["OpenAlgo"]
 edition = "2021"

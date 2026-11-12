@@ -3,6 +3,129 @@
 All notable changes to OpenAlgo Desktop are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.8
+
+OpenAlgo web's work of 11 and 12 November. Order alerts can now go to Slack
+and Discord as well as Telegram and WhatsApp, from one Alerts page where you
+choose which events each channel gets; Flow workflows and AI clients can post
+there too. Sahi signs in with TOTP API keys. Also: Flattrade and Kotak Neo
+margin figures, Paytm Money stop orders and cancels, market price protection
+for stocks whose symbol ends in CE or PE, an order ticket that is ready as
+soon as a broker login on the sign-in card completes, and openalgo-charts
+2.7.2 with Elliott waves. If you run 1.0.7, OpenAlgo offers this update in
+the app; choose Update when no live strategy or active workflow is running.
+
+### Alerts
+
+- One **Alerts** page in the profile menu replaces the Telegram Bot and
+  WhatsApp Bot entries. It covers Telegram, WhatsApp, Slack and Discord:
+  switch each on or off, send a test message, and choose which events it
+  gets (orders placed, modified and cancelled, positions closed, basket,
+  split and options orders, GTT orders). Telegram and WhatsApp keep sending
+  every alert they sent before until you change them
+  (marketcalls/openalgo#2435).
+- Order alerts can go to a Slack or Discord channel through a webhook you
+  save on the new Slack and Discord pages. The address is kept encrypted,
+  never shown again and never written to a log. Only Slack's and Discord's
+  own addresses are accepted, a post never goes to your computer or home
+  network, and nothing in an alert can ping a whole channel
+  (marketcalls/openalgo#2435).
+- Your programs can post to Slack and Discord with your API key, at
+  `/api/v1/slack/notify` and `/api/v1/discord/notify`, 30 a minute each, as
+  on OpenAlgo web. Chart alerts on /trading can go there too
+  (marketcalls/openalgo#2435).
+- WhatsApp GTT alerts now name the symbol, triggers and trigger ID instead
+  of a bare "Order Update"; other WhatsApp alerts read as before
+  (marketcalls/openalgo#2435).
+
+### Flow
+
+- New Slack Alert and Discord Alert nodes (63 node types). The message is
+  posted in the background, and one longer than the channel takes is
+  shortened (marketcalls/openalgo#2440).
+
+### MCP
+
+- AI clients can post to your Slack and Discord channels with
+  `send_slack_alert` and `send_discord_alert`; a Read only token can too, as
+  with Telegram (marketcalls/openalgo#2440).
+
+### Brokers
+
+- Market price protection: a stock whose symbol ends in CE or PE (RELIANCE,
+  BAJFINANCE, REDTAPE and others) now gets the equity buffer, not the
+  options one. A MARKET buy of RELIANCE at 1339.7 is sent at 1346.4 instead
+  of 1353.1. Contracts the master lists as options (OPTIDX, OPTSTK and the
+  others) get the options buffer on GTT orders
+  (marketcalls/openalgo#2446).
+- Sahi: TOTP API keys can sign in. Login with Sahi opens a short card with
+  one optional field: enter your authenticator code for a TOTP key, or leave
+  it blank for a Regular key you approved in Sahi's API Dashboard today.
+  Nothing about the code is saved. A wrong code, an unapproved key and too
+  many attempts each say what to do (marketcalls/openalgo#2441, issue
+  #220).
+- Sahi: an order with a product the segment does not take (CNC on NFO, NRML
+  on NSE) is refused before it is sent, naming the product to use
+  (marketcalls/openalgo#2441).
+- After you log in on a broker's sign-in card (Angel One, Kotak, 5paisa and
+  the other card brokers, and Samco), OpenAlgo loads your API key, the
+  broker's features and the trading mode before the dashboard opens, so the
+  order ticket is ready at once (marketcalls/openalgo#2423).
+- Flattrade: the margin calculator shows the basket's own margin, without
+  the margin your open positions and orders already hold, as Flattrade's
+  basket screen does with "Include existing margin" unticked
+  (marketcalls/openalgo#2436).
+- Kotak Neo: the margin calculator shows each order's own margin instead of
+  adding your account's existing usage to every leg. A basket with a leg
+  Kotak cannot price now fails with Kotak's reason instead of showing the
+  margin of the other legs, or 0 (marketcalls/openalgo#2436, #2439).
+- Flattrade, Kotak Neo: a basket with a leg that cannot be checked names the
+  leg and asks you to check the symbol, exchange and expiry date
+  (marketcalls/openalgo#2436, #2439).
+- Paytm Money: SL-M orders are sent as stop orders with their trigger price.
+  A stop order without a trigger price is refused before it is sent, on
+  place and on modify (marketcalls/openalgo#2404).
+- Paytm Money: an open (resting) order can be cancelled, and Cancel All
+  cancels it too. A cancel that cannot go through says why
+  (marketcalls/openalgo#2374).
+- Tradejini: an order Tradejini accepted without an order id says to check
+  the order book before placing it again, as OpenAlgo web does
+  (marketcalls/openalgo#2444).
+- Broker Configuration: the broker list and the API plan list can be read in
+  dark mode (OpenAlgo web ca83d3062).
+
+### Charts
+
+- `/trading`, Historify and every chart now use openalgo-charts 2.7.2 (from
+  2.6.9). The drawing tool icons on the rail are redrawn, each with an open
+  ring at every point you place.
+- The Patterns group has an Elliott waves section with five counts: impulse,
+  correction, triangle, double combination and triple combination. Click the
+  origin first, then the end of each wave. Waves are numbered from the
+  second point, in parentheses. An impulse or correction drawn in 1.0.7
+  loads with its origin on the end of its first wave; drag that point away
+  to draw the first wave (OpenAlgo web afc3e133f, 169bf19d2, 12bb3069b).
+
+### Security
+
+- Telegram `/mode` tells the trading mode only to a chat linked with your
+  current API key. After you generate a new key, send `/link` again
+  (OpenAlgo web 81fe8eb41).
+- OpenAlgo web's November security fixes were checked against the desktop.
+  Live-update connections already needed a signed-in session, `/link`
+  already checked the key on this computer, the desktop has no broker
+  postback addresses, and a forgotten password is replaced by starting
+  fresh in the desktop window, so there is no reset link to reuse. Tests now
+  hold each of these.
+
+### Known limitations
+
+- Sound alerts and native notifications (issue #222) are not in this
+  release.
+- Some broker behaviour can only be confirmed during market hours with a
+  real login; OpenAlgo follows OpenAlgo web there, and the remaining checks
+  are listed in docs/port/feed-live-checks.md.
+
 ## 1.0.7
 
 WebSocket parity with OpenAlgo web across all 38 brokers. Every price,
