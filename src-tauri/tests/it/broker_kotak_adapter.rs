@@ -650,6 +650,120 @@ async fn funds_and_per_leg_margin() {
         .contains("Scrip not allowed for margin calculation"));
 }
 
+fn crude_leg(symbol: &str) -> MarginLeg {
+    MarginLeg {
+        key: QuoteKey::new("NFO", symbol),
+        action: Action::Sell,
+        quantity: 75,
+        product: Product::Nrml,
+        pricetype: PriceType::Limit,
+        price: 117.5,
+        trigger_price: 0.0,
+    }
+}
+
+/// Web test/test_margin_2156.py `test_kotak_api_two_legs_sum_order_margins`
+/// (web #2156): a basket is the sum of its legs' own margins (`ordMrgn`),
+/// not of `reqdMrgn`, which counted the account's usage once per leg.
+#[tokio::test]
+async fn a_basket_sums_the_legs_own_margins() {
+    let m = Mock::default();
+    for answer in [
+        json!({"stat": "Ok", "ordMrgn": "160000.00", "mrgnUsd": "8576.72", "reqdMrgn": "168576.72"}),
+        json!({"stat": "Ok", "ordMrgn": "26778.30", "mrgnUsd": "8576.72", "reqdMrgn": "35355.02"}),
+    ] {
+        m.on("POST", "/quick/user/check-margin", 200, answer.to_string());
+    }
+    let s = serve(&m).await;
+    let res = broker(&s)
+        .calculate_margin(
+            &auth(&s),
+            &[
+                crude_leg("NIFTY27OCT2625000CE"),
+                crude_leg("NIFTY27OCT2625000PE"),
+            ],
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.total_margin_required, 186778.3);
+    assert_eq!(m.calls("POST", "/quick/user/check-margin").len(), 2);
+}
+
+/// Web `test_kotak_api_failed_first_leg_reports_reason_not_zero` and
+/// `test_kotak_basket_with_one_failed_leg_is_an_error`: a failed leg fails
+/// the basket with Kotak's reason (the issue's two-leg basket came back a
+/// success of 0), and no further leg is asked for.
+#[tokio::test]
+async fn a_failed_leg_fails_the_basket() {
+    let legs = [
+        crude_leg("NIFTY27OCT2625000CE"),
+        crude_leg("NIFTY27OCT2625000PE"),
+    ];
+    let m = Mock::default();
+    m.on(
+        "POST",
+        "/quick/user/check-margin",
+        200,
+        json!({"stat": "Not_Ok", "errMsg": "Scrip not allowed for margin calculation", "stCode": 1009})
+            .to_string(),
+    );
+    let s = serve(&m).await;
+    let e = broker(&s)
+        .calculate_margin(&auth(&s), &legs)
+        .await
+        .unwrap_err();
+    assert!(
+        e.client_message()
+            .contains("Scrip not allowed for margin calculation"),
+        "{}",
+        e.client_message()
+    );
+    assert_eq!(m.calls("POST", "/quick/user/check-margin").len(), 1);
+
+    // The second leg failing fails the basket too, its reason the answer.
+    let m = Mock::default();
+    for answer in [
+        json!({"stat": "Ok", "ordMrgn": "160000.00"}),
+        json!({"stat": "Not_Ok", "errMsg": "RMS: margin not computed", "stCode": 1009}),
+    ] {
+        m.on("POST", "/quick/user/check-margin", 200, answer.to_string());
+    }
+    let s = serve(&m).await;
+    let e = broker(&s)
+        .calculate_margin(&auth(&s), &legs)
+        .await
+        .unwrap_err();
+    assert!(
+        e.client_message().contains("RMS: margin not computed"),
+        "{}",
+        e.client_message()
+    );
+}
+
+/// Web `test_kotak_unknown_symbol_fails_the_basket` (a live Kotak test
+/// priced SILVER27NOV26151000CE alone when SILVER29DEC26151000CE, dated a
+/// day wrong, was dropped): nothing is priced, and only the missing leg
+/// is named.
+#[tokio::test]
+async fn a_leg_missing_from_the_master_fails_the_basket() {
+    let m = Mock::default();
+    let s = serve(&m).await;
+    let e = broker(&s)
+        .calculate_margin(
+            &auth(&s),
+            &[
+                crude_leg("NIFTY27OCT2625000CE"),
+                crude_leg("NIFTY29DEC2625000CE"),
+            ],
+        )
+        .await
+        .unwrap_err();
+    let msg = e.client_message();
+    assert!(msg.contains("NIFTY29DEC2625000CE (NFO)"), "{}", msg);
+    assert!(!msg.contains("NIFTY27OCT2625000CE"), "{}", msg);
+    assert!(m.calls("POST", "/quick/user/check-margin").is_empty());
+}
+
 // ---------------------------------------------------------------------------
 // Market data
 // ---------------------------------------------------------------------------

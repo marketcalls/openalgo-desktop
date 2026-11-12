@@ -7,10 +7,13 @@
 //! the pledged-shares margin.
 //!
 //! Margin: `POST {base}/quick/user/check-margin`, one order per request;
-//! several legs are requested one by one and `reqdMrgn` summed.
+//! several legs are requested one by one and each order's own margin
+//! (`ordMrgn`) summed, with no hedge benefit between legs (Kotak prices one
+//! order at a time, Kotak-Neo/kotak-neo-python#52).
 
 use super::mapping::{n, order_type, reverse_map_exchange, s};
 use super::{kotak_error, KotakBroker, KotakSession};
+use crate::brokers::common::mpp::py_round;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
@@ -95,7 +98,11 @@ pub fn margin_body(b: &KotakBroker, leg: &MarginLeg) -> Option<Value> {
     }))
 }
 
-/// web `parse_margin_response`: `stat == "Ok"` -> `reqdMrgn`.
+/// web `parse_margin_response`: `stat == "Ok"` -> `ordMrgn`, the margin
+/// this order needs. `reqdMrgn` is `ordMrgn` plus `mrgnUsd`, the margin
+/// already used on the account (12500 + 40.4 = 12540.4 in Kotak's docs),
+/// which counted the account's usage into every leg of a basket (web
+/// #2156).
 pub fn parse_margin(v: &Value) -> std::result::Result<f64, String> {
     if !v.is_object() {
         return Err("Invalid response from broker".into());
@@ -109,22 +116,52 @@ pub fn parse_margin(v: &Value) -> std::result::Result<f64, String> {
             .find(|m| !m.is_empty())
             .unwrap_or_else(|| "Failed to calculate margin".into()));
     }
-    Ok(n(v, "reqdMrgn"))
+    if s(v, "ordMrgn").is_empty() {
+        tracing::warn!("Kotak check-margin returned no ordMrgn");
+        return Err("Broker did not return the order margin".into());
+    }
+    Ok(n(v, "ordMrgn"))
 }
 
+/// Each leg's check-margin body. A leg that cannot be prepared (not in
+/// the master, or on an exchange Kotak does not price) fails the basket,
+/// naming it, before any leg is priced: pricing the rest reported the
+/// margin of a different basket (web #2156).
+fn margin_bodies(b: &KotakBroker, legs: &[MarginLeg]) -> Result<Vec<Value>> {
+    let mut bodies = Vec::with_capacity(legs.len());
+    let mut missing = Vec::new();
+    for l in legs {
+        match margin_body(b, l) {
+            Some(body) => bodies.push(body),
+            None => missing.push(format!("{} ({})", l.key.symbol, l.key.exchange)),
+        }
+    }
+    if !missing.is_empty() {
+        tracing::warn!("Kotak margin legs not prepared: {}", missing.join(", "));
+        return Err(AppError::Validation(format!(
+            "Symbol not found: {}. Check the symbol name and expiry date.",
+            missing.join(", ")
+        )));
+    }
+    if bodies.is_empty() {
+        return Err(AppError::Validation(
+            "No valid positions to calculate margin. Check if symbols are valid.".into(),
+        ));
+    }
+    Ok(bodies)
+}
+
+/// The sum of the legs' own margins. One failed leg fails the basket with
+/// Kotak's reason, and no further leg is asked for: skipping it reported
+/// the margin of a different basket, and a basket whose every leg failed
+/// came back as a success of 0 (web #2156).
 pub async fn calculate_margin(
     b: &KotakBroker,
     auth: &AuthToken,
     legs: &[MarginLeg],
 ) -> Result<MarginResult> {
     let sess = KotakSession::parse(auth)?;
-    let bodies: Vec<Value> = legs.iter().filter_map(|l| margin_body(b, l)).collect();
-    if bodies.is_empty() {
-        return Err(AppError::Validation(
-            "No valid positions to calculate margin. Check if symbols are valid.".into(),
-        ));
-    }
-    let single = bodies.len() == 1;
+    let bodies = margin_bodies(b, legs)?;
     let mut total = 0.0;
     for body in &bodies {
         let (status, v) = b
@@ -134,22 +171,18 @@ pub async fn calculate_margin(
             Ok(m) => total += m,
             Err(msg) => {
                 tracing::warn!(status = status.as_u16(), "Kotak margin leg failed");
-                // One leg: its error is the answer. Several: the web sums
-                // the legs that succeeded.
-                if single {
-                    if let AppError::Auth(m) = kotak_error(status, &v, "") {
-                        return Err(AppError::Auth(m));
-                    }
-                    return Err(AppError::Broker(format!(
-                        "Kotak could not calculate the margin: {}",
-                        msg
-                    )));
+                if let AppError::Auth(m) = kotak_error(status, &v, "") {
+                    return Err(AppError::Auth(m));
                 }
+                return Err(AppError::Broker(format!(
+                    "Kotak could not calculate the margin: {}",
+                    msg
+                )));
             }
         }
     }
     Ok(MarginResult {
-        total_margin_required: total,
+        total_margin_required: py_round(total, 2),
         span_margin: 0.0,
         exposure_margin: 0.0,
     })
