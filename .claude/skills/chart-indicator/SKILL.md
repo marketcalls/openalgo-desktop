@@ -22,7 +22,7 @@ runtime; that path exists only on the web).
 
 This skill is the web repository's `chart-indicator` skill, carried over for
 OpenAlgo Desktop. The desktop pins the same `openalgo-charts` version as the
-web (`package.json` at the repository root, currently 2.6.9) and loads custom
+web (`package.json` at the repository root, currently 2.7.2) and loads custom
 indicators with the same loader (`src/lib/trading/customIndicators.ts`, the
 same file as the web's `frontend/src/lib/trading/customIndicators.ts`), so the
 contract, pitfalls, cookbook and examples apply unchanged. What differs:
@@ -92,6 +92,27 @@ when the indicator loads. Do not silently skip validation.
 The descriptor contract has only gained optional fields since this skill was
 written, so an existing indicator keeps working on the pinned build. What
 changed, newest first:
+
+- **2.7.2: nothing for a descriptor to change.** Elliott wave counts leave
+  their origin unlabelled and number their waves from the second anchor,
+  default to the Intermediate degree, `(1)` to `(5)`, centre each label on
+  its point and are drawn as they are placed. The drawing tool contract
+  gains an optional `progressive` field for that; the indicator descriptor
+  is untouched, the registry stays at 112 and the index at 438 names.
+
+- **2.7.1: nothing for a descriptor to change.** Three Elliott wave drawing
+  tools (triangle, double and triple combination) join the impulse and the
+  correction, every count starts at an origin anchor, and a count is labelled
+  by degree (`props.degree`, `props.labelStyle`). The impulse and the
+  correction take 6 and 4 anchors where they took 5 and 3; a saved count is
+  given its origin on load. No indicator, descriptor field or export is added
+  or removed: the registry stays at 112 and the index at 438 names.
+
+- **2.7.0: nothing for a descriptor to change.** The drawing tool icons are
+  redrawn with an open ring at each anchor, and `DRAWING_TOOL_ACCENTS` now
+  fills only the magnet. The packaged widget and the reference host get
+  interface fixes. No indicator, descriptor field or export is added or
+  removed: the registry stays at 112 and the index at 438 names.
 
 - **2.6.9: nothing for a descriptor to change.** A security release for the
   library's build toolchain and documentation site; the published code is
