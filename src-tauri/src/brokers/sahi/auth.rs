@@ -5,6 +5,13 @@
 //! then read from `GET /v1/profile` (`user_id`, `name`); a key without the
 //! profile scope still signs in, and the session account falls back to the
 //! saved keys' identity.
+//!
+//! A key is Regular (approved in Sahi's API Dashboard each trading day; the
+//! mint sends no `totp`, which Sahi requires) or TOTP (the first correct
+//! authenticator code of the day approves it; every mint carries the current
+//! 6-digit code). The login card asks for the code, optionally, as for
+//! Groww: blank for a Regular key, typed for a TOTP key. Nothing about the
+//! TOTP is stored.
 
 use super::ratelimit::{Category, Op};
 use super::{Call, SahiBroker};
@@ -25,7 +32,10 @@ fn text(v: &Value, key: &str) -> Option<String> {
 }
 
 /// A login refusal in words a trader can act on (web `_login_error`). The
-/// auth host answers `{code, message}` with a PascalCase code.
+/// auth host answers `{code, message}` with a PascalCase code: InvalidRequest
+/// (400), Unauthorized, InvalidTotp or Locked (401), Forbidden (403: a
+/// Regular key not approved today, or API keys not enabled for the account
+/// yet) and TooManyRequests (429, also after too many wrong codes).
 pub fn login_error(status: StatusCode, body: &Value) -> AppError {
     let code = text(body, "code").unwrap_or_default();
     tracing::warn!(
@@ -34,15 +44,22 @@ pub fn login_error(status: StatusCode, body: &Value) -> AppError {
         code = code.as_str(),
         "Sahi did not issue an access token"
     );
-    let message = if status == StatusCode::FORBIDDEN || code == "Forbidden" {
-        "Sahi did not issue an access token because the API key is not approved for today. Open Sahi web, go to Profile, API Dashboard, and click Approve on the key, then log in again.".to_string()
+    let message = if code == "InvalidTotp" {
+        "Sahi did not accept the TOTP code. Enter the code your authenticator app shows for this API key now (it changes every 30 seconds), and check that your phone's clock is set automatically.".to_string()
+    } else if status == StatusCode::FORBIDDEN || code == "Forbidden" {
+        "Sahi did not issue an access token. Either the API key is not approved for today (open Sahi web, go to Profile, API Dashboard, and click Approve on the key), or API keys are not enabled for your Sahi account yet (contact Sahi). Then log in again. A TOTP key needs no Approve: enter its code when you log in.".to_string()
+    } else if status == StatusCode::BAD_REQUEST && code == "InvalidRequest" {
+        format!(
+            "Sahi refused the login request{}. A TOTP key needs its 6-digit code when you log in; for a Regular key leave the code blank.",
+            text(body, "message").map(|m| format!(": {}", m)).unwrap_or_default()
+        )
     } else if code == "Locked" {
         "Sahi reports that your account is frozen or locked. Contact Sahi support to unlock it."
             .to_string()
     } else if status == StatusCode::UNAUTHORIZED {
         "Sahi did not accept the API key and secret. Check the API key (the key id starting with pk_) and the API secret (starting with sahi_sk_) on the Broker Configuration page, and that the key has not been deleted in the Sahi API Dashboard.".to_string()
     } else if status == StatusCode::TOO_MANY_REQUESTS {
-        "Sahi is limiting login attempts. Wait a minute, then log in again.".to_string()
+        "Sahi is limiting login attempts, which also happens after several wrong TOTP codes. Wait a minute, then log in again.".to_string()
     } else if status.is_server_error() {
         "Sahi's login service is not responding right now. Try again in a few minutes.".to_string()
     } else {
@@ -55,6 +72,26 @@ pub fn login_error(status: StatusCode, body: &Value) -> AppError {
         }
     };
     AppError::Auth(message)
+}
+
+/// The code typed on the login card: `None` when blank (a Regular key),
+/// else six digits, sent as a string so a leading zero stays. Anything else
+/// is refused before the mint is sent.
+pub fn totp_code(typed: Option<&str>) -> Result<Option<String>> {
+    let code: String = typed
+        .unwrap_or("")
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    if code.is_empty() {
+        return Ok(None);
+    }
+    if code.len() == 6 && code.chars().all(|c| c.is_ascii_digit()) {
+        return Ok(Some(code));
+    }
+    Err(AppError::Validation(
+        "Enter the 6-digit code from your authenticator app, or leave the code blank for a Regular key.".into(),
+    ))
 }
 
 fn required(value: Option<&str>) -> Option<String> {
@@ -73,7 +110,10 @@ pub async fn authenticate(b: &SahiBroker, creds: BrokerCredentials) -> Result<Au
             "Sahi needs the API key (the key id, pk_...) and the API secret (sahi_sk_...). Add both on the Broker Configuration page.".into(),
         ));
     };
-    let body = json!({ "key_id": key_id, "secret": secret });
+    let mut body = json!({ "key_id": key_id, "secret": secret });
+    if let Some(code) = totp_code(creds.totp.as_deref())? {
+        body["totp"] = json!(code);
+    }
     let call = Call {
         category: Category::Auth,
         url: format!("{}{}", b.auth_url, TOKEN_PATH),
