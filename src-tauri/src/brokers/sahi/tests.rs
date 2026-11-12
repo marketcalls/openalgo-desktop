@@ -193,6 +193,41 @@ fn market_and_stop_orders() {
     );
 }
 
+/// Web test/test_sahi_auth.py `test_product_must_suit_the_segment` (web
+/// #2441): C on NSE and BSE, M on NFO and BFO, I on all four; any other
+/// pair is refused before sending, naming what to use.
+#[test]
+fn the_product_must_suit_the_segment() {
+    for (product, exchange, allowed) in [
+        (Product::Cnc, Exchange::Nse, true),
+        (Product::Cnc, Exchange::Bse, true),
+        (Product::Cnc, Exchange::Nfo, false),
+        (Product::Nrml, Exchange::Nfo, true),
+        (Product::Nrml, Exchange::Bfo, true),
+        (Product::Nrml, Exchange::Nse, false),
+        (Product::Mis, Exchange::Nse, true),
+        (Product::Mis, Exchange::Bfo, true),
+    ] {
+        let mut o = order("M&M", Exchange::Nse, PriceType::Limit);
+        (o.product, o.exchange) = (product, exchange);
+        match place_body(&o) {
+            Ok(b) if allowed => assert_eq!(b["exchange_segment"], exchange.as_str()),
+            Err(e) if !allowed => {
+                assert!(matches!(e, AppError::Validation(_)), "{e:?}");
+                assert_eq!(
+                    e.client_message(),
+                    format!(
+                        "Sahi does not take {} orders on {}. Use CNC or MIS on NSE and BSE, and NRML or MIS on NFO and BFO.",
+                        product.as_str(),
+                        exchange
+                    )
+                );
+            }
+            other => panic!("{product} on {exchange}: {other:?}"),
+        }
+    }
+}
+
 #[test]
 fn an_index_is_not_traded() {
     let o = order("NIFTY", Exchange::NseIndex, PriceType::Market);
