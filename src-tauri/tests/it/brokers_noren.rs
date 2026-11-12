@@ -958,7 +958,8 @@ async fn flattrade_login_and_jkey_dialect() {
     assert_eq!(f.collateral, 9999.0);
     assert_eq!(f.m2m_unrealized, 1534.0);
     assert_eq!(fake.calls("/PositionBook").len(), 1);
-    // Basket margin prefers marginusedtrade.
+    // Basket margin: marginusedtrade (90000.25) less Limits' marginused
+    // (20000.00, the margin already in use; web #2156).
     let mr = b
         .calculate_margin(
             &auth,
@@ -974,7 +975,7 @@ async fn flattrade_login_and_jkey_dialect() {
         )
         .await
         .unwrap();
-    assert_eq!(mr.total_margin_required, 90000.25);
+    assert_eq!(mr.total_margin_required, 70000.25);
 }
 
 /// Web #2161: Flattrade reports the post-hedge `marginusedtrade`, prices an
@@ -996,7 +997,7 @@ async fn flattrade_margin_legs_are_priced_or_refused() {
         .calculate_margin(&auth, std::slice::from_ref(&slm))
         .await
         .unwrap();
-    assert_eq!(mr.total_margin_required, 90000.25);
+    assert_eq!(mr.total_margin_required, 70000.25);
     let body = &fake.calls("/GetBasketMargin")[0].jdata;
     assert_eq!(
         (&body["prctyp"], &body["prc"], &body["trgprc"]),
@@ -1025,6 +1026,119 @@ async fn flattrade_margin_legs_are_priced_or_refused() {
     let (b, fake, auth) = noren(shoonya::config()).await;
     b.calculate_margin(&auth, &[slm]).await.unwrap();
     assert_eq!(fake.calls("/GetBasketMargin")[0].jdata["prc"], "808.35");
+}
+
+fn sbin_leg() -> MarginLeg {
+    MarginLeg {
+        key: QuoteKey::new("NSE", "SBIN"),
+        action: Action::Buy,
+        quantity: 1,
+        product: Product::Cnc,
+        pricetype: PriceType::Limit,
+        price: 800.0,
+        trigger_price: 0.0,
+    }
+}
+
+/// The leaves of the margin calls the fake saw, in order.
+fn margin_calls(fake: &Fake) -> Vec<String> {
+    fake.seen
+        .lock()
+        .iter()
+        .map(|s| s.path.rsplit('/').next().unwrap_or("").to_string())
+        .filter(|l| l == "GetBasketMargin" || l == "Limits")
+        .collect()
+}
+
+/// Web test/test_margin_2156.py `test_flattrade_api_subtracts_limits_marginused`
+/// (web #2156): GetBasketMargin's figures are account totals, so the margin
+/// already in use (`/Limits` `marginused`) is taken off, read after the
+/// basket.
+#[tokio::test]
+async fn flattrade_margin_is_the_baskets_own() {
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.bodies.lock().extend([
+        (
+            "GetBasketMargin",
+            r#"{"stat":"Ok","marginused":"324330.00","marginusedtrade":"186778.30"}"#,
+        ),
+        ("Limits", r#"{"stat":"Ok","marginused":"8576.72"}"#),
+    ]);
+    let mr = b.calculate_margin(&auth, &[sbin_leg()]).await.unwrap();
+    assert_eq!(mr.total_margin_required, 178201.58);
+    assert_eq!(margin_calls(&fake), ["GetBasketMargin", "Limits"]);
+    let limits = &fake.calls("/Limits")[0];
+    assert_eq!(
+        (&limits.jdata["uid"], &limits.jdata["actid"]),
+        (&json!("<USER_ID>"), &json!("<USER_ID>"))
+    );
+}
+
+/// Web `test_flattrade_api_fails_when_limits_fails` and
+/// `test_flattrade_api_skips_limits_when_basket_rejected`.
+#[tokio::test]
+async fn flattrade_margin_fails_when_either_answer_does() {
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.bodies.lock().extend([
+        (
+            "GetBasketMargin",
+            r#"{"stat":"Ok","marginusedtrade":"186778.30"}"#,
+        ),
+        ("Limits", r#"{"stat":"Not_Ok","emsg":"Session Expired"}"#),
+    ]);
+    let e = b.calculate_margin(&auth, &[sbin_leg()]).await.unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        "Could not read margin already in use: Session Expired"
+    );
+
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.bodies.lock().push((
+        "GetBasketMargin",
+        r#"{"stat":"Not_Ok","emsg":"Invalid Input"}"#,
+    ));
+    let e = b.calculate_margin(&auth, &[sbin_leg()]).await.unwrap_err();
+    assert_eq!(e.client_message(), "Invalid Input");
+    assert_eq!(margin_calls(&fake), ["GetBasketMargin"]);
+
+    // A reply without the post-trade figure is not priced at marginused.
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.bodies.lock().extend([
+        (
+            "GetBasketMargin",
+            r#"{"stat":"Ok","marginused":"315753.18"}"#,
+        ),
+        ("Limits", r#"{"stat":"Ok","marginused":"0.00"}"#),
+    ]);
+    let e = b.calculate_margin(&auth, &[sbin_leg()]).await.unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        "Broker did not return the post-trade margin"
+    );
+}
+
+/// Web `test_flattrade_unknown_symbol_fails_the_basket` (a live Kotak test
+/// priced SILVER27NOV26151000CE alone when SILVER29DEC26151000CE, the
+/// December contract dated a day wrong, was dropped): a leg missing from
+/// the master fails the basket, named, and nothing is priced.
+#[tokio::test]
+async fn a_margin_leg_missing_from_the_master_fails_the_basket() {
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    let missing = MarginLeg {
+        key: QuoteKey::new("NFO", "SBIN29DEC26FUT"),
+        ..sbin_leg()
+    };
+    let e = b
+        .calculate_margin(&auth, &[sbin_leg(), missing])
+        .await
+        .unwrap_err();
+    assert!(
+        e.client_message().contains("SBIN29DEC26FUT (NFO)")
+            && !e.client_message().contains("SBIN (NSE)"),
+        "{}",
+        e.client_message()
+    );
+    assert!(margin_calls(&fake).is_empty());
 }
 
 /// Web #2196: Flattrade's EOD rows for BSE indices carry a close outside the

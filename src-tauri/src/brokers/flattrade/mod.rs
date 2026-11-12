@@ -2,9 +2,9 @@
 //! jKey form dialect, `/trade/apitoken` login, S3 CSV masters with fixed
 //! tick sizes and BSE `UNDIND` indices (index rows typed `EQ`, stale BSE
 //! rows with no exchange dropped, every file required), hardened candle
-//! parsing, `marginusedtrade` basket margin, funds M2M from the position
-//! book, a dual rolling-window limiter, and one socket per session (order
-//! updates ride the market socket).
+//! parsing, the basket's own margin (`marginusedtrade` less what is in
+//! use), funds M2M from the position book, a dual rolling-window limiter,
+//! and one socket per session (order updates ride the market socket).
 
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::*;
@@ -13,7 +13,9 @@ pub static HOOKS: NorenHooks = NorenHooks {
     parse_login: hooks::login_token,
     holding_qty: hooks::holding_qty_npoad,
     collateral: hooks::collateral_preferred,
-    margin_total: hooks::margin_used_trade,
+    // Not read: the basket's own margin is `marginusedtrade` less what
+    // is in use (`MarginApi::BasketLessInUse`).
+    margin_total: hooks::margin_used,
     cancel_error: hooks::cancel_message,
 };
 
@@ -63,7 +65,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     place_remarks: None,
     modify_market_price_zero: false,
     funds_m2m: FundsM2m::PositionBook,
-    margin: MarginApi::Basket,
+    margin: MarginApi::BasketLessInUse,
     margin_mpp: MarginMpp::TriggerFirst,
     position_pnl: PositionPnl::RealisedPlusUnrealised,
     tradebook_time_only: false,

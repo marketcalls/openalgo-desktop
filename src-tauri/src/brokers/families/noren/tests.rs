@@ -7,7 +7,7 @@ use super::data::{
     before_session_open, candle_number, clean_intraday, has_finite_prices, parse_candle,
     parse_candle_strict, quote_matches, repair, sort_dedupe_last, to_depth, to_quote,
 };
-use super::funds::{basket_body, funds_from};
+use super::funds::{basket_body, funds_from, limits_margin_used, own_basket_margin};
 use super::mapping::*;
 use super::master_contract::{expiry, nse_index_symbol, parse_file};
 use super::streaming::NorenFeed;
@@ -854,6 +854,51 @@ fn finite_prices_only() {
     }
 }
 
+/// Web test/test_margin_2156.py (web #2156): Flattrade's GetBasketMargin
+/// figures are account totals; the basket's own margin is
+/// `marginusedtrade` less `/Limits` `marginused` (the issue's figures:
+/// Flattrade's basket screen showed 178201.58 with "Include existing
+/// margin" unticked).
+#[test]
+fn flattrade_reports_the_baskets_own_margin() {
+    // test_flattrade_subtracts_margin_already_in_use
+    let basket = json!({"stat":"Ok","marginused":"324330.00","marginusedtrade":"186778.30"});
+    assert_eq!(own_basket_margin(&basket, 8576.72).unwrap(), 178201.58);
+    // test_flattrade_with_nothing_in_use_reports_marginusedtrade
+    let basket = json!({"stat":"Ok","marginused":"315753.18","marginusedtrade":"178201.58"});
+    assert_eq!(own_basket_margin(&basket, 0.0).unwrap(), 178201.58);
+    // test_flattrade_missing_post_trade_margin_is_an_error_not_naked_margin
+    for basket in [
+        json!({"stat":"Ok","marginused":"315753.18"}),
+        json!({"stat":"Ok","marginused":"315753.18","marginusedtrade":""}),
+    ] {
+        let e = own_basket_margin(&basket, 0.0).unwrap_err();
+        assert_eq!(
+            e.client_message(),
+            "Broker did not return the post-trade margin"
+        );
+    }
+}
+
+/// Web `test_flattrade_limits_without_marginused_means_zero_in_use` and
+/// `test_flattrade_failed_limits_is_reported_as_unknown`.
+#[test]
+fn margin_in_use_is_read_from_limits() {
+    assert_eq!(
+        limits_margin_used(&json!({"stat":"Ok","cash":"500000.00"})),
+        Some(0.0)
+    );
+    assert_eq!(
+        limits_margin_used(&json!({"stat":"Ok","marginused":"8576.72"})),
+        Some(8576.72)
+    );
+    assert_eq!(
+        limits_margin_used(&json!({"stat":"Not_Ok","emsg":"Session Expired"})),
+        None
+    );
+    assert_eq!(limits_margin_used(&Value::Null), None);
+}
+
 #[test]
 fn basket_margin_body_first_leg_flat() {
     let legs = vec![
@@ -866,11 +911,6 @@ fn basket_margin_body_first_leg_flat() {
     assert_eq!(b["actid"], "U1");
     assert_eq!(b["basketlists"], json!([{"exch":"NFO","tsym":"B"}]));
     assert!(basket_body("U1", vec![]).is_none());
-    assert_eq!(
-        hooks::margin_used_trade(&json!({"marginusedtrade":"10","marginused":"20"})),
-        10.0
-    );
-    assert_eq!(hooks::margin_used_trade(&json!({"marginused":"20"})), 20.0);
     assert_eq!(hooks::order_margin(&json!({"marginused":"7"})), 7.0);
     assert_eq!(
         hooks::cancel_message(&json!({"emsg":"x"})).as_deref(),
