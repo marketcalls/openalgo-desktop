@@ -26,7 +26,9 @@ pub mod store;
 mod tasks;
 
 use crate::events::OrderMeta;
-use crate::messaging::alerts::{self, Channel};
+use crate::messaging::alerts;
+use crate::messaging::channels::bots::render_whatsapp;
+use crate::messaging::channels::formatting::build_message;
 use crate::messaging::format::redact_phone;
 use crate::state::AppState;
 use parking_lot::RwLock;
@@ -765,14 +767,13 @@ impl WhatsAppService {
         let Some(username) = crate::messaging::account_username(ctx) else {
             return;
         };
-        let text = alerts::order_alert_text(
-            Channel::WhatsApp,
+        let text = render_whatsapp(&build_message(
             &meta.api_type,
             &meta.request_data,
             &meta.response_data,
             alerts::is_analyze(meta),
             &alerts::local_time(ctx),
-        );
+        ));
         let cfg = Self::config(ctx);
         if cfg.is_paired && cfg.owner_username.as_deref() == Some(username.as_str()) {
             self.send_alert(ctx, &[], &text).await;

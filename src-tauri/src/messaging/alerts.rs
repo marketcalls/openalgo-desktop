@@ -1,46 +1,15 @@
-//! Order alerts: the web's `subscribers/telegram_subscriber.py` and
-//! `subscribers/whatsapp_subscriber.py` over the alert formatters of
-//! `services/telegram_alert_service.py` and `services/whatsapp_alert_service.py`.
+//! Telegram's order alert text (web `services/telegram_alert_service.py`
+//! `alert_templates` and `format_order_details`).
 //!
-//! Same topics as the web: placed, no-action, modified, cancelled, all
-//! cancelled, position closed, basket, split, options, multi-order and the GTT
-//! placed / modified / cancelled / triggered / expired events. Failures and
-//! validation errors are not alerted, as on the web. Each channel is its own
-//! bus subscriber, so a slow Telegram never holds up WhatsApp.
+//! Telegram keeps its own formatter: it marks symbols and ids as code and
+//! draws its own separator, and the web left it untouched when WhatsApp,
+//! Slack and Discord moved to the shared one (`channels::formatting`). Which
+//! events alert, and to which channels, is `channels`.
 
 use super::format::{get_str, py_str, truthy};
-use crate::events::{Event, Mode, OrderMeta, Subscriber, Topic};
+use crate::events::{Mode, OrderMeta};
 use crate::state::AppState;
 use serde_json::Value;
-use std::sync::{Arc, Weak};
-
-/// The topics both channels alert on.
-pub fn alert_topics() -> Vec<Topic> {
-    vec![
-        Topic::OrderPlaced,
-        Topic::OrderNoAction,
-        Topic::OrderModified,
-        Topic::OrderCancelled,
-        Topic::AllOrdersCancelled,
-        Topic::PositionClosed,
-        Topic::BasketCompleted,
-        Topic::SplitCompleted,
-        Topic::OptionsCompleted,
-        Topic::MultiOrderCompleted,
-        Topic::GttPlaced,
-        Topic::GttModified,
-        Topic::GttCancelled,
-        Topic::GttTriggered,
-        Topic::GttExpired,
-    ]
-}
-
-/// Which chat app a message is formatted for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Channel {
-    Telegram,
-    WhatsApp,
-}
 
 /// The heading template for an `api_type` (`alert_templates`), with the
 /// web's `*Order Update*` default.
@@ -83,16 +52,13 @@ fn oid_or_message(r: &Value) -> String {
 /// `format_order_details` of the web alert services. `timestamp` is the
 /// local `%H:%M:%S` the web stamps on every alert.
 pub fn format_order_details(
-    channel: Channel,
     order_type: &str,
     order_data: &Value,
     response: &Value,
     analyze: bool,
     timestamp: &str,
 ) -> String {
-    let tg = channel == Channel::Telegram;
     let c = Details {
-        tg,
         order_data,
         response,
         ok: status_is_success(response),
@@ -103,11 +69,7 @@ pub fn format_order_details(
     } else {
         "*LIVE MODE - Real Order*".into()
     });
-    d.push(if tg {
-        "─────────────────────".into()
-    } else {
-        "---------------------".into()
-    });
+    d.push("─────────────────────".into());
     match order_type {
         "placeorder" => place_order_lines(&c, &mut d),
         "placesmartorder" => smart_order_lines(&c, &mut d),
@@ -124,22 +86,13 @@ pub fn format_order_details(
     d.push(format!("Time: {}", timestamp));
     if truthy(order_data.get("strategy")) {
         let s = get_str(order_data, "strategy", "");
-        d.insert(
-            0,
-            if tg {
-                format!("Strategy: *{}*", s)
-            } else {
-                format!("Strategy: {}", s)
-            },
-        );
+        d.insert(0, format!("Strategy: *{}*", s));
     }
     d.join("\n")
 }
 
 /// What every part of an order alert reads.
 struct Details<'a> {
-    /// Telegram (Markdown) rather than WhatsApp (plain).
-    tg: bool,
     order_data: &'a Value,
     response: &'a Value,
     /// The response says success.
@@ -147,14 +100,9 @@ struct Details<'a> {
 }
 
 impl Details<'_> {
-    /// Telegram wraps symbols and ids in backticks; WhatsApp prints them
-    /// plain.
+    /// Telegram wraps symbols and ids in backticks.
     fn code(&self, s: String) -> String {
-        if self.tg {
-            format!("`{}`", s)
-        } else {
-            s
-        }
+        format!("`{}`", s)
     }
 
     fn error_line(&self) -> String {
@@ -162,12 +110,11 @@ impl Details<'_> {
     }
 
     /// The mark before one result row.
-    fn mark(&self, r: &Value) -> String {
-        match (self.tg, status_is_success(r)) {
-            (true, true) => "[OK]".to_string(),
-            (true, false) => "[FAILED]".to_string(),
-            (false, true) => "[OK]".to_string(),
-            (false, false) => "[X]".to_string(),
+    fn mark(&self, r: &Value) -> &'static str {
+        if status_is_success(r) {
+            "[OK]"
+        } else {
+            "[FAILED]"
         }
     }
 }
@@ -388,9 +335,8 @@ fn options_order_lines(c: &Details<'_>, d: &mut Vec<String>, order_type: &str) {
         let rs = results(c.response);
         let good = rs.iter().filter(|r| status_is_success(r)).count();
         let multi = order_type == "optionsmultiorder";
-        let arrow = if c.tg { "→" } else { "->" };
-        if c.tg && !multi && rs.is_empty() {
-            // Telegram single (non-split) options order.
+        if !multi && rs.is_empty() {
+            // A single (non-split) options order.
             let symbol = match c.response.get("symbol") {
                 Some(v) => py_str(v),
                 None => get_str(c.order_data, "symbol", "N/A"),
@@ -408,28 +354,23 @@ fn options_order_lines(c: &Details<'_>, d: &mut Vec<String>, order_type: &str) {
                 "Order ID: {}",
                 c.code(get_str(c.response, "orderid", "N/A"))
             ));
-        } else if (c.tg && multi) || !rs.is_empty() {
-            let total = if c.tg && !multi {
-                "Total Orders"
-            } else {
-                "Total Legs"
-            };
+        } else {
+            let total = if multi { "Total Legs" } else { "Total Orders" };
             d.push(format!("{}: {}", total, rs.len()));
             d.push(format!("Successful: {}", good));
             d.push(format!("Failed: {}", rs.len() - good));
-            let shown = if c.tg && multi { rs.len() } else { 5 };
+            let shown = if multi { rs.len() } else { 5 };
             for r in rs.iter().take(shown) {
                 d.push(format!(
-                    "{} {} {} {} {}",
+                    "{} {} {} → {}",
                     c.mark(r),
                     c.code(get_str(r, "symbol", "N/A")),
                     get_str(r, "action", ""),
-                    arrow,
                     oid_or_message(r)
                 ));
             }
         }
-        let show_ltp = truthy(c.response.get("underlying_ltp")) && (multi || !c.tg);
+        let show_ltp = truthy(c.response.get("underlying_ltp")) && multi;
         if show_ltp {
             d.push(format!(
                 "Underlying LTP: {}",
@@ -443,7 +384,6 @@ fn options_order_lines(c: &Details<'_>, d: &mut Vec<String>, order_type: &str) {
 
 /// The complete alert text (`template.format(details=...)`).
 pub fn order_alert_text(
-    channel: Channel,
     order_type: &str,
     order_data: &Value,
     response: &Value,
@@ -453,7 +393,7 @@ pub fn order_alert_text(
     format!(
         "{}\n{}",
         heading(order_type),
-        format_order_details(channel, order_type, order_data, response, analyze, timestamp)
+        format_order_details(order_type, order_data, response, analyze, timestamp)
     )
 }
 
@@ -471,60 +411,6 @@ pub fn local_time(ctx: &AppState) -> String {
         .to_string()
 }
 
-/// Telegram order alerts.
-pub struct TelegramAlerts {
-    ctx: Weak<AppState>,
-}
-
-impl TelegramAlerts {
-    pub fn new(ctx: Weak<AppState>) -> Self {
-        Self { ctx }
-    }
-}
-
-#[async_trait::async_trait]
-impl Subscriber for TelegramAlerts {
-    fn name(&self) -> &'static str {
-        "telegram"
-    }
-    fn topics(&self) -> Vec<Topic> {
-        alert_topics()
-    }
-    async fn handle(&self, event: Arc<Event>) {
-        let (Some(ctx), Some(meta)) = (self.ctx.upgrade(), event.meta()) else {
-            return;
-        };
-        ctx.messaging.telegram.send_order_alert(&ctx, meta).await;
-    }
-}
-
-/// WhatsApp order alerts.
-pub struct WhatsAppAlerts {
-    ctx: Weak<AppState>,
-}
-
-impl WhatsAppAlerts {
-    pub fn new(ctx: Weak<AppState>) -> Self {
-        Self { ctx }
-    }
-}
-
-#[async_trait::async_trait]
-impl Subscriber for WhatsAppAlerts {
-    fn name(&self) -> &'static str {
-        "whatsapp"
-    }
-    fn topics(&self) -> Vec<Topic> {
-        alert_topics()
-    }
-    async fn handle(&self, event: Arc<Event>) {
-        let (Some(ctx), Some(meta)) = (self.ctx.upgrade(), event.meta()) else {
-            return;
-        };
-        ctx.messaging.whatsapp.send_order_alert(&ctx, meta).await;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -535,60 +421,56 @@ mod tests {
         let req = json!({"symbol": "SBIN", "action": "BUY", "quantity": "10",
             "pricetype": "MARKET", "exchange": "NSE", "product": "MIS", "strategy": "Alpha"});
         let resp = json!({"status": "success", "orderid": "123"});
-        let live = order_alert_text(
-            Channel::Telegram,
-            "placeorder",
-            &req,
-            &resp,
-            false,
-            "10:00:00",
-        );
+        let live = order_alert_text("placeorder", &req, &resp, false, "10:00:00");
         assert_eq!(
             live,
             "*Order Placed*\nStrategy: *Alpha*\n*LIVE MODE - Real Order*\n─────────────────────\n\
 Symbol: `SBIN`\nAction: BUY\nQuantity: 10\nPrice Type: MARKET\nExchange: NSE\nProduct: MIS\n\
 Order ID: `123`\nTime: 10:00:00"
         );
-        let an = order_alert_text(
-            Channel::Telegram,
-            "placeorder",
-            &req,
-            &resp,
-            true,
-            "10:00:00",
-        );
+        let an = order_alert_text("placeorder", &req, &resp, true, "10:00:00");
         assert!(an.contains("*ANALYZE MODE - No Real Order*"));
     }
 
+    /// Telegram's basket and options texts are its own: `[FAILED]`
+    /// marks, ids as code, an arrow, and an unknown type stays a bare
+    /// "Order Update" (the web left this formatter as it was).
     #[test]
-    fn whatsapp_basket_and_unknown_type() {
+    fn telegram_keeps_its_own_basket_options_and_unknown_texts() {
         let resp = json!({"status": "success", "results": [
             {"symbol": "A", "status": "success", "orderid": "1"},
             {"symbol": "B", "status": "error", "message": "rejected"}]});
-        let t = order_alert_text(
-            Channel::WhatsApp,
-            "basketorder",
-            &json!({}),
-            &resp,
-            false,
-            "t",
-        );
+        let t = order_alert_text("basketorder", &json!({}), &resp, false, "t");
         assert_eq!(
             t,
-            "*Basket Order Executed*\n*LIVE MODE - Real Order*\n---------------------\n\
-Total Orders: 2\nSuccessful: 1\nFailed: 1\n[OK] A: 1\n[X] B: rejected\nTime: t"
+            "*Basket Order Executed*\n*LIVE MODE - Real Order*\n─────────────────────\n\
+Total Orders: 2\nSuccessful: 1\nFailed: 1\n[OK] A: 1\n[FAILED] B: rejected\nTime: t"
         );
-        let g = order_alert_text(
-            Channel::WhatsApp,
-            "placegttorder",
-            &json!({}),
-            &json!({}),
+        let legs = json!({"status": "success", "underlying_ltp": 24050.5, "results": [
+            {"symbol": "L0", "action": "SELL", "status": "success", "orderid": "9"}]});
+        let multi = order_alert_text(
+            "optionsmultiorder",
+            &json!({"underlying": "NIFTY"}),
+            &legs,
             false,
             "t",
         );
+        assert!(multi.contains(
+            "Total Legs: 1\nSuccessful: 1\nFailed: 0\n[OK] `L0` SELL → 9\nUnderlying LTP: 24050.5"
+        ));
+        let single = order_alert_text(
+            "optionsorder",
+            &json!({"underlying": "NIFTY", "action": "BUY", "quantity": 75}),
+            &json!({"status": "success", "symbol": "NIFTY25NOV2624000CE", "orderid": "7"}),
+            false,
+            "t",
+        );
+        assert!(single
+            .contains("Symbol: `NIFTY25NOV2624000CE`\nAction: BUY\nQuantity: 75\nOrder ID: `7`"));
+        let g = order_alert_text("placegttorder", &json!({}), &json!({}), false, "t");
         assert_eq!(
             g,
-            "*Order Update*\n*LIVE MODE - Real Order*\n---------------------\nTime: t"
+            "*Order Update*\n*LIVE MODE - Real Order*\n─────────────────────\nTime: t"
         );
     }
 
@@ -596,17 +478,9 @@ Total Orders: 2\nSuccessful: 1\nFailed: 1\n[OK] A: 1\n[X] B: rejected\nTime: t"
     fn closeposition_and_cancelall() {
         let resp =
             json!({"status": "success", "canceled_orders": ["1", "2"], "failed_cancellations": []});
-        let t = order_alert_text(
-            Channel::Telegram,
-            "cancelallorder",
-            &json!({}),
-            &resp,
-            false,
-            "t",
-        );
+        let t = order_alert_text("cancelallorder", &json!({}), &resp, false, "t");
         assert!(t.contains("Cancelled: 2 orders\nFailed: 0 orders\nOrder IDs: 1, 2"));
         let c = order_alert_text(
-            Channel::Telegram,
             "closeposition",
             &json!({}),
             &json!({"status": "success", "message": "All Open Positions SquaredOff"}),

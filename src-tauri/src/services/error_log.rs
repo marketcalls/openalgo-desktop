@@ -78,7 +78,12 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
             file: meta
                 .file()
                 .map(|f| format!("{}:{}", f, meta.line().unwrap_or(0))),
-            message: truncate(&v.0, 20_000),
+            // A Slack or Discord webhook URL a library put in its error
+            // text never reaches the page (the web's log filter).
+            message: truncate(
+                &crate::messaging::channels::webhook::redact_urls(&v.0),
+                20_000,
+            ),
             exception: None,
             request: None,
         });

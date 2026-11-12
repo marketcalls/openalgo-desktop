@@ -27,6 +27,9 @@ pub const MAX_RESPONSE_BYTES: usize = 5 * 1024 * 1024;
 /// What a longer body reads.
 pub const TOO_LARGE: &str = "the response is larger than 5 MB, so it was not read";
 
+/// What a request or a lookup that ran out of time reads.
+pub const TIMED_OUT: &str = "timed out";
+
 /// How long a name lookup may take.
 const LOOKUP_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -126,7 +129,7 @@ impl GuardedHttp {
 /// A transport failure in a few words, never empty.
 fn reason(e: &reqwest::Error) -> String {
     if e.is_timeout() {
-        return "timed out".into();
+        return TIMED_OUT.into();
     }
     let mut text = e.to_string();
     let mut source = std::error::Error::source(e);
@@ -149,7 +152,7 @@ impl OutboundHttp for GuardedHttp {
     async fn resolve(&self, host: &str) -> Result<Vec<IpAddr>, String> {
         let looked = tokio::time::timeout(LOOKUP_TIMEOUT, tokio::net::lookup_host((host, 0))).await;
         match looked {
-            Err(_) => Err("timed out".into()),
+            Err(_) => Err(TIMED_OUT.into()),
             Ok(Err(e)) => Err(e.to_string()),
             Ok(Ok(addrs)) => {
                 let mut out: Vec<IpAddr> = Vec::new();
