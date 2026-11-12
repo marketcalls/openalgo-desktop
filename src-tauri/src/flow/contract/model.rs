@@ -22,6 +22,7 @@ pub const NODE_TYPES: &[&str] = &[
     "cancelOrder",
     "closePositions",
     "delay",
+    "discordAlert",
     "expiry",
     "fundCheck",
     "funds",
@@ -55,6 +56,7 @@ pub const NODE_TYPES: &[&str] = &[
     "priceAlert",
     "priceCondition",
     "priorPeriodOhlc",
+    "slackAlert",
     "smartOrder",
     "splitOrder",
     "start",
@@ -390,6 +392,6 @@ mod tests {
         sorted.sort_unstable();
         sorted.dedup();
         assert_eq!(sorted.len(), NODE_TYPES.len());
-        assert_eq!(NODE_TYPES.len(), 61);
+        assert_eq!(NODE_TYPES.len(), 63);
     }
 }

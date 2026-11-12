@@ -24,7 +24,7 @@ describe('D-55 the Flow card on the Home page', () => {
     const title = screen.getByRole('heading', { level: 3, name: 'No-code strategy builder' })
     expect(title.nextElementSibling?.tagName).toBe('P')
     expect(title.nextElementSibling?.textContent).toBe(
-      'Flow is a drag-and-drop canvas: wire 61 node types from triggers to indicators, conditions and orders, then activate it to run on its own.'
+      'Flow is a drag-and-drop canvas: wire 63 node types from triggers to indicators, conditions and orders, then activate it to run on its own.'
     )
     // Third of the six desks, as on the web: after charting, before options.
     const desks = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)

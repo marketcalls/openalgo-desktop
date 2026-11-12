@@ -10,7 +10,7 @@ use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product};
 /// The node types the editor can render and the executor can dispatch, kept
 /// in lockstep with the editor's `components/flow/nodes/index.ts` (pinned by
 /// a test).
-pub const VALID_NODE_TYPES: [&str; 61] = [
+pub const VALID_NODE_TYPES: [&str; 63] = [
     "andGate",
     "barOffset",
     "basketOrder",
@@ -19,6 +19,7 @@ pub const VALID_NODE_TYPES: [&str; 61] = [
     "cancelOrder",
     "closePositions",
     "delay",
+    "discordAlert",
     "expiry",
     "fundCheck",
     "funds",
@@ -52,6 +53,7 @@ pub const VALID_NODE_TYPES: [&str; 61] = [
     "priceAlert",
     "priceCondition",
     "priorPeriodOhlc",
+    "slackAlert",
     "smartOrder",
     "splitOrder",
     "start",
@@ -116,7 +118,7 @@ pub const BRANCHING_NODE_TYPES: [&str; 10] = [
 ];
 
 /// Fields a node cannot execute without, checked at the strict level.
-pub const REQUIRED_NODE_FIELDS: [(&str, &[&str]); 35] = [
+pub const REQUIRED_NODE_FIELDS: [(&str, &[&str]); 37] = [
     ("placeOrder", &["symbol", "exchange", "action", "quantity"]),
     ("smartOrder", &["symbol", "exchange", "action", "quantity"]),
     ("optionsOrder", &["underlying", "action", "quantity"]),
@@ -132,6 +134,8 @@ pub const REQUIRED_NODE_FIELDS: [(&str, &[&str]); 35] = [
     ("openPosition", &["symbol", "exchange"]),
     ("telegramAlert", &["message"]),
     ("whatsappAlert", &["message"]),
+    ("slackAlert", &["message"]),
+    ("discordAlert", &["message"]),
     ("mathExpression", &["expression"]),
     ("varCondition", &["leftValue", "operator"]),
     ("priceCondition", &["symbol", "exchange", "operator"]),

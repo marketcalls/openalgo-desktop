@@ -40,7 +40,9 @@ workflow in analyzer mode first.
   address, best the built-in ngrok tunnel
   ([chapter 16](../16-tradingview-integration/README.md#step-1-turn-on-the-built-in-tunnel)).
 - For the Telegram and WhatsApp nodes: the bots set up as in
-  [23 - Telegram Bot (and WhatsApp)](../23-telegram-bot/README.md).
+  [23 - Telegram Bot (and WhatsApp, Slack, Discord)](../23-telegram-bot/README.md).
+- For the Slack and Discord nodes: a webhook saved on the **Slack** or
+  **Discord** page, and the channel switched on on the **Alerts** page.
 
 ## The Flow page
 
@@ -100,7 +102,7 @@ Workflow**, **Replace from JSON** and **Keyboard Shortcuts**.
 
 ## The nodes
 
-There are 61 node types. Each family is a palette tab.
+There are 63 node types. Each family is a palette tab.
 
 ### Triggers (Trigger tab)
 
@@ -182,6 +184,7 @@ deleted.
 | **Math** | Works out a number, such as `floor(0.05 * {{f.data.availablecash}} / {{q.data.ltp}})` |
 | **Log** | Writes a line in the run's log |
 | **Telegram**, **WhatsApp** | Sends you an alert through the desktop's own bots |
+| **Slack**, **Discord** | Posts a message to the Slack or Discord channel whose webhook you saved |
 | **Delay** | Waits up to 5 minutes |
 | **Wait Until** | Waits until a time (IST), at most 30 minutes ahead |
 | **HTTP Request** | Calls a web address on the internet |
@@ -195,6 +198,14 @@ follows a redirect, and gives up on an answer larger than 5 MB.
 The Telegram alert goes to the Telegram account you linked to the bot. If the
 bot is stopped or your account is not linked, the node fails and nothing below
 it runs, so put alerts **after** the orders they report, never before.
+
+The Slack and Discord nodes post to the channel whose webhook is saved on the
+**Slack** or **Discord** page. The message is sent in the background, so the
+workflow does not wait for Slack or Discord; a message longer than the channel
+takes (4,000 characters on Slack, 2,000 on Discord) is shortened to fit. If the
+channel is switched off on the **Alerts** page or has no webhook saved, the
+node fails and nothing below it runs. Anyone who can read that channel sees
+the message.
 
 ## Variables: passing values between nodes
 
@@ -489,6 +500,7 @@ Positions (no symbol: everything), Telegram "Squared off at {{time}}".
 | `{{name.field}}` shows up as text | The earlier node's **Output Variable** is not `name`, or the field is spelled differently |
 | An order went to the sandbox | Analyzer mode is on: the editor header shows it |
 | The Telegram node failed | Start the bot and link your account ([chapter 23](../23-telegram-bot/README.md)) |
+| The Slack or Discord node failed | Save the webhook on the **Slack** or **Discord** page and switch the channel on on the **Alerts** page |
 | Import refused a file | The message names the first problem; files from OpenAlgo web import as they are |
 
 ## In the desktop

@@ -29,12 +29,14 @@ import {
   Globe,
   Grid3X3,
   Group,
+  Hash,
   History,
   Hourglass,
   Layers,
   Layers3,
   type LucideIcon,
   MessageCircle,
+  MessagesSquare,
   Package,
   PackageCheck,
   Pencil,
@@ -150,6 +152,8 @@ const TABS: Array<[tab: string, entries: Entry[]]> = [
       ['log', 'Log', 'Debug message'],
       ['telegramAlert', 'Telegram', 'Send alert'],
       ['whatsappAlert', 'WhatsApp', 'Send alert'],
+      ['slackAlert', 'Slack', 'Send alert'],
+      ['discordAlert', 'Discord', 'Send alert'],
       ['delay', 'Delay', 'Wait duration'],
       ['waitUntil', 'Wait Until', 'Wait until time'],
       ['group', 'Group', 'Group nodes'],
@@ -215,9 +219,9 @@ describe('every tab and entry (F-632..F-637)', () => {
 describe('the palette offers exactly the node types the app runs (F-697, X-261)', () => {
   const offered = TABS.flatMap(([, entries]) => entries.map(([type]) => type))
 
-  it('offers each type once, 61 in all', () => {
+  it('offers each type once, 63 in all', () => {
     expect(new Set(offered).size).toBe(offered.length)
-    expect(offered).toHaveLength(61)
+    expect(offered).toHaveLength(63)
   })
 
   it("equals the backend validator's node types", () => {
@@ -289,6 +293,8 @@ const TILES: Array<[type: string, icon: LucideIcon | string, ink: string, tint: 
   ['log', FileText, 'text-blue-400', 'bg-blue-400/10'],
   ['telegramAlert', Send, 'text-[#0088cc]', 'bg-[#0088cc]/10'],
   ['whatsappAlert', MessageCircle, 'text-[#25D366]', 'bg-[#25D366]/10'],
+  ['slackAlert', Hash, 'text-[#E01E5A]', 'bg-[#E01E5A]/10'],
+  ['discordAlert', MessagesSquare, 'text-[#5865F2]', 'bg-[#5865F2]/10'],
   ['delay', Timer, 'text-muted-foreground', 'bg-muted'],
   ['waitUntil', Hourglass, 'text-amber-500', 'bg-amber-500/10'],
   ['group', Group, 'text-muted-foreground', 'bg-muted'],

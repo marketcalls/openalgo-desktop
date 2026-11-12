@@ -86,6 +86,8 @@ describe('F-683 the utility nodes', () => {
     'httpRequest',
     'telegramAlert',
     'whatsappAlert',
+    'slackAlert',
+    'discordAlert',
   ])('a %s takes one wire in and gives one unnamed wire out', (type) => {
     expect(handles(face(type))).toEqual([
       { id: null, kind: 'target', position: 'top' },
@@ -239,6 +241,21 @@ describe('F-683 the utility nodes', () => {
     expect(has(blank, `${message.substring(0, 25)}...`)).toBe(true)
     expect(has(face('whatsappAlert'), 'No message')).toBe(true)
   })
+
+  it.each([
+    ['slackAlert', 'Slack'],
+    ['discordAlert', 'Discord'],
+  ])(
+    '%s posts to the saved webhook and cuts the message at 25, No message when empty',
+    (type, title) => {
+      const message = 'Entry placed for {{symbol}} at {{ltp}}'
+      const el = face(type, { message })
+      expect(subtitle(el, title)).toBe('Saved webhook')
+      expect(has(el, `${message.substring(0, 25)}...`)).toBe(true)
+      expect(has(face(type, { message: 'y'.repeat(25) }), 'y'.repeat(25))).toBe(true)
+      expect(has(face(type), 'No message')).toBe(true)
+    }
+  )
 })
 
 describe('F-685 the group container', () => {
