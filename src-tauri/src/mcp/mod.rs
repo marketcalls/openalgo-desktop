@@ -40,6 +40,7 @@
 //! research tools compute the `openalgo.ta` indicators in Rust ([`ta`]).
 
 pub mod admin;
+mod alert_tools;
 pub mod catalog;
 pub mod dispatch;
 pub mod envelope;

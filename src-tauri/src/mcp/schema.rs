@@ -40,6 +40,7 @@ pub enum Dflt {
     Str(&'static str),
     Int(i64),
     Num(f64),
+    Bool(bool),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -110,6 +111,7 @@ pub fn default_value(d: Dflt) -> Option<Value> {
         Dflt::Str(s) => Some(json!(s)),
         Dflt::Int(i) => Some(json!(i)),
         Dflt::Num(f) => Some(json!(f)),
+        Dflt::Bool(b) => Some(json!(b)),
     }
 }
 

@@ -12,7 +12,7 @@ Code (MCP)](user/mcp.md) first. This page does not repeat it.
 
 ## At a glance
 
-- **49 tools**, with the same names, descriptions, input schemas and
+- **51 tools**, with the same names, descriptions, input schemas and
   annotations as the OpenAlgo web MCP server. A contract test pins every
   descriptor to a capture of the web's `tools/list`, so a prompt or client
   configuration written for the web finds the same tools here.
@@ -21,8 +21,8 @@ Code (MCP)](user/mcp.md) first. This page does not repeat it.
     that passes each request to the running app.
   - **Streamable HTTP** at `http://127.0.0.1:5000/mcp`.
 - **One credential**: an MCP token created on the **API Key** page. A
-  **Read only** token sees 38 tools; a **Read and place orders** token sees
-  all 49.
+  **Read only** token sees 40 tools; a **Read and place orders** token sees
+  all 51.
 - **Orders follow the analyzer mode switch**, exactly like `/api/v1`: with
   analyzer mode on they go to the sandbox, not to your broker. In Semi-Auto
   order mode, new orders wait in the Action Center for your approval, like
@@ -50,19 +50,21 @@ Code (MCP)](user/mcp.md) first. This page does not repeat it.
 
 | Access (API Key page) | Scopes | Tools listed and callable |
 | --- | --- | --- |
-| Read only | `read:market`, `read:account` | 38 |
-| Read and place orders | `read:market`, `read:account`, `write:orders` | 49 |
+| Read only | `read:market`, `read:account` | 40 |
+| Read and place orders | `read:market`, `read:account`, `write:orders` | 51 |
 
 - `read:market` (28 tools): quotes, depth, history, option chain and
   symbols, the market calendar, the analysis tools, version and constants.
-- `read:account` (10 tools): order, trade and position books, holdings,
+- `read:account` (12 tools): order, trade and position books, holdings,
   funds, margin, open position, order status, analyzer status, and
-  `send_telegram_alert`.
+  `send_telegram_alert`, `send_slack_alert` and `send_discord_alert`.
 - `write:orders` (11 tools): every tool that places, changes or cancels an
   order or closes positions, and `analyzer_toggle`.
 
-`send_telegram_alert` carries `read:account`, as on the web, so a **Read
-only** token can send a message to your own Telegram. It cannot trade.
+The three alert tools carry `read:account`, as on the web, so a **Read only**
+token can send a message to your own Telegram, and to the Slack and Discord
+channels you saved a webhook for and switched on. It cannot trade. Other
+people may read a Slack or Discord channel.
 
 A token is `oamcp_` followed by 64 hex characters. Only its SHA-256 digest is
 stored, so OpenAlgo cannot show it again; a lost token is revoked and
@@ -371,7 +373,7 @@ Prompts:
 - "Modify order 250408001002736: change the limit price to 16.5."
 - "Switch to analyzer mode before I test this."
 
-### Account (`read:account`, 10 tools)
+### Account (`read:account`, 12 tools)
 
 | Tool | Parameters | Calls |
 | --- | --- | --- |
@@ -385,11 +387,23 @@ Prompts:
 | `calculate_margin` | `positions`* (list of `{symbol, exchange, action, product, pricetype, quantity}`, optional `price`, `trigger_price`) | `margin` |
 | `analyzer_status` | none | `analyzer` |
 | `send_telegram_alert` | `username`* (your OpenAlgo login ID), `message`*, `priority`=5 (1 to 10) | `telegram/notify` |
+| `send_slack_alert` | `message`* (at most 4000 characters), `wait_for_delivery`=false | `slack/notify` |
+| `send_discord_alert` | `message`* (at most 2000 characters), `wait_for_delivery`=false | `discord/notify` |
 
 `send_telegram_alert` needs the Telegram bot running in OpenAlgo Desktop and
 the OpenAlgo user named in `username` linked to Telegram. Otherwise it answers
 "Telegram bot is stopped. Start the bot to send notifications." or "User not
 found or not linked to Telegram".
+
+`send_slack_alert` and `send_discord_alert` post to the channel whose webhook
+is saved on the **Slack** or **Discord** page (**Alerts** in the profile
+menu), and only while that channel is switched on there; otherwise they
+answer "Slack alerts are turned off. Turn them on from the Alerts page in
+OpenAlgo." or "No Slack webhook is saved. Add one on the Slack page in
+OpenAlgo." (Discord likewise). By default the message is queued and the
+answer is "Notification queued."; with `wait_for_delivery` true it is posted
+first and the answer says whether Slack or Discord took it. Mentions never
+ping anyone.
 
 Prompts:
 
@@ -399,6 +413,8 @@ Prompts:
 - "How much margin do I need for a BANKNIFTY short straddle at ATM next week?"
 - "Am I in live or analyzer mode?"
 - "Send me a Telegram alert: NIFTY crossed 26000, priority 8."
+- "Post to Slack: NIFTY broke 26000, long straddle hedged."
+- "Tell the Discord channel that all positions are squared off."
 
 ### Market data and symbols (`read:market`, 17 tools)
 
@@ -532,7 +548,7 @@ The assistant chains tools on its own. Run these in analyzer mode first.
 - **Narrowing the tools**: the web's `OPENALGO_MCP_READ_ONLY` and
   `OPENALGO_MCP_TOOLSETS` variables do not exist in the desktop; choose a
   Read only token instead. The web's read-only switch shows 37 tools (it also
-  drops `send_telegram_alert`); a desktop Read only token shows 38.
+  drops the three alert tools); a desktop Read only token shows 40.
 - **Indicators**: the analysis tools compute 27 of the web's `openalgo.ta`
   indicators. Others are refused with `not_available`.
 - **Limits**: the web leaves the analysis tools unbounded; the desktop

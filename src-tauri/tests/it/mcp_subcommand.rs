@@ -458,13 +458,18 @@ fn read_calls(expiry: &str, option: &str) -> Vec<(&'static str, Value)> {
             "send_telegram_alert",
             json!({"username": "trader", "message": "every-tool test"}),
         ),
+        ("send_slack_alert", json!({"message": "every-tool test"})),
+        (
+            "send_discord_alert",
+            json!({"message": "every-tool test", "wait_for_delivery": true}),
+        ),
     ]
 }
 
 /// PLATFORM-07, MCP-04: the real `openalgo-desktop mcp` process, as an AI
 /// client starts it, against a running app (an `AppState` on ephemeral
 /// loopback ports with the mock broker; nothing of the trader's): every
-/// one of the 49 tools is called through it, each answered by the app
+/// one of the 51 tools is called through it, each answered by the app
 /// with that tool's envelope; an initialize asking for a protocol version
 /// the bridge does not speak still gets one it does; a revoked token is
 /// told so; stdout carries JSON-RPC only and the token never appears.
@@ -476,7 +481,7 @@ async fn every_tool_through_the_bridge_process_against_the_running_app() {
     m.h.analyze(false);
     // Each token may make 5 order-tool calls a minute (http::WRITE_LIMIT),
     // 60 to each read scope and 120 requests in all. The calls below are
-    // split to stay inside: token 0 makes the 39 reads and 4 order calls
+    // split to stay inside: token 0 makes the 41 reads and 4 order calls
     // (place, modify, cancel, cancel all), token 1 the other 5 placements,
     // token 2 close_all_positions and analyzer_toggle. A new order tool or
     // setup call needs its place in that count, or a fourth token.
@@ -497,7 +502,7 @@ async fn every_tool_through_the_bridge_process_against_the_running_app() {
             .iter()
             .map(|t| t["name"].as_str().unwrap().to_string())
             .collect();
-        assert_eq!(listed.len(), 49, "{:?}", listed);
+        assert_eq!(listed.len(), 51, "{:?}", listed);
 
         let expiries = call(
             &mut g,

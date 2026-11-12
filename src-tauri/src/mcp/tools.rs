@@ -190,6 +190,9 @@ async fn run(ctx: &Arc<AppState>, name: &str, a: &Args) -> Output {
     if let Some(out) = run_account(ctx, name, a).await {
         return out;
     }
+    if let Some(out) = super::alert_tools::run(ctx, name, a).await {
+        return out;
+    }
     if let Some(out) = run_quotes(ctx, name, a).await {
         return out;
     }

@@ -1,5 +1,5 @@
 {
-  "_comment": "Captured from the web's MCP server (openalgo/mcp/mcpserver.py through FastMCP, as blueprints/mcp_http.py serves tools/list: description stripped, annotations included) and the scope table in utils/mcp_tool_registry.py. Regenerate only from the web; the desktop must match this file.",
+  "_comment": "Captured from the web's MCP server (openalgo/mcp/mcpserver.py through FastMCP, as blueprints/mcp_http.py serves tools/list: description stripped, annotations included) and the scope table in utils/mcp_tool_registry.py. Regenerate only from the web; the desktop must match this file. send_slack_alert and send_discord_alert (web fdda2c211) were added from the web's source, not a live capture: the docstring stripped and the signature as FastMCP renders it, as the other entries show.",
   "tools": [
     {
       "name": "place_order",
@@ -1420,6 +1420,64 @@
       }
     },
     {
+      "name": "send_slack_alert",
+      "description": "Post a message to the trader's Slack channel through its saved webhook.\n\n    The webhook is set up on OpenAlgo's /slack page, and Slack must be turned\n    on from the /alerts page; otherwise the call is refused with a message\n    saying which step is missing. The message goes to the channel the trader\n    chose, which other people may read.\n\n    Args:\n        message: Text to post, at most 4000 characters. Slack's &, < and > are\n                 escaped, so no one is mentioned or pinged.\n        wait_for_delivery: False (default) queues the message and returns at\n                 once. True posts it first and reports whether Slack accepted it.\n\n    Returns:\n        JSON with status ('success' or 'error') and message.",
+      "inputSchema": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "wait_for_delivery": {
+            "default": false,
+            "title": "Wait For Delivery",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "send_slack_alertArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Send Slack Alert",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "send_discord_alert",
+      "description": "Post a message to the trader's Discord channel through its saved webhook.\n\n    The webhook is set up on OpenAlgo's /discord page, and Discord must be\n    turned on from the /alerts page; otherwise the call is refused with a\n    message saying which step is missing. The message goes to the channel the\n    trader chose, which other people may read.\n\n    Args:\n        message: Text to post, at most 2000 characters. Mentions are never\n                 resolved, so no one is pinged.\n        wait_for_delivery: False (default) queues the message and returns at\n                 once. True posts it first and reports whether Discord accepted it.\n\n    Returns:\n        JSON with status ('success' or 'error') and message.",
+      "inputSchema": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "wait_for_delivery": {
+            "default": false,
+            "title": "Wait For Delivery",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "send_discord_alertArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Send Discord Alert",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
       "name": "get_holidays",
       "description": "Get trading holidays for a specific year.\n\n    Args:\n        year: Year to get holidays for (e.g., 2026). Optional — defaults to current year.\n\n    Returns:\n        JSON with list of trading holidays including:\n        - date: Holiday date (YYYY-MM-DD)\n        - description: Holiday name/reason\n        - holiday_type: TRADING_HOLIDAY, SETTLEMENT_HOLIDAY, or SPECIAL_SESSION\n        - closed_exchanges: List of closed exchanges\n        - open_exchanges: List of exchanges with special timings\n\n    Example:\n        get_holidays(2026)\n        get_holidays()          # current year",
       "inputSchema": {
@@ -2508,6 +2566,8 @@
     "place_split_order": "write:orders",
     "screen_instruments": "read:market",
     "search_instruments": "read:market",
+    "send_discord_alert": "read:account",
+    "send_slack_alert": "read:account",
     "send_telegram_alert": "read:account",
     "validate_order_constants": "read:market"
   }

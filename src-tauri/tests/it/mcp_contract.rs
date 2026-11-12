@@ -16,7 +16,7 @@ fn fixture() -> Value {
 fn every_web_tool_is_registered_with_the_same_descriptor() {
     let f = fixture();
     let web = f["tools"].as_array().unwrap();
-    assert_eq!(web.len(), 49);
+    assert_eq!(web.len(), 51);
     let web_names: BTreeSet<&str> = web.iter().map(|t| t["name"].as_str().unwrap()).collect();
     let ours: BTreeSet<&str> = TOOLS.iter().map(|t| t.name).collect();
     assert_eq!(web_names, ours, "tool set drifted");
@@ -55,7 +55,7 @@ async fn tools_list_over_http_is_the_fixture_filtered_by_scope() {
     let f = fixture();
     let listed = m.rpc(&rw, "tools/list", json!({})).await;
     let tools = listed["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 49);
+    assert_eq!(tools.len(), 51);
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     let mut sorted = names.clone();
     sorted.sort();
