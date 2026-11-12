@@ -339,6 +339,55 @@ async function stubFlowWorkflow(page: Page) {
   )
 }
 
+/** The alert channels, one in each state the Alerts badges show. */
+async function stubAlertChannels(page: Page) {
+  const categories = [
+    'orders_placed',
+    'orders_modified',
+    'orders_cancelled',
+    'positions_closed',
+    'batch_orders',
+    'gtt_orders',
+  ].map((id) => ({ id, label: id.replace('_', ' '), description: `Alerts for ${id}` }))
+  const channel = (
+    name: string,
+    label: string,
+    enabled: boolean,
+    configured: boolean,
+    ready: boolean
+  ) => ({
+    name,
+    label,
+    setup_path: `/${name}`,
+    uses_webhook: name === 'slack' || name === 'discord',
+    enabled,
+    categories: ['orders_placed', 'positions_closed'],
+    status: {
+      configured,
+      ready,
+      detail: ready ? 'Alerts are sent here.' : 'Save a webhook address to send alerts here.',
+    },
+  })
+  await page.route('**/alerts/channels', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'success',
+        data: {
+          categories,
+          channels: [
+            channel('telegram', 'Telegram', true, true, true),
+            channel('whatsapp', 'WhatsApp', true, true, false),
+            channel('slack', 'Slack', true, false, false),
+            channel('discord', 'Discord', false, false, false),
+          ],
+        },
+      }),
+    })
+  )
+}
+
 test.describe('Accessibility - signed in', () => {
   for (const theme of ['light', 'dark'] as const) {
     for (const path of SIGNED_IN_PAGES) {
@@ -407,6 +456,24 @@ test.describe('Accessibility - signed in', () => {
 
       expect(await scan(page, wcag)).toEqual([])
     })
+  }
+
+  // The Alerts pages with a channel in each state their badges show: on and
+  // ready, on and not ready, on and needing setup, and off.
+  for (const theme of ['light', 'dark'] as const) {
+    for (const path of ['/alerts', '/slack']) {
+      test(`${path} with a channel in each state${theme === 'dark' ? ' (dark)' : ''}`, async ({
+        page,
+      }) => {
+        await signedIn(page, theme)
+        await stubAlertChannels(page)
+        await page.goto(path)
+        await page.waitForLoadState('networkidle')
+        await expect(page.getByText(path === '/alerts' ? 'Ready' : 'On', { exact: true })).toBeVisible()
+
+        expect(await scan(page, wcag)).toEqual([])
+      })
+    }
   }
 
   test('/profile with a new password typed', async ({ page }) => {

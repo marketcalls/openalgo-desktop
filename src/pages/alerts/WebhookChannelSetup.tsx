@@ -174,7 +174,7 @@ export default function WebhookChannelSetup({ channel: name }: { channel: Webhoo
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="text-lg">Status</CardTitle>
             {channel.enabled ? (
-              <Badge className="bg-green-600 text-white">On</Badge>
+              <Badge className="bg-green-700 text-white">On</Badge>
             ) : (
               <Badge variant="secondary">Off</Badge>
             )}

@@ -263,14 +263,14 @@ function StatusBadge({ channel }: { channel: AlertChannel }) {
   if (!channel.enabled) return <Badge variant="secondary">Off</Badge>
   if (channel.status.ready) {
     return (
-      <Badge className="bg-green-600 text-white">
+      <Badge className="bg-green-700 text-white">
         <CheckCircle2 className="mr-1 h-3 w-3" />
         Ready
       </Badge>
     )
   }
   return (
-    <Badge variant="outline" className="border-amber-500 text-amber-600">
+    <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
       {channel.status.configured ? 'Not ready' : 'Needs setup'}
     </Badge>
   )
