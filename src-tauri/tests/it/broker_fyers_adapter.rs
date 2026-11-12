@@ -657,6 +657,66 @@ async fn a_history_chunk_that_keeps_failing_fails_the_history() {
     assert_eq!(fake.requests("GET", "/data/history").len(), 1);
 }
 
+/// A 200 the fake answers to the next history chunk.
+fn chunk_answer(fake: &Fake, body: Value) {
+    fake.once("GET", "/data/history", (200, vec![], body.to_string()));
+}
+
+/// Web test/test_fyers_history_chunks.py (web #2422, #2438): each chunk is
+/// asked for once. An empty chunk (`no_data`: a weekend, a holiday, dates
+/// before listing) is skipped at once and the data around it returned; a
+/// refusal, with or without a reason, fails the history after one send,
+/// and a refusal after data is never returned as a partial success. The
+/// desktop had this from BRL-04; these are the web's cases.
+#[tokio::test]
+async fn each_history_chunk_is_asked_for_once() {
+    let no_data = json!({"s": "no_data", "code": 200, "message": "", "candles": []});
+    let bad_symbol = json!({"s": "error", "code": -300, "message": "Invalid symbol"});
+    let candle = |ts: i64| json!({"s": "ok", "code": 200, "message": "", "candles": [[ts, 1, 2, 0.5, 1.5, 100]]});
+    // Two 60-day chunks of 5-minute data.
+    let range = history("5m", (2025, 8, 1), (2025, 11, 8));
+
+    // test_empty_chunk_then_data_returns_the_data
+    let fake = Fake::default();
+    chunk_answer(&fake, no_data.clone());
+    chunk_answer(&fake, candle(1_762_000_000));
+    let b = broker(&fake.serve().await);
+    let c = b.get_history(&auth(), &range).await.unwrap();
+    assert_eq!(
+        c.iter().map(|c| c.timestamp).collect::<Vec<_>>(),
+        [1_762_000_000]
+    );
+    assert_eq!(fake.requests("GET", "/data/history").len(), 2);
+
+    // test_failure_after_data_is_not_returned_as_partial_success
+    let fake = Fake::default();
+    chunk_answer(&fake, candle(1_756_000_000));
+    chunk_answer(&fake, bad_symbol);
+    let b = broker(&fake.serve().await);
+    let e = b.get_history(&auth(), &range).await.unwrap_err();
+    assert!(
+        e.client_message().contains("(Invalid symbol)"),
+        "{}",
+        e.client_message()
+    );
+    assert_eq!(fake.requests("GET", "/data/history").len(), 2);
+
+    // test_failed_chunk_raises_once_with_reason, the blank reason
+    let fake = Fake::default();
+    chunk_answer(&fake, json!({"s": "error", "message": ""}));
+    let b = broker(&fake.serve().await);
+    let e = b
+        .get_history(&auth(), &history("5m", (2025, 11, 7), (2025, 11, 8)))
+        .await
+        .unwrap_err();
+    assert!(
+        e.client_message().contains("(Fyers refused the request)"),
+        "{}",
+        e.client_message()
+    );
+    assert_eq!(fake.requests("GET", "/data/history").len(), 1);
+}
+
 /// BRL-03: Fyers' Retry-After is honoured in full. A wait the request can
 /// hold is slept once and the request repeated; one that outlasts the
 /// request's deadline is refused at once, unretried, where the old code cut

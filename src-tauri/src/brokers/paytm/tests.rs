@@ -232,7 +232,7 @@ fn token_answer_to_session() {
 #[test]
 fn place_body_matches_transform_data() {
     let o = order_req("NIFTY06OCT2624000CE", "NFO", "LIMIT", "NRML");
-    let b = place_order_body(&o);
+    let b = place_order_body(&o).unwrap();
     assert_eq!(
         b,
         json!({
@@ -241,11 +241,75 @@ fn place_body_matches_transform_data() {
             "segment": "D", "source": "M"
         })
     );
-    let sl = place_order_body(&order_req("SBIN", "NSE", "SL-M", "MIS"));
+    let sl = place_order_body(&order_req("SBIN", "NSE", "SL-M", "MIS")).unwrap();
     assert_eq!(sl["order_type"], "SLM");
     assert_eq!(sl["trigger_price"], 119.0);
     assert_eq!(sl["segment"], "E");
     assert_eq!(sl["product"], "I");
+}
+
+/// An SBIN SELL of `pricetype` at 599 with a trigger of 600 (web
+/// test_paytm_stop_loss_orders.py `BASE`).
+fn stop_req(pricetype: &str, price: f64, trigger: f64) -> ResolvedOrder {
+    let mut o = order_req("SBIN", "NSE", pricetype, "MIS");
+    (o.price, o.trigger_price) = (price, trigger);
+    o
+}
+
+/// Web test/test_paytm_stop_loss_orders.py `TestTransformData` (#2404): SL
+/// goes as SL with its limit price and trigger, SL-M as SLM with its
+/// trigger and the price "0", and neither ever as a market order.
+#[test]
+fn stop_orders_go_as_stops_with_their_trigger() {
+    for (pricetype, expected) in [
+        ("MARKET", "MKT"),
+        ("LIMIT", "LMT"),
+        ("SL", "SL"),
+        ("SL-M", "SLM"),
+    ] {
+        let b = place_order_body(&stop_req(pricetype, 601.0, 600.0)).unwrap();
+        assert_eq!(b["order_type"], expected, "{pricetype}");
+    }
+    assert_eq!(
+        place_order_body(&stop_req("SL", 599.0, 600.0)).unwrap(),
+        json!({
+            "security_id": "3045", "exchange": "NSE", "txn_type": "S", "order_type": "SL",
+            "quantity": 75, "product": "I", "price": 599.0, "trigger_price": 600.0,
+            "validity": "DAY", "segment": "E", "source": "M"
+        })
+    );
+    assert_eq!(
+        place_order_body(&stop_req("SL-M", 599.0, 600.0)).unwrap(),
+        json!({
+            "security_id": "3045", "exchange": "NSE", "txn_type": "S", "order_type": "SLM",
+            "quantity": 75, "product": "I", "price": "0", "trigger_price": 600.0,
+            "validity": "DAY", "segment": "E", "source": "M"
+        })
+    );
+    // test_market_and_limit_send_no_trigger
+    for pricetype in ["MARKET", "LIMIT"] {
+        let b = place_order_body(&stop_req(pricetype, 600.0, 600.0)).unwrap();
+        assert!(b.get("trigger_price").is_none(), "{pricetype}");
+    }
+}
+
+/// Web `test_stop_without_trigger_is_refused` (the triggers an f64 can
+/// carry: none, 0, negative, NaN, infinite).
+#[test]
+fn a_stop_without_a_trigger_is_refused_before_sending() {
+    for pricetype in ["SL", "SL-M"] {
+        for trigger in [0.0, -5.0, f64::NAN, f64::INFINITY] {
+            let e = place_order_body(&stop_req(pricetype, 599.0, trigger)).unwrap_err();
+            assert!(matches!(e, AppError::Validation(_)), "{e:?}");
+            assert_eq!(
+                e.client_message(),
+                format!(
+                    "A trigger price is required for an {pricetype} order. Set the trigger price and place the order again."
+                ),
+                "{pricetype} {trigger}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -265,7 +329,7 @@ fn modify_and_cancel_bodies_echo_the_book_row() {
         disclosed_quantity: 0,
         instrument: master().by_symbol("NSE", "SBIN").unwrap(),
     };
-    let b = modify_order_body(&m, row);
+    let b = modify_order_body(&m, row).unwrap();
     assert_eq!(b["order_no"], "261003000000101");
     assert_eq!(b["serial_no"], 1);
     assert_eq!(b["group_id"], 8);
@@ -278,11 +342,37 @@ fn modify_and_cancel_bodies_echo_the_book_row() {
     assert_eq!(b["order_type"], "LMT");
     let mut mkt = m.clone();
     mkt.pricetype = PriceType::Market;
-    let b = modify_order_body(&mkt, row);
+    let b = modify_order_body(&mkt, row).unwrap();
     assert_eq!(
         (b["price"].clone(), b["order_type"].clone()),
-        (json!(0.0), json!("MKT"))
+        (json!("0"), json!("MKT"))
     );
+    // Web TestModifyOrder (#2404): LIMIT to SL-M sends SLM, the price "0"
+    // and the trigger; a stop without a valid trigger is refused.
+    let slm = ResolvedModify {
+        pricetype: PriceType::SlM,
+        price: 0.0,
+        trigger_price: 600.0,
+        ..m.clone()
+    };
+    let b = modify_order_body(&slm, row).unwrap();
+    assert_eq!(
+        (&b["order_type"], &b["price"], &b["trigger_price"]),
+        (&json!("SLM"), &json!("0"), &json!(600.0))
+    );
+    for trigger in [0.0, f64::INFINITY] {
+        let sl = ResolvedModify {
+            pricetype: PriceType::Sl,
+            price: 599.0,
+            trigger_price: trigger,
+            ..m.clone()
+        };
+        let e = modify_order_body(&sl, row).unwrap_err();
+        assert!(
+            e.client_message().contains("trigger price is required"),
+            "{e:?}"
+        );
+    }
 
     let c = cancel_order_body(row);
     for k in [

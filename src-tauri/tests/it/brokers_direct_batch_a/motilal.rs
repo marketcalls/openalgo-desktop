@@ -283,7 +283,9 @@ async fn market_orders_are_sent_as_protected_limits() {
     assert_eq!(p.header("vendorinfo"), "<USER_ID>");
     let body = p.json();
     assert_eq!(body["ordertype"], "LIMIT");
-    assert_eq!(body["price"], 2424.0);
+    // LTP 2400 plus the equity slab's 0.5%: RELIANCE ends in CE but is a
+    // stock (web #2388; 2424, the option slab, before).
+    assert_eq!(body["price"], 2412.0);
     assert_eq!(body["producttype"], "DELIVERY");
     assert_eq!(body["quantityinlot"], 10);
     assert_eq!(body["symboltoken"], 2885);

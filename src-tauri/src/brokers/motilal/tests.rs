@@ -497,11 +497,11 @@ fn lots_conversion_refuses_bad_quantities() {
 #[test]
 fn market_orders_get_price_protection() {
     let o = resolved("RELIANCE", "NSE", PriceType::Market, 10);
-    // The web slab reads the symbol suffix: RELIANCE ends in CE, so the
-    // option slab (1 % above 500) applies, rounded to the 0.10 tick.
+    // RELIANCE ends in CE but is a stock: the equity slab (0.5 % above
+    // 500) applies, rounded to the 0.10 tick (web #2388; 2424 before).
     assert_eq!(
         protected_order(&o, Some(2400.0)).unwrap(),
-        ("LIMIT", 2424.0)
+        ("LIMIT", 2412.0)
     );
     assert_eq!(protected_order(&o, None).unwrap(), ("MARKET", 0.0));
     assert_eq!(protected_order(&o, Some(0.0)).unwrap(), ("MARKET", 0.0));
@@ -509,7 +509,7 @@ fn market_orders_get_price_protection() {
     let mut sl = resolved("RELIANCE", "NSE", PriceType::SlM, 10);
     sl.trigger_price = 2400.0;
     sl.action = Action::Sell;
-    assert_eq!(protected_order(&sl, None).unwrap(), ("STOPLOSS", 2376.0));
+    assert_eq!(protected_order(&sl, None).unwrap(), ("STOPLOSS", 2388.0));
     sl.trigger_price = 0.0;
     assert_eq!(protected_order(&sl, None).unwrap().0, "STOPLOSS");
 

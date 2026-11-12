@@ -120,6 +120,7 @@
     },
     {
       "order_no": "261003000000105",
+      "ext_info": {"source": "mobile", "metadata": {"tag": "keep-me"}},
       "exch_order_no": "1200000012345681",
       "exchange": "BSE",
       "segment": "D",

@@ -212,7 +212,7 @@ pub struct MppQuote {
 /// The order fields MPP reads.
 #[derive(Debug, Clone, Copy)]
 pub struct MppOrder<'a> {
-    /// OpenAlgo symbol (its suffix picks the option slab).
+    /// OpenAlgo symbol (an option symbol takes the option slab).
     pub symbol: &'a str,
     pub action: Action,
     pub pricetype: PriceType,

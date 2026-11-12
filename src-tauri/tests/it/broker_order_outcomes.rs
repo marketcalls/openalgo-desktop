@@ -246,6 +246,55 @@ async fn tradejini_lost_answers_are_uncertain() {
     .await;
 }
 
+/// Web test/test_tradejini_order_refusal.py (web #2385, #2444): a refused
+/// order is never placed, and an "ok" is never a refusal. Tradejini's
+/// error envelope (over a 200 or a 400) is a refusal with its reason; an
+/// "ok" whatever its payload's shape, without an order id, is uncertain
+/// with the web's words; so is a 200 that cannot be read. (A 5xx is
+/// uncertain on the desktop, never "refused": tradejini_lost_answers.)
+#[tokio::test]
+async fn tradejini_never_reads_a_refusal_as_placed_nor_an_ok_as_refused() {
+    use openalgo_desktop_lib::brokers::tradejini::TradejiniBroker;
+    // The web's `NO_ORDER_ID_MESSAGE`, word for word.
+    const NO_ORDER_ID_MESSAGE: &str = "Tradejini accepted the order but did not return an order id. Check the order book before placing it again.";
+    let f = fake().await;
+    let b = TradejiniBroker::with_urls(symbols(), &f.base, "ws://127.0.0.1:1");
+    let auth = AuthToken::new("APPKEY0123456789:access-xyz");
+    for body in [
+        r#"{"s":"ok","d":{"msg":"Order Placed Successfully"}}"#,
+        r#"{"s":"ok"}"#,
+        r#"{"s":"ok","d":null}"#,
+        r#"{"s":"ok","d":"Order Placed"}"#,
+        r#"{"s":"ok","d":[]}"#,
+    ] {
+        match attempt(&b, &auth, &f, 200, body).await {
+            PlaceOutcome::Uncertain { reason, .. } => {
+                assert_eq!(reason, NO_ORDER_ID_MESSAGE, "{}", body)
+            }
+            other => panic!("{}: {:?}", body, other),
+        }
+    }
+    for body in ["not json", r#"["unexpected"]"#] {
+        let r = attempt(&b, &auth, &f, 200, body).await;
+        assert!(r.is_uncertain(), "{}: {:?}", body, r);
+    }
+    for (status, body, reason) in [
+        (200, r#"{"s":"error","msg":"RMS: Margin Exceeds"}"#, "RMS: Margin Exceeds"),
+        (
+            400,
+            r#"{"s":"error","msg":"Input validation failed. Kindly check your input contains required fields for the request"}"#,
+            "Input validation failed. Kindly check your input contains required fields for the request",
+        ),
+    ] {
+        match attempt(&b, &auth, &f, status, body).await {
+            PlaceOutcome::Refused { reason: r } => assert_eq!(r, reason, "{}", body),
+            other => panic!("{}: {:?}", body, other),
+        }
+    }
+    let r = attempt(&b, &auth, &f, 401, r#"{"s":"error","msg":"Unauthorized"}"#).await;
+    assert!(matches!(r, PlaceOutcome::Refused { .. }), "{:?}", r);
+}
+
 #[tokio::test]
 async fn fivepaisa_lost_answers_are_uncertain() {
     use openalgo_desktop_lib::brokers::fivepaisa::{FivepaisaBroker, Session};

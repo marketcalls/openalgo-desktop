@@ -20,12 +20,39 @@ pub const ORDERS: &str = "/orders/v1/user/orders";
 pub const POSITIONS: &str = "/orders/v1/position";
 pub const HOLDINGS: &str = "/holdings/v1/get-user-holdings-data";
 
-/// Statuses `modify_order` accepts (web `MODIFIABLE_STATUSES`).
-const MODIFIABLE: &[&str] = &["OPEN", "TRIGGER PENDING", "MODIFIED", "PENDING"];
+/// Statuses of an order Paytm still works, upper-cased: what `modify_order`
+/// and `cancel_order` accept (web `MODIFIABLE_STATUSES`, and
+/// `cancellable_statuses` since #2374).
+const WORKING: &[&str] = &["OPEN", "TRIGGER PENDING", "MODIFIED", "PENDING"];
 
-/// The body `place_order_api` posts (web `transform_data`). Trigger price
-/// is sent for stop orders, which Paytm needs to accept them.
-pub fn place_order_body(o: &ResolvedOrder) -> Value {
+fn working(o: &PaytmOrder) -> bool {
+    WORKING.contains(&o.status.trim().to_ascii_uppercase().as_str())
+}
+
+/// SL and SL-M, which Paytm takes as `SL` and `SLM` with a trigger price
+/// (web `STOP_ORDER_TYPES`).
+fn is_stop(p: PriceType) -> bool {
+    matches!(p, PriceType::Sl | PriceType::SlM)
+}
+
+/// web `require_trigger_price` (#2404): an SL or SL-M order needs a finite
+/// trigger price above 0, or it is refused before it is sent. Without one
+/// the web sent a protective stop as a market order that executed at once.
+fn require_trigger(pricetype: PriceType, trigger: f64) -> Result<()> {
+    if is_stop(pricetype) && !(trigger.is_finite() && trigger > 0.0) {
+        return Err(AppError::Validation(format!(
+            "A trigger price is required for an {} order. Set the trigger price and place the order again.",
+            pricetype.as_str()
+        )));
+    }
+    Ok(())
+}
+
+/// The body `place_order_api` posts (web `transform_data`): a stop order
+/// carries its trigger price, and an SL-M, which executes at market once
+/// triggered, the price "0" (the web's string).
+pub fn place_order_body(o: &ResolvedOrder) -> Result<Value> {
+    require_trigger(o.pricetype, o.trigger_price)?;
     let mut body = json!({
         "security_id": o.token(),
         "exchange": paytm_exchange(o.exchange),
@@ -38,10 +65,13 @@ pub fn place_order_body(o: &ResolvedOrder) -> Value {
         "segment": segment(o.exchange),
         "source": "M",
     });
-    if matches!(o.pricetype, PriceType::Sl | PriceType::SlM) {
+    if is_stop(o.pricetype) {
         body["trigger_price"] = json!(o.trigger_price);
     }
-    body
+    if o.pricetype == PriceType::SlM {
+        body["price"] = json!("0");
+    }
+    Ok(body)
 }
 
 /// Fields of a book row echoed back verbatim (strings stay strings).
@@ -50,16 +80,19 @@ fn echo(o: &PaytmOrder, key: &str) -> Value {
 }
 
 /// The body `modify_order` posts: the book row's identity fields plus the
-/// new quantity, price, trigger, product and order type.
-pub fn modify_order_body(m: &ResolvedModify, o: &PaytmOrder) -> Value {
-    let market = m.pricetype == PriceType::Market;
-    json!({
+/// new quantity, price, trigger, product and order type. An order that
+/// executes at market (MKT, SLM) sends the price "0", the web's string; a
+/// stop order needs its trigger price (#2404).
+pub fn modify_order_body(m: &ResolvedModify, o: &PaytmOrder) -> Result<Value> {
+    require_trigger(m.pricetype, m.trigger_price)?;
+    let at_market = matches!(m.pricetype, PriceType::Market | PriceType::SlM);
+    Ok(json!({
         "order_no": o.order_no,
         "exchange": echo(o, "exchange"),
         "segment": echo(o, "segment"),
         "security_id": echo(o, "security_id"),
         "quantity": m.quantity,
-        "price": if market { 0.0 } else { m.price },
+        "price": if at_market { json!("0") } else { json!(m.price) },
         "trigger_price": m.trigger_price,
         "validity": "DAY",
         "product": paytm_product(m.product),
@@ -69,10 +102,11 @@ pub fn modify_order_body(m: &ResolvedModify, o: &PaytmOrder) -> Value {
         "off_mkt_flag": if o.off_mkt_flag.is_empty() { "N".to_string() } else { o.off_mkt_flag.clone() },
         "serial_no": echo(o, "serial_no"),
         "group_id": echo(o, "group_id"),
-    })
+    }))
 }
 
-/// The body `cancel_order` posts (web copies the book row).
+/// The body `cancel_order` posts (web copies the book row, `ext_info`
+/// included when the row has it, unchanged).
 pub fn cancel_order_body(o: &PaytmOrder) -> Value {
     let mut body = json!({"order_no": o.order_no, "source": "N"});
     for k in [
@@ -92,6 +126,9 @@ pub fn cancel_order_body(o: &PaytmOrder) -> Value {
     ] {
         body[k] = echo(o, k);
     }
+    if let Some(ext) = o.raw.get("ext_info") {
+        body["ext_info"] = ext.clone();
+    }
     body
 }
 
@@ -110,7 +147,7 @@ pub async fn place_order(
     auth: &AuthToken,
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
-    let body = place_order_body(o);
+    let body = place_order_body(o)?;
     let env = b.call(Method::POST, PLACE, auth, Some(&body)).await?;
     let id = order_no(&env.data).ok_or_else(|| {
         // Accepted without a number: the order may exist (LOG-08).
@@ -151,11 +188,9 @@ async fn positions_read(
     book_read::typed(rows, unread)
 }
 
+/// web `modify_order` / `cancel_order`: 404 "Order <id> not found".
 fn not_found(order_id: &str) -> AppError {
-    AppError::NotFound(format!(
-        "Order {} was not found in today's Paytm Money order book.",
-        order_id
-    ))
+    AppError::NotFound(format!("Order {} not found", order_id))
 }
 
 pub async fn modify_order(
@@ -168,13 +203,13 @@ pub async fn modify_order(
         .iter()
         .find(|o| o.order_no == m.order_id)
         .ok_or_else(|| not_found(&m.order_id))?;
-    if !MODIFIABLE.contains(&o.status.trim().to_ascii_uppercase().as_str()) {
+    if !working(o) {
         return Err(AppError::Validation(format!(
             "Order {} cannot be modified. Current status: {}",
             m.order_id, o.status
         )));
     }
-    let body = modify_order_body(m, o);
+    let body = modify_order_body(m, o)?;
     let env = b.call(Method::POST, MODIFY, auth, Some(&body)).await?;
     Ok(OrderResponse {
         order_id: order_no(&env.data).unwrap_or_else(|| m.order_id.clone()),
@@ -191,12 +226,6 @@ async fn cancel_row(b: &PaytmBroker, auth: &AuthToken, o: &PaytmOrder) -> Result
     })
 }
 
-/// Paytm cancels only orders whose `status` is `Pending` (web
-/// `cancel_order`).
-fn cancellable(o: &PaytmOrder) -> bool {
-    o.status == "Pending"
-}
-
 pub async fn cancel_order(
     b: &PaytmBroker,
     auth: &AuthToken,
@@ -207,7 +236,7 @@ pub async fn cancel_order(
         .iter()
         .find(|o| o.order_no == order_id)
         .ok_or_else(|| not_found(order_id))?;
-    if !cancellable(o) {
+    if !working(o) {
         return Err(AppError::Validation(format!(
             "Order {} cannot be cancelled. Current status: {}",
             order_id, o.status
@@ -218,7 +247,10 @@ pub async fn cancel_order(
 
 pub async fn cancel_all_orders(b: &PaytmBroker, auth: &AuthToken) -> Result<CancelAllResult> {
     let mut result = CancelAllResult::default();
-    for o in raw_orders(b, auth).await?.iter().filter(|o| cancellable(o)) {
+    // Every working order, as a single cancel takes them. The web's
+    // `cancel_all_orders_api` still selects `Pending` alone, so an Open
+    // order survives its cancel-all: a gap not copied.
+    for o in raw_orders(b, auth).await?.iter().filter(|o| working(o)) {
         match cancel_row(b, auth, o).await {
             Ok(_) => result.cancelled.push(o.order_no.clone()),
             Err(e) => {

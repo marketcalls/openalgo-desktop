@@ -331,6 +331,47 @@ fn modify_req(order_id: &str, pricetype: &str) -> ResolvedModify {
     ResolvedModify::resolve(order_id, &m, &master()).unwrap()
 }
 
+/// Web test/test_paytm_stop_loss_orders.py `TestPlaceOrderApi` and
+/// `TestModifyOrder` (#2404): an SL-M reaches Paytm as SLM with its trigger
+/// and the price "0"; a stop without a trigger is refused and never sent;
+/// a LIMIT modified to SL-M sends SLM, "0" and the trigger, and a stop
+/// modify without a valid trigger is refused before anything is sent.
+#[tokio::test]
+async fn paytm_stop_orders_carry_their_trigger_or_are_not_sent() {
+    let (b, fake, auth) = setup().await;
+    let r = b
+        .place_order(&auth, &order("SBIN", "NSE", "SELL", "SL-M", "MIS"))
+        .await
+        .unwrap();
+    assert_eq!(r.order_id, "261003000009999");
+    let sent = &fake.calls("POST", "/orders/v1/place/regular")[0].body;
+    assert_eq!(
+        (&sent["order_type"], &sent["price"], &sent["trigger_price"]),
+        (&json!("SLM"), &json!("0"), &json!(799.0))
+    );
+
+    let mut no_trigger = order("SBIN", "NSE", "SELL", "SL", "MIS");
+    no_trigger.trigger_price = 0.0;
+    let e = b.place_order(&auth, &no_trigger).await.unwrap_err();
+    assert!(matches!(e, AppError::Validation(_)), "{e:?}");
+    assert!(e.client_message().contains("trigger price is required"));
+    assert_eq!(fake.calls("POST", "/orders/v1/place/regular").len(), 1);
+
+    let mut slm = modify_req("261003000000101", "SL-M");
+    (slm.price, slm.trigger_price) = (0.0, 600.0);
+    b.modify_order(&auth, &slm).await.unwrap();
+    let sent = &fake.calls("POST", "/orders/v1/modify/regular")[0].body;
+    assert_eq!(
+        (&sent["order_type"], &sent["price"], &sent["trigger_price"]),
+        (&json!("SLM"), &json!("0"), &json!(600.0))
+    );
+    let mut sl = modify_req("261003000000101", "SL");
+    sl.trigger_price = 0.0;
+    let e = b.modify_order(&auth, &sl).await.unwrap_err();
+    assert!(e.client_message().contains("trigger price is required"));
+    assert_eq!(fake.calls("POST", "/orders/v1/modify/regular").len(), 1);
+}
+
 #[tokio::test]
 async fn paytm_modify_and_cancel_look_up_the_book_row() {
     let (b, fake, auth) = setup().await;
@@ -365,10 +406,35 @@ async fn paytm_modify_and_cancel_look_up_the_book_row() {
     assert_eq!(c["order_no"], "261003000000101");
     assert_eq!(c["mkt_type"], "NL");
     assert_eq!(c["txn_type"], "B");
-    // Only `Pending` orders are cancellable.
-    assert!(b.cancel_order(&auth, "261003000000102").await.is_err());
+    // Web test_paytm_cancel_order_errors.py (#2374): an order Paytm still
+    // works is cancellable whatever the case of its status (an Open one
+    // was refused), its `ext_info` sent back unchanged; a traded order is
+    // refused (400) and an unknown one not found (404), in the web's words.
+    let r = b.cancel_order(&auth, "261003000000105").await.unwrap();
+    assert_eq!(r.order_id, "261003000000105");
+    let c = &fake.calls("POST", "/orders/v1/cancel/regular")[1].body;
+    assert_eq!(c["order_no"], "261003000000105");
+    assert_eq!(
+        c["ext_info"],
+        json!({"source": "mobile", "metadata": {"tag": "keep-me"}})
+    );
+    assert!(fake.calls("POST", "/orders/v1/cancel/regular")[0]
+        .body
+        .get("ext_info")
+        .is_none());
+    let e = b.cancel_order(&auth, "261003000000102").await.unwrap_err();
+    assert!(matches!(e, AppError::Validation(_)), "{e:?}");
+    assert_eq!(
+        e.client_message(),
+        "Order 261003000000102 cannot be cancelled. Current status: Traded"
+    );
+    let e = b.cancel_order(&auth, "OA123").await.unwrap_err();
+    assert!(matches!(e, AppError::NotFound(_)), "{e:?}");
+    assert_eq!(e.client_message(), "Order OA123 not found");
+    // Cancel-all takes every working order a single cancel takes (the
+    // web's cancel-all still takes Pending alone: a gap not copied).
     let all = b.cancel_all_orders(&auth).await.unwrap();
-    assert_eq!(all.cancelled, ["261003000000101"]);
+    assert_eq!(all.cancelled, ["261003000000101", "261003000000105"]);
     assert!(all.failed.is_empty());
 }
 

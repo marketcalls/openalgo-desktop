@@ -173,16 +173,16 @@ fn slm_protection_snaps_outward_and_fails_closed() {
     );
     // Option under 10: 5%, but at least one tick away and tick-snapped.
     assert_eq!(
-        mapping::slm_protected_price("NIFTY2643024000CE", Action::Sell, 0.5, 0.05).unwrap(),
+        mapping::slm_protected_price("NIFTY30APR2624000CE", Action::Sell, 0.5, 0.05).unwrap(),
         0.45
     );
     assert_eq!(
-        mapping::slm_protected_price("NIFTY2643024000CE", Action::Buy, 0.5, 0.05).unwrap(),
+        mapping::slm_protected_price("NIFTY30APR2624000CE", Action::Buy, 0.5, 0.05).unwrap(),
         0.55
     );
     // 0.0025 tick (currency future, 1% slab): 101.37 * 0.99 = 100.3563 floors to 100.355.
     assert_eq!(
-        mapping::slm_protected_price("USDINR26APRFUT", Action::Sell, 101.37, 0.0025).unwrap(),
+        mapping::slm_protected_price("USDINR28APR26FUT", Action::Sell, 101.37, 0.0025).unwrap(),
         100.355
     );
     assert!(mapping::slm_protected_price("X", Action::Sell, 0.05, 0.05).is_err());

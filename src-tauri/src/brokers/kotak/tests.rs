@@ -495,6 +495,31 @@ fn margin_body_and_response() {
     assert!(parse_margin(&json!([])).is_err());
 }
 
+/// Web test/test_margin_2156.py `test_kotak_reports_order_margin_not_required_margin`
+/// (the example in Kotak's docs, web #2156) and
+/// `test_kotak_missing_order_margin_is_an_error`: the order's own margin is
+/// `ordMrgn`; `reqdMrgn` adds the margin already used on the account.
+#[test]
+fn margin_is_the_orders_own_not_the_accounts() {
+    let docs = json!({
+        "avlCash": "10197.480000",
+        "totMrgnUsd": "12540.400000",
+        "mrgnUsd": "40.400000",
+        "ordMrgn": "12500.000000",
+        "rmsVldtd": "NOT_OK",
+        "reqdMrgn": "12540.400000",
+        "avlMrgn": "10197.480000",
+        "insufFund": "2342.920000",
+        "stat": "Ok",
+        "stCode": 200
+    });
+    assert_eq!(parse_margin(&docs).unwrap(), 12500.0);
+    assert_eq!(
+        parse_margin(&json!({"stat": "Ok", "reqdMrgn": "12540.4"})).unwrap_err(),
+        "Broker did not return the order margin"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Quotes and history
 // ---------------------------------------------------------------------------

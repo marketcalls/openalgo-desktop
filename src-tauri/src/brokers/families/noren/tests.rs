@@ -7,7 +7,7 @@ use super::data::{
     before_session_open, candle_number, clean_intraday, has_finite_prices, parse_candle,
     parse_candle_strict, quote_matches, repair, sort_dedupe_last, to_depth, to_quote,
 };
-use super::funds::{basket_body, funds_from};
+use super::funds::{basket_body, funds_from, limits_margin_used, own_basket_margin};
 use super::mapping::*;
 use super::master_contract::{expiry, nse_index_symbol, parse_file};
 use super::streaming::NorenFeed;
@@ -677,6 +677,26 @@ fn mo(pricetype: PriceType, price: f64, trigger: f64) -> MppOrder<'static> {
     }
 }
 
+/// Web test/test_mpp_slab_instrument_type.py
+/// `TestBrokerCallSite::test_flattrade_market_buy_reliance` (web #2388): a
+/// MARKET BUY of RELIANCE at LTP 1339.7 goes as LMT 1346.4 (the 0.5%
+/// equity slab), not 1353.1 (the 1% option slab its CE ending gave it).
+#[test]
+fn flattrade_prices_a_cash_symbol_ending_in_ce_as_equity() {
+    let q = Some(MppQuote {
+        ltp: 1339.7,
+        tick: Some(0.1),
+    });
+    let m = MppOrder {
+        symbol: "RELIANCE",
+        ..mo(PriceType::Market, 0.0, 0.0)
+    };
+    assert_eq!(
+        mpp_place(flattrade::config().mpp, &m, q, 0.1).unwrap(),
+        ("LMT", "1346.4".into())
+    );
+}
+
 #[test]
 fn mpp_scopes() {
     let q = Some(MppQuote {
@@ -834,6 +854,95 @@ fn finite_prices_only() {
     }
 }
 
+/// Web test/test_margin_2156.py (web #2156): Flattrade's GetBasketMargin
+/// figures are account totals; the basket's own margin is
+/// `marginusedtrade` less `/Limits` `marginused` (the issue's figures:
+/// Flattrade's basket screen showed 178201.58 with "Include existing
+/// margin" unticked).
+#[test]
+fn flattrade_reports_the_baskets_own_margin() {
+    // test_flattrade_subtracts_margin_already_in_use
+    let basket = json!({"stat":"Ok","marginused":"324330.00","marginusedtrade":"186778.30"});
+    assert_eq!(own_basket_margin(&basket, 8576.72).unwrap(), 178201.58);
+    // test_flattrade_with_nothing_in_use_reports_marginusedtrade
+    let basket = json!({"stat":"Ok","marginused":"315753.18","marginusedtrade":"178201.58"});
+    assert_eq!(own_basket_margin(&basket, 0.0).unwrap(), 178201.58);
+    // test_flattrade_missing_post_trade_margin_is_an_error_not_naked_margin
+    for basket in [
+        json!({"stat":"Ok","marginused":"315753.18"}),
+        json!({"stat":"Ok","marginused":"315753.18","marginusedtrade":""}),
+    ] {
+        let e = own_basket_margin(&basket, 0.0).unwrap_err();
+        assert_eq!(
+            e.client_message(),
+            "Broker did not return the post-trade margin"
+        );
+    }
+}
+
+/// Web `test_flattrade_limits_without_marginused_means_zero_in_use` and
+/// `test_flattrade_failed_limits_is_reported_as_unknown`.
+#[test]
+fn margin_in_use_is_read_from_limits() {
+    assert_eq!(
+        limits_margin_used(&json!({"stat":"Ok","cash":"500000.00"})),
+        Some(0.0)
+    );
+    assert_eq!(
+        limits_margin_used(&json!({"stat":"Ok","marginused":"8576.72"})),
+        Some(8576.72)
+    );
+    assert_eq!(
+        limits_margin_used(&json!({"stat":"Not_Ok","emsg":"Session Expired"})),
+        None
+    );
+    assert_eq!(limits_margin_used(&Value::Null), None);
+}
+
+/// Web test/test_margin_2156.py
+/// `test_flattrade_busy_limits_call_reaches_margin_service` (web #2439): a
+/// `/Limits` read the data budget refuses before sending stays the busy
+/// refusal (the margin service answers it as the web's busy result), never
+/// a generic failure.
+#[tokio::test]
+async fn a_busy_limits_read_is_the_busy_refusal() {
+    let app = axum::Router::new().fallback(|| async {
+        axum::Json(serde_json::json!({"stat":"Ok","marginusedtrade":"186778.30"}))
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let host = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+    let cfg = flattrade::config();
+    let mut b = NorenBroker::with_endpoints(
+        cfg,
+        shoonya_master(),
+        NorenEndpoints::rebased(cfg, &host, "ws://127.0.0.1:1"),
+    );
+    // One data send a minute: GetBasketMargin takes it, and /Limits would
+    // wait about a minute, past the queue bound.
+    b.data_limiter = std::sync::Arc::new(transport::Limiter::new(Some(Window {
+        per_second: 1,
+        per_minute: 1,
+    })));
+    let leg = MarginLeg {
+        key: QuoteKey::new("NSE", "SBIN"),
+        action: Action::Buy,
+        quantity: 1,
+        product: Product::Cnc,
+        pricetype: PriceType::Limit,
+        price: 800.0,
+        trigger_price: 0.0,
+    };
+    let e = b
+        .calculate_margin(&AuthToken::new("U1:::tok"), &[leg])
+        .await
+        .unwrap_err();
+    assert!(matches!(e, crate::error::AppError::Busy(_)), "{e:?}");
+    server.abort();
+}
+
 #[test]
 fn basket_margin_body_first_leg_flat() {
     let legs = vec![
@@ -846,11 +955,6 @@ fn basket_margin_body_first_leg_flat() {
     assert_eq!(b["actid"], "U1");
     assert_eq!(b["basketlists"], json!([{"exch":"NFO","tsym":"B"}]));
     assert!(basket_body("U1", vec![]).is_none());
-    assert_eq!(
-        hooks::margin_used_trade(&json!({"marginusedtrade":"10","marginused":"20"})),
-        10.0
-    );
-    assert_eq!(hooks::margin_used_trade(&json!({"marginused":"20"})), 20.0);
     assert_eq!(hooks::order_margin(&json!({"marginused":"7"})), 7.0);
     assert_eq!(
         hooks::cancel_message(&json!({"emsg":"x"})).as_deref(),

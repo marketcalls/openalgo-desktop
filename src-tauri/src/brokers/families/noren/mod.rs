@@ -138,9 +138,13 @@ pub enum FundsM2m {
 /// Margin calculator endpoint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MarginApi {
-    /// `/GetBasketMargin`, first leg flat plus `basketlists` (shoonya,
-    /// flattrade).
+    /// `/GetBasketMargin`, first leg flat plus `basketlists`, reported as
+    /// `NorenHooks::margin_total` reads it (shoonya).
     Basket,
+    /// `/GetBasketMargin` as `Basket`, reported as the basket's own margin:
+    /// `marginusedtrade` less `/Limits` `marginused`, the margin open
+    /// positions and orders already hold (flattrade, web #2156).
+    BasketLessInUse,
     /// `/GetOrderMargin` per leg, summed (tradesmart).
     PerLeg,
     /// No margin endpoint (zebu).
@@ -220,7 +224,8 @@ pub struct NorenHooks {
     pub holding_qty: fn(&Value) -> i64,
     /// Collateral from a `/Limits` response.
     pub collateral: fn(&Value) -> f64,
-    /// Total margin from a `GetBasketMargin` / `GetOrderMargin` response.
+    /// Total margin from a `GetBasketMargin` / `GetOrderMargin` response
+    /// (`MarginApi::Basket`, `PerLeg`).
     pub margin_total: fn(&Value) -> f64,
     /// Message of a refused `/CancelOrder`.
     pub cancel_error: fn(&Value) -> Option<String>,
@@ -465,16 +470,6 @@ pub mod hooks {
     /// `marginused` (shoonya basket).
     pub fn margin_used(r: &Value) -> f64 {
         num_f64(r.get("marginused"))
-    }
-
-    /// `marginusedtrade`, else `marginused` (flattrade basket).
-    pub fn margin_used_trade(r: &Value) -> f64 {
-        match r.get("marginusedtrade") {
-            Some(v) if !v.is_null() && !matches!(v, Value::String(s) if s.is_empty()) => {
-                num_f64(Some(v))
-            }
-            _ => num_f64(r.get("marginused")),
-        }
     }
 
     /// `ordermargin`, else `marginused` (tradesmart per leg).

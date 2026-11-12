@@ -418,9 +418,9 @@ async fn hdfcsky_market_orders_are_sent_as_protected_limits() {
     assert!(!call.query.contains_key("client_id"));
     let body = &call.body;
     assert_eq!(body["order_type"], "LIMIT");
-    // 1400 + 1%: like the web's `calculate_protected_price(symbol=...)`,
-    // RELIANCE ends in "CE" and takes the option slab.
-    assert_eq!(body["price"], 1414.0);
+    // 1400 + 0.5%: RELIANCE ends in "CE" but is a stock, so it takes the
+    // equity slab (web #2388), not the option slab's 1414.
+    assert_eq!(body["price"], 1407.0);
     assert_eq!(body["instrument_token"], "2885");
     assert_eq!(body["client_id"], CLIENT);
     assert_eq!(body["order_side"], "BUY");

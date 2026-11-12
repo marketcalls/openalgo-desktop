@@ -137,6 +137,19 @@ pub fn segment(exchange: Exchange) -> Result<&'static str> {
     }
 }
 
+/// Whether Sahi takes `product` on `segment` (web `PRODUCT_SEGMENTS`,
+/// docs.sahi.com, Conventions, "Product"): C on NSE and BSE, M on NFO and
+/// BFO, I on all four. Sahi refuses any other pair with 400
+/// VALIDATION_FAILED, so it is refused before sending, naming the product
+/// to use (web #2441).
+fn product_suits(product: Product, segment: &str) -> bool {
+    match product {
+        Product::Cnc => matches!(segment, "NSE" | "BSE"),
+        Product::Mis => matches!(segment, "NSE" | "BSE" | "NFO" | "BFO"),
+        Product::Nrml => matches!(segment, "NFO" | "BFO"),
+    }
+}
+
 /// Sahi order status to OpenAlgo's (web `ORDER_STATUS_MAP`). PartialFilled
 /// is terminal (the remainder was cancelled or an IOC expired), so it reads
 /// as cancelled; a stop order waiting for its trigger is reported as Open.
@@ -181,7 +194,15 @@ fn price_fields(
 /// same body.
 pub fn place_body(o: &ResolvedOrder) -> Result<Value> {
     let mut body = Map::new();
-    body.insert("exchange_segment".into(), json!(segment(o.exchange)?));
+    let segment = segment(o.exchange)?;
+    if !product_suits(o.product, segment) {
+        return Err(AppError::Validation(format!(
+            "Sahi does not take {} orders on {}. Use CNC or MIS on NSE and BSE, and NRML or MIS on NFO and BFO.",
+            o.product.as_str(),
+            o.exchange
+        )));
+    }
+    body.insert("exchange_segment".into(), json!(segment));
     body.insert("symbol".into(), json!(o.brsymbol()));
     body.insert("txn_type".into(), json!(action_code(o.action)));
     body.insert("qty".into(), json!(o.quantity));

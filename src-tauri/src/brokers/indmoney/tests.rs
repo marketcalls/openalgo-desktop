@@ -450,10 +450,10 @@ fn place_bodies_match_web_transform() {
     assert_eq!(b["trigger_limit_price"], json!(796.0));
     let (_, b) = place_body(&order("SBIN", "NSE", "BUY", "SL", 0.0, 800.0), None).unwrap();
     assert_eq!(b["trigger_limit_price"], json!(804.0));
-    // The web reads the instrument type from the symbol suffix, so
-    // RELIANCE ("...CE") takes the option slab (1%), exactly as there.
+    // RELIANCE ends in CE but is a stock: the equity slab (0.5%), as the
+    // web reads it since #2388 (1405.8, the option slab, before).
     let (_, b) = place_body(&order("RELIANCE", "NSE", "SELL", "SL-M", 0.0, 1420.0), None).unwrap();
-    assert_eq!(b["trigger_limit_price"], json!(1405.8));
+    assert_eq!(b["trigger_limit_price"], json!(1412.9));
     // F&O stops ride NSE; BSE stops are refused; a stop needs a trigger.
     assert!(place_body(
         &order("NIFTY27OCT26FUT", "NFO", "BUY", "SL-M", 0.0, 25000.0),
