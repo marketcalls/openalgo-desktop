@@ -497,17 +497,42 @@ jobs:
     name: web-oracle (feed corpus against the web)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The oracle runs the web's own code (webkit.py), here, where a push to
+    # master can write the caches tauri-build restores for a release. So the
+    # web is taken from its main branch, a fixed ref, and the pin, which a
+    # pull request can change, only chooses a commit main has reached:
+    # GitHub serves any fork's commit through the web's repository, and
+    # checking out the pin directly ran whatever commit it named (CodeQL
+    # #303 to #305).
     steps:
       - uses: actions/checkout@v7
-      - name: The web commit the corpus is pinned to
-        id: pin
-        run: python3 scripts/feed_corpus/web_expected.py --print-pin >> "$GITHUB_OUTPUT"
+        with:
+          persist-credentials: false
       - uses: actions/checkout@v7
         with:
           repository: marketcalls/openalgo
-          ref: ${{ steps.pin.outputs.web_sha }}
+          ref: main
           path: web-tree
+          # Every commit of main, file contents only as needed (7 s, 31 MB
+          # on 2026-11-13).
+          fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
+      - name: The web at the pinned commit, which must be on its main branch
+        run: |
+          pin=$(python3 scripts/feed_corpus/web_expected.py --print-pin)
+          if ! [[ "$pin" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::web_oracle.json: web_sha is not a full commit id"
+            exit 1
+          fi
+          # rev-list reads main's own commits: a commit main never reached
+          # is not fetched to be looked at.
+          main_commits=$(git -C web-tree rev-list HEAD)
+          if ! grep -qxF "$pin" <<<"$main_commits"; then
+            echo "::error::web_oracle.json pins $pin, which is not on the web's main branch: repin to a commit of marketcalls/openalgo main"
+            exit 1
+          fi
+          git -C web-tree -c advice.detachedHead=false checkout --quiet --detach "$pin"
       - name: Every web.json is the web's output at that commit
         run: python3 scripts/feed_corpus/web_expected.py --web web-tree --check
       - name: The oracle's probes

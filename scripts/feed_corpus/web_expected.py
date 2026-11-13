@@ -24,9 +24,10 @@ deviation list the case must declare.
 The web tree is read only. `web.json` is checked in, computed at one web
 commit, the pin in `web_oracle.json` beside the corpus, which also records a
 digest of this tool's own code (`tool_sha256`). CI's `web-oracle` job (a
-requirement of ci-ok) checks out exactly that commit and runs `--check` and
+requirement of ci-ok) takes the web's main branch, refuses a pin that main
+has not reached, checks out that commit and runs `--check` and
 `test_oracle.py`. Moving to a newer web commit is deliberate: `--repin` writes
-the new commit into the pin.
+the new commit into the pin, which must be one pushed to the web's main.
 
 Adding a broker: `web_adapters/<broker>.py`, a `webkit.Glue` that names
 the web methods (`sources`) and builds the state they read the way the
@@ -496,13 +497,13 @@ def main() -> int:
     ap.add_argument("--web", type=Path, help="the web tree (read only)")
     ap.add_argument("--web-sha", help="the web commit, when its .git cannot be read")
     ap.add_argument("--repin", action="store_true", help="make the web tree's commit the pinned one")
-    ap.add_argument("--print-pin", action="store_true", help="print web_sha=<pinned commit> (for CI) and stop")
+    ap.add_argument("--print-pin", action="store_true", help="print the pinned web commit (for CI) and stop")
     ap.add_argument("--check", action="store_true", help="fail when a web.json is stale")
     ap.add_argument("--diff", action="store_true", help="print the differences, write nothing")
     ap.add_argument("cases", nargs="*", type=Path)
     args = ap.parse_args()
     if args.print_pin:
-        print(f"web_sha={read_pin()['web_sha']}")
+        print(read_pin()["web_sha"])
         return 0
     if args.web is None:
         ap.error("--web is required")

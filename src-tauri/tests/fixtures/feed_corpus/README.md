@@ -324,6 +324,9 @@ case's expected frames differ from the web: the deviations the case must
 declare. `--check` fails when a checked-in `web.json` is stale; CI's
 `web-oracle` job (a requirement of ci-ok) runs it against the web commit pinned
 in `web_oracle.json`, so a `web.json` that does not match the web fails there.
+The job takes the web's main branch and refuses a pin main has not reached:
+the oracle runs the web's code, and GitHub serves any fork's commit through
+the web's repository, so a pin is always a commit pushed to the web's main.
 What the web offers each broker (`web_offers.json`, also written and
 checked by that script) comes from the web's own registries: the capability
 class in `broker/<broker>/streaming/*mapping*.py` for depth levels, and
