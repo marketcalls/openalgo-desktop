@@ -129,7 +129,7 @@ jobs:
           workspaces: src-tauri -> target
           shared-key: rust-test-${{ matrix.os }}
           cache-on-failure: true
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
         with:
           tool: cargo-nextest
       - name: Unit and integration tests (nextest)
@@ -199,7 +199,7 @@ jobs:
           workspaces: src-tauri -> target
           shared-key: rust-coverage-ubuntu-22.04
           cache-on-failure: true
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
         with:
           tool: cargo-llvm-cov,cargo-nextest
       - name: Run tests with coverage instrumentation
