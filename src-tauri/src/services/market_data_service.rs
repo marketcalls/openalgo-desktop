@@ -482,6 +482,13 @@ pub fn validate_margin(positions: &[Value]) -> Result<Vec<MarginLeg>, String> {
     Ok(legs)
 }
 
+/// Brokers whose web plugin has no `api/margin_api` module. The web's
+/// `import_broker_module` fails for them before any symbol or broker call
+/// and answers 404 "not supported"; the 501 "not implemented" is for a
+/// broker whose module exists but raises `NotImplementedError`
+/// (`services/margin_service.py`, web ee123273b).
+const NO_WEB_MARGIN_MODULE: &[&str] = &["hdfcsecurities", "nuvama", "rupeezy"];
+
 /// `margin` (always the live broker, as on the web).
 pub async fn margin(ctx: &AppState, positions: &[Value]) -> Reply {
     let legs = match validate_margin(positions) {
@@ -492,6 +499,12 @@ pub async fn margin(ctx: &AppState, positions: &[Value]) -> Reply {
         Ok(h) => h,
         Err(r) => return r,
     };
+    if NO_WEB_MARGIN_MODULE.contains(&h.id.as_str()) {
+        return Reply::error(
+            404,
+            format!("Margin calculation not supported for broker: {}", h.id),
+        );
+    }
     // BR-01: a leg missing from the master refuses the basket by name
     // instead of being dropped, so a "success" always covers every leg (a
     // deliberate difference from the web, whose adapters skip such legs and
@@ -668,50 +681,97 @@ mod tests {
         assert_eq!(stamps(&r), vec![ist(9, 15), ist(15, 15), ist(16, 0)]);
     }
 
+    /// A context with the mock broker logged in as `id` and SBIN and INFY
+    /// in the master, for the margin tests.
+    fn margin_as(
+        id: &'static str,
+    ) -> (
+        crate::state::testing::TestCtx,
+        std::sync::Arc<crate::brokers::mock::MockBroker>,
+    ) {
+        use crate::brokers::common::symbols::tests::row;
+        use crate::brokers::mock::MockBroker;
+        use crate::brokers::{Broker, BrokerRegistry};
+        use std::sync::Arc;
+        let mock = Arc::new(MockBroker::new(id));
+        let t = crate::state::testing::build(
+            BrokerRegistry::with(vec![mock.clone() as Arc<dyn Broker>]),
+            chrono::Utc::now(),
+        );
+        t.ctx.load_symbol_cache(vec![
+            row("SBIN", "SBIN", "NSE", "779521"),
+            row("INFY", "INFY", "NSE", "408065"),
+        ]);
+        t.ctx.set_broker_session(Some(crate::state::BrokerSession {
+            broker_id: id.into(),
+            auth_token: crate::security::Secret::new("t"),
+            feed_token: None,
+            user_id: "AB1".into(),
+            user_name: None,
+            authenticated_at: t.ctx.now(),
+        }));
+        (t, mock)
+    }
+
+    fn margin_leg(symbol: &str) -> Value {
+        json!({"symbol": symbol, "exchange": "NSE", "action": "BUY", "quantity": "1",
+            "product": "MIS", "pricetype": "MARKET", "price": "0"})
+    }
+
+    fn margin_asked(mock: &crate::brokers::mock::MockBroker) -> bool {
+        use crate::brokers::mock::MockCall;
+        mock.calls
+            .lock()
+            .iter()
+            .any(|c| matches!(c, MockCall::Margin(_)))
+    }
+
     /// BR-01: a basket with a leg missing from the master is refused by
     /// name before any broker call, never totalled without it; a basket of
     /// known legs reaches the broker whole.
     #[tokio::test]
     async fn margin_refuses_an_unknown_leg_by_name() {
-        use crate::brokers::common::symbols::tests::row;
-        use crate::brokers::mock::{MockBroker, MockCall};
-        use crate::brokers::{Broker, BrokerRegistry};
-        use std::sync::Arc;
-        let mock = Arc::new(MockBroker::new("zerodha"));
-        let t = crate::state::testing::build(
-            BrokerRegistry::with(vec![mock.clone() as Arc<dyn Broker>]),
-            chrono::Utc::now(),
-        );
+        use crate::brokers::mock::MockCall;
+        let (t, mock) = margin_as("zerodha");
         let ctx = &t.ctx;
-        ctx.load_symbol_cache(vec![
-            row("SBIN", "SBIN", "NSE", "779521"),
-            row("INFY", "INFY", "NSE", "408065"),
-        ]);
-        ctx.set_broker_session(Some(crate::state::BrokerSession {
-            broker_id: "zerodha".into(),
-            auth_token: crate::security::Secret::new("t"),
-            feed_token: None,
-            user_id: "AB1".into(),
-            user_name: None,
-            authenticated_at: ctx.now(),
-        }));
-        let leg = |s: &str| {
-            json!({"symbol": s, "exchange": "NSE", "action": "BUY", "quantity": "1",
-                "product": "MIS", "pricetype": "MARKET", "price": "0"})
-        };
-        let r = margin(ctx, &[leg("SBIN"), leg("NOSUCH")]).await;
+        let r = margin(ctx, &[margin_leg("SBIN"), margin_leg("NOSUCH")]).await;
         assert_eq!(r.status, 400);
         assert_eq!(
             r.message(),
             "Position 2: Symbol NOSUCH not found on NSE. Check the symbol and exchange, or download the master contract again."
         );
-        assert!(!mock
-            .calls
-            .lock()
-            .iter()
-            .any(|c| matches!(c, MockCall::Margin(_))));
-        let r = margin(ctx, &[leg("SBIN"), leg("INFY")]).await;
+        assert!(!margin_asked(&mock));
+        let r = margin(ctx, &[margin_leg("SBIN"), margin_leg("INFY")]).await;
         assert_eq!(r.status, 200, "{}", r.body);
         assert!(mock.calls.lock().contains(&MockCall::Margin(2)));
+    }
+
+    /// A broker whose web plugin has no margin module (Nuvama, Rupeezy,
+    /// HDFC Securities) answers the web's 404 "not supported" before any
+    /// symbol or broker call, as the web's failed import does
+    /// (`services/margin_service.py`, web ee123273b), even for a basket
+    /// of known legs; any other broker still has its legs checked against
+    /// the master (BR-01) and reaches the broker.
+    #[tokio::test]
+    async fn margin_without_a_web_module_is_not_supported() {
+        for id in ["nuvama", "rupeezy", "hdfcsecurities"] {
+            let (t, mock) = margin_as(id);
+            for leg in ["SBIN", "NOSUCH"] {
+                let r = margin(&t.ctx, &[margin_leg(leg)]).await;
+                assert_eq!(r.status, 404, "{id} {leg}: {}", r.body);
+                assert_eq!(
+                    r.body,
+                    json!({"status": "error",
+                        "message": format!("Margin calculation not supported for broker: {id}")})
+                );
+            }
+            assert!(!margin_asked(&mock), "{id}");
+        }
+        let (t, mock) = margin_as("zerodha");
+        let r = margin(&t.ctx, &[margin_leg("NOSUCH")]).await;
+        assert_eq!(r.status, 400, "{}", r.body);
+        let r = margin(&t.ctx, &[margin_leg("SBIN")]).await;
+        assert_eq!(r.status, 200, "{}", r.body);
+        assert!(margin_asked(&mock));
     }
 }

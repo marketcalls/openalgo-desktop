@@ -126,6 +126,7 @@ Validation errors on this endpoint carry `message` as a string that spells out a
 | 400 | `Position 1: Price cannot be negative` | A negative price |
 | 400 | `Position 1: Symbol NOTASYMBOL not found on NSE. Check the symbol and exchange, or download the master contract again.` | A position's symbol is not in the master contract |
 | 400 | The broker's reason | The broker refused the calculation |
+| 404 | `Margin calculation not supported for broker: <broker>` | Nuvama, Rupeezy and HDFC Securities, which have no margin calculation on OpenAlgo web either; answered before the positions are looked up |
 | 501 | `Margin calculation not implemented for broker: <broker>` | Your broker offers no margin calculation |
 | 500 | `Failed to calculate margin due to internal error` | The broker did not answer |
 
