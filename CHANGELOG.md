@@ -3,6 +3,112 @@
 All notable changes to OpenAlgo Desktop are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.9
+
+OpenAlgo web's work of 13 to 17 November. Nuvama is the 39th broker, with
+its live prices, market depth and order updates. AI clients find index
+quotes and SENSEX expiries without being told the exchange, scheduled Flow
+workflows and Historify downloads keep to their times while the database is
+busy, and the Latency Monitor shows order speed apart from history and
+quote calls. Also: Scalping's realized P&L stays put when you add to a
+position you partly exited, and openalgo-charts 2.7.3 with a price axis
+that steps by whole ticks. If you run 1.0.8, OpenAlgo offers this update in
+the app; choose Update when no live strategy or active workflow is running.
+
+### Brokers
+
+- **Nuvama** (API Connect) is the 39th broker (marketcalls/openalgo#2461).
+  On Broker Configuration save the API key and API secret of your API
+  Connect app and your Nuvama account ID, and register the redirect address
+  the page shows (`http://127.0.0.1:5000/nuvama/callback` by default) with
+  that app.
+  Login with Nuvama takes you to Nuvama's login page; Nuvama does not send
+  back OpenAlgo's sign-in reference, so OpenAlgo checks that the login is
+  the account ID you saved, and refuses any other.
+- Nuvama orders, modify and cancel, the order, trade and position books,
+  holdings, funds, quotes, five-level depth and history follow OpenAlgo
+  web's Nuvama plugin. A MARKET order is sent as a LIMIT order priced off the last
+  price with market price protection, and an SL-M order as a stop-limit
+  order off its trigger price, which is how Nuvama takes them.
+- Nuvama's live prices and depth stream to `/trading`, the watchlists, the
+  sandbox and your WebSocket clients with the same frames OpenAlgo web
+  sends, and a field Nuvama did not send is left out, never shown as 0.
+  Order updates arrive from Nuvama's order stream as they happen.
+- Nuvama's hourly and 30-minute bars start at 09:15, on the exchange's
+  session, as on OpenAlgo web; Nuvama itself sends them from 09:00.
+- Nuvama has no margin calculator in its API. Asking for a margin with
+  Nuvama, Rupeezy or HDFC Securities logged in now answers OpenAlgo web's
+  "Margin calculation not supported for broker" (HTTP 404), the same
+  answer your programs get from the web.
+
+### MCP
+
+- `get_quote` and `get_expiry_dates` find an index from its symbol alone:
+  NIFTY and SENSEX are quoted on NSE_INDEX and BSE_INDEX, and SENSEX,
+  BANKEX and SENSEX50 expiries are looked up on BFO. Before, an AI client
+  that named only the symbol got a failed quote or no SENSEX expiries. An
+  exchange the client names is used as given (OpenAlgo web f456b3216).
+
+### Flow and Historify
+
+- A scheduled workflow runs at its time while the database is busy,
+  instead of each due workflow waiting up to five seconds in turn. Its next
+  run time is saved as soon as the database takes it, so a restart soon
+  after does not run the workflow a second time (OpenAlgo web ceb116807,
+  issues #2355 and #2326).
+- Historify's scheduled downloads follow the same rule: a download starts
+  on time during an import, and a restart within five minutes of a
+  scheduled download does not download again (OpenAlgo web ceb116807).
+
+### Monitoring
+
+- The Latency Monitor reports each group of calls on its own: Orders,
+  Account and books, Market data, Options, Symbols and settings, and Tools
+  and alerts. It opens on Orders, so history and quote calls no longer
+  pull down the order speed you read there. The broker table, the recent
+  calls and Export to CSV follow the group you pick; All calls is there for
+  the total (OpenAlgo web c46a4b19a).
+
+### Scalping
+
+- Realized P&L no longer moves when you add to a position you have partly
+  exited. A buy after a partial exit used to re-price the exit already
+  booked, so the MTM drifted from the broker's and the sandbox's while you
+  held the rest. When today's trades account for the whole open quantity,
+  realized P&L is now exact; a lot carried from an earlier day keeps the
+  earlier estimate (marketcalls/openalgo#2437, issue #2434).
+- A position you opened today and have not reduced shows a realized P&L of
+  exactly 0.00, instead of a red -0.00 that came and went with the price.
+
+### Charts
+
+- `/trading`, Historify and every chart now use openalgo-charts 2.7.3 (from
+  2.7.2), a correctness release (OpenAlgo web c16c52799):
+  - the price axis steps by whole ticks when the instrument's tick size is
+    known, and a log scale fits a low at or below zero;
+  - a chart alert fires on a crossing inside the bars a history refresh
+    adds;
+  - order lines stay on the chart when one order book read fails, and a
+    cancel from the chart checks the broker's answer as modify does;
+  - an indicator on a timeframe the chart's bars do not divide into (5
+    minutes on a 3-minute chart) is refused with a message instead of
+    drawn from buckets of the wrong length;
+  - CPR, KAMA, HalfTrend, Renko, point and figure, Kagi and the TPO and
+    volume profiles are corrected, and fills are painted only for the bars in
+    view.
+- If a saved indicator cannot be restored when a chart opens, the chart
+  says "Indicators could not be restored" and keeps your saved list, instead
+  of saving the empty chart over it.
+
+### Known limitations
+
+- Nuvama was built from OpenAlgo web's Nuvama plugin without a Nuvama
+  account. Its sign-in, orders and feed follow the web's, and the checks
+  that need a real login during market hours are listed in
+  docs/release/broker-certification.md.
+- Sound alerts and native notifications (issue #222) are not in this
+  release.
+
 ## 1.0.8
 
 OpenAlgo web's work of 11 and 12 November. Order alerts can now go to Slack
