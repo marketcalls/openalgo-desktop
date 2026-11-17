@@ -9,7 +9,7 @@
 # cargo-audit (the same script greps this file), so this is the single
 # place an advisory is accepted. Every ignore needs a reason, the date it was
 # accepted (and last re-checked) and a review date; the dispositions are
-# recorded in docs/audit/<date>/ (latest: docs/audit/2026-10-22/scanner-triage.md).
+# recorded in docs/audit/<date>/ (latest: docs/audit/2026-11-17/scanner-triage.md).
 
 [graph]
 # Only the platforms we ship. Prunes Android/iOS/wasm-only crates from every
@@ -38,6 +38,9 @@ ignore = [
   { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.102.8 comes only from rumqttc 0.25.1 (IIFL Capital feed), which pins ^0.102.8 even on its main branch. rumqttc only names webpki::Error; the feed passes TlsConfiguration::Rustls with our own rustls 0.23 config, which verifies with the patched rustls-webpki 0.103.16 (mqtt_relay.rs tls_config). Remove when rumqttc moves to 0.103. Accepted 2026-10-08; re-checked 2026-10-22 (rumqttc 0.25.1 is still the latest release and its main branch still pins 0.102.8); review by 2027-01-31" },
   { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.102.8 comes only from rumqttc 0.25.1 (IIFL Capital feed), which pins ^0.102.8 even on its main branch. rumqttc only names webpki::Error; the feed passes TlsConfiguration::Rustls with our own rustls 0.23 config, which verifies with the patched rustls-webpki 0.103.16 (mqtt_relay.rs tls_config). Remove when rumqttc moves to 0.103. Accepted 2026-10-08; re-checked 2026-10-22 (rumqttc 0.25.1 is still the latest release and its main branch still pins 0.102.8); review by 2027-01-31" },
   { id = "RUSTSEC-2026-0382", reason = "rustls-webpki 0.102.8 comes only from rumqttc 0.25.1 (IIFL Capital feed), which pins ^0.102.8 even on its main branch. rumqttc only names webpki::Error; the feed passes TlsConfiguration::Rustls with our own rustls 0.23 config, which verifies with the patched rustls-webpki 0.103.16 (mqtt_relay.rs tls_config). Remove when rumqttc moves to 0.103. Accepted 2026-10-22; re-checked 2026-10-22 (rumqttc 0.25.1 is still the latest release and its main branch still pins 0.102.8); review by 2027-01-31" },
+  # chrono and chrono-tz: informational "unmaintained" notices, not vulnerabilities.
+  { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained (informational, no vulnerability, no patched version; chronotope/chrono#1768). Every date and time in the app is chrono, and arrow, duckdb, rmcp/schemars, whatsapp-rust and others depend on it, so it stays until a planned move to jiff or time. Accepted 2026-11-17 for 1.0.9 (docs/audit/2026-11-17/scanner-triage.md); review by 2027-01-31" },
+  { id = "RUSTSEC-2026-0555", reason = "chrono-tz is unmaintained (informational, no vulnerability, no patched version; chronotope/chrono#1768). Direct uses are Asia/Kolkata and UTC in 107 files; arrow, rmcp/schemars and whatsapp-rust also pull it. The direct dependency can go by moving those uses to the fixed IST offset in crate::clock (IST has no daylight saving), planned after 1.0.9. Accepted 2026-11-17 for 1.0.9 (docs/audit/2026-11-17/scanner-triage.md); review by 2027-01-31" },
 ]
 
 [licenses]
