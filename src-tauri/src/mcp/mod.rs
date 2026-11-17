@@ -45,6 +45,7 @@ pub mod catalog;
 pub mod dispatch;
 pub mod envelope;
 pub mod http;
+mod indices;
 mod instructions;
 pub mod research;
 pub mod schema;

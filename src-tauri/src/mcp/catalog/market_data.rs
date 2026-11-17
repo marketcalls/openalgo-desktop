@@ -17,8 +17,12 @@ pub const TOOLS: &[ToolDef] = &[
         description: r#"Get current quote for a symbol.
 
     Args:
-        symbol: Stock symbol
-        exchange: Exchange name"#,
+        symbol: OpenAlgo symbol, e.g. RELIANCE, NIFTY, SENSEX, NIFTY28MAR2420800CE
+        exchange: NSE, BSE, NFO, BFO, MCX, CDS, BCD, NSE_INDEX or BSE_INDEX.
+            Optional. When omitted, an index uses its index exchange (SENSEX,
+            BANKEX and SENSEX50 use BSE_INDEX; NIFTY, BANKNIFTY and the other
+            NSE indices use NSE_INDEX) and any other symbol uses NSE. Pass it
+            for BSE equities and for every derivative contract."#,
         params: &[
             Param {
                 name: "symbol",
@@ -27,8 +31,8 @@ pub const TOOLS: &[ToolDef] = &[
             },
             Param {
                 name: "exchange",
-                ty: Str,
-                default: D::Str("NSE"),
+                ty: OptStr,
+                default: D::Null,
             },
         ],
     },
@@ -323,8 +327,11 @@ pub const TOOLS: &[ToolDef] = &[
         description: r#"Get expiry dates for derivatives.
 
     Args:
-        symbol: Underlying symbol
-        exchange: Exchange name (typically NFO for F&O)
+        symbol: Underlying symbol, e.g. NIFTY, BANKNIFTY, SENSEX, RELIANCE
+        exchange: Derivatives exchange: NFO, BFO, MCX or CDS. Optional. When
+            omitted, SENSEX, BANKEX and SENSEX50 use BFO and any other
+            underlying uses NFO. Pass MCX or CDS for commodity and currency
+            underlyings.
         instrument_type: 'options' or 'futures'"#,
         params: &[
             Param {
@@ -334,8 +341,8 @@ pub const TOOLS: &[ToolDef] = &[
             },
             Param {
                 name: "exchange",
-                ty: Str,
-                default: D::Str("NFO"),
+                ty: OptStr,
+                default: D::Null,
             },
             Param {
                 name: "instrument_type",
