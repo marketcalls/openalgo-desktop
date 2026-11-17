@@ -1,0 +1,227 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "adapter": "nuvama",
+  "inputs_sha256": "3d1f5845b2196a4dd0998d9146c4284cabc024c932c936ae91dcf1e549b8a5bd",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV2626000CE",
+      "exchange": "NFO",
+      "token": "42692_NFO",
+      "brsymbol": "NIFTY25NOV2626000CE",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "lotsize": 75,
+      "instrumenttype": "CE",
+      "expiry": "25-NOV-26",
+      "strike": 26000
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV2626000CE",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "nuvama"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "nuvama"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 6,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY25NOV2626000CE",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "nuvama"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "nuvama"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 4,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV2626000CE_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV2626000CE",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV2626000CE",
+            "exchange": "NFO",
+            "mode": 2,
+            "ltp": 120.5,
+            "last_price": 120.5,
+            "ltt": 1794890730000,
+            "timestamp": "<receipt_ms>",
+            "close": 110.0,
+            "prev_close": 110.0,
+            "change": 10.5,
+            "change_percent": 9.55,
+            "open": 112.0,
+            "high": 125.0,
+            "low": 108.25,
+            "volume": 2500000,
+            "last_quantity": 75,
+            "average_price": 118.4,
+            "total_buy_quantity": 300000,
+            "total_sell_quantity": 280000,
+            "oi": 5400000,
+            "open_interest": 5400000
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "nuvama",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV2626000CE_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV2626000CE",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY25NOV2626000CE",
+            "exchange": "NFO",
+            "mode": 3,
+            "ltp": 120.5,
+            "last_price": 120.5,
+            "ltt": 1794890730000,
+            "timestamp": "<receipt_ms>",
+            "close": 110.0,
+            "prev_close": 110.0,
+            "change": 10.5,
+            "change_percent": 9.55,
+            "open": 112.0,
+            "high": 125.0,
+            "low": 108.25,
+            "volume": 2500000,
+            "last_quantity": 75,
+            "average_price": 118.4,
+            "total_buy_quantity": 300000,
+            "total_sell_quantity": 280000,
+            "oi": 5400000,
+            "open_interest": 5400000,
+            "upper_circuit": 250.0,
+            "lower_circuit": 0.05,
+            "depth": {
+              "buy": [
+                {
+                  "price": 120.45,
+                  "quantity": 750,
+                  "orders": 4
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 120.55,
+                  "quantity": 1500,
+                  "orders": 6
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "broker": "nuvama",
+          "serves": [
+            2,
+            3
+          ]
+        }
+      ]
+    }
+  ]
+}

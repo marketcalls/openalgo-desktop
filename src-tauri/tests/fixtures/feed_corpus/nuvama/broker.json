@@ -1,0 +1,23 @@
+{
+  "broker": "nuvama",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": "orderFiler stream on its own API Connect socket (nuvama_order_adapter.py)"
+  },
+  "sources": [
+    "broker/nuvama/streaming/nuvama_mapping.py::NuvamaCapabilityRegistry",
+    "broker/nuvama/streaming/nuvama_adapter.py",
+    "broker/nuvama/streaming/nuvama_socket.py",
+    "broker/nuvama/streaming/nuvama_order_adapter.py",
+    "services/order_update_service.py:56"
+  ],
+  "notes": [
+    "Nuvama streams five levels on its depth stream (quote2); a Depth subscribe is acknowledged with depth 5, and outside Depth mode the web names no depth (null), as the desktop does (feed::dialect, DepthAck::FallbackElseNull).",
+    "The desktop reaches Nuvama's plain-TCP socket through a loopback line relay (brokers/nuvama/tcp_relay.rs); the corpus plays the relay's side, so the relay's batching of whole-set requests (0.5 s quiet, 2 s at most, 0.5 s apart) is covered by the broker's own tests, not here.",
+    "No live capture of Nuvama's stream exists for the desktop: every line is built from the field names the web adapter reads."
+  ]
+}

@@ -183,12 +183,12 @@ fn only_a_synthetic_feed_may_declare_random_values() {
     assert!(found[0].contains("synthetic feed"), "{:?}", found);
 }
 
-/// The corpus runs exactly the app's brokers: all 38 of the catalog and
+/// The corpus runs exactly the app's brokers: all 39 of the catalog and
 /// no folder beside them.
 #[test]
 fn the_corpus_covers_exactly_the_catalog_brokers() {
     let catalog: BTreeSet<&str> = ALL_BROKERS.iter().copied().collect();
-    assert_eq!(catalog.len(), 38, "the catalog: {:?}", catalog);
+    assert_eq!(catalog.len(), 39, "the catalog: {:?}", catalog);
     let modules: BTreeSet<&str> = BROKERS.iter().map(|(b, _)| *b).collect();
     assert_eq!(modules, catalog, "the corpus's broker modules");
     let on_disk = folders(&corpus_root());

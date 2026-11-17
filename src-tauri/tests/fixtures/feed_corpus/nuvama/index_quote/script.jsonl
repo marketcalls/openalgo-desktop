@@ -1,0 +1,5 @@
+{"step": "push", "frame": {"text": "{\"openalgo_relay\":\"ready\"}"}, "note": "The relay's ready frame: the TCP socket to Nuvama is open."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY", "exchange": "NSE_INDEX", "status": "success", "mode": "Quote", "depth": null, "broker": "nuvama"}], "message": "Subscription processing complete", "broker": "nuvama"}}
+{"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote", "data": {"accType": "EQ", "symbols": [{"symbol": "-29"}]}, "formFactor": "P", "appID": "APPID", "response_format": "json", "request_type": "subscribe"}, "echo": {}}}]}
+{"step": "push", "frame": {"text": "{\"response\":{\"streaming_type\":\"quote\",\"data\":{\"sym\":\"-29\",\"ltp\":\"26015.35\",\"c\":\"25950.10\",\"o\":\"25960.00\",\"h\":\"26040.20\",\"l\":\"25930.55\",\"ltt\":\"17/11/2026 10:15:30\"}}}"}}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}

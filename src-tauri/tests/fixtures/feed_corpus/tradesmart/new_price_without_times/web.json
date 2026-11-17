@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
   "adapter": "tradesmart",
   "inputs_sha256": "4ab39375344c2cfe6cdd1c8a432fa57ad7559a929612da66f7cff04555716434",
   "instruments": [

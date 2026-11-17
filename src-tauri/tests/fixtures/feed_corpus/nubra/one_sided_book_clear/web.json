@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
   "adapter": "nubra",
   "inputs_sha256": "fa5ea050984ba364c62ab5f923db188c618eede5f521c172788ac3e4a73d4beb",
   "instruments": [

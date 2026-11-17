@@ -1,0 +1,139 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "adapter": "nuvama",
+  "inputs_sha256": "6366a99f9ccdbe5dfc47b04ef3bc028b43176b383f8a7757e80d4d5e5b640ded",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885_NSE",
+      "brsymbol": "INE002A01018",
+      "brexchange": "NSE"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": null,
+              "broker": "nuvama"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "nuvama"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 8,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "LTP",
+              "status": "success",
+              "broker": "nuvama"
+            }
+          ],
+          "failed": [],
+          "broker": "nuvama"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 4,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 1,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 1,
+            "ltp": 1503.45,
+            "last_price": 1503.45,
+            "ltt": 1794890730000,
+            "timestamp": "<receipt_ms>",
+            "close": 1498.75,
+            "prev_close": 1498.75,
+            "change": 4.7,
+            "change_percent": 0.31
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "broker": "nuvama",
+          "serves": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 1,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 1,
+            "ltp": 1504.0,
+            "last_price": 1504.0,
+            "ltt": "<receipt_ms>",
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "broker": "nuvama",
+          "serves": [
+            1
+          ]
+        }
+      ]
+    }
+  ]
+}

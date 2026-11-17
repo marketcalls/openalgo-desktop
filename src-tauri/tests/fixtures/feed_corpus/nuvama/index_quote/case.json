@@ -1,0 +1,103 @@
+{
+  "broker": "nuvama",
+  "summary": "An index streams by its master token (-29): its Quote frame carries the day's quote and, under the web's names, the change; no volume, order flow or open interest it does not send.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "-29",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "method": "web-script",
+    "sources": [
+      "broker/nuvama/streaming/nuvama_socket.py::NuvamaStreamClient._handle_line",
+      "broker/nuvama/streaming/nuvama_adapter.py::NuvamaWebSocketAdapter._on_packet",
+      "broker/nuvama/streaming/nuvama_adapter.py::NuvamaWebSocketAdapter._normalize",
+      "broker/nuvama/streaming/nuvama_adapter.py::NuvamaWebSocketAdapter._depth"
+    ],
+    "notes": [
+      "No live capture exists here: the lines are built from the field names the web adapter reads (nuvama_adapter.py `_normalize` and `_depth`, nuvama_order_adapter.py `normalize_order_update`) and the web commit's message; values are strings, as the web's `_f` reads them. The relay frames (ready text, requests as text frames) are the desktop's own (brokers/nuvama/tcp_relay.rs); the web glue hands the web the same line off its own socket."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "approval": "index-quote-zero-left-out",
+      "reason": "Nuvama's index quote carries no volume, order flow or open interest; the web's `_normalize` sends each as 0. The desktop leaves out what the index packet does not carry.",
+      "ref": "nuvama_adapter.py `_normalize` (mode >= 2)",
+      "allows": [
+        "zero-left-out"
+      ]
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "approval": "index-quote-zero-left-out",
+      "reason": "Nuvama's index quote carries no volume, order flow or open interest; the web's `_normalize` sends each as 0. The desktop leaves out what the index packet does not carry.",
+      "ref": "nuvama_adapter.py `_normalize` (mode >= 2)",
+      "allows": [
+        "zero-left-out"
+      ]
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "approval": "index-quote-zero-left-out",
+      "reason": "Nuvama's index quote carries no volume, order flow or open interest; the web's `_normalize` sends each as 0. The desktop leaves out what the index packet does not carry.",
+      "ref": "nuvama_adapter.py `_normalize` (mode >= 2)",
+      "allows": [
+        "zero-left-out"
+      ]
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "approval": "index-quote-zero-left-out",
+      "reason": "Nuvama's index quote carries no volume, order flow or open interest; the web's `_normalize` sends each as 0. The desktop leaves out what the index packet does not carry.",
+      "ref": "nuvama_adapter.py `_normalize` (mode >= 2)",
+      "allows": [
+        "zero-left-out"
+      ]
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "approval": "index-quote-zero-left-out",
+      "reason": "Nuvama's index quote carries no volume, order flow or open interest; the web's `_normalize` sends each as 0. The desktop leaves out what the index packet does not carry.",
+      "ref": "nuvama_adapter.py `_normalize` (mode >= 2)",
+      "allows": [
+        "zero-left-out"
+      ]
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "approval": "index-quote-zero-left-out",
+      "reason": "Nuvama's index quote carries no volume, order flow or open interest; the web's `_normalize` sends each as 0. The desktop leaves out what the index packet does not carry.",
+      "ref": "nuvama_adapter.py `_normalize` (mode >= 2)",
+      "allows": [
+        "zero-left-out"
+      ]
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "approval": "index-quote-zero-left-out",
+      "reason": "Nuvama's index quote carries no volume, order flow or open interest; the web's `_normalize` sends each as 0. The desktop leaves out what the index packet does not carry.",
+      "ref": "nuvama_adapter.py `_normalize` (mode >= 2)",
+      "allows": [
+        "zero-left-out"
+      ]
+    }
+  ]
+}

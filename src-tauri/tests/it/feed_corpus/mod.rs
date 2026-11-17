@@ -47,6 +47,7 @@ mod motilal;
 mod mstock;
 mod noren_family;
 mod nubra;
+mod nuvama;
 mod paytm;
 mod pocketful;
 mod rmoney;
@@ -89,6 +90,7 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("motilal", motilal::CASES),
     ("mstock", mstock::CASES),
     ("nubra", nubra::CASES),
+    ("nuvama", nuvama::CASES),
     ("paytm", paytm::CASES),
     ("pocketful", pocketful::CASES),
     ("rmoney", rmoney::CASES),

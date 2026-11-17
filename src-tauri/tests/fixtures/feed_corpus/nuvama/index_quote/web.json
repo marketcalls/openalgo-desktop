@@ -1,0 +1,95 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "adapter": "nuvama",
+  "inputs_sha256": "daa2584e8b68b0c6838dd69ce250e80ae0b3b87a327a98f8a0a26f2a3b89faa5",
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "-29",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "EQ"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY",
+              "exchange": "NSE_INDEX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": null,
+              "broker": "nuvama"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "nuvama"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 4,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 2,
+            "ltp": 26015.35,
+            "last_price": 26015.35,
+            "ltt": 1794890730000,
+            "timestamp": "<receipt_ms>",
+            "close": 25950.1,
+            "prev_close": 25950.1,
+            "change": 65.25,
+            "change_percent": 0.25,
+            "open": 25960.0,
+            "high": 26040.2,
+            "low": 25930.55,
+            "volume": 0,
+            "last_quantity": 0,
+            "average_price": 0.0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "oi": 0,
+            "open_interest": 0
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "nuvama",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

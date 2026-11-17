@@ -19,7 +19,7 @@
   (`Feeds::with_broker`): the `WITHOUT_BROKER` list in
   `src-tauri/tests/it/feed_corpus/mod.rs` is empty;
 - every case has the web's output (`web.json`) or says it is worked out by
-  hand, and the corpus is exactly the 38 brokers of the catalog.
+  hand, and the corpus is exactly the 39 brokers of the catalog.
 
 The steps the web replay has no behaviour for (`web.json` `uncompared`:
 refused upgrades, a deliberate disconnect, a deep feed not made), and the
@@ -52,7 +52,7 @@ import parity_matrix as pm  # noqa: E402
 
 MODULES = pm.ROOT / "src-tauri/tests/it/feed_corpus/mod.rs"
 # The catalog's size: a shrunken or unread list would otherwise pass.
-CATALOG_BROKERS = 38
+CATALOG_BROKERS = 39
 
 
 def without_broker() -> list[str]:
