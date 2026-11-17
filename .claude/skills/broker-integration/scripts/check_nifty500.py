@@ -71,15 +71,36 @@ def real_data_folders() -> list[Path]:
 
 
 def _canonical(path: Path) -> str:
-    return os.path.normcase(os.path.realpath(path))
+    text = os.path.normcase(os.path.realpath(path))
+    # macOS volumes are case-insensitive by default, and normcase folds case
+    # only on Windows.
+    return text.lower() if sys.platform in ("darwin", "win32") else text
+
+
+def _same_folder(path: Path, folder: Path) -> bool:
+    try:
+        return os.path.samefile(path, folder)
+    except OSError:
+        return False
+
+
+def _inside(db: Path, folder: Path) -> bool:
+    """Whether `db` names a file in `folder`, however the path is spelled.
+
+    The folder's identity decides, not the text: on macOS a path in another
+    letter case or through /System/Volumes/Data reaches the same folder. The
+    text comparison stays for a folder that does not exist yet."""
+    resolved = Path(os.path.realpath(db))
+    if any(_same_folder(p, folder) for p in (resolved, *resolved.parents)):
+        return True
+    target, root = _canonical(db), _canonical(folder)
+    return target == root or target.startswith(root + os.sep)
 
 
 def refuse_real_data_folder(db: Path) -> None:
     """Exit before anything is opened when `db` lies in the trader's real data folder."""
-    target = _canonical(db)
     for folder in real_data_folders():
-        root = _canonical(folder)
-        if target == root or target.startswith(root + os.sep):
+        if _inside(db, folder):
             sys.exit(
                 f"{db} is in the trader's data folder ({folder}), which this check never opens. "
                 "Sign in to the broker in the dev_server example and pass the openalgo.db of the "

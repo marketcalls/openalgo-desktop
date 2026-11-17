@@ -229,7 +229,9 @@ desktop's master lives in the trader's data folder, which no agent may open
 (CLAUDE.md, the shared machine), so this port has no default source: it
 takes one, and refuses a path inside the app's data folder
 (`com.openalgo.desktop` under Application Support, `XDG_DATA_HOME` or
-`%APPDATA%`) before opening anything.
+`%APPDATA%`) before opening anything, however the path is spelled: the
+folder's identity decides, so another letter case, a link or macOS's
+`/System/Volumes/Data` is refused too (`test_check_nifty500.py`, run in CI).
 
 ```bash
 # The master as the app stores it: sign in to the broker in the dev_server

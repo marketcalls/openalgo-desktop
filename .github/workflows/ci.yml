@@ -312,6 +312,10 @@ jobs:
         # scripts/ci/native_e2e_sandbox.py, the sandbox order's check in
         # native-e2e-test-build.yml.
         run: python3 scripts/ci/test_native_e2e_sandbox.py
+      - name: Nifty 500 check tests
+        # The broker-integration skill's check_nifty500.py never opens the
+        # trader's data folder, however the path to it is spelled.
+        run: python3 -I .claude/skills/broker-integration/scripts/test_check_nifty500.py
       - name: Biome (lint, format, import order)
         run: npx biome ci --reporter=github ./src
       - name: Type check
