@@ -180,7 +180,8 @@ pub fn candle_json(c: &Candle) -> Value {
     })
 }
 
-/// The broker's candles for `req`, without the bars a broker appends after
+/// The broker's candles for `req`, on the session grid where the broker's
+/// are not (`session_grid`), without the bars a broker appends after
 /// the session close (web dhan `_drop_bars_after_close`, openalgo#2308):
 /// the close comes from the market calendar, which only a service reads.
 /// Every history read (`/api/v1/history`, the ticker, the charts,
@@ -190,7 +191,10 @@ pub async fn broker_candles(
     h: &BrokerHandle,
     req: &HistoryRequest,
 ) -> crate::error::Result<Vec<Candle>> {
-    let candles = h.broker.get_history(&h.auth, req).await?;
+    let mut candles = h.broker.get_history(&h.auth, req).await?;
+    if h.broker.history_on_session_grid(req) {
+        candles = super::session_grid::align(ctx, h, req, candles).await?;
+    }
     if !h.broker.history_trims_after_close(req) {
         return Ok(candles);
     }

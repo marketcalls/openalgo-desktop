@@ -498,6 +498,15 @@ pub trait Broker: Send + Sync {
         false
     }
 
+    /// Whether this broker's intraday bars for `req` sit on a clock grid
+    /// the history service must move onto the exchange session's (Nuvama's
+    /// 1h bars start 09:00 while NSE opens 09:15; web nuvama
+    /// `_session_align`), from the market calendar an adapter cannot read.
+    /// Default: no.
+    fn history_on_session_grid(&self, _req: &HistoryRequest) -> bool {
+        false
+    }
+
     // ---- GTT (optional) ----
 
     async fn place_gtt(&self, _auth: &AuthToken, _req: &GttRequest) -> Result<GttResponse> {

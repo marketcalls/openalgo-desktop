@@ -81,6 +81,7 @@ pub mod search_ui_service;
 pub mod sector_rotation_service;
 pub mod security_service;
 pub mod session_account;
+pub mod session_grid;
 pub mod settings_service;
 pub mod store_sizes;
 pub mod strategy_portfolio_service;
