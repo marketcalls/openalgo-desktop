@@ -185,10 +185,27 @@ call (web openalgo#2463).
   suffix wherever the bare name is already a symbol on that exchange, or
   two suffixed rows would claim it.
 - **Map it back** in every book (section 4).
-- **Changing it on a live broker is a breaking change.** A trader's saved
-  `HFCL-BE` (Historify watchlist, strategy, alert, Flow node, chart)
-  stops resolving after the next master contract download. Say so in the
-  CHANGELOG, naming the stores that keep a saved symbol.
+- **Changing it on a live broker is a breaking change.** A symbol saved as
+  `HFCL-BE` names nothing after the next master contract download. Live
+  books need nothing: they map the broker's `HFCL-BE` back to `HFCL`. What
+  holds a quantity no running owner keeps in memory moves to the base
+  symbol once the master is installed
+  (`services/master_contract_service/renamed_symbols.rs`): the sandbox's
+  orders, trades, positions, holdings and GTTs, and the strategy book's
+  legs and order tags. A row stays when the base symbol already holds the
+  same position (both names held); that is logged, not merged. Everything
+  else stays under the old name and the trader redoes it under the base
+  symbol. The CHANGELOG names each of these with what to do:
+  - scalping stops and the scalping list: set the stop again;
+  - Strategy module legs and runs, OpenScript deployments and their
+    orders: edit the symbol, and close a position a run holds under the
+    old name from the positions page;
+  - Action Center queued orders: reject them and place them again;
+  - Chartink symbol mappings: map the base symbol;
+  - the `/trading` watchlists, chart alerts and Flow nodes: replace the
+    symbol;
+  - Historify: its watchlist rows fail every download until replaced, and
+    the stored candles stay under `HFCL-BE`; add `HFCL` and download again.
 - **A symbol search that finds HFCL proves nothing about its symbol.**
   Search matches substrings, so it shows HFCL-BE for "HFCL". Only an exact
   lookup of NSE's own list does: the Nifty 500 check.

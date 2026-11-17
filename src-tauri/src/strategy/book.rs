@@ -17,6 +17,7 @@
 //! table grows without bound. Tagging and booking share one lock, so the two
 //! orderings are the only possible ones and both are handled.
 
+use crate::db::sqlite::symbol_renames::{rename_rows, RenameTally, SymbolRename};
 use crate::db::sqlite::SqliteDb;
 use crate::error::Result;
 use crate::events::{Event, Lane, Subscriber, Topic};
@@ -164,6 +165,21 @@ impl StrategyBook {
 
     fn session_date(&self) -> String {
         super::session::session_day(self.now(), self.session.0, self.session.1).to_string()
+    }
+
+    /// Move legs and order tags saved under a symbol the master renamed
+    /// (`db::sqlite::symbol_renames`, web openalgo#2463), so an exit under
+    /// the current symbol nets against the leg instead of opening a second
+    /// one beside it. One transaction under the book's lock: a fill is
+    /// booked wholly before the move or after it.
+    pub(crate) fn rename_symbols(&self, renames: &[SymbolRename]) -> Result<RenameTally> {
+        let _g = self.lock.lock();
+        let mut conn = self.db.conn()?;
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut tally = rename_rows(&tx, "strategy_positions", renames)?;
+        tally.add(rename_rows(&tx, "strategy_order_tags", renames)?);
+        tx.commit()?;
+        Ok(tally)
     }
 
     /// Drop tags past retention and buffered fills past their TTL.
