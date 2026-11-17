@@ -188,6 +188,64 @@ describe('buildPositionRows', () => {
       expect(r.totalPnl).toBeCloseTo(630 - 190 - 2 * 210) // 20
     })
 
+    it('a leg opened today with no exit realizes exactly zero at every LTP', () => {
+      // net x LTP - unrealized cancels on paper only; in floating point it left about
+      // -1e-13, which the table printed as a red "-0.00" that flickered with the price.
+      const legs = [
+        {
+          trades: [
+            trade({ action: 'BUY', quantity: 75, average_price: 101.35 }),
+            trade({ action: 'BUY', quantity: 75, average_price: 102.05 }),
+          ],
+          position: { quantity: 150, average_price: 101.7 },
+        },
+        {
+          trades: [trade({ action: 'BUY', quantity: 65, average_price: 187.45 })],
+          position: { quantity: 65, average_price: 187.45 },
+        },
+        {
+          trades: [
+            trade({ action: 'SELL', quantity: 75, average_price: 99.95 }),
+            trade({ action: 'SELL', quantity: 75, average_price: 100.15 }),
+          ],
+          position: { quantity: -150, average_price: 100.05 },
+        },
+      ]
+      for (const leg of legs) {
+        for (let tick = 0; tick < 2000; tick++) {
+          const ltp = 50 + tick * 0.05
+          const r = buildPositionRows([pos({ ...leg.position, ltp })], leg.trades, {})[0]
+          expect(r.realizedPnl).toBe(0)
+          expect(r.realizedPnl.toFixed(2)).toBe('0.00')
+        }
+      }
+    })
+
+    it('rounding residue under half a paisa reads as zero, a real paisa does not', () => {
+      // Bought 1 at 128.05 and 1 at 128.15, sold 2 at 128.1: flat, nothing made or
+      // lost, but the sums differ by about -5.7e-14.
+      const flat = buildPositionRows(
+        [],
+        [
+          trade({ action: 'BUY', quantity: 1, average_price: 128.05 }),
+          trade({ action: 'BUY', quantity: 1, average_price: 128.15 }),
+          trade({ action: 'SELL', quantity: 2, average_price: 128.1 }),
+        ],
+        {}
+      )[0]
+      expect(flat.realizedPnl).toBe(0)
+      expect(flat.totalPnl.toFixed(2)).toBe('0.00')
+      const paisa = buildPositionRows(
+        [],
+        [
+          trade({ action: 'BUY', quantity: 1, average_price: 100 }),
+          trade({ action: 'SELL', quantity: 1, average_price: 100.01 }),
+        ],
+        {}
+      )[0]
+      expect(paisa.realizedPnl).toBeCloseTo(0.01)
+    })
+
     it('a lot carried in from an earlier day keeps the matched-quantity estimate', () => {
       // Positionbook holds 3 but today shows only a sell of 1: a carried lot.
       const trades = [trade({ action: 'SELL', quantity: 1, average_price: 130 })]
