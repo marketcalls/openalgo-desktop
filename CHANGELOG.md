@@ -6,16 +6,58 @@ All notable changes to OpenAlgo Desktop are recorded here. Versions follow
 ## 1.0.9
 
 OpenAlgo web's work of 13 to 17 November. Nuvama is the 39th broker, with
-its live prices, market depth and order updates. AI clients find index
-quotes and SENSEX expiries without being told the exchange, scheduled Flow
-workflows and Historify downloads keep to their times while the database is
-busy, and the Latency Monitor shows order speed apart from history and
-quote calls. Also: Scalping's realized P&L stays put when you add to a
-position you partly exited, and openalgo-charts 2.7.3 with a price axis
-that steps by whole ticks. If you run 1.0.8, OpenAlgo offers this update in
-the app; choose Update when no live strategy or active workflow is running.
+its live prices, market depth and order updates. **Zerodha users, read
+Brokers before you update:** NSE stocks that Kite names with a series
+suffix (HFCL-BE, EMBASSY-RR) go by their base symbol (HFCL, EMBASSY) after
+the next master contract download, so a symbol you saved with the suffix
+has to change. AI clients find index quotes and SENSEX expiries without
+being told the exchange, scheduled Flow workflows and Historify downloads
+keep to their times while the database is busy, and the Latency Monitor
+shows order speed apart from history and quote calls. Also: Historify's
+Bulk Add says which symbols it could not add, Scalping's realized P&L stays
+put when you add to a position you partly exited, and openalgo-charts 2.7.3
+with a price axis that steps by whole ticks. If you run 1.0.8, OpenAlgo
+offers this update in the app; choose Update when no live strategy or
+active workflow is running.
 
 ### Brokers
+
+- **Zerodha: NSE series stocks now use their base symbol. This is a
+  breaking change for Zerodha users** (marketcalls/openalgo#2463, OpenAlgo
+  web 6716dd6f2). Kite names an NSE stock traded outside the EQ series with
+  its series: HFCL-BE, STLTECH-BE, EMBASSY-RR, BIRET-RR, BAGMANE-RR (the
+  -BE, -BZ, -RR, -IV, -SM and -ST series). From the next master contract
+  download after you update, OpenAlgo finds these under the symbol NSE
+  lists them by, HFCL, STLTECH, EMBASSY, BIRET, BAGMANE, as OpenAlgo web
+  does, so a Nifty 500 list pasted as `SYMBOL,NSE` finds all 500 stocks
+  instead of 495. Orders, quotes and history still reach Zerodha under
+  Kite's own name. A stock keeps its suffix only where the base name
+  already belongs to another NSE stock, so two stocks never share a symbol.
+- After that download HFCL-BE names nothing: an order, quote or history
+  request for it is refused as an unknown symbol. Your Zerodha holdings,
+  positions, orders and trades show HFCL. Your own programs and alerts
+  (Python SDK, TradingView, Amibroker, Excel) must send HFCL.
+- OpenAlgo moves these to the base symbol for you, right after the
+  download: in sandbox mode your holdings, positions, open orders, trades
+  and GTT orders, and in the Strategy module the positions and orders each
+  strategy's book holds, so you can still sell, net and close them. If you
+  hold the same stock under both names there, the old row is left as it is
+  and the app log says so. OpenAlgo web moves none of these.
+- Change these yourself to the base symbol, because OpenAlgo leaves them
+  under the old one:
+  - Scalping: a stop on HFCL-BE and HFCL-BE in the scalping list; set the
+    stop again on HFCL.
+  - Strategy module strategies and OpenScript deployments that name
+    HFCL-BE: edit the symbol, and close a position a run holds under the
+    old name from the Positions page.
+  - Action Center orders queued for HFCL-BE: reject them and place them
+    again.
+  - Chartink symbol mappings: map the base symbol.
+  - `/trading` watchlists, chart alerts and Flow workflow nodes: replace
+    the symbol.
+  - Historify: a watchlist row for HFCL-BE fails every download until you
+    replace it, and the candles already stored stay under HFCL-BE; add
+    HFCL and download again.
 
 - **Nuvama** (API Connect) is the 39th broker (marketcalls/openalgo#2461).
   On Broker Configuration save the API key and API secret of your API
@@ -59,6 +101,16 @@ the app; choose Update when no live strategy or active workflow is running.
 - Historify's scheduled downloads follow the same rule: a download starts
   on time during an import, and a restart within five minutes of a
   scheduled download does not download again (OpenAlgo web ceb116807).
+- Historify's Bulk Add tells you which symbols it could not add and why,
+  and keeps only those in the box to correct and add again; the others are
+  added. Before, it said how many were added and dropped the rest without a
+  word (marketcalls/openalgo#2463).
+- A symbol written with an underscore for a hyphen or an ampersand, as
+  TradingView writes them (BAJAJ_AUTO, M_M), is added to the Historify
+  watchlist under its master contract name (BAJAJ-AUTO, M&M) when exactly
+  one symbol fits, and Bulk Add names each one it renamed. When two symbols
+  could fit, it is refused with both named, so you pick. A symbol in the
+  master contract as you wrote it is always taken as written.
 
 ### Monitoring
 
