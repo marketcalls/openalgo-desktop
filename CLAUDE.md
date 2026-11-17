@@ -773,15 +773,18 @@ home and data folder and ephemeral ports, hold it in a guard that kills and
 reaps it, and stop it if it starts the full app. The `mcp` subcommand is a thin
 forwarder and must never open the data folder or a listener.
 
-The maintainer's Mac has 8 GB of RAM. Compiling the main library takes
-several GB, so four agents building at once swapped for hours and every build
-queued behind the lock. Run at most two agents at a time, with
+The maintainer's Mac is a Mac mini (M4, 10 cores) with 16 GB of RAM
+(2026-11-17; the earlier machine had 8 GB, on which four agents building at
+once swapped for hours). Up to four agents may work at a time, each with
 `CARGO_BUILD_JOBS=4` and one cargo command at a time; iterate with filtered
 test runs and run the full suite once before pushing. Only one of them builds
-at any moment: two worktrees building the crate in the shared target folder
-overwrite each other's build-script output, so each forces the other's
-library to recompile and both test runs stretch past an hour. Let one agent
-hold the build lane while the other writes code, then swap.
+at any moment, whatever the RAM: two worktrees building the crate in the
+shared target folder overwrite each other's build-script output, so each
+forces the other's library to recompile and both test runs stretch past an
+hour. Let one agent hold the build lane while the others write code, then
+swap. The disk (228 GB, about 23 GB free on 2026-11-17) is now the tighter
+limit: every worktree path that builds adds its own copy of the crate's
+artefacts to the shared folder, so more agents means less free disk.
 
 The shared folder grows past 30 GB. When free disk drops below about 8 GB
 and no build is running (`pgrep -fl 'cargo|rustc'` is empty), delete
