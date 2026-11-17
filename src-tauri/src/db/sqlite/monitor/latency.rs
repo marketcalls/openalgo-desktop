@@ -1,6 +1,7 @@
 //! `/api/v1` order latency (web `latency_db.OrderLatency`).
 
 use super::cap_text;
+use super::LatencyFilter;
 use crate::error::Result;
 use rusqlite::{params, Connection};
 
@@ -20,6 +21,9 @@ pub struct LatencyRow {
     pub status: String,
     pub error: Option<String>,
 }
+
+const COLUMNS: &str = "id, timestamp, order_id, broker, symbol, order_type, rtt_ms,
+    validation_latency_ms, response_latency_ms, overhead_ms, total_latency_ms, status, error";
 
 pub fn insert_latency(conn: &Connection, l: &LatencyRow) -> Result<()> {
     conn.execute(
@@ -44,12 +48,17 @@ pub fn insert_latency(conn: &Connection, l: &LatencyRow) -> Result<()> {
     Ok(())
 }
 
-pub fn recent_latency(conn: &Connection, limit: Option<i64>) -> Result<Vec<LatencyRow>> {
-    let mut st = conn.prepare(
-        "SELECT id, timestamp, order_id, broker, symbol, order_type, rtt_ms, validation_latency_ms,
-                response_latency_ms, overhead_ms, total_latency_ms, status, error
-         FROM order_latency ORDER BY id DESC LIMIT ?1",
-    )?;
+/// The newest `limit` records `filter` picks (all when `None`), newest
+/// first: a group's recent list is not pushed out by other calls.
+pub fn recent_latency(
+    conn: &Connection,
+    filter: &LatencyFilter,
+    limit: Option<i64>,
+) -> Result<Vec<LatencyRow>> {
+    let mut st = conn.prepare(&format!(
+        "SELECT {COLUMNS} FROM order_latency WHERE {} ORDER BY id DESC LIMIT ?1",
+        filter.sql()
+    ))?;
     let rows = st
         .query_map([limit.unwrap_or(-1)], latency_row)?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -72,76 +81,6 @@ fn latency_row(r: &rusqlite::Row) -> rusqlite::Result<LatencyRow> {
         status: r.get::<_, Option<String>>(11)?.unwrap_or_default(),
         error: r.get(12)?,
     })
-}
-
-/// Aggregates over a set of latency rows (web `get_latency_stats`: counts,
-/// averages and SLA counts in SQL, over every row kept).
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct LatencyTotals {
-    pub total: i64,
-    pub failed: i64,
-    pub avg_rtt: f64,
-    pub avg_overhead: f64,
-    pub avg_total: f64,
-    pub under_100: i64,
-    pub under_150: i64,
-    pub under_200: i64,
-    /// The rtt range, for the histogram.
-    pub min_rtt: f64,
-    pub max_rtt: f64,
-}
-
-const TOTALS: &str = "COUNT(*), COALESCE(SUM(status = 'FAILED'), 0),
-    COALESCE(AVG(COALESCE(rtt_ms, 0)), 0), COALESCE(AVG(COALESCE(overhead_ms, 0)), 0),
-    COALESCE(AVG(total_latency_ms), 0), COALESCE(SUM(total_latency_ms < 100), 0),
-    COALESCE(SUM(total_latency_ms < 150), 0), COALESCE(SUM(total_latency_ms < 200), 0),
-    COALESCE(MIN(COALESCE(rtt_ms, 0)), 0), COALESCE(MAX(COALESCE(rtt_ms, 0)), 0)";
-
-fn totals_at(r: &rusqlite::Row, at: usize) -> rusqlite::Result<LatencyTotals> {
-    Ok(LatencyTotals {
-        total: r.get(at)?,
-        failed: r.get(at + 1)?,
-        avg_rtt: r.get(at + 2)?,
-        avg_overhead: r.get(at + 3)?,
-        avg_total: r.get(at + 4)?,
-        under_100: r.get(at + 5)?,
-        under_150: r.get(at + 6)?,
-        under_200: r.get(at + 7)?,
-        min_rtt: r.get(at + 8)?,
-        max_rtt: r.get(at + 9)?,
-    })
-}
-
-/// Totals over every row.
-pub fn latency_totals(conn: &Connection) -> Result<LatencyTotals> {
-    let sql = format!("SELECT {} FROM order_latency", TOTALS);
-    Ok(conn.query_row(&sql, [], |r| totals_at(r, 0))?)
-}
-
-/// Totals per broker, for the rows that name one, by broker name.
-pub fn broker_latency_totals(conn: &Connection) -> Result<Vec<(String, LatencyTotals)>> {
-    let sql = format!(
-        "SELECT broker, {} FROM order_latency WHERE broker IS NOT NULL GROUP BY broker ORDER BY broker",
-        TOTALS
-    );
-    let mut st = conn.prepare(&sql)?;
-    let rows = st
-        .query_map([], |r| Ok((r.get(0)?, totals_at(r, 1)?)))?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
-    Ok(rows)
-}
-
-/// `total_latency_ms` of the rows since `since` (a stored timestamp), of one
-/// broker or of all, for percentiles.
-pub fn totals_since(conn: &Connection, since: &str, broker: Option<&str>) -> Result<Vec<f64>> {
-    let mut st = conn.prepare(
-        "SELECT total_latency_ms FROM order_latency
-         WHERE timestamp >= ?1 AND (?2 IS NULL OR broker = ?2) AND total_latency_ms IS NOT NULL",
-    )?;
-    let rows = st
-        .query_map(params![since, broker], |r| r.get(0))?
-        .collect::<std::result::Result<Vec<f64>, _>>()?;
-    Ok(rows)
 }
 
 /// How many of a broker's rows fall in each of `bins` rtt buckets of
@@ -171,18 +110,19 @@ pub fn rtt_buckets(
     Ok(counts)
 }
 
-/// One page of rows, newest first, older than `before_id` (all when
-/// `None`), for the streamed export.
+/// One page of the rows `filter` picks, newest first, older than
+/// `before_id` (all when `None`), for the streamed export.
 pub fn latency_page(
     conn: &Connection,
+    filter: &LatencyFilter,
     before_id: Option<i64>,
     limit: i64,
 ) -> Result<Vec<LatencyRow>> {
-    let mut st = conn.prepare(
-        "SELECT id, timestamp, order_id, broker, symbol, order_type, rtt_ms, validation_latency_ms,
-                response_latency_ms, overhead_ms, total_latency_ms, status, error
-         FROM order_latency WHERE ?1 IS NULL OR id < ?1 ORDER BY id DESC LIMIT ?2",
-    )?;
+    let mut st = conn.prepare(&format!(
+        "SELECT {COLUMNS} FROM order_latency WHERE (?1 IS NULL OR id < ?1) AND {}
+         ORDER BY id DESC LIMIT ?2",
+        filter.sql()
+    ))?;
     let rows = st
         .query_map(params![before_id, limit], latency_row)?
         .collect::<std::result::Result<Vec<_>, _>>()?;

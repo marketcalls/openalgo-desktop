@@ -23,6 +23,8 @@
 //! | `login_activity` | `login_attempts` |
 //! | `errors` | `error_logs` |
 //! | `latency` | `order_latency` |
+//! | `latency_figures` | `order_latency`, one group's figures |
+//! | `latency_groups` | (no table) which endpoint is in which latency group |
 //! | `order_logs` | `order_logs` (the Logs page reads) |
 //! | `health` | `health_metrics`, `health_alerts` |
 
@@ -34,6 +36,8 @@ mod bans;
 mod errors;
 mod health;
 mod latency;
+mod latency_figures;
+pub mod latency_groups;
 mod login_activity;
 mod order_logs;
 mod trackers;
@@ -43,6 +47,7 @@ pub use bans::*;
 pub use errors::*;
 pub use health::*;
 pub use latency::*;
+pub use latency_figures::*;
 pub use login_activity::*;
 pub use order_logs::*;
 pub use trackers::*;
@@ -70,23 +75,6 @@ pub const RETENTION: &[(&str, &str, i64, i64)] = &[
     ("invalid_api_key_tracker", "first_attempt_at", 1, 10_000),
 ];
 
-/// Latency rows of these types are orders and kept (up to the cap); data
-/// queries are purged after a week (web `KEEP_FOREVER_TYPES`).
-pub const LATENCY_ORDER_TYPES: &[&str] = &[
-    "PLACE",
-    "SMART",
-    "MODIFY",
-    "CANCEL",
-    "CLOSE",
-    "CANCEL_ALL",
-    "BASKET",
-    "SPLIT",
-    "OPTIONS",
-    "OPTIONS_MULTI",
-    "GTT_PLACE",
-    "GTT_MODIFY",
-    "GTT_CANCEL",
-];
 pub const LATENCY_ROW_CAP: i64 = 200_000;
 pub const HEALTH_ALERT_CAP: i64 = 1_000;
 
@@ -625,16 +613,15 @@ pub fn purge(conn: &Connection, now: DateTime<Utc>) -> Result<usize> {
             [cap],
         )?;
     }
-    let placeholders = LATENCY_ORDER_TYPES
-        .iter()
-        .map(|t| format!("'{}'", t))
-        .collect::<Vec<_>>()
-        .join(",");
+    // Order records are kept (up to the cap); every other record goes
+    // after a week. The orders group is the keep list (web `ORDER_TAGS`).
+    let not_orders = LatencyFilter::NotTags(latency_groups::order_tags());
     deleted += conn.execute(
         &format!(
-            "DELETE FROM order_latency WHERE timestamp < ?1 AND COALESCE(order_type, '') NOT IN ({placeholders})"
+            "DELETE FROM order_latency WHERE timestamp < ?1 AND {}",
+            not_orders.sql()
         ),
-        [ts(now - Duration::days(7))],
+        [ts(now - Duration::days(latency_groups::RETENTION_DAYS))],
     )?;
     deleted += conn.execute(
         "DELETE FROM order_latency WHERE id <= (SELECT id FROM order_latency ORDER BY id DESC LIMIT 1 OFFSET ?1)",
@@ -985,7 +972,7 @@ mod tests {
         let b = all_bans(&logs, now()).unwrap();
         assert_eq!(b.len(), 1);
         assert!(b[0].is_permanent);
-        let l = recent_latency(&logs, None).unwrap();
+        let l = recent_latency(&logs, &LatencyFilter::All, None).unwrap();
         assert_eq!(l.len(), 1);
         assert_eq!(l[0].total_latency_ms, 42.0);
     }
