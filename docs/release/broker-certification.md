@@ -246,7 +246,7 @@ seen live from the desktop:
 3. Order book rows: whether they carry a filled quantity and average price (read from `fldQty` / `flQty` / `fQty` and `avgPrc` when present) and a rejection reason (`rjRsn` / `rejRsn` / `rRsn`).
 4. MARKET orders priced off the LTP and SL-M orders sent as STOP_LIMIT off the trigger, accepted by Nuvama.
 5. History paging with `ltt` and the session grid on a 09:15 open (30m and 1h rebuilt from 15m bars).
-6. The feed over the TCP line relay: the quote packets' field types (text or numbers), the `ltt` / `altt` formats, the depth stream's `bidValues` / `askValues`, whether Nuvama answers `{}` keepalives, and that one whole-set request per streaming type 0.5 s after the last change keeps every symbol streaming.
+6. The feed over the TCP line relay: the quote packets' field types (text or numbers), the `ltt` / `altt` formats, the depth stream's `bidValues` / `askValues`, whether Nuvama answers `{}` keepalives (the market feed, like the web, reconnects after 180 s with nothing from Nuvama while symbols are subscribed, so a quiet list after hours stays connected only if it does), and that one whole-set request per streaming type 0.5 s after the last change keeps every symbol streaming.
 7. The order stream: `orderFiler` packets after a place, fill and cancel.
 
 ### Sahi live checks

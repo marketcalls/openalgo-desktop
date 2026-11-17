@@ -5,7 +5,7 @@
 
 use futures_util::{SinkExt, StreamExt};
 use openalgo_desktop_lib::brokers::common::relay;
-use openalgo_desktop_lib::brokers::nuvama::tcp_relay::{Endpoint, LineRelay, MAX_LINE};
+use openalgo_desktop_lib::brokers::nuvama::tcp_relay::{self, Endpoint, LineRelay, MAX_LINE};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
@@ -78,18 +78,27 @@ async fn the_relay_carries_lines_and_batches_quote_requests() {
         sent.elapsed()
     );
 
-    // Nuvama's lines reach the feed; its `{}` is a sign of life.
+    // Nuvama's lines reach the feed; its `{}`, or part of a line, is
+    // Nuvama's sign of life, apart from the relay's own (an empty pong).
     let packet = r#"{"response":{"streaming_type":"quote","data":{"sym":"1_NSE","ltp":"10"}}}"#;
     w.write_all(format!("{packet}\n{{}}\n").as_bytes())
         .await
         .unwrap();
     assert_eq!(next(&mut ws).await, Message::Text(packet.into()));
     w.write_all(b"{}\n").await.unwrap();
-    assert_eq!(
-        next(&mut ws).await,
-        Message::Pong(Vec::new()),
-        "the relay's sign of life"
-    );
+    let alive = next(&mut ws).await;
+    assert!(tcp_relay::is_nuvama_alive(&alive), "{alive:?}");
+    assert_ne!(alive, Message::Pong(Vec::new()), "not the relay's own sign");
+    w.write_all(b"{\"resp").await.unwrap();
+    assert!(tcp_relay::is_nuvama_alive(&next(&mut ws).await));
+    w.write_all(b"onse\":{}}\n").await.unwrap();
+    let line = loop {
+        match next(&mut ws).await {
+            m if tcp_relay::is_nuvama_alive(&m) => continue,
+            m => break m,
+        }
+    };
+    assert_eq!(line, Message::Text(r#"{"response":{}}"#.into()));
 
     // Dropping the relay closes Nuvama's socket.
     drop(ws);

@@ -36,8 +36,8 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 pub const QUOTE: &str = "quote";
 pub const DEPTH: &str = "quote2";
 pub const ORDERS: &str = "orderFiler";
-/// web `STALL_SECONDS`: with symbols subscribed and no data for this long,
-/// reconnect.
+/// web `STALL_SECONDS`: with symbols subscribed and nothing at all from
+/// Nuvama for this long, reconnect.
 pub const STALL: Duration = Duration::from_secs(180);
 const IST_OFFSET_MS: i64 = 19_800_000;
 
@@ -100,6 +100,16 @@ pub fn response(text: &str) -> Option<(String, Value)> {
         .unwrap_or("");
     let data = r.get("data").cloned().unwrap_or(Value::Null);
     Some((kind.to_string(), data))
+}
+
+/// Whether `msg` is something Nuvama sent: a line (not the relay's
+/// control frame) or bytes the relay passed on as Nuvama's sign of life
+/// (web `_last_packet`, reset on every chunk read).
+fn from_nuvama(msg: &Message) -> bool {
+    match msg {
+        Message::Text(t) => relay::control(t).is_none(),
+        other => tcp_relay::is_nuvama_alive(other),
+    }
 }
 
 fn relay_events(msg: &Message) -> Option<Vec<FeedEvent>> {
@@ -275,6 +285,14 @@ impl NuvamaFeed {
         feed
     }
 
+    /// Moves the last sign of Nuvama `by` into the past (the stall tests).
+    #[cfg(test)]
+    pub(super) fn backdate_data(&mut self, by: Duration) {
+        if let Some(t) = self.last_data.checked_sub(by) {
+            self.last_data = t;
+        }
+    }
+
     fn wanted(&self, kind: &str) -> BTreeSet<String> {
         self.subs
             .iter()
@@ -378,6 +396,9 @@ impl BrokerFeed for NuvamaFeed {
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
+        if from_nuvama(msg) {
+            self.last_data = Instant::now();
+        }
         if let Some(ev) = relay_events(msg) {
             return ev;
         }
@@ -387,12 +408,13 @@ impl BrokerFeed for NuvamaFeed {
         let Some((kind, data)) = response(t) else {
             return Vec::new();
         };
-        self.last_data = Instant::now();
         self.on_packet(&kind, &data)
     }
 
-    /// web: with symbols subscribed and nothing received for 180 s, the
-    /// socket is replaced.
+    /// web `_read_loop`: with symbols subscribed and nothing at all from
+    /// Nuvama for 180 s (a packet, any other line, a `{}` keepalive
+    /// answer), the socket is replaced. The relay's own keepalive sign is
+    /// not Nuvama and does not count.
     fn data_stalled(&mut self) -> bool {
         let stalled = !self.subs.is_empty() && self.last_data.elapsed() > STALL;
         if stalled {

@@ -15,15 +15,17 @@
 //!   0.5 s apart; an unsubscribe of a type this socket never subscribed is
 //!   not sent (web `_flush_one`). Any other request (the order stream's
 //!   subscription) goes at once;
-//! * each line Nuvama sends becomes one text frame; the bare `{}` lines it
-//!   answers the keepalive with become the relay's sign that the broker is
-//!   there (`relay::alive_frame`);
+//! * each line Nuvama sends becomes one text frame; bytes that make no
+//!   line to pass on (the bare `{}` lines it answers the keepalive with,
+//!   part of a line) become `nuvama_alive_frame`, so the market feed
+//!   counts every byte from Nuvama as the web does (`_last_packet`);
 //! * `{}\n` goes to Nuvama every 30 s (web `HEARTBEAT_SECONDS`). Nuvama
 //!   need not answer it, and an order socket is silent until an order
-//!   moves, so a keepalive the socket took is also passed on as that sign:
-//!   the web never drops a quiet socket, and the manager's stall watchdog
-//!   would. The market feed judges a stall itself (`data_stalled`, the
-//!   web's 180 s without data while subscribed).
+//!   moves, so a keepalive the socket took is passed on as the relay's own
+//!   sign of life (`relay::alive_frame`): the web never drops a quiet
+//!   socket, and the manager's stall watchdog would. The market feed
+//!   judges a stall itself (`data_stalled`, the web's 180 s with nothing
+//!   from Nuvama while subscribed), and does not count the relay's sign.
 //!
 //! The socket opens with the relay's `READY` control frame once the TCP
 //! connection is up (Nuvama has no login exchange on the socket); a
@@ -229,24 +231,34 @@ async fn accept_loop(listener: tokio::net::TcpListener, path: String, endpoint: 
     }
 }
 
-/// Split complete lines off `buf`: each text line, and whether a `{}`
-/// keepalive answer came. A partial line stays in `buf`.
-pub fn split_lines(buf: &mut Vec<u8>) -> (Vec<String>, bool) {
+/// The payload of `nuvama_alive_frame`.
+const NUVAMA_ALIVE: &[u8] = b"nuvama";
+
+/// Nuvama sent bytes that make no line to pass on (a `{}` keepalive
+/// answer, part of a line): a pong the market feed tells apart from the
+/// relay's own keepalive sign (`relay::alive_frame`, an empty pong), so a
+/// Nuvama that sends nothing still trips its stall check.
+pub(crate) fn nuvama_alive_frame() -> Message {
+    Message::Pong(NUVAMA_ALIVE.to_vec())
+}
+
+/// Whether `msg` is `nuvama_alive_frame`.
+pub fn is_nuvama_alive(msg: &Message) -> bool {
+    matches!(msg, Message::Pong(p) if p.as_slice() == NUVAMA_ALIVE)
+}
+
+/// Split complete lines off `buf`, leaving out empty lines and the `{}`
+/// keepalive answers (web `_handle_line`). A partial line stays in `buf`.
+pub fn split_lines(buf: &mut Vec<u8>) -> Vec<String> {
     let mut lines = Vec::new();
-    let mut alive = false;
     while let Some(i) = buf.iter().position(|b| *b == b'\n') {
         let raw: Vec<u8> = buf.drain(..=i).collect();
         let line = String::from_utf8_lossy(&raw).trim().to_string();
-        if line.is_empty() {
-            continue;
-        }
-        if line == "{}" {
-            alive = true;
-        } else {
+        if !line.is_empty() && line != "{}" {
             lines.push(line);
         }
     }
-    (lines, alive)
+    lines
 }
 
 async fn write_line(up: &mut tokio::net::tcp::OwnedWriteHalf, line: &str) -> bool {
@@ -317,18 +329,16 @@ async fn serve(down: WebSocketStream<TcpStream>, endpoint: Endpoint) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
                     buf.extend_from_slice(&chunk[..n]);
-                    let (lines, alive) = split_lines(&mut buf);
+                    let lines = split_lines(&mut buf);
                     if buf.len() > MAX_LINE {
                         tracing::warn!(broker = "nuvama", "Nuvama stream sent no line break in {} bytes", buf.len());
                         break;
                     }
                     let mut frames: Vec<Message> = lines.into_iter().map(Message::Text).collect();
-                    if frames.is_empty() && alive {
-                        frames.push(alive_frame());
+                    if frames.is_empty() {
+                        frames.push(nuvama_alive_frame());
                     }
-                    if !frames.is_empty() {
-                        ok = send_within(&mut dw, frames).await;
-                    }
+                    ok = send_within(&mut dw, frames).await;
                 }
             },
             _ = ka.tick() => {

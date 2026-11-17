@@ -13,20 +13,25 @@ use super::mapping::*;
 use super::master_contract::{parse_expiry, parse_master, underlying};
 use super::orders::{cancel_body, modify_body, place_body, placement_outcome};
 use super::session::{initial_app_id_key, NuvamaSession};
+use super::streaming::STALL;
 use super::streaming::{
     depth_book, order_update, quote_tick, request, response, trade_time_ms, NuvamaFeed,
     NuvamaOrderFeed,
 };
-use super::tcp_relay::{split_lines, Batcher, BATCH_MAX_WAIT, BATCH_QUIET, SEND_GAP};
+use super::tcp_relay::{
+    nuvama_alive_frame, split_lines, Batcher, BATCH_MAX_WAIT, BATCH_QUIET, SEND_GAP,
+};
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Validity};
 use crate::brokers::common::outcome::{classify, placing, PlaceOutcome};
 use crate::brokers::common::python::py_float;
+use crate::brokers::common::relay::{alive_frame, READY};
 use crate::brokers::common::streaming::{
     FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::{json, Value};
+use std::time::Duration;
 
 const CSV: &str = include_str!("../../../tests/fixtures/brokers/nuvama/master.csv");
 const RESPONSES: &str = include_str!("../../../tests/fixtures/brokers/nuvama/responses.json");
@@ -844,12 +849,38 @@ fn the_relay_batches_like_the_web() {
 }
 
 #[test]
-fn lines_split_and_keepalive_answers_are_signs_of_life() {
+fn lines_split_without_keepalive_answers() {
     let mut buf = b"{\"a\":1}\n{}\n\n{\"b\"".to_vec();
-    let (lines, alive) = split_lines(&mut buf);
-    assert_eq!(lines, ["{\"a\":1}"]);
-    assert!(alive);
+    assert_eq!(split_lines(&mut buf), ["{\"a\":1}"]);
     assert_eq!(buf, b"{\"b\"");
+}
+
+/// web `_read_loop` resets its clock on every chunk Nuvama sends, `{}`
+/// keepalive answers included, and reconnects only after 180 s with
+/// nothing while subscribed. The relay's own keepalive sign is not Nuvama,
+/// so a Nuvama that sends nothing still trips the check.
+#[test]
+fn anything_from_nuvama_keeps_a_quiet_feed_open() {
+    let mut f = NuvamaFeed::with_relay_url("ws://127.0.0.1:1/x", &session());
+    f.on_connected();
+    let past = STALL + Duration::from_secs(1);
+    f.backdate_data(past);
+    assert!(!f.data_stalled(), "nothing subscribed");
+    f.subscribe_frames(&[sub("2885_NSE", "RELIANCE", "NSE", FeedMode::Quote)]);
+    for from_nuvama in [
+        nuvama_alive_frame(),
+        Message::Text(r#"{"echo":{}}"#.into()),
+        Message::Text(json!({"response": {"streaming_type": "quote", "data": {}}}).to_string()),
+    ] {
+        f.backdate_data(past);
+        f.parse(&from_nuvama);
+        assert!(!f.data_stalled(), "{from_nuvama:?}");
+    }
+    f.backdate_data(past);
+    f.parse(&alive_frame());
+    f.parse(&Message::Text(READY.into()));
+    assert!(f.data_stalled(), "the relay's own frames are not Nuvama");
+    assert!(!f.data_stalled(), "asked once per stall");
 }
 
 #[test]
