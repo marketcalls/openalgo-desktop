@@ -27,10 +27,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// `day`'s IST midnight plus `open_minute`, epoch seconds.
 fn session_open_epoch(day: NaiveDate, open_minute: i64) -> i64 {
-    day.and_hms_opt(0, 0, 0)
-        .map_or(0, |d| d.and_utc().timestamp())
-        - crate::clock::IST_OFFSET_SECS
-        + open_minute * 60
+    cal::ist_midnight_ms(day) / 1000 + open_minute * 60
 }
 
 /// Where each day is rebuilt from: `0` for the bars in hand (only pre-open
