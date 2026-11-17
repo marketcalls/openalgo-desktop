@@ -138,6 +138,16 @@ fn the_desktops_old_options_tags_are_options_calls() {
     assert_eq!(group_key_of(None), OTHER);
 }
 
+/// Before the groups the desktop stored a GTT order book call under its
+/// path upper-cased; those rows are the GTT order book, in Account and
+/// books, not calls in no group.
+#[test]
+fn the_desktops_old_gtt_order_book_tag_is_an_account_call() {
+    assert_eq!(group_key_of(Some("GTTORDERBOOK")), "account");
+    assert_eq!(label_of(Some("GTTORDERBOOK")), "GTT order book");
+    assert!(known_tags().contains(&"GTTORDERBOOK"));
+}
+
 #[test]
 fn paths_with_more_segments_take_their_first_unless_listed_whole() {
     assert_eq!(tag_for_path("market/holidays"), Some("MARKET_HOLIDAYS"));

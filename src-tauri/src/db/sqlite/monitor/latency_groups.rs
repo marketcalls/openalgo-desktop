@@ -198,8 +198,11 @@ pub const ALL_GROUP: Group = Group {
 
 /// Tags rows were written under before the groups, read as what they are.
 /// The first two are the web's (its old table missed the options orders'
-/// namespaces); the rest are the desktop's own earlier spellings of the
-/// options tools (`GREEKS`, `MULTI_GREEKS`, `OPTION_SYMBOL`, `SYNTHETIC`).
+/// namespaces); the rest are the desktop's own earlier spellings: the
+/// options tools (`GREEKS`, `MULTI_GREEKS`, `OPTION_SYMBOL`, `SYNTHETIC`)
+/// and the GTT order book (`GTTORDERBOOK`, its path upper-cased, where the
+/// web already wrote `GTT_ORDERBOOK`). Without them a week of rows stored
+/// before an update would read as Other until they are purged.
 pub const LEGACY_TAGS: &[(&str, &str)] = &[
     ("OPTIONSORDER", "OPTIONS"),
     ("OPTIONSMULTIORDER", "OPTIONS_MULTI"),
@@ -207,6 +210,7 @@ pub const LEGACY_TAGS: &[(&str, &str)] = &[
     ("MULTI_GREEKS", "MULTIOPTIONGREEKS"),
     ("OPTION_SYMBOL", "OPTIONSYMBOL"),
     ("SYNTHETIC", "SYNTHETICFUTURE"),
+    ("GTTORDERBOOK", "GTT_ORDERBOOK"),
 ];
 
 fn every_group() -> impl Iterator<Item = &'static Group> {
