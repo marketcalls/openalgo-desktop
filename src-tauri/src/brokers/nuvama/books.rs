@@ -12,6 +12,7 @@ use super::mapping::{
     int, num, number, oa_exchange, price_type_from_nuvama, product_from_nuvama, side, text,
 };
 use crate::brokers::common::book_read::{self, Book};
+use crate::brokers::common::python::truthy;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::{Holding, Order, PortfolioStats, Position, Trade};
 use crate::error::{AppError, Result};
@@ -105,22 +106,12 @@ fn first_text(row: &Value, keys: &[&str]) -> String {
         .unwrap_or_default()
 }
 
-/// Python's truth of a JSON value: `"0"` is true, `0` and `""` are not.
-fn truthy(v: &Value) -> bool {
-    match v {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64() != Some(0.0),
-        Value::String(s) => !s.is_empty(),
-        Value::Array(a) => !a.is_empty(),
-        Value::Object(o) => !o.is_empty(),
-    }
-}
-
 /// The number of the first of `keys` that is set (the web's
 /// `_f(row.get(a) or row.get(b))`).
 fn first_number(row: &Value, keys: &[&str]) -> f64 {
-    let v = keys.iter().find_map(|k| row.get(*k).filter(|v| truthy(v)));
+    let v = keys
+        .iter()
+        .find_map(|k| row.get(*k).filter(|v| truthy(Some(v))));
     num(v)
 }
 
@@ -259,12 +250,14 @@ pub fn holding_row(row: &Value, symbols: &SymbolResolver) -> Option<Holding> {
     })
 }
 
-/// The web's portfolio totals: the holding value from `totalVal` (else
-/// LTP times quantity), and no invested value or P&L (web
-/// `calculate_portfolio_statistics`).
+/// The web's portfolio totals over the rows the holdings list keeps (web
+/// `map_portfolio_data` drops a zero quantity first): the holding value
+/// from `totalVal` (else LTP times quantity), and no invested value or P&L
+/// (web `calculate_portfolio_statistics`).
 pub fn portfolio_totals(rows: &[Value]) -> PortfolioStats {
     let value: f64 = rows
         .iter()
+        .filter(|h| int(h.get("totalQty")) != 0)
         .map(|h| {
             number(h.get("totalVal")).unwrap_or(num(h.get("ltp")) * int(h.get("totalQty")) as f64)
         })

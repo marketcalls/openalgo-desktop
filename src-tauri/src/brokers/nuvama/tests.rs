@@ -4,13 +4,14 @@
 //! the keys the web adapter reads, and each test names the web function it
 //! mirrors.
 
+use super::auth::account_of;
 use super::books::{self, holding_row, order_row, portfolio_totals, position_row, trade_row};
-use super::client::Answer;
+use super::client::{has_error, Answer};
 use super::data::{bar_open, depth_from, first_till, next_till, quote_from, raw_bars};
 use super::funds::funds_from;
 use super::mapping::*;
 use super::master_contract::{parse_expiry, parse_master, underlying};
-use super::orders::{cancel_body, modify_body, place_body, py_float};
+use super::orders::{cancel_body, modify_body, place_body, placement_outcome};
 use super::session::{initial_app_id_key, NuvamaSession};
 use super::streaming::{
     depth_book, order_update, quote_tick, request, response, trade_time_ms, NuvamaFeed,
@@ -19,6 +20,8 @@ use super::streaming::{
 use super::tcp_relay::{split_lines, Batcher, BATCH_MAX_WAIT, BATCH_QUIET, SEND_GAP};
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Validity};
+use crate::brokers::common::outcome::{classify, placing, PlaceOutcome};
+use crate::brokers::common::python::py_float;
 use crate::brokers::common::streaming::{
     FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
 };
@@ -343,6 +346,10 @@ fn trades_positions_and_holdings_are_openalgo_rows() {
         ("RELIANCE", 12, "CNC", 0.0)
     );
     assert_eq!(portfolio_totals(&h).totalholdingvalue, 18120.0);
+    // web `map_portfolio_data` drops a zero quantity before the totals.
+    let mut with_empty = h.clone();
+    with_empty.push(json!({"sym": "2031_NSE", "exc": "NSE", "totalQty": "0", "totalVal": "500"}));
+    assert_eq!(portfolio_totals(&with_empty).totalholdingvalue, 18120.0);
     // A row the master does not know keeps the broker's trading symbol.
     let other = json!({"sym": "999_NSE", "trdSym": "INE999X01011", "exc": "NSE"});
     assert_eq!(books::oa_symbol_for(&other, &m), "INE999X01011");
@@ -370,10 +377,17 @@ fn quote_and_depth_follow_the_web() {
         (q.ltp, q.open, q.high, q.low, q.close),
         (1503.45, 1495.0, 1510.0, 1490.1, 1498.75)
     );
+    // `askPr` "" falls back to the best ask; `akSz` "0" is text, which
+    // Python takes as set, so the web reports its 0.
     assert_eq!(
         (q.volume, q.bid, q.ask, q.bid_qty, q.ask_qty),
-        (1234567, 1503.4, 1503.5, 120, 60)
+        (1234567, 1503.4, 1503.5, 120, 0)
     );
+    let mut qt = d["qt"].clone();
+    qt["akSz"] = json!(0);
+    qt.as_object_mut().unwrap().remove("bdSz");
+    let q = quote_from(&key, &qt, &d["mkd"]);
+    assert_eq!((q.bid_qty, q.ask_qty), (120, 60));
     let m = depth_from(&key, &d["qt"], &d["mkd"]);
     assert_eq!((m.bids.len(), m.asks.len()), (2, 3));
     assert_eq!((m.total_buy_qty, m.total_sell_qty, m.ltq), (200, 9000, 15));
@@ -445,6 +459,94 @@ fn the_place_body_is_the_webs() {
     );
     assert_eq!(py_float(1503.45), "1503.45");
     assert_eq!(py_float(0.0), "0.0");
+}
+
+/// web `auth_api.py`: `eqAccID or coAccID`, so a commodity-only account,
+/// whose `eqAccID` Nuvama sends as `""`, signs in with its `coAccID`.
+#[test]
+fn the_login_account_follows_the_web() {
+    let login = |accs: Value| json!({"lgnData": {"accTyp": "CO", "accs": accs}});
+    let acc = |accs: Value| account_of(&login(accs));
+    assert_eq!(
+        acc(json!({"eqAccID": "", "coAccID": "C1"})),
+        Some(("C1".into(), "CO".into()))
+    );
+    assert_eq!(
+        acc(json!({"eqAccID": " ", "coAccID": "C1"})).map(|a| a.0),
+        Some("C1".into())
+    );
+    assert_eq!(
+        acc(json!({"eqAccID": "E1", "coAccID": "C1"})).map(|a| a.0),
+        Some("E1".into())
+    );
+    assert_eq!(acc(json!({"eqAccID": "", "coAccID": ""})), None);
+    assert_eq!(acc(json!({"coAccID": null})), None);
+}
+
+/// web `not data.get("error")`: an empty or zero `error` is no error.
+#[test]
+fn an_error_key_counts_only_when_it_holds_something() {
+    for none in [
+        json!({}),
+        json!({"error": null}),
+        json!({"error": ""}),
+        json!({"error": {}}),
+        json!({"error": []}),
+        json!({"error": 0}),
+        json!({"error": false}),
+    ] {
+        assert!(!has_error(&none), "{none}");
+    }
+    for some in [
+        json!({"error": {"errMsg": "x"}}),
+        json!({"error": "x"}),
+        json!({"error": 1}),
+        json!({"error": true}),
+    ] {
+        assert!(has_error(&some), "{some}");
+    }
+    assert!(answer(200, json!({"error": 0, "data": {}})).ok());
+}
+
+/// web `place_order_api` and `_order_id_from`: an id is an accepted order
+/// (`oid`, else the first slice's when `oid` is empty); a refusal needs an
+/// error that holds something; anything else on a 2xx is unknown.
+#[tokio::test]
+async fn a_place_answer_is_judged_like_the_web() {
+    let judge = |status: u16, body: Value| async move {
+        classify(&placing(async { placement_outcome(&answer(status, body)) }).await)
+    };
+    let accepted = |id: &str| PlaceOutcome::Accepted {
+        order_id: id.into(),
+    };
+    assert_eq!(
+        judge(200, json!({"error": 0, "data": {"oid": "N1"}})).await,
+        accepted("N1")
+    );
+    for oid in [json!(null), json!("")] {
+        assert_eq!(
+            judge(200, json!({"data": {"oid": oid, "ord": [{"oid": "X"}]}})).await,
+            accepted("X")
+        );
+    }
+    assert_eq!(
+        judge(200, resp("place_sliced")).await,
+        accepted("NXAAE00002002")
+    );
+    assert!(matches!(
+        judge(222, resp("place_refused")).await,
+        PlaceOutcome::Refused { .. }
+    ));
+    for body in [
+        json!({"error": {}}),
+        json!({"error": ""}),
+        json!({"data": {}}),
+    ] {
+        for status in [200, 222] {
+            let o = judge(status, body.clone()).await;
+            assert!(o.is_uncertain(), "{status} {body}: {o:?}");
+        }
+    }
 }
 
 /// web `transform_modify_order_data` and `transform_cancel_order_data`:

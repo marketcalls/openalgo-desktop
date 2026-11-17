@@ -9,7 +9,7 @@
 
 use super::session::NuvamaSession;
 use super::NuvamaBroker;
-use crate::brokers::common::{http, redact};
+use crate::brokers::common::{http, python, redact};
 use crate::brokers::types::AuthToken;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -122,15 +122,11 @@ impl Answer {
     }
 }
 
-/// An `error` key that holds something (web `not self.data.get("error")`).
-fn has_error(body: &Value) -> bool {
-    match body.get("error") {
-        None | Some(Value::Null) | Some(Value::Bool(false)) => false,
-        Some(Value::String(s)) => !s.is_empty(),
-        Some(Value::Object(o)) => !o.is_empty(),
-        Some(Value::Array(a)) => !a.is_empty(),
-        Some(_) => true,
-    }
+/// An `error` key that holds something (web `not self.data.get("error")`
+/// and the login's `body.get("error")`: Python's truth, so `""`, `0`, `{}`
+/// and `[]` are no error).
+pub(super) fn has_error(body: &Value) -> bool {
+    python::truthy(body.get("error"))
 }
 
 pub(crate) fn session_expired() -> AppError {

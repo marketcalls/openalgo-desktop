@@ -15,6 +15,7 @@ use super::client::{Call, Lane};
 use super::mapping::{chart_asset_type, chart_exchange, int, num, number, text};
 use super::{NuvamaBroker, TIMEFRAME_MAP};
 use crate::brokers::common::history::{intraday_minutes, sort_dedupe};
+use crate::brokers::common::python::truthy;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use chrono::{Datelike, Days, NaiveDate, NaiveDateTime};
@@ -68,12 +69,12 @@ fn side(mkd: &Value, key: &str) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// A quote field, else the best level's (web `qt.get(a) or best.get(b)`).
+/// A quote field, else the best level's (web `qt.get(a) or best.get(b)`):
+/// the level stands in only for a field that is missing, empty or a
+/// numeric 0, so a text `"0"` is Nuvama's own value, as on the web.
 fn or_best(qt: &Value, key: &str, best: Option<&Value>, level_key: &str) -> f64 {
-    match number(qt.get(key)).filter(|v| *v != 0.0) {
-        Some(v) => v,
-        None => num(best.and_then(|l| l.get(level_key))),
-    }
+    let field = qt.get(key).filter(|v| truthy(Some(v)));
+    num(field.or_else(|| best.and_then(|l| l.get(level_key))))
 }
 
 /// One snapshot -> OpenAlgo quote (web `_quote_from`).

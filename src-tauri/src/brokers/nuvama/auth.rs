@@ -12,6 +12,7 @@
 //!    `data.lgnData.accs`; the `AppIdKey` response header is the app id key
 //!    this session uses.
 
+use super::client::has_error;
 use super::session::{initial_app_id_key, json_headers, NuvamaSession};
 use super::NuvamaBroker;
 use crate::brokers::common::redact;
@@ -42,13 +43,6 @@ fn error_text(body: &Value) -> String {
         Some(m) if failed => m.to_string(),
         _ => "no session in the answer".into(),
     }
-}
-
-fn has_error(body: &Value) -> bool {
-    !matches!(
-        body.get("error"),
-        None | Some(Value::Null) | Some(Value::Bool(false))
-    )
 }
 
 fn header(resp: &reqwest::Response, name: &str) -> Option<String> {
@@ -108,15 +102,19 @@ async fn vendor_session(
 }
 
 /// The account a login answer names (web: `eqAccID`, else `coAccID` for a
-/// commodity-only account) and its type.
-fn account_of(data: &Value) -> Option<(String, String)> {
+/// commodity-only account, whose `eqAccID` Nuvama sends as `""`) and its
+/// type.
+pub(super) fn account_of(data: &Value) -> Option<(String, String)> {
     let lgn = data.get("lgnData")?;
     let accs = lgn.get("accs")?;
     let account = ["eqAccID", "coAccID"]
         .iter()
-        .find_map(|k| accs.get(*k).and_then(Value::as_str))
-        .map(str::trim)
-        .filter(|a| !a.is_empty())?
+        .find_map(|k| {
+            accs.get(*k)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|a| !a.is_empty())
+        })?
         .to_string();
     let kind = lgn
         .get("accTyp")

@@ -12,6 +12,7 @@ pub mod mpp;
 pub mod order_poll;
 pub mod outcome;
 pub mod position_read;
+pub mod python;
 pub mod ratelimit;
 pub mod redact;
 pub mod relay;

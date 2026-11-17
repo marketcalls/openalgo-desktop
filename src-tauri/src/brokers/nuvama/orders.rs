@@ -14,7 +14,7 @@
 //! one with 16315). A MARKET without a usable quote goes out as MARKET.
 
 use super::books::{self, NuvamaBook};
-use super::client::{Call, Lane};
+use super::client::{has_error, Answer, Call, Lane};
 use super::mapping::{self, nuvama_exchange, product_from_nuvama, text};
 use super::session::NuvamaSession;
 use super::NuvamaBroker;
@@ -23,20 +23,11 @@ use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price};
 use crate::brokers::common::outcome;
 use crate::brokers::common::position_read;
+use crate::brokers::common::python::{py_float, truthy};
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
 use serde_json::{json, Map, Value};
-
-/// A float as Python's `str()` writes it (`100.0`, `1503.45`): the web
-/// sends every number as text.
-pub(crate) fn py_float(v: f64) -> String {
-    if v.is_finite() && v.fract() == 0.0 && v.abs() < 1e16 {
-        format!("{:.1}", v)
-    } else {
-        format!("{}", v)
-    }
-}
 
 /// A book value as the web's `str(value)` passes it on.
 fn py_text(v: Option<&Value>) -> String {
@@ -246,16 +237,51 @@ pub(crate) fn place_body(o: &ResolvedOrder, ord_typ: &str, lm_prc: String) -> Va
 }
 
 /// The order id of a place answer: `data.oid`, or a sliced order's first
-/// slice (web `_order_id_from`).
+/// slice when `oid` is missing, null or empty (web `_order_id_from`).
 fn order_id_of(body: &Value) -> String {
+    fn set(v: Option<&Value>) -> Option<&Value> {
+        v.filter(|v| truthy(Some(v)))
+    }
     let data = body.get("data");
-    let id = data.and_then(|d| d.get("oid")).or_else(|| {
-        data.and_then(|d| d.get("ord"))
+    let id = set(data.and_then(|d| d.get("oid"))).or_else(|| {
+        set(data
+            .and_then(|d| d.get("ord"))
             .and_then(Value::as_array)
             .and_then(|o| o.first())
-            .and_then(|o| o.get("oid"))
+            .and_then(|o| o.get("oid")))
     });
     text(id)
+}
+
+/// What a place answer means: the order id, a refusal only when Nuvama's
+/// answer carries an error (web `NuvamaResponse.ok`), else unknown.
+pub(super) fn placement_outcome(a: &Answer) -> Result<OrderResponse> {
+    let id = if a.ok() {
+        order_id_of(&a.body)
+    } else {
+        String::new()
+    };
+    if !id.is_empty() {
+        return Ok(OrderResponse {
+            order_id: id,
+            message: None,
+        });
+    }
+    if a.ok() {
+        tracing::warn!("Nuvama accepted an order without an order id");
+        return Err(AppError::uncertain(
+            "Nuvama accepted the order but returned no order id. Check the order book before placing it again.",
+            None,
+        ));
+    }
+    let message = a.message("Nuvama did not accept the order");
+    tracing::warn!(
+        status = a.status,
+        code = a.error_code().unwrap_or(""),
+        "Nuvama did not place an order: {}",
+        message
+    );
+    Err(outcome::not_accepted(a.status, has_error(&a.body), message))
 }
 
 pub async fn place_order(
@@ -283,33 +309,7 @@ pub async fn place_order(
     let a = b
         .call(&s, Call::send(Method::POST, url, &body, Lane::Orders))
         .await?;
-    let id = if a.ok() {
-        order_id_of(&a.body)
-    } else {
-        String::new()
-    };
-    if !id.is_empty() {
-        return Ok(OrderResponse {
-            order_id: id,
-            message: None,
-        });
-    }
-    if a.ok() {
-        tracing::warn!("Nuvama accepted an order without an order id");
-        return Err(AppError::uncertain(
-            "Nuvama accepted the order but returned no order id. Check the order book before placing it again.",
-            None,
-        ));
-    }
-    let message = a.message("Nuvama did not accept the order");
-    tracing::warn!(
-        status = a.status,
-        code = a.error_code().unwrap_or(""),
-        "Nuvama did not place an order: {}",
-        message
-    );
-    let failed = a.body.get("error").is_some_and(|e| !e.is_null());
-    Err(outcome::not_accepted(a.status, failed, message))
+    placement_outcome(&a)
 }
 
 /// One order's row in today's order book (web `_find_order`).
@@ -331,10 +331,8 @@ fn raw(row: &Value, key: &str) -> Value {
 
 /// `curQty`: the order's quantity as the book sent it.
 fn current_quantity(row: &Value) -> String {
-    let set = |k: &str| {
-        row.get(k)
-            .filter(|v| !v.is_null() && v.as_str() != Some("") && v.as_f64() != Some(0.0))
-    };
+    // web `order.get("ntQty") or order.get("reqQty")`
+    let set = |k: &str| row.get(k).filter(|v| truthy(Some(v)));
     let v = set("ntQty").or_else(|| set("reqQty"));
     match v {
         Some(v) => py_text(Some(v)),
