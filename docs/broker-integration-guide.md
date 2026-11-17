@@ -4,7 +4,7 @@ How to add a broker to OpenAlgo Desktop, or change one, in Rust. Written for a
 contributor who knows the broker's API and wants it to work in the desktop
 exactly as it works in OpenAlgo web.
 
-The desktop has 38 brokers, all of OpenAlgo web's, built by **sign-in family**
+The desktop has 39 brokers, all of OpenAlgo web's, built by **sign-in family**
 rather than one by one. A new broker is usually a port of the web's
 `broker/<name>/` Python plugin. This guide is the desktop's *mechanics*: where
 each piece goes and how it is tested. For a broker's *behaviour* (rate limits,
@@ -80,7 +80,7 @@ streams) so tests can point it at a local fake.
 | --- | --- | --- | --- |
 | Noren / Finvasia | `families::noren::NorenBroker` with a `&'static NorenConfig` (hosts, dialect, login, master files, tick rule, index naming, market price protection scope, funds) and `NorenHooks` function pointers. A member is one `mod.rs` with `CONFIG`, `HOOKS` and `pub fn broker(symbols)` | shoonya, flattrade, tradesmart, zebu | `shoonya/mod.rs` |
 | Symphony XTS | `families::xts::XtsBroker` with a `&'static XtsConfig` (login, paths, master segments, stream mode codes, binary decoder, `XtsHooks`). A member is one `mod.rs` with `CONFIG` and `pub fn broker` | fivepaisaxts, jainamxts, compositedge, rmoney, ibulls, wisdom, iifl | `fivepaisaxts/mod.rs` |
-| OAuth redirect | Own module | zerodha, upstox, fyers, dhan (and dhan_sandbox, a variant of it), groww, arrow, paytm, aliceblue, definedge, pocketful, hdfcsky, hdfcsecurities, rupeezy | `zerodha/` |
+| OAuth redirect | Own module | zerodha, upstox, fyers, dhan (and dhan_sandbox, a variant of it), groww, arrow, paytm, aliceblue, definedge, pocketful, hdfcsky, hdfcsecurities, rupeezy, nuvama (its feed is plain TCP, through a loopback line relay) | `zerodha/` |
 | Direct login + TOTP | Own module | angel, kotak, mstock, motilal, samco, sahi, tradejini, fivepaisa, nubra, indmoney, firstock | `angel/` |
 | Bespoke | Own module | iiflcapital (REST, and MQTT through the relay), deltaexchange (HMAC signing, the `CRYPTO` exchange, leverage) | as named |
 
@@ -449,7 +449,7 @@ Tests against fakes cannot prove that a real sign-in, the books, the feed and
 an order behave. Before Live trading is offered for a broker, run the
 certification kit against a running app signed in to a real account:
 [Broker certification](release/broker-certification.md)
-(`scripts/certify/broker_certify.py`). Its sign-off table lists all 38
+(`scripts/certify/broker_certify.py`). Its sign-off table lists all 39
 brokers.
 
 ## 16. Porting map from the web plugin

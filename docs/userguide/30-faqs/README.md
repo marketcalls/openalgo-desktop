@@ -18,8 +18,8 @@ any tunnel service you use may cost money.
 
 ### Which brokers are supported?
 
-38 brokers, the same as OpenAlgo web: Indian brokers from 5 Paisa to Zerodha
-(Rupeezy included), and Delta Exchange for crypto. One set of keys can be saved for each broker, and one
+39 brokers, the same as OpenAlgo web: Indian brokers from 5 Paisa to Zerodha
+(Rupeezy and Nuvama included), and Delta Exchange for crypto. One set of keys can be saved for each broker, and one
 broker is logged in at a time. How each one signs in:
 [Broker sign-in](../../user/brokers.md).
 

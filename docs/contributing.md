@@ -35,7 +35,7 @@ no server to set up, no Python and no `.env` file.
 - **Shell**: Tauri 2 (the window, the installers, the updater).
 - **Backend**: Rust in `src-tauri/`: an axum HTTP server with Socket.IO
   (`socketioxide`), the market data feed server on port 8765, the service
-  layer, the sandbox engine, 38 broker adapters, a native MCP server, and
+  layer, the sandbox engine, 39 broker adapters, a native MCP server, and
   native Telegram and WhatsApp bots, on one tokio runtime.
 - **Frontend**: the OpenAlgo web React 19 app in `src/` (TypeScript, Vite,
   Tailwind, TanStack Query, Zustand), carried over nearly verbatim.

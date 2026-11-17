@@ -179,6 +179,7 @@ A change to the broker's adapter, or a broker API change, needs a new run.
 | motilal | | | | pending | |
 | mstock | | | | pending | |
 | nubra | | | | pending | |
+| nuvama | | | | pending | |
 | paytm | | | | pending | |
 | pocketful | | | | pending | |
 | rmoney | | | | pending | |
@@ -233,6 +234,20 @@ account:
 5. History chunk caps (1000 days daily, 30 days intraday) and daily candle stamps.
 6. The feed: one JSON subscribe per ticker, mode replaced by re-subscribing, binary packet layout, protocol pings kept alive, a 401 handshake when the token expires.
 7. GTT OCO with `product`, and modify by leg id with a trailing stop.
+
+### Nuvama live checks
+
+From the desktop port of web openalgo#2461 (ee123273b), built without a
+Nuvama account, from the web plugin's field names; nothing here has been
+seen live from the desktop:
+
+1. The sign-in: whether Nuvama's login page returns `request_id` (or `requestId` / `reqId`) and drops any `state`; that `eqAccID` (or `coAccID`) is the account id the trader saves on Broker Configuration.
+2. The HTTP 222 error envelope on empty books (`ETRD0002`, `ETRD0004`) and on a refused order, and `EGN0011` for an expired session.
+3. Order book rows: whether they carry a filled quantity and average price (read from `fldQty` / `flQty` / `fQty` and `avgPrc` when present) and a rejection reason (`rjRsn` / `rejRsn` / `rRsn`).
+4. MARKET orders priced off the LTP and SL-M orders sent as STOP_LIMIT off the trigger, accepted by Nuvama.
+5. History paging with `ltt` and the session grid on a 09:15 open (30m and 1h rebuilt from 15m bars).
+6. The feed over the TCP line relay: the quote packets' field types (text or numbers), the `ltt` / `altt` formats, the depth stream's `bidValues` / `askValues`, whether Nuvama answers `{}` keepalives, and that one whole-set request per streaming type 0.5 s after the last change keeps every symbol streaming.
+7. The order stream: `orderFiler` packets after a place, fill and cancel.
 
 ### Sahi live checks
 

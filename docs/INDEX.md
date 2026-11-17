@@ -89,7 +89,7 @@ Docker, use [OpenAlgo web](https://github.com/marketcalls/openalgo)
 | Signing in after a start, a forgotten password, two-factor login (the web's SMTP reset has no desktop counterpart) | [user/troubleshooting.md](user/troubleshooting.md#signing-in-and-a-forgotten-password) |
 | Updates: the in-app notice, installing, going back | [user/updating.md](user/updating.md) |
 | Settings that lived in the web's `.env` | [user/moving-from-openalgo-web.md](user/moving-from-openalgo-web.md#settings-that-used-to-be-in-env) |
-| Broker integration (38 brokers, built by sign-in family) | [broker-integration-guide.md](broker-integration-guide.md) |
+| Broker integration (39 brokers, built by sign-in family) | [broker-integration-guide.md](broker-integration-guide.md) |
 | Release notes and changelog | [releases/README.md](releases/README.md) · [CHANGELOG.md](../CHANGELOG.md) |
 
 ---

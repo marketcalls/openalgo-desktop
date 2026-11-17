@@ -69,7 +69,7 @@ in. Brokers fall into three groups.
 
 Zerodha, Fyers, Upstox, Dhan, Arrow, Paytm Money, Pocketful, HDFC Sky, HDFC
 Securities, IIFL Capital, Alice Blue, CompositEdge, RMoney, Flattrade,
-Shoonya, Zebu, TradeSmart and Rupeezy.
+Shoonya, Zebu, TradeSmart, Rupeezy and Nuvama.
 
 **Login with** takes you to the broker's login page. Log in there, approve
 access, and the broker sends you back to OpenAlgo, which finishes the sign-in
@@ -85,7 +85,7 @@ with the reason shown on that broker's card.
   was not started from OpenAlgo or has expired". Choose Login with again.
 - Finish the broker's login within a few minutes of starting it. Some brokers
   (Dhan, Flattrade, Shoonya, Zebu, TradeSmart, Arrow, HDFC Sky, HDFC
-  Securities and Alice Blue) do not send back OpenAlgo's sign-in reference,
+  Securities, Alice Blue, Rupeezy and Nuvama) do not send back OpenAlgo's sign-in reference,
   so for them OpenAlgo accepts only the most recent sign-in started from the
   same window, within three minutes.
 - Zerodha needs an active Kite Connect subscription, and Dhan an active Data
@@ -105,6 +105,7 @@ app. These brokers need your client ID:
 | Arrow, HDFC Sky, HDFC Securities | The **Client ID** field Broker Configuration shows for these brokers |
 | Alice Blue | The **User ID** field Broker Configuration shows for it |
 | Rupeezy | The **Client ID** field Broker Configuration shows for it (your Rupeezy client code) |
+| Nuvama | The **Account ID** field Broker Configuration shows for it (your Nuvama account ID) |
 
 If the client ID is missing, the sign-in stops and names the field to fill in
 on the Broker Configuration page. If you log in to the broker with a

@@ -124,7 +124,7 @@ scripts, Amibroker and Excel on the same computer need nothing extra. See
 ## Before you install
 
 - [ ] A supported system from the table above, with a desktop session.
-- [ ] An account with one of the 38 supported brokers and API access set up
+- [ ] An account with one of the 39 supported brokers and API access set up
       in its developer portal (see [chapter 06](../06-broker-connection/README.md)).
 - [ ] Your broker's API key and secret (and anything else it issues).
 - [ ] An authenticator app on your phone, if you want two-factor sign-in.
