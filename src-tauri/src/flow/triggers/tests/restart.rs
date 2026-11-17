@@ -1,9 +1,11 @@
 //! A restart from the stored next run (parity T-003, T-002, lead decision
 //! 7): the start-up restore reads each active schedule's `next_run_at` as
 //! the last session wrote it, so a fire that fell due while OpenAlgo was
-//! closed runs once within the 60 s grace and is skipped after it; and the
-//! driver writes the job's next fire back to the row after every fire
-//! (`persist_next`), so the next restart starts from it.
+//! closed runs once within the 60 s grace and is skipped after it; and
+//! after every fire the driver hands the job's next fire to the
+//! scheduler's saver (`services::next_run_saves`, started by
+//! `drive::save_next_runs`), which writes it to the row under the write
+//! lock (`drive::write_next_run`), so the next restart starts from it.
 
 use super::*;
 
@@ -124,9 +126,10 @@ async fn a_restart_past_the_grace_skips_the_stored_fire_and_says_so() {
     assert!(logs.text().contains(&warning), "{}", logs.text());
 }
 
-/// `persist_next`: registered at 09:14 IST, the schedule records today's
-/// 09:15; once the driver fires it, the row holds tomorrow's 09:15, the
-/// value the next start-up restores from.
+/// The next-run saver (`drive::write_next_run`): registered at 09:14 IST,
+/// the schedule records today's 09:15; once the driver fires it, the saver
+/// writes tomorrow's 09:15 to the row, the value the next start-up
+/// restores from.
 #[tokio::test]
 async fn the_driver_records_the_next_fire_on_the_row_after_each_fire() {
     let t = app_without_its_trigger_side().await;
