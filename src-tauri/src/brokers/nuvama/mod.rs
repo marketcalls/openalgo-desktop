@@ -302,11 +302,7 @@ impl Broker for NuvamaBroker {
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let session = self.session(auth)?;
-        Ok(Box::new(streaming::NuvamaFeed::new(
-            &self.urls,
-            &session,
-            self.symbols.clone(),
-        )))
+        Ok(Box::new(streaming::NuvamaFeed::new(&self.urls, &session)))
     }
 
     fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {

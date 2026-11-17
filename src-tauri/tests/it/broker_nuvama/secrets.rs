@@ -186,11 +186,7 @@ async fn no_credential_reaches_a_log_or_an_error() {
         .unwrap();
     let urls = NuvamaUrls::rebased("http://127.0.0.1:1", closed_port());
     let session = NuvamaSession::parse(&token()).unwrap();
-    feed_once(
-        &manager,
-        Box::new(NuvamaFeed::new(&urls, &session, master())),
-    )
-    .await;
+    feed_once(&manager, Box::new(NuvamaFeed::new(&urls, &session))).await;
     feed_once(
         &manager,
         Box::new(NuvamaOrderFeed::new(&urls, &session, master())),

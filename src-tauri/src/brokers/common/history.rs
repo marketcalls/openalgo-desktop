@@ -95,7 +95,7 @@ pub fn drop_bars_after_close(
 }
 
 /// The IST calendar day of an epoch-seconds timestamp.
-fn ist_day(ts: i64) -> Option<NaiveDate> {
+pub(crate) fn ist_day(ts: i64) -> Option<NaiveDate> {
     chrono::DateTime::from_timestamp(ts, 0)
         .map(|d| d.with_timezone(&chrono_tz::Asia::Kolkata).date_naive())
 }

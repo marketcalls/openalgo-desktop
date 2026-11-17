@@ -39,7 +39,6 @@ pub const ORDERS: &str = "orderFiler";
 /// web `STALL_SECONDS`: with symbols subscribed and nothing at all from
 /// Nuvama for this long, reconnect.
 pub const STALL: Duration = Duration::from_secs(180);
-const IST_OFFSET_MS: i64 = 19_800_000;
 
 /// Where a feed's relay side is: its own relay, started on first use, or a
 /// socket that plays the relay (the feed corpus's fake broker sends the
@@ -130,7 +129,7 @@ pub fn trade_time_ms(s: &str) -> Option<i64> {
     ["%d %b %Y, %I:%M:%S %p", "%d/%m/%Y %H:%M:%S"]
         .iter()
         .find_map(|f| NaiveDateTime::parse_from_str(s, f).ok())
-        .map(|t| t.and_utc().timestamp_millis() - IST_OFFSET_MS)
+        .map(|t| t.and_utc().timestamp_millis() - crate::clock::IST_OFFSET_SECS * 1000)
 }
 
 /// One `quote` packet as a tick at `sub`'s mode (web `_normalize`). A
@@ -267,7 +266,7 @@ pub struct NuvamaFeed {
 }
 
 impl NuvamaFeed {
-    pub fn new(urls: &NuvamaUrls, session: &NuvamaSession, _symbols: SymbolResolver) -> Self {
+    pub fn new(urls: &NuvamaUrls, session: &NuvamaSession) -> Self {
         Self {
             relay: RelaySide::of(urls),
             app_id: session.app_id_key.clone(),
@@ -280,7 +279,7 @@ impl NuvamaFeed {
 
     /// The feed with its relay side at `url` (the feed corpus).
     pub fn with_relay_url(url: &str, session: &NuvamaSession) -> Self {
-        let mut feed = Self::new(&NuvamaUrls::default(), session, SymbolResolver::new());
+        let mut feed = Self::new(&NuvamaUrls::default(), session);
         feed.relay = RelaySide::At(url.to_string());
         feed
     }

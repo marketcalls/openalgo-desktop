@@ -21,7 +21,7 @@ use super::mapping::{oa_index_exchange, oa_index_symbol};
 use super::NuvamaBroker;
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
-    format_expiry, format_strike, split_csv_line, CsvHeader,
+    format_expiry, future_symbol, option_symbol, split_csv_line, CsvHeader,
 };
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::families::noren::zip;
@@ -133,7 +133,6 @@ fn row(f: &[String], c: &Columns) -> Option<SymToken> {
         },
         _ => {
             let expiry = format_expiry(parse_expiry(get(c.expiry))?);
-            let code = expiry.replace('-', "");
             let under = underlying(get(c.symbol_name));
             let opt = get(c.option_type).to_ascii_uppercase();
             let is_opt = matches!(opt.as_str(), "CE" | "PE");
@@ -143,9 +142,9 @@ fn row(f: &[String], c: &Columns) -> Option<SymToken> {
                 0.0
             };
             let symbol = if is_opt {
-                format!("{}{}{}{}", under, code, format_strike(strike), opt)
+                option_symbol(&under, &expiry, strike, &opt)
             } else {
-                format!("{}{}FUT", under, code)
+                future_symbol(&under, &expiry)
             };
             SymToken {
                 symbol,

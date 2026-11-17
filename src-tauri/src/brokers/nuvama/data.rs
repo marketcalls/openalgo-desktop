@@ -23,7 +23,6 @@ use reqwest::Method;
 use serde_json::{json, Value};
 use std::time::Duration;
 
-const IST_OFFSET_SECONDS: i64 = 19_800;
 /// web: `range(200)` pages at most.
 const MAX_PAGES: usize = 200;
 /// web: `timeout=30.0` on the chart route.
@@ -257,7 +256,7 @@ pub(crate) fn bar_open(stamp: NaiveDateTime, minutes: Option<i64>) -> i64 {
             .map_or(naive, |d| d.and_utc().timestamp()),
         Some(m) => {
             let step = m * 60;
-            (naive - 1).div_euclid(step) * step - IST_OFFSET_SECONDS
+            (naive - 1).div_euclid(step) * step - crate::clock::IST_OFFSET_SECS
         }
     }
 }

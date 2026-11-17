@@ -15,7 +15,7 @@
 //! interval, 1m included. Days already on the grid with nothing before the
 //! open, and days the calendar does not cover, keep the broker's bars.
 
-use crate::brokers::common::history::{intraday_minutes, session_exchange, sort_dedupe};
+use crate::brokers::common::history::{intraday_minutes, ist_day, session_exchange, sort_dedupe};
 use crate::brokers::types::{Candle, HistoryRequest};
 use crate::db::sqlite::market_calendar as cal;
 use crate::error::{AppError, Result};
@@ -25,16 +25,11 @@ use chrono::{DateTime, NaiveDate, Timelike};
 use chrono_tz::Asia::Kolkata;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-/// The IST calendar day of an epoch-seconds stamp.
-fn ist_day(ts: i64) -> Option<NaiveDate> {
-    DateTime::from_timestamp(ts, 0).map(|t| t.with_timezone(&Kolkata).date_naive())
-}
-
 /// `day`'s IST midnight plus `open_minute`, epoch seconds.
 fn session_open_epoch(day: NaiveDate, open_minute: i64) -> i64 {
     day.and_hms_opt(0, 0, 0)
         .map_or(0, |d| d.and_utc().timestamp())
-        - 19_800
+        - crate::clock::IST_OFFSET_SECS
         + open_minute * 60
 }
 
