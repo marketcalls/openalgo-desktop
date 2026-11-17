@@ -7,10 +7,10 @@ folder, open the indicator picker, and it is there beside the built-in
 indicators. No build step, no Node.js, no restart of OpenAlgo.
 
 OpenAlgo Desktop uses the same charting library as OpenAlgo web
-(`openalgo-charts` 2.6.7, pinned in `package.json`) and the same loader
-(`src/lib/trading/customIndicators.ts`, the web's file unchanged), so an
-indicator written for the web works here, and the other way round. What
-differs is where the file goes; see
+(`openalgo-charts`, at the web's version, pinned in `package.json`) and
+the same loader (`src/lib/trading/customIndicators.ts`, the web's file
+unchanged), so an indicator written for the web works here, and the other
+way round. What differs is where the file goes; see
 [Differences from OpenAlgo web](#differences-from-openalgo-web).
 
 ## Only add indicators you have read
@@ -245,5 +245,5 @@ if you changed it).
 | Folder | `strategies/indicators/` in the install (kept out of git, a Docker volume) | `indicators/` in the data folder |
 | Served by | `blueprints/custom_indicators.py` | `src-tauri/src/server/routes/custom_indicators.rs`, signed-in session only |
 | Size limit | None | 4 MB per file; links not followed |
-| Library and loader | `openalgo-charts` 2.6.7, `customIndicators.ts` | The same version and the same file |
+| Library and loader | `openalgo-charts`, `customIndicators.ts` | The same version (pinned in `package.json`) and the same file |
 | Developer tools for debugging | The browser's | Off in the app window in release builds; use a browser on the same computer |

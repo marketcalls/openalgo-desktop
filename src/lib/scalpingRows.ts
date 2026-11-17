@@ -29,6 +29,12 @@ interface Agg {
 
 const keyOf = (s: string, e: string, p: string) => `${e}:${s}:${p}`
 
+/**
+ * Less than half a paisa is rounding residue of the sums, not money: shown with
+ * toFixed(2) it reads as "-0.00" in the loss colour. Desktop addition.
+ */
+const withoutSubPaisaResidue = (amount: number) => (Math.abs(amount) < 0.005 ? 0 : amount)
+
 // Order/position events that should refresh the books (event-driven, no polling).
 export const BOOK_EVENTS = [
   'order_event',
@@ -106,9 +112,6 @@ export function buildPositionRows(
     const netQty = rec.posQty ?? 0
     const ltp = liveLtp?.(rec.symbol, rec.exchange) ?? rec.ltp ?? 0
 
-    const realizedQty = Math.min(rec.buyQty, rec.sellQty)
-    const realizedPnl = realizedQty > 0 ? (sellAvg - buyAvg) * realizedQty : 0
-
     let side: 'BUY' | 'SELL' | '-' = '-'
     let avgPrice = 0
     let unrealizedPnl = 0
@@ -125,6 +128,26 @@ export function buildPositionRows(
       avgPrice = rec.posAvg && rec.posAvg > 0 ? rec.posAvg : sellAvg
       unrealizedPnl = (avgPrice - ltp) * Math.abs(netQty)
     }
+
+    // Realized P&L. When today's trades account for the whole open quantity (no lot
+    // carried in from an earlier day), the leg's total is exact: what was sold, less
+    // what was bought, plus the open quantity at the LTP. Realized is that total less
+    // the unrealized part, so the two always add up to the true MTM. Matching the
+    // day's average sell against the day's average buy instead re-prices an earlier
+    // partial exit whenever a buy follows it (#2434). A carried lot's cost is not in
+    // today's trades, so that case keeps the matched-quantity estimate.
+    // Desktop: the total less the unrealized part is written as open quantity at the
+    // average (net x LTP - unrealized = net x avg on both sides). The web's form keeps
+    // the LTP in, which cancels on paper but not in floating point, so a leg with no
+    // exit yet read as a red "-0.00" that came and went with every tick.
+    let realizedPnl: number
+    if (rec.buyQty - rec.sellQty === netQty && (rec.buyQty > 0 || rec.sellQty > 0)) {
+      realizedPnl = rec.sellValue - rec.buyValue + netQty * avgPrice
+    } else {
+      const realizedQty = Math.min(rec.buyQty, rec.sellQty)
+      realizedPnl = realizedQty > 0 ? (sellAvg - buyAvg) * realizedQty : 0
+    }
+    realizedPnl = withoutSubPaisaResidue(realizedPnl)
 
     const sl = findLegSL(slMap, rec.symbol, rec.exchange, rec.product as ScalpingProduct)
 
