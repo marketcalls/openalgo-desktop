@@ -1039,7 +1039,9 @@ Every flaky test found so far was a race, not a slow machine:
   the pool when several run at once: four Latency refreshes took all four
   `logs.db` connections, and the traffic, error and order log writers
   waited behind them (and failed after the pool's 10 s wait). Concurrent
-  identical reports share one computation (`latency_service::ReportFlight`).
+  identical reports share one computation (`services::report_flight`: the
+  Traffic page's `ReportFlight`, and the Latency page's `KeyedFlight`, one
+  computation per latency group).
 - Durability is chosen per store in `db::sqlite::Durability`:
   `openalgo.db`, which holds the order and obligation journal, runs at
   `synchronous=FULL`; `logs.db` and `sandbox.db` at `NORMAL`. The web runs

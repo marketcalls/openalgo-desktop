@@ -94,7 +94,7 @@ fn numpy_percentiles() {
     assert_eq!(percentile(&v, 100.0), 4.0);
 }
 
-/// Web test_data_calls_are_not_counted_as_orders: the report of #2421,
+/// Web test/test_latency_groups.py::test_data_calls_are_not_counted_as_orders: the report of #2421,
 /// history calls hid the order latency.
 #[test]
 fn data_calls_are_not_counted_as_orders() {
@@ -128,7 +128,7 @@ fn data_calls_are_not_counted_as_orders() {
     assert!(orders.get("broker_histograms").is_none());
 }
 
-/// Web test_an_install_with_no_orders_shows_none: what the page showed as
+/// Web test/test_latency_groups.py::test_an_install_with_no_orders_shows_none: what the page showed as
 /// "2,607 orders tracked".
 #[test]
 fn an_install_with_no_orders_shows_none() {
@@ -156,7 +156,7 @@ fn an_install_with_no_orders_shows_none() {
     assert_eq!(counts(&orders), want);
 }
 
-/// Web test_each_endpoint_of_a_group_is_reported_on_its_own: history is
+/// Web test/test_latency_groups.py::test_each_endpoint_of_a_group_is_reported_on_its_own: history is
 /// expected to be slow and is not averaged into the quotes.
 #[test]
 fn each_endpoint_of_a_group_is_reported_on_its_own() {
@@ -191,7 +191,7 @@ fn each_endpoint_of_a_group_is_reported_on_its_own() {
     assert!(close(&rows[1]["avg_total"], 1000.0) && close(&rows[1]["p50_total"], 1000.0));
 }
 
-/// Web test_an_average_across_endpoints_is_weighted_by_how_often_each_was_called.
+/// Web test/test_latency_groups.py::test_an_average_across_endpoints_is_weighted_by_how_often_each_was_called.
 #[test]
 fn an_average_across_endpoints_is_weighted_by_how_often_each_was_called() {
     let d = db();
@@ -201,7 +201,7 @@ fn an_average_across_endpoints_is_weighted_by_how_often_each_was_called() {
     assert!(close(&stats(&c, "orders")["avg_total"], 19.0));
 }
 
-/// Web test_the_broker_table_and_the_split_of_time_are_for_the_group.
+/// Web test/test_latency_groups.py::test_the_broker_table_and_the_split_of_time_are_for_the_group.
 #[test]
 fn the_broker_table_and_the_split_of_time_are_for_the_group() {
     let d = db();
@@ -232,7 +232,7 @@ fn the_broker_table_and_the_split_of_time_are_for_the_group() {
     assert!(close(&v["avg_rtt"], 170.0) && close(&v["avg_overhead"], 30.0));
 }
 
-/// Web test_the_speed_bands_count_every_record_of_the_group.
+/// Web test/test_latency_groups.py::test_the_speed_bands_count_every_record_of_the_group.
 #[test]
 fn the_speed_bands_count_every_record_of_the_group() {
     let d = db();
@@ -251,7 +251,7 @@ fn the_speed_bands_count_every_record_of_the_group() {
     );
 }
 
-/// Web test_rows_written_under_the_old_options_tags_are_options_orders, and
+/// Web test/test_latency_groups.py::test_rows_written_under_the_old_options_tags_are_options_orders, and
 /// the desktop's own old options tool tags.
 #[test]
 fn rows_written_under_old_tags_are_read_as_what_they_are() {
@@ -280,7 +280,7 @@ fn rows_written_under_old_tags_are_read_as_what_they_are() {
     assert_eq!(options["total_orders"], 3);
 }
 
-/// Web test_a_record_in_no_group_is_other_and_other_is_listed_only_when_there_is_one.
+/// Web test/test_latency_groups.py::test_a_record_in_no_group_is_other_and_other_is_listed_only_when_there_is_one.
 #[test]
 fn a_record_in_no_group_is_other_and_other_is_listed_only_when_there_is_one() {
     let d = db();
@@ -315,7 +315,7 @@ fn a_record_in_no_group_is_other_and_other_is_listed_only_when_there_is_one() {
     assert_eq!(stats(&c, "all")["total_orders"], 4);
 }
 
-/// Web test_percentiles_cover_the_recent_window_and_counts_cover_everything.
+/// Web test/test_latency_groups.py::test_percentiles_cover_the_recent_window_and_counts_cover_everything.
 #[test]
 fn percentiles_cover_the_recent_window_and_counts_cover_everything() {
     let d = db();
@@ -334,7 +334,7 @@ fn percentiles_cover_the_recent_window_and_counts_cover_everything() {
     assert_eq!(v["percentile_window_days"], PERCENTILE_DAYS);
 }
 
-/// Web test_a_group_says_how_long_its_records_are_kept.
+/// Web test/test_latency_groups.py::test_a_group_says_how_long_its_records_are_kept.
 #[test]
 fn a_group_says_how_long_its_records_are_kept() {
     let d = db();
@@ -347,7 +347,7 @@ fn a_group_says_how_long_its_records_are_kept() {
     assert_eq!(stats(&c, "all")["retention_days"], groups::RETENTION_DAYS);
 }
 
-/// Web test_the_recent_list_of_a_group_is_not_pushed_out_by_other_calls.
+/// Web test/test_latency_groups.py::test_the_recent_list_of_a_group_is_not_pushed_out_by_other_calls.
 #[test]
 fn the_recent_list_of_a_group_is_not_pushed_out_by_other_calls() {
     let d = db();
@@ -372,7 +372,7 @@ fn the_recent_list_of_a_group_is_not_pushed_out_by_other_calls() {
     assert_eq!(tags("all", None).len(), 152);
 }
 
-/// Web test_old_data_records_go_and_every_kind_of_order_stays.
+/// Web test/test_latency_groups.py::test_old_data_records_go_and_every_kind_of_order_stays.
 #[test]
 fn old_data_records_go_and_every_kind_of_order_stays() {
     let d = db();
@@ -465,4 +465,108 @@ fn an_empty_log_reports_zeros_with_every_key() {
         assert!(v.get(key).is_some(), "{key}");
     }
     assert_eq!(v["label"], "Orders");
+}
+
+/// numpy `histogram(values, bins=30, range=(min, max))`, worked from the
+/// values in memory: what the SQL buckets must give.
+fn numpy_histogram(values: &[f64]) -> (Vec<String>, Vec<i64>) {
+    let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let (lo, hi) = if max > min {
+        (min, max)
+    } else {
+        (min - 0.5, max + 0.5)
+    };
+    let width = (hi - lo) / 30.0;
+    let mut counts = vec![0i64; 30];
+    for v in values {
+        counts[(((v - lo) / width).floor() as usize).min(29)] += 1;
+    }
+    let bins = (0..30)
+        .map(|i| format!("{:.1}", lo + width * i as f64))
+        .collect();
+    (bins, counts)
+}
+
+/// A broker page's histogram (web `get_histogram_data(broker)`, kept by
+/// the DB-03 golden test until c46a4b19a): every record of the broker, in
+/// numpy's bins; a broker whose calls all took the same time gets numpy's
+/// range of one value widened by half each way; a broker with no record
+/// gets the empty shape; records without a broker are in no broker's row.
+#[test]
+fn a_broker_histogram_has_numpy_bins() {
+    let d = db();
+    let c = d.db.conn().unwrap();
+    let spread: Vec<f64> = (0..90).map(|i| ((i * 37) % 400) as f64 + 0.25).collect();
+    for rtt in &spread {
+        add(
+            &c,
+            Rec {
+                broker: "dhan",
+                rtt: Some(*rtt),
+                ..rec("PLACE", rtt + 10.0, 1)
+            },
+        );
+    }
+    add(
+        &c,
+        Rec {
+            broker: "fyers",
+            rtt: Some(50.0),
+            ..rec("PLACE", 60.0, 150)
+        },
+    );
+    c.execute(
+        "INSERT INTO order_latency (timestamp, order_id, broker, symbol, order_type, rtt_ms,
+             validation_latency_ms, response_latency_ms, overhead_ms, total_latency_ms, status)
+         VALUES (?1, '1', NULL, 'SBIN', 'PLACE', 70, 0, 0, 10, 80, 'SUCCESS')",
+        [store::ts(now())],
+    )
+    .unwrap();
+
+    let dhan = broker_histogram(&c, "dhan").unwrap();
+    let (bins, counts) = numpy_histogram(&spread);
+    assert_eq!(dhan["bins"], json!(bins));
+    assert_eq!(dhan["counts"], json!(counts));
+    assert_eq!(counts.iter().sum::<i64>(), 90);
+    let low = spread.iter().cloned().fold(f64::INFINITY, f64::min);
+    let high = spread.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    assert!(close(&dhan["min_rtt"], low) && close(&dhan["max_rtt"], high));
+    assert!(close(&dhan["avg_rtt"], spread.iter().sum::<f64>() / 90.0));
+
+    let fyers = broker_histogram(&c, "fyers").unwrap();
+    assert_eq!(fyers["counts"][15], 150);
+    assert_eq!(fyers["bins"][0], "49.5");
+    assert_eq!(fyers["counts"].as_array().unwrap().len(), 30);
+
+    assert_eq!(
+        broker_histogram(&c, "zerodha").unwrap(),
+        json!({"bins": [], "counts": [], "avg_rtt": 0, "min_rtt": 0, "max_rtt": 0})
+    );
+    let brokers = stats(&c, "orders")["broker_stats"].clone();
+    let mut names: Vec<&String> = brokers.as_object().unwrap().keys().collect();
+    names.sort();
+    assert_eq!(names, ["dhan", "fyers"]);
+    assert_eq!(stats(&c, "orders")["total_orders"], 241);
+}
+
+/// Web test/test_latency_groups.py::test_each_group_has_its_own_cached_figures:
+/// one shared entry answered every group with the first one asked for.
+/// The two requests overlap (both are polled before the first read ends),
+/// so a request for one group arriving while another's is computed gets
+/// its own figures.
+#[tokio::test]
+async fn each_group_has_its_own_shared_figures() {
+    let t = crate::state::testing::build(crate::brokers::BrokerRegistry::new(), now());
+    {
+        let c = t.ctx.logs.conn().unwrap();
+        add(&c, rec("PLACE", 60.0, 3));
+        add(&c, rec("HISTORY", 1200.0, 7));
+    }
+    let (orders, data) = tokio::join!(
+        super::stats(&t.ctx, "orders"),
+        super::stats(&t.ctx, "market_data")
+    );
+    assert_eq!(orders.unwrap()["total_orders"], 3);
+    assert_eq!(data.unwrap()["total_orders"], 7);
 }

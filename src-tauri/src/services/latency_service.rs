@@ -35,28 +35,44 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
 /// Histogram bins (web `get_histogram_data`).
 const BINS: usize = 30;
 
+/// A broker's figures in a group, with the histogram of every record of
+/// that broker (web `get_broker_stats`), read off the async workers;
+/// `None` when the broker has no record in the group (the web's 404).
+pub async fn broker_page(
+    ctx: &Arc<AppState>,
+    group: &'static str,
+    broker: String,
+) -> Result<Option<Map<String, Value>>> {
+    let figures = stats(ctx, group).await?;
+    let Some(Value::Object(mut row)) = figures["broker_stats"].get(&broker).cloned() else {
+        return Ok(None);
+    };
+    let histogram = ctx
+        .report(move |c| broker_histogram(&*c.logs.conn()?, &broker))
+        .await?;
+    row.insert("histogram".into(), histogram);
+    Ok(Some(row))
+}
+
 /// numpy `histogram(rtts, bins=30, range=(min, max))` of every record of
-/// one broker (web `get_histogram_data(broker)`), for its broker page.
-pub async fn broker_histogram(ctx: &Arc<AppState>, broker: String) -> Result<Value> {
-    ctx.report(move |c| {
-        let conn = c.logs.conn()?;
-        let (count, avg, min, max) = store::broker_rtt(&conn, &broker)?;
-        if count == 0 {
-            return Ok(json!({"bins": [], "counts": [], "avg_rtt": 0, "min_rtt": 0, "max_rtt": 0}));
-        }
-        let (lo, hi) = if max > min {
-            (min, max)
-        } else {
-            (min - 0.5, max + 0.5)
-        };
-        let width = (hi - lo) / BINS as f64;
-        let counts = store::rtt_buckets(&conn, &broker, lo, width, BINS)?;
-        let bins: Vec<String> = (0..BINS)
-            .map(|i| format!("{:.1}", lo + width * i as f64))
-            .collect();
-        Ok(json!({"bins": bins, "counts": counts, "avg_rtt": avg, "min_rtt": min, "max_rtt": max}))
-    })
-    .await
+/// one broker (web `get_histogram_data(broker)`): numpy widens a range of
+/// one value to (value - 0.5, value + 0.5).
+fn broker_histogram(conn: &rusqlite::Connection, broker: &str) -> Result<Value> {
+    let (count, avg, min, max) = store::broker_rtt(conn, broker)?;
+    if count == 0 {
+        return Ok(json!({"bins": [], "counts": [], "avg_rtt": 0, "min_rtt": 0, "max_rtt": 0}));
+    }
+    let (lo, hi) = if max > min {
+        (min, max)
+    } else {
+        (min - 0.5, max + 0.5)
+    };
+    let width = (hi - lo) / BINS as f64;
+    let counts = store::rtt_buckets(conn, broker, lo, width, BINS)?;
+    let bins: Vec<String> = (0..BINS)
+        .map(|i| format!("{:.1}", lo + width * i as f64))
+        .collect();
+    Ok(json!({"bins": bins, "counts": counts, "avg_rtt": avg, "min_rtt": min, "max_rtt": max}))
 }
 
 /// The newest `limit` calls of a group, newest first, read off the async

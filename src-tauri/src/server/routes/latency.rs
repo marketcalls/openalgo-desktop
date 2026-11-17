@@ -98,23 +98,9 @@ pub async fn broker_stats(State(ctx): Ctx, Path(broker): Path<String>, Query(q):
         Ok(g) => g,
         Err(r) => return *r,
     };
-    let figures = latency_service::stats(&ctx, group).await;
-    let mut row = match figures.map(|v| v["broker_stats"].get(&broker).cloned()) {
-        Ok(Some(Value::Object(m))) => m,
-        Ok(_) => return json_response(StatusCode::NOT_FOUND, json!({"error": "Broker not found"})),
-        Err(e) => {
-            return failed(
-                "Latency stats",
-                e,
-                "The latency figures could not be read. Try again.",
-            )
-        }
-    };
-    match latency_service::broker_histogram(&ctx, broker).await {
-        Ok(h) => {
-            row.insert("histogram".into(), h);
-            ok(Value::Object(row))
-        }
+    match latency_service::broker_page(&ctx, group, broker).await {
+        Ok(Some(row)) => ok(Value::Object(row)),
+        Ok(None) => json_response(StatusCode::NOT_FOUND, json!({"error": "Broker not found"})),
         Err(e) => failed(
             "Latency stats",
             e,

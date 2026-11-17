@@ -352,6 +352,10 @@ async fn api_calls_are_timed_for_the_latency_dashboard() {
     assert_eq!(v["api_abuse_ips"][0]["ip_address"], "127.0.0.1");
 }
 
+fn close_to(v: &serde_json::Value, want: f64) -> bool {
+    v.as_f64().is_some_and(|got| (got - want).abs() < 1e-9)
+}
+
 /// `n` latency records under `tag`, straight into the log.
 fn seed_calls(h: &H, tag: &str, total: f64, n: usize) {
     let conn = h.ctx.logs.conn().unwrap();
@@ -398,6 +402,34 @@ async fn the_latency_routes_answer_one_group_at_a_time() {
         (&json!("market_data"), &json!(9))
     );
     assert_eq!(default["groups"][0]["key"], "orders");
+
+    // A broker's page: its figures in the group asked for, and the
+    // histogram of every record of that broker.
+    let broker_page = |query: &'static str| {
+        let (h, c) = (&h, &c);
+        async move {
+            h.json(with(
+                get(&format!("/latency/api/broker/zerodha/stats{query}")),
+                c,
+                None,
+            ))
+            .await
+        }
+    };
+    let (s, page) = broker_page("").await;
+    assert_eq!((s, &page["total_orders"]), (StatusCode::OK, &json!(3)));
+    let counts = page["histogram"]["counts"].as_array().unwrap();
+    assert_eq!(counts.len(), 30);
+    let every: i64 = counts.iter().map(|n| n.as_i64().unwrap()).sum();
+    assert_eq!(every, 12);
+    let (s, page) = broker_page("?group=market_data").await;
+    assert_eq!((s, &page["total_orders"]), (StatusCode::OK, &json!(9)));
+    assert!(close_to(&page["avg_total"], 1200.0), "{page}");
+    let (s, page) = broker_page("?group=tools").await;
+    assert_eq!(
+        (s, page),
+        (StatusCode::NOT_FOUND, json!({"error": "Broker not found"}))
+    );
 
     for path in ["/latency/api/stats", "/latency/api/logs", "/latency/export"] {
         let (s, v) = h
