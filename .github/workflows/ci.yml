@@ -90,8 +90,14 @@ jobs:
     needs: rust-lint
     runs-on: ${{ matrix.os }}
     # Cold DuckDB (bundled C++) + SQLite builds take 20-40 minutes, longest on
-    # Windows; warm-cache runs are a few minutes.
-    timeout-minutes: 120
+    # Windows. Windows runs the whole job (tests, doc tests, KEY-01 profile,
+    # leak test, cache save) in 85-102 minutes with a cache; without one
+    # (any Cargo.lock change, the 1.0.9 bump included) it took 121 minutes
+    # with every test passed (run 44056867081: nextest 56 min, doc tests 10,
+    # KEY-01 13) and was cancelled while saving the cache. Two Dependabot runs
+    # of 2026-11-15 were cancelled the same way. 180 leaves room for a cold
+    # build; a hung test still stops at nextest's own per-test limit.
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
