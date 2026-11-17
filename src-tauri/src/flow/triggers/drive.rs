@@ -17,6 +17,7 @@ use crate::flow::contract::node::RunTrigger;
 use crate::flow::contract::pyfmt;
 use crate::flow::nodes::timing::{is_within_market_hours, market_hours_config, MarketHours};
 use crate::state::AppState;
+use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 use std::sync::{Arc, Weak};
 
@@ -28,7 +29,13 @@ impl TriggerSide {
         while self.app().is_some() {
             let now = self.now();
             for due in self.scheduler.tick(now) {
-                self.persist_next(&due).await;
+                // The save and the run each on a task of its own: the
+                // driver never waits on the database to dispatch, so one
+                // locked save cannot hold back every other schedule
+                // (web ceb116807, issues #2355 and #2326).
+                let me = self.clone();
+                let (id, next) = (due.workflow_id, due.next);
+                self.spawn(async move { me.persist_next(id, next).await });
                 let me = self.clone();
                 self.spawn(async move { me.run_scheduled(due).await });
             }
@@ -41,17 +48,48 @@ impl TriggerSide {
         }
     }
 
-    /// Keep the recorded next run in step with the job.
-    async fn persist_next(&self, due: &Due) {
-        let Some(app) = self.app() else {
-            return;
-        };
-        let (id, next) = (due.workflow_id, due.next);
-        let saved = app
-            .blocking(move |c| store::set_next_run(&*c.sqlite.conn()?, id, next))
-            .await;
-        if let Err(e) = saved {
-            tracing::error!("Could not record the next run of workflow {}: {}", id, e);
+    /// Keep the recorded next run in step with the job, which a restart
+    /// reads (`restore`). The job in memory is what fires, so a save the
+    /// database refuses changes nothing now; it is tried again, with a
+    /// capped backoff, until it is written or a later fire has a save of
+    /// its own. Left unsaved, a restart would find the fire just made
+    /// still due and run it twice (the web's `LockTolerantJobStore` keeps
+    /// such a save in memory for the same reason).
+    async fn persist_next(&self, id: i64, next: Option<DateTime<Utc>>) {
+        let mut wait = std::time::Duration::from_secs(1);
+        let mut refused = false;
+        loop {
+            let Some(app) = self.app() else {
+                return;
+            };
+            let saved = app
+                .blocking(move |c| store::set_next_run(&*c.sqlite.conn()?, id, next))
+                .await;
+            drop(app);
+            match saved {
+                Ok(()) if refused => {
+                    tracing::info!("Recorded the next run of workflow {} after a retry", id);
+                    return;
+                }
+                Ok(()) => return,
+                Err(e) if !refused => {
+                    refused = true;
+                    tracing::error!(
+                        "Could not record the next run of workflow {}: {}; trying again",
+                        id,
+                        e
+                    );
+                }
+                Err(_) => {}
+            }
+            tokio::select! {
+                _ = tokio::time::sleep(wait) => {}
+                _ = self.stop.cancelled() => return,
+            }
+            wait = (wait * 2).min(std::time::Duration::from_secs(30));
+            if self.scheduler.next_of(id) != next {
+                return;
+            }
         }
     }
 
