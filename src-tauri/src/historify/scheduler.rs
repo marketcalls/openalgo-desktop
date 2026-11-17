@@ -10,7 +10,11 @@
 //!
 //! [`Scheduler::tick`] does the work for a given instant, so tests drive it
 //! with an injected clock; the driver task only sleeps until the next due
-//! time and calls it.
+//! time and calls it. A tick never waits on the database: each due run is
+//! a task of its own, and the next run is saved by the scheduler's saver
+//! (`services::next_run_saves`, web ceb116807), which keeps a save the
+//! store refused and writes it later, so a restart does not run a fire
+//! already made a second time.
 
 use super::db::{self, ExecutionUpdate, NewSchedule, ScheduleUpdate};
 use super::jobs::{CreateJob, Finished, JobEngine, JobHook};
@@ -18,6 +22,7 @@ use super::source::Notifier;
 use super::time::{from_ist, iso_ist, ist_naive};
 use crate::clock::Clock;
 use crate::db::duckdb::HistorifyDb;
+use crate::services::next_run_saves::{NextRun, NextRunSaves, Saved};
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use chrono_tz::Asia::Kolkata;
@@ -26,7 +31,7 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::Notify;
-use tokio::task::JoinHandle;
+use tokio::task::{JoinHandle, JoinSet};
 use tokio_util::sync::CancellationToken;
 
 /// APScheduler `misfire_grace_time`.
@@ -138,6 +143,10 @@ struct Inner {
     wake: Notify,
     stop: CancellationToken,
     driver: Mutex<Option<JoinHandle<()>>>,
+    /// The runs a tick dispatched and the saver of the next runs.
+    tasks: Mutex<JoinSet<()>>,
+    /// Next runs the store has not taken yet.
+    saves: NextRunSaves<String>,
 }
 
 #[derive(Clone)]
@@ -176,6 +185,8 @@ impl Scheduler {
                 wake: Notify::new(),
                 stop: CancellationToken::new(),
                 driver: Mutex::new(None),
+                tasks: Mutex::new(JoinSet::new()),
+                saves: NextRunSaves::new("Historify schedule", "in the last five minutes"),
             }),
         };
         // The engine holds a weak reference to the same allocation as
@@ -272,12 +283,35 @@ impl Scheduler {
     }
 
     pub async fn shutdown(&self) {
+        let first = !self.inner.stop.is_cancelled();
         self.inner.stop.cancel();
         let h = self.inner.driver.lock().take();
         if let Some(h) = h {
             h.abort();
             let _ = h.await;
         }
+        if first {
+            self.inner
+                .saves
+                .finish(|id, next| self.write_next_run(id, next))
+                .await;
+        }
+        let mut tasks = std::mem::take(&mut *self.inner.tasks.lock());
+        tasks.abort_all();
+        while tasks.join_next().await.is_some() {}
+    }
+
+    /// Run `fut` as a task the scheduler owns (aborted at shutdown).
+    fn spawn<F>(&self, fut: F)
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        if self.inner.stop.is_cancelled() {
+            return;
+        }
+        let mut tasks = self.inner.tasks.lock();
+        while tasks.try_join_next().is_some() {}
+        tasks.spawn(fut);
     }
 
     pub fn driver_running(&self) -> bool {
@@ -288,7 +322,8 @@ impl Scheduler {
             .is_some_and(|h| !h.is_finished())
     }
 
-    /// Fire every due schedule at `now`; skip the ones late beyond grace.
+    /// Fire every due schedule at `now`, each run a task of its own; skip
+    /// the ones late beyond grace.
     pub async fn tick(&self, now: DateTime<Utc>) -> TickReport {
         let mut report = TickReport::default();
         let due: Vec<(String, DateTime<Utc>, Trigger)> = self
@@ -306,7 +341,7 @@ impl Scheduler {
             if let Some(e) = self.inner.entries.lock().get_mut(&id) {
                 e.next = Some(next);
             }
-            self.persist_next(&id, Some(next));
+            self.save_next(&id, Some(next));
             let late = (now - scheduled).num_seconds();
             if late > MISFIRE_GRACE_SECS {
                 tracing::warn!(
@@ -319,33 +354,58 @@ impl Scheduler {
                 report.missed.push(id);
                 continue;
             }
-            self.execute(&id).await;
+            let (me, run) = (self.clone(), id.clone());
+            self.spawn(async move { me.execute(&run).await });
             report.fired.push(id);
         }
         report
     }
 
-    fn persist_next(&self, id: &str, next: Option<DateTime<Utc>>) {
-        let id = id.to_string();
-        let r = self.inner.db.mutate(|c| match next {
-            Some(t) => db::update_schedule(
-                c,
-                &id,
-                &ScheduleUpdate {
-                    next_run_at: Some(ist_naive(t)),
-                    ..Default::default()
-                },
-            )
-            .map(|_| ()),
-            None => db::clear_next_run(c, &id),
-        });
-        if let Err(e) = r {
-            tracing::error!("Could not record the next run of schedule {}: {}", id, e);
+    /// Hold `next` for the saver, starting it when none runs.
+    fn save_next(&self, id: &str, next: NextRun) {
+        if self.inner.saves.hold(id.to_string(), next) {
+            let me = self.clone();
+            self.spawn(async move {
+                me.inner
+                    .saves
+                    .save(&me.inner.stop, |id, next| me.write_next_run(id, next))
+                    .await
+            });
         }
     }
 
+    /// Write one held next run, under the store's write lock and only while
+    /// the schedule still has it, so a save that waited never puts back a
+    /// fire already made, a changed schedule or a paused or deleted one.
+    async fn write_next_run(&self, id: String, next: NextRun) -> crate::error::Result<Saved> {
+        let inner = self.inner.clone();
+        self.inner
+            .db
+            .write(move |c| {
+                if inner.entries.lock().get(&id).and_then(|e| e.next) != next {
+                    return Ok(Saved::Superseded);
+                }
+                match next {
+                    Some(t) => db::update_schedule(
+                        c,
+                        &id,
+                        &ScheduleUpdate {
+                            next_run_at: Some(ist_naive(t)),
+                            ..Default::default()
+                        },
+                    )
+                    .map(|_| ())?,
+                    None => db::clear_next_run(c, &id)?,
+                }
+                Ok(Saved::Written)
+            })
+            .await
+    }
+
     /// (Re)add a schedule's entry from its row (web `_add_schedule_job`).
-    fn add_entry(&self, row: &Value) -> bool {
+    /// The row is written off the async workers; its next run only while
+    /// the entry still has it, and held for the saver if the write fails.
+    async fn add_entry(&self, row: &Value) -> bool {
         let Some(id) = row["id"].as_str() else {
             return false;
         };
@@ -362,21 +422,28 @@ impl Scheduler {
                 next: Some(next),
             },
         );
-        let id_s = id.to_string();
+        let (id_s, inner) = (id.to_string(), self.inner.clone());
         let job_id = format!("historify_schedule_{}", id);
-        if let Err(e) = self.inner.db.mutate(|c| {
-            db::update_schedule(
-                c,
-                &id_s,
-                &ScheduleUpdate {
-                    next_run_at: Some(ist_naive(next)),
-                    apscheduler_job_id: Some(job_id),
-                    ..Default::default()
-                },
-            )
-            .map(|_| ())
-        }) {
+        let written = self
+            .inner
+            .db
+            .write(move |c| {
+                let current = inner.entries.lock().get(&id_s).and_then(|e| e.next) == Some(next);
+                db::update_schedule(
+                    c,
+                    &id_s,
+                    &ScheduleUpdate {
+                        next_run_at: current.then(|| ist_naive(next)),
+                        apscheduler_job_id: Some(job_id),
+                        ..Default::default()
+                    },
+                )
+                .map(|_| ())
+            })
+            .await;
+        if let Err(e) = written {
             tracing::error!("Could not record the schedule's next run: {}", e);
+            self.save_next(id, Some(next));
         }
         self.inner.wake.notify_one();
         true
@@ -479,7 +546,7 @@ impl Scheduler {
         let Some(row) = self.get(id).await else {
             return Err("Failed to retrieve created schedule".into());
         };
-        if !self.add_entry(&row) {
+        if !self.add_entry(&row).await {
             return Err("Failed to add schedule to scheduler".into());
         }
         self.emit("historify_schedule_created", id);
@@ -495,7 +562,7 @@ impl Scheduler {
         };
         let active = row["is_enabled"].as_bool().unwrap_or(false)
             && !row["is_paused"].as_bool().unwrap_or(false);
-        if trigger_changed && active && !self.add_entry(&row) {
+        if trigger_changed && active && !self.add_entry(&row).await {
             return Err("Failed to update scheduler job".into());
         }
         self.emit("historify_schedule_updated", id);
@@ -530,7 +597,7 @@ impl Scheduler {
         .await?;
         if let Some(row) = self.get(id).await {
             if !row["is_paused"].as_bool().unwrap_or(false) {
-                self.add_entry(&row);
+                self.add_entry(&row).await;
             }
         }
         self.emit("historify_schedule_updated", id);
@@ -582,12 +649,12 @@ impl Scheduler {
         };
         match resumed {
             Some(n) => {
-                self.persist_next(id, Some(n));
+                self.save_next(id, Some(n));
                 self.inner.wake.notify_one();
             }
             None => {
                 if let Some(row) = self.get(id).await {
-                    self.add_entry(&row);
+                    self.add_entry(&row).await;
                 }
             }
         }

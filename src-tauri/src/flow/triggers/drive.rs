@@ -10,14 +10,15 @@ use super::price_monitor::{Alert, Observed};
 use super::runs::Fired;
 use super::scheduler::Due;
 use super::{store, TriggerSide};
+use crate::error::Result;
 use crate::events::{Event, Lane, OrderUpdate, Subscriber, Topic};
 use crate::flow::contract::client::app::AppFlowClient;
 use crate::flow::contract::client::FlowClient;
 use crate::flow::contract::node::RunTrigger;
 use crate::flow::contract::pyfmt;
 use crate::flow::nodes::timing::{is_within_market_hours, market_hours_config, MarketHours};
+use crate::services::next_run_saves::{NextRun, Saved};
 use crate::state::AppState;
-use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 use std::sync::{Arc, Weak};
 
@@ -29,13 +30,14 @@ impl TriggerSide {
         while self.app().is_some() {
             let now = self.now();
             for due in self.scheduler.tick(now) {
-                // The save and the run each on a task of its own: the
-                // driver never waits on the database to dispatch, so one
-                // locked save cannot hold back every other schedule
+                // The run and the save of the next run each on a task of
+                // their own: the driver never waits on the database to
+                // dispatch, so a locked database holds no schedule back
                 // (web ceb116807, issues #2355 and #2326).
-                let me = self.clone();
-                let (id, next) = (due.workflow_id, due.next);
-                self.spawn(async move { me.persist_next(id, next).await });
+                if self.next_runs.hold(due.workflow_id, due.next) {
+                    let me = self.clone();
+                    self.spawn(async move { me.save_next_runs().await });
+                }
                 let me = self.clone();
                 self.spawn(async move { me.run_scheduled(due).await });
             }
@@ -49,48 +51,35 @@ impl TriggerSide {
     }
 
     /// Keep the recorded next run in step with the job, which a restart
-    /// reads (`restore`). The job in memory is what fires, so a save the
-    /// database refuses changes nothing now; it is tried again, with a
-    /// capped backoff, until it is written or a later fire has a save of
-    /// its own. Left unsaved, a restart would find the fire just made
-    /// still due and run it twice (the web's `LockTolerantJobStore` keeps
-    /// such a save in memory for the same reason).
-    async fn persist_next(&self, id: i64, next: Option<DateTime<Utc>>) {
-        let mut wait = std::time::Duration::from_secs(1);
-        let mut refused = false;
-        loop {
-            let Some(app) = self.app() else {
-                return;
-            };
-            let saved = app
-                .blocking(move |c| store::set_next_run(&*c.sqlite.conn()?, id, next))
-                .await;
-            drop(app);
-            match saved {
-                Ok(()) if refused => {
-                    tracing::info!("Recorded the next run of workflow {} after a retry", id);
-                    return;
-                }
-                Ok(()) => return,
-                Err(e) if !refused => {
-                    refused = true;
-                    tracing::error!(
-                        "Could not record the next run of workflow {}: {}; trying again",
-                        id,
-                        e
-                    );
-                }
-                Err(_) => {}
+    /// reads (`restore`): the saver of the held next runs
+    /// (`services::next_run_saves`), one write at a time, retried while
+    /// the database refuses.
+    async fn save_next_runs(&self) {
+        self.next_runs
+            .save(&self.stop, |id, next| self.write_next_run(id, next))
+            .await;
+    }
+
+    /// Write one held next run, under the write lock (`BEGIN IMMEDIATE`)
+    /// and only while the job still has it, so a save that waited for the
+    /// lock never puts back a fire already made, a changed schedule or a
+    /// removed one.
+    pub(super) async fn write_next_run(&self, id: i64, next: NextRun) -> Result<Saved> {
+        let Some(app) = self.app() else {
+            return Ok(Saved::Superseded);
+        };
+        let jobs = self.scheduler.clone();
+        app.blocking(move |c| {
+            let conn = c.sqlite.conn()?;
+            let tx = crate::db::sqlite::write_transaction(&conn)?;
+            if jobs.next_of(id) != next {
+                return Ok(Saved::Superseded);
             }
-            tokio::select! {
-                _ = tokio::time::sleep(wait) => {}
-                _ = self.stop.cancelled() => return,
-            }
-            wait = (wait * 2).min(std::time::Duration::from_secs(30));
-            if self.scheduler.next_of(id) != next {
-                return;
-            }
-        }
+            store::set_next_run(&tx, id, next)?;
+            tx.commit()?;
+            Ok(Saved::Written)
+        })
+        .await
     }
 
     /// One scheduled fire (`execute_workflow_scheduled`): the workflow must
