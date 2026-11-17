@@ -599,6 +599,19 @@ const NUBRA: &[WebName] = &[
     nt("ask", S::Extra(E::AskPrice), Q, Q),
 ];
 
+/// nuvama_adapter.py `_normalize`: `last_price` beside `ltp`, and, when the
+/// packet carries a previous close, `close`, `prev_close` and the change
+/// from the LTP dict up; the circuits in the Depth dict.
+const NUVAMA: &[WebName] = &[
+    LTPC_PRICE_KEYS[1],
+    LTPC_PRICE_KEYS[2],
+    LTPC_PRICE_KEYS[3],
+    LTPC_PRICE_KEYS[4],
+    LTPC_PRICE_KEYS[5],
+    CIRCUITS_IN_DEPTH[0],
+    CIRCUITS_IN_DEPTH[1],
+];
+
 const PAYTM: &[WebName] = &[
     n("close", S::Close, L),
     n("change_absolute", S::Change, L),
@@ -843,6 +856,13 @@ fn numbered_modes(broker: &str) -> Dialect {
             .index_key(Key::AveragePrice, Modes::QUOTE_UP)
             .index_key(Key::TotalBuyQuantity, Modes::QUOTE_UP)
             .index_key(Key::TotalSellQuantity, Modes::QUOTE_UP),
+        // nuvama_adapter.py `_on_packet`: a dict per held mode from the quote
+        // stream; a Depth dict only once the depth stream has sent a book;
+        // `oi` and `open_interest` from Quote up, no change on an index.
+        "nuvama" => d(Number, NUVAMA)
+            .open_interest()
+            .no_index_change()
+            .depth_needs_book(),
         "paytm" => d(Number, PAYTM)
             .richer()
             .no_index_change()
@@ -894,6 +914,7 @@ pub(crate) const BROKERS: &[&str] = &[
     "motilal",
     "mstock",
     "nubra",
+    "nuvama",
     "paytm",
     "pocketful",
     "rmoney",

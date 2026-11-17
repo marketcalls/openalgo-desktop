@@ -1,0 +1,20 @@
+{
+  "action": "SELL",
+  "average_price": 0.0,
+  "broker": "nuvama",
+  "exchange": "NSE",
+  "filled_quantity": 0,
+  "mode": "live",
+  "order_status": "open",
+  "orderid": "NXAAE00001002",
+  "pending_quantity": 10,
+  "price": 1503.45,
+  "pricetype": "LIMIT",
+  "product": "MIS",
+  "quantity": 10,
+  "rejection_reason": "",
+  "symbol": "RELIANCE",
+  "trigger_price": 0.0,
+  "type": "order_update",
+  "user_id": "<USER_ID>"
+}

@@ -96,8 +96,10 @@ pub(crate) fn not_found(broker: &str, key: &InstrumentKey) -> String {
         "flattrade" | "shoonya" | "tradesmart" | "zebu" => format!("Symbol {s} not found"),
         // TOKEN_NOT_FOUND: arrow_adapter.py:134,
         // hdfcsecurities_adapter.py:194, hdfcsky_adapter.py:217,
-        // rupeezy_adapter.py:120.
-        "arrow" | "hdfcsecurities" | "hdfcsky" | "rupeezy" => format!("No token for {e}:{s}"),
+        // rupeezy_adapter.py:120, nuvama_adapter.py `subscribe`.
+        "arrow" | "hdfcsecurities" | "hdfcsky" | "rupeezy" | "nuvama" => {
+            format!("No token for {e}:{s}")
+        }
         // delta_adapter.py:203.
         "deltaexchange" => format!("{s} not found for exchange {e}"),
         // iiflcapital_adapter.py:249.
@@ -200,6 +202,7 @@ mod tests {
             ("tradesmart", "Symbol GOLDX not found"),
             ("hdfcsky", "No token for MCX:GOLDX"),
             ("rupeezy", "No token for MCX:GOLDX"),
+            ("nuvama", "No token for MCX:GOLDX"),
             ("deltaexchange", "GOLDX not found for exchange MCX"),
             ("iiflcapital", "Token / brexchange not found for MCX:GOLDX"),
             ("kotak", "Failed to subscribe to MCX:GOLDX"),

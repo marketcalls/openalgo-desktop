@@ -1,0 +1,30 @@
+{
+  "broker": "nuvama",
+  "data": {
+    "average_price": 118.4,
+    "change": 10.5,
+    "change_percent": 9.55,
+    "close": 110.0,
+    "exchange": "NFO",
+    "high": 125.0,
+    "last_price": 120.5,
+    "last_quantity": 75,
+    "low": 108.25,
+    "ltp": 120.5,
+    "ltt": 1794890730000,
+    "mode": 2,
+    "oi": 5400000,
+    "open": 112.0,
+    "open_interest": 5400000,
+    "prev_close": 110.0,
+    "symbol": "NIFTY25NOV2626000CE",
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 300000,
+    "total_sell_quantity": 280000,
+    "volume": 2500000
+  },
+  "exchange": "NFO",
+  "mode": 2,
+  "symbol": "NIFTY25NOV2626000CE",
+  "type": "market_data"
+}

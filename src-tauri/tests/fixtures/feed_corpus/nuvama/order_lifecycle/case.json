@@ -1,0 +1,34 @@
+{
+  "broker": "nuvama",
+  "summary": "The order stream subscribes once its socket is ready; an order's steps (pending, open, partly filled, complete), a trade packet (skipped), a cancel pending and cancelled order and a rejected one become order_update frames with OpenAlgo symbols and statuses.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-cancelled",
+    "order-rejected"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885_NSE",
+      "brsymbol": "INE002A01018",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "method": "web-script",
+    "sources": [
+      "broker/nuvama/streaming/nuvama_socket.py::NuvamaStreamClient._handle_line",
+      "broker/nuvama/streaming/nuvama_adapter.py::NuvamaWebSocketAdapter._on_packet",
+      "broker/nuvama/streaming/nuvama_adapter.py::NuvamaWebSocketAdapter._normalize",
+      "broker/nuvama/streaming/nuvama_adapter.py::NuvamaWebSocketAdapter._depth"
+    ],
+    "notes": [
+      "No live capture exists here: the lines are built from the field names the web adapter reads (nuvama_adapter.py `_normalize` and `_depth`, nuvama_order_adapter.py `normalize_order_update`) and the web commit's message; values are strings, as the web's `_f` reads them. The relay frames (ready text, requests as text frames) are the desktop's own (brokers/nuvama/tcp_relay.rs); the web glue hands the web the same line off its own socket."
+    ]
+  },
+  "deviations": []
+}

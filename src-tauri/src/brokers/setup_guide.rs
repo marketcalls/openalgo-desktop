@@ -449,6 +449,19 @@ fn guide_m_to_p(broker: &str) -> Option<SetupGuide> {
             banner: "Login with Nubra opens a short form in OpenAlgo and texts a one-time code to your registered mobile. Enter it, and OpenAlgo uses your saved MPIN to finish.",
             redirect_hint: "",
         },
+        "nuvama" => SetupGuide {
+            name: "Nuvama",
+            fields: const { &[
+                key("API Key", "The API key Nuvama issued for your API Connect app."),
+                secret("API Secret", "The API secret Nuvama issued with the key."),
+                client_id(
+                    "Account ID",
+                    "Your Nuvama account ID. Each login is checked against it.",
+                ),
+            ] },
+            banner: "Login with Nuvama takes you to Nuvama's login page. Enter your login ID, password and OTP there, and Nuvama sends you back to OpenAlgo, which checks it is the account ID you saved.",
+            redirect_hint: "Register this exact address as the redirect URL of your Nuvama API key.",
+        },
         "paytm" => SetupGuide {
             name: "Paytm Money",
             fields: const { &[
@@ -668,7 +681,7 @@ mod tests {
     /// fit how it signs in.
     #[test]
     fn every_broker_has_help_consistent_with_its_sign_in() {
-        assert_eq!(ALL_BROKERS.len(), 38);
+        assert_eq!(ALL_BROKERS.len(), 39);
         let mut names = std::collections::HashSet::new();
         for b in ALL_BROKERS {
             let g = guide(b);

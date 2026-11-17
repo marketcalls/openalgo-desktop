@@ -1,0 +1,20 @@
+{
+  "action": "BUY",
+  "average_price": 0.0,
+  "broker": "nuvama",
+  "exchange": "NSE",
+  "filled_quantity": 0,
+  "mode": "live",
+  "order_status": "rejected",
+  "orderid": "NXAAE00001003",
+  "pending_quantity": 0,
+  "price": 1503.45,
+  "pricetype": "MARKET",
+  "product": "CNC",
+  "quantity": 10,
+  "rejection_reason": "RMS: insufficient funds",
+  "symbol": "RELIANCE",
+  "trigger_price": 0.0,
+  "type": "order_update",
+  "user_id": "<USER_ID>"
+}

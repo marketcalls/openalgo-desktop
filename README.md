@@ -17,7 +17,7 @@
 OpenAlgo Desktop is a free, open source, single-user desktop version of
 [OpenAlgo web](https://github.com/marketcalls/openalgo). It runs on Windows,
 macOS and Linux (x64 or ARM64), with the same screens, the same API and the
-same market data feed as the web version, and connects to all **38 brokers**
+same market data feed as the web version, and connects to all **39 brokers**
 of OpenAlgo web, Delta Exchange for crypto among them. There is no server to
 set up, no Python to install and no `.env` file: every setting and credential
 is entered inside the app, and secrets are kept encrypted with a key locked by
@@ -63,7 +63,7 @@ Moving over from OpenAlgo web? See
 
 | Surface | Route | Who it's for |
 | --- | --- | --- |
-| **Unified Broker API** | `/api/v1/` | External platforms and your own code: TradingView, Amibroker, Chartink, GoCharting, Excel, the Python SDK and the other official SDKs, and AI clients over MCP. One contract across 38 brokers, answering exactly as OpenAlgo web does. |
+| **Unified Broker API** | `/api/v1/` | External platforms and your own code: TradingView, Amibroker, Chartink, GoCharting, Excel, the Python SDK and the other official SDKs, and AI clients over MCP. One contract across 39 brokers, answering exactly as OpenAlgo web does. |
 | **Strategy Module and RMS** | `/strategy` | Traders who run multi-leg options strategies, or trade TradingView and GoCharting alerts one signal at a time, with stop, target and trailing rules decided by one risk engine. |
 | **Charting Terminal and OpenScript** | `/trading` | Traders who trade from the chart: a full-screen terminal with an order dock, custom indicators, and OpenScript studies and strategies that are backtested and run live on the same engine. |
 | **Scalping Terminal** | `/scalping` | Fast intraday trades in options, futures and equity from the keyboard, with stop-loss, target and trailing protection that OpenAlgo watches for you. |
@@ -207,7 +207,7 @@ it again.
 
 ## Supported Brokers
 
-All 38 brokers of OpenAlgo web, including Rupeezy and Delta Exchange for crypto.
+All 39 brokers of OpenAlgo web, including Rupeezy and Delta Exchange for crypto.
 
 <details>
 <summary>View all supported brokers</summary>
@@ -237,6 +237,7 @@ All 38 brokers of OpenAlgo web, including Rupeezy and Delta Exchange for crypto.
 - Motilal Oswal
 - mStock by Mirae Asset
 - Nubra
+- Nuvama
 - Paytm Money
 - Pocketful
 - RMoney

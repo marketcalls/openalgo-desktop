@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
   "adapter": "flattrade",
   "inputs_sha256": "bf09c1cf86fd0078d30d3a79709d20891d326675654e2554ad1e46044838844e",
   "instruments": [

@@ -137,7 +137,7 @@ A live rejection pushed by the broker (illustrative values):
 
 - **The broker's own order stream** for Zerodha, Fyers, Upstox, Dhan, Kotak,
   Angel, AliceBlue, Arrow, Definedge, IIFL Capital, INDmoney, Motilal, Nubra,
-  Pocketful, Shoonya, Flattrade, Zebu and TradeSmart.
+  Nuvama, Pocketful, Shoonya, Flattrade, Zebu and TradeSmart.
 - **Polling the order book** for Groww, Samco and 5paisa, which have no push
   stream: changes are found by reading the order book every few seconds.
 - **The sandbox** in analyzer mode: placements, fills, rejections and

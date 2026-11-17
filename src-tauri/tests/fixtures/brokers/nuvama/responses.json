@@ -1,0 +1,84 @@
+{
+  "_note": "Shapes built from the web adapter's field names (openalgo ee123273b, broker/nuvama/**: api/auth_api.py, api/order_api.py, mapping/order_data.py, api/funds.py, api/data.py and the commit message); no live capture exists here. Account ids and tokens are placeholders.",
+  "login_vendor": {"msg": "SOURCETOKEN1", "success": true},
+  "login_data": {
+    "data": {
+      "auth": "AUTHVALUE1",
+      "lgnData": {"accTyp": "EQ", "accs": {"eqAccID": "<USER_ID>", "coAccID": ""}}
+    }
+  },
+  "login_expired": {"error": {"actCd": "54", "errCd": "EGN0002", "errMsg": "Request id expired"}},
+  "order_book": {
+    "appID": "x",
+    "config": {},
+    "msgID": "m1",
+    "srvTm": 1795410000000,
+    "data": {
+      "ord": [
+        {"ordID": "NXAAE00001001", "exOrdID": "1100000012345678", "sym": "2885_NSE", "trdSym": "INE002A01018", "exc": "NSE", "trsTyp": "B", "prdCode": "CNC", "ordTyp": "LIMIT", "prc": "1503.45", "trgPrc": "0.00", "ntQty": "10", "reqQty": "10", "fldQty": "10", "avgPrc": "1503.40", "sts": "Complete", "ordTim": "17-Nov-2026 10:15:30", "dur": "DAY"},
+        {"ordID": "NXAAE00001002", "sym": "42692_NFO", "trdSym": "NIFTY25NOV2626000CE", "exc": "NFO", "trsTyp": "S", "prdCode": "NRML", "ordTyp": "STOP_LIMIT", "prc": "120.00", "trgPrc": "121.50", "ntQty": "75", "reqQty": "75", "sts": "Trigger Pending", "ordTim": "17-Nov-2026 10:16:00", "dur": "DAY"},
+        {"ordID": "NXAAE00001003", "sym": "2031_NSE", "trdSym": "INE101A01026", "exc": "NSE", "trsTyp": "BUY", "prdCode": "MIS", "ordTyp": "MARKET", "prc": "0", "trgPrc": "0", "ntQty": "5", "sts": "Rejected", "rjRsn": "RMS: margin exceeds", "ordTim": "17-Nov-2026 10:17:00"},
+        {"ordID": "NXAAE00001004", "sym": "2885_NSE", "trdSym": "INE002A01018", "exc": "NSE", "trsTyp": "S", "prdCode": "I", "ordTyp": "LIMIT", "prc": "1510.00", "trgPrc": "0", "ntQty": "4", "sts": "cancel pending", "ordTim": "17-Nov-2026 10:18:00", "dur": "DAY"}
+      ]
+    }
+  },
+  "trade_book": {
+    "data": {
+      "trade": [
+        {"ordID": "NXAAE00001001", "flID": "T5001", "sym": "2885_NSE", "trdSym": "INE002A01018", "exc": "NSE", "trsTyp": "B", "prdCode": "CNC", "flQty": "10", "flPrc": "1503.40", "flDt": "17-Nov-2026", "flTim": "10:15:31"}
+      ]
+    }
+  },
+  "positions": {
+    "data": {
+      "pos": [
+        {"sym": "2885_NSE", "trdSym": "INE002A01018", "exc": "NSE", "prdCode": "MIS", "ntQty": "10", "avgByPrc": "1503.40", "avgSlPrc": "0", "ltp": "1510.25", "ntPL": "68.5", "rlzPL": "0", "urlzPL": "68.5"},
+        {"sym": "42692_NFO", "trdSym": "NIFTY25NOV2626000CE", "exc": "NFO", "prdCode": "NRML", "ntQty": "-75", "avgByPrc": "0", "avgSlPrc": "121.25", "ltp": "118.00", "rlzPL": "10", "urlzPL": "243.75"}
+      ]
+    }
+  },
+  "positions_empty": {"error": {"actCd": "54", "errCd": "ETRD0004", "errMsg": "Seems like there are no positions in your account currently"}},
+  "session_expired": {"error": {"actCd": "52", "errCd": "EGN0011", "errMsg": "Session Expired"}},
+  "holdings": {
+    "data": {
+      "rmsHdg": [
+        {"sym": "2885_NSE", "trdSym": "INE002A01018", "exc": "NSE", "isin": "INE002A01018", "totalQty": "12", "ltp": "1510.00", "totalVal": "18120.00"},
+        {"sym": "2031_NSE", "trdSym": "INE101A01026", "exc": "NSE", "totalQty": "0", "ltp": "3000"}
+      ]
+    }
+  },
+  "funds": {
+    "data": {
+      "cshAvl": "100000.456",
+      "mrgAvl": {"stkColVal": "2500.10", "mfOthColVal": "499.90"},
+      "mrgUtd": {"mrgUtd": "15000.5", "rlPnl": "-120.25", "unRlMtm": "68.5"}
+    }
+  },
+  "quote": {
+    "data": {
+      "qt": {"ltp": "1,503.45", "o": "1495.00", "h": "1510.00", "l": "1490.10", "c": "1498.75", "vol": "1234567", "opInt": "0", "ltTQty": "15", "bidPr": "1503.40", "askPr": "", "bdSz": "120", "akSz": "0"},
+      "mkd": {
+        "bid": [{"price": "1503.40", "qty": "120"}, {"price": "1503.35", "qty": "80"}],
+        "ask": [{"price": "1503.50", "qty": "60"}, {"price": "1503.55", "qty": "40"}, {"price": "1503.60", "qty": "10"}],
+        "buyQty": "0",
+        "sellQty": "9000"
+      }
+    }
+  },
+  "place_ok": {"data": {"oid": "NXAAE00002001", "msg": "Order placed"}},
+  "place_sliced": {"data": {"ord": [{"oid": "NXAAE00002002"}, {"oid": "NXAAE00002003"}]}},
+  "place_refused": {"error": {"actCd": "54", "errCd": "16315", "errMsg": "The limit price is worse than the trigger price"}},
+  "chart_intraday": {
+    "data": {
+      "pltPnts": {
+        "ltt": ["2026-11-16 09:30:00", "2026-11-16 09:45:00", "bad", "2026-11-17 09:30:00"],
+        "open": ["100.0", "101.0", "1", 102.5],
+        "high": ["101.5", "102.0", "1", "103.0"],
+        "low": ["99.5", "100.5", "1", "102.0"],
+        "close": ["101.0", "101.5", "1", "102.8"],
+        "vol": ["1000", "2000", "1", 3000]
+      }
+    }
+  },
+  "chart_empty": {"error": {"actCd": "54", "errCd": "EDATA0001", "errMsg": "No data"}}
+}

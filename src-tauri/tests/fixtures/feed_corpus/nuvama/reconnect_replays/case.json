@@ -1,0 +1,52 @@
+{
+  "broker": "nuvama",
+  "summary": "Nuvama drops the socket: the relay opens a new one and the feed sends the whole quote set again once it is ready; packets on the new socket stream as before.",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885_NSE",
+      "brsymbol": "INE002A01018",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "method": "web-script",
+    "sources": [
+      "broker/nuvama/streaming/nuvama_socket.py::NuvamaStreamClient._handle_line",
+      "broker/nuvama/streaming/nuvama_adapter.py::NuvamaWebSocketAdapter._on_packet",
+      "broker/nuvama/streaming/nuvama_adapter.py::NuvamaWebSocketAdapter._normalize",
+      "broker/nuvama/streaming/nuvama_adapter.py::NuvamaWebSocketAdapter._depth"
+    ],
+    "notes": [
+      "No live capture exists here: the lines are built from the field names the web adapter reads (nuvama_adapter.py `_normalize` and `_depth`, nuvama_order_adapter.py `normalize_order_update`) and the web commit's message; values are strings, as the web's `_f` reads them. The relay frames (ready text, requests as text frames) are the desktop's own (brokers/nuvama/tcp_relay.rs); the web glue hands the web the same line off its own socket."
+    ]
+  },
+  "deviations": [
+    {
+      "kind": "web-defect",
+      "approval": "leave-out-unsent",
+      "ref": "nuvama_adapter.py `_normalize`: `_i(q.get(\"oI\"))`",
+      "key": "oi",
+      "reason": "Nuvama's quote packet for an equity carries no open interest (no `oI`); the web's `_i(q.get(\"oI\"))` sends it as 0 under `oi` and `open_interest`. The docs leave out a field the stream does not carry.",
+      "allows": [
+        "zero-left-out"
+      ]
+    },
+    {
+      "kind": "web-defect",
+      "approval": "leave-out-unsent",
+      "ref": "nuvama_adapter.py `_normalize`: `_i(q.get(\"oI\"))`",
+      "key": "open_interest",
+      "reason": "Nuvama's quote packet for an equity carries no open interest (no `oI`); the web's `_i(q.get(\"oI\"))` sends it as 0 under `oi` and `open_interest`. The docs leave out a field the stream does not carry.",
+      "allows": [
+        "zero-left-out"
+      ]
+    }
+  ]
+}

@@ -22,7 +22,7 @@
     "{\"heart_beat\":true}"
   ],
   "provenance": {
-    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
     "method": "web-script",
     "sources": [
       "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._parse_packet",

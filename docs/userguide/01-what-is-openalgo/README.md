@@ -101,7 +101,7 @@ opens in a browser on the same computer at `http://127.0.0.1:5000`.
 
 ## Brokers and exchanges
 
-OpenAlgo Desktop supports all 38 brokers of OpenAlgo web, including Rupeezy
+OpenAlgo Desktop supports all 39 brokers of OpenAlgo web, including Rupeezy
 and Delta Exchange (crypto):
 
 | | | | |
@@ -112,10 +112,10 @@ and Delta Exchange (crypto):
 | Fyers | Groww | HDFC Securities | HDFC Sky |
 | Ibulls | IIFL | IIFL Capital | IndMoney |
 | JainamXts | Kotak Securities | Motilal Oswal | mStock by Mirae Asset |
-| Nubra | Paytm Money | Pocketful | RMoney |
-| Rupeezy | Sahi | Samco | Shoonya |
-| Tradejini | TradeSmart | Upstox | Wisdom Capital |
-| Zebu | Zerodha | | |
+| Nubra | Nuvama | Paytm Money | Pocketful |
+| RMoney | Rupeezy | Sahi | Samco |
+| Shoonya | Tradejini | TradeSmart | Upstox |
+| Wisdom Capital | Zebu | Zerodha | |
 
 Exchanges use OpenAlgo's codes: `NSE` and `BSE` (equity), `NFO` and `BFO`
 (F&O), `CDS` and `BCD` (currency), `MCX` and `NCDEX` (commodity), the index

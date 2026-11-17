@@ -1,0 +1,28 @@
+{
+  "broker": "nuvama",
+  "data": {
+    "average_price": 1501.2,
+    "change": 4.7,
+    "change_percent": 0.31,
+    "close": 1498.75,
+    "exchange": "NSE",
+    "high": 1510.0,
+    "last_price": 1503.45,
+    "last_quantity": 15,
+    "low": 1490.1,
+    "ltp": 1503.45,
+    "ltt": 1794890730000,
+    "mode": 2,
+    "open": 1495.0,
+    "prev_close": 1498.75,
+    "symbol": "RELIANCE",
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 50000,
+    "total_sell_quantity": 62000,
+    "volume": 1234567
+  },
+  "exchange": "NSE",
+  "mode": 2,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}

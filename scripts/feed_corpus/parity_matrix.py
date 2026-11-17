@@ -314,7 +314,7 @@ def web_problem(meta: dict | None) -> str | None:
 
 def capabilities(broker: str, meta: dict | None, offers: dict) -> dict | None:
     """The web's capabilities for a broker: its registries' depth levels and
-    order updates, with LTP and Quote from `broker.json` (true for all 38).
+    order updates, with LTP and Quote from `broker.json` (true for all 39).
     `None` where they are not recorded."""
     if web_problem(meta) is not None or broker not in offers:
         return None

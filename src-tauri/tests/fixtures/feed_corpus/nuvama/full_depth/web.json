@@ -1,0 +1,389 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "adapter": "nuvama",
+  "inputs_sha256": "bccbc6bca05e67eda713adb4a6020e9e8cd08cbf913c807da8e81dd2da71d9c1",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885_NSE",
+      "brsymbol": "INE002A01018",
+      "brexchange": "NSE"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Depth",
+              "depth": 5,
+              "broker": "nuvama"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "nuvama"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 12,
+      "frames": [
+        {
+          "type": "unsubscribe",
+          "status": "success",
+          "message": "Unsubscription processing complete",
+          "successful": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "mode": "Depth",
+              "status": "success",
+              "broker": "nuvama"
+            }
+          ],
+          "failed": [],
+          "broker": "nuvama"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 4,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "ltp": 1503.45,
+            "last_price": 1503.45,
+            "ltt": 1794890730000,
+            "timestamp": "<receipt_ms>",
+            "close": 1498.75,
+            "prev_close": 1498.75,
+            "change": 4.7,
+            "change_percent": 0.31,
+            "open": 1495.0,
+            "high": 1510.0,
+            "low": 1490.1,
+            "volume": 1234567,
+            "last_quantity": 15,
+            "average_price": 1501.2,
+            "total_buy_quantity": 50000,
+            "total_sell_quantity": 62000,
+            "oi": 0,
+            "open_interest": 0,
+            "upper_circuit": 1648.6,
+            "lower_circuit": 1348.9,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1503.4,
+                  "quantity": 120,
+                  "orders": 3
+                },
+                {
+                  "price": 1503.35,
+                  "quantity": 80,
+                  "orders": 2
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1503.5,
+                  "quantity": 60,
+                  "orders": 2
+                },
+                {
+                  "price": 1503.55,
+                  "quantity": 40,
+                  "orders": 1
+                },
+                {
+                  "price": 1503.6,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "broker": "nuvama",
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "ltp": 1504.1,
+            "last_price": 1504.1,
+            "ltt": 1794890731000,
+            "timestamp": "<receipt_ms>",
+            "close": 1498.75,
+            "prev_close": 1498.75,
+            "change": 5.35,
+            "change_percent": 0.36,
+            "open": 1495.0,
+            "high": 1510.0,
+            "low": 1490.1,
+            "volume": 1234600,
+            "last_quantity": 33,
+            "average_price": 1501.2,
+            "total_buy_quantity": 50000,
+            "total_sell_quantity": 62000,
+            "oi": 0,
+            "open_interest": 0,
+            "upper_circuit": 1648.6,
+            "lower_circuit": 1348.9,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1503.4,
+                  "quantity": 120,
+                  "orders": 3
+                },
+                {
+                  "price": 1503.35,
+                  "quantity": 80,
+                  "orders": 2
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1503.5,
+                  "quantity": 60,
+                  "orders": 2
+                },
+                {
+                  "price": 1503.55,
+                  "quantity": 40,
+                  "orders": 1
+                },
+                {
+                  "price": 1503.6,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "broker": "nuvama",
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "ltp": 1504.1,
+            "last_price": 1504.1,
+            "ltt": 1794890731000,
+            "timestamp": "<receipt_ms>",
+            "close": 1498.75,
+            "prev_close": 1498.75,
+            "change": 5.35,
+            "change_percent": 0.36,
+            "open": 1495.0,
+            "high": 1510.0,
+            "low": 1490.1,
+            "volume": 1234600,
+            "last_quantity": 33,
+            "average_price": 1501.2,
+            "total_buy_quantity": 50000,
+            "total_sell_quantity": 62000,
+            "oi": 0,
+            "open_interest": 0,
+            "upper_circuit": 1648.6,
+            "lower_circuit": 1348.9,
+            "depth": {
+              "buy": [
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "broker": "nuvama",
+          "serves": [
+            3
+          ]
+        }
+      ]
+    }
+  ]
+}

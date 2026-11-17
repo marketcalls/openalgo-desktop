@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
   "adapter": "fyers",
   "inputs_sha256": "89169777eff8cb9f3a953b7612c4e22f41550ac36a566687f90f6e3d7045c205",
   "instruments": [

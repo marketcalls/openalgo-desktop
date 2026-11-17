@@ -1,0 +1,61 @@
+{
+  "broker": "nuvama",
+  "data": {
+    "average_price": 1501.2,
+    "change": 5.35,
+    "change_percent": 0.36,
+    "close": 1498.75,
+    "depth": {
+      "buy": [
+        {
+          "orders": 3,
+          "price": 1503.4,
+          "quantity": 120
+        },
+        {
+          "orders": 2,
+          "price": 1503.35,
+          "quantity": 80
+        }
+      ],
+      "sell": [
+        {
+          "orders": 2,
+          "price": 1503.5,
+          "quantity": 60
+        },
+        {
+          "orders": 1,
+          "price": 1503.55,
+          "quantity": 40
+        },
+        {
+          "orders": 1,
+          "price": 1503.6,
+          "quantity": 10
+        }
+      ]
+    },
+    "exchange": "NSE",
+    "high": 1510.0,
+    "last_price": 1504.1,
+    "last_quantity": 33,
+    "low": 1490.1,
+    "lower_circuit": 1348.9,
+    "ltp": 1504.1,
+    "ltt": 1794890731000,
+    "mode": 3,
+    "open": 1495.0,
+    "prev_close": 1498.75,
+    "symbol": "RELIANCE",
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 50000,
+    "total_sell_quantity": 62000,
+    "upper_circuit": 1648.6,
+    "volume": 1234600
+  },
+  "exchange": "NSE",
+  "mode": 3,
+  "symbol": "RELIANCE",
+  "type": "market_data"
+}

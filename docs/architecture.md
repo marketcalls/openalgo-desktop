@@ -439,7 +439,7 @@ reference](mcp-tool-reference.md).
 
 | Module | What it is |
 | --- | --- |
-| `brokers/` | The `Broker` trait and the 38 adapters, by sign-in family; see [Broker integration](broker-integration-guide.md) |
+| `brokers/` | The `Broker` trait and the 39 adapters, by sign-in family; see [Broker integration](broker-integration-guide.md) |
 | `strategy/` | The strategy module and its RMS (webhooks, legs, runs, books) |
 | `risk/` | The pure stop, target, trailing and aggregate rules: no I/O, every input an argument; the web's `test/risk/vectors.json` is the contract |
 | `scalping/` | The scalping terminal's service and stop monitor; see [Scalping](scalping.md) |

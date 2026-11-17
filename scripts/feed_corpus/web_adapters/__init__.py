@@ -27,6 +27,7 @@ from web_adapters.kotak import Kotak
 from web_adapters.motilal import Motilal
 from web_adapters.mstock import Mstock
 from web_adapters.nubra import Nubra
+from web_adapters.nuvama import Nuvama
 from web_adapters.paytm import Paytm
 from web_adapters.pocketful import Pocketful
 from web_adapters.rmoney import Rmoney
@@ -41,4 +42,4 @@ from web_adapters.wisdom import Wisdom
 from web_adapters.zebu import Zebu
 from web_adapters.zerodha import Zerodha
 
-GLUES = {g.broker: g for g in (AliceBlue, Angel, Arrow, Compositedge, Definedge, DeltaExchange, Dhan, DhanSandbox, Firstock, Fivepaisa, Fivepaisaxts, Flattrade, Fyers, Groww, HdfcSecurities, HdfcSky, Ibulls, Iifl, IiflCapital, Indmoney, Jainamxts, Kotak, Motilal, Mstock, Nubra, Paytm, Pocketful, Rmoney, Rupeezy, Sahi, Samco, Shoonya, TradeSmart, Tradejini, Upstox, Wisdom, Zebu, Zerodha)}
+GLUES = {g.broker: g for g in (AliceBlue, Angel, Arrow, Compositedge, Definedge, DeltaExchange, Dhan, DhanSandbox, Firstock, Fivepaisa, Fivepaisaxts, Flattrade, Fyers, Groww, HdfcSecurities, HdfcSky, Ibulls, Iifl, IiflCapital, Indmoney, Jainamxts, Kotak, Motilal, Mstock, Nubra, Nuvama, Paytm, Pocketful, Rmoney, Rupeezy, Sahi, Samco, Shoonya, TradeSmart, Tradejini, Upstox, Wisdom, Zebu, Zerodha)}

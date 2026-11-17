@@ -181,6 +181,13 @@
       "orders": true,
       "source": "registry"
     },
+    "nuvama": {
+      "depth": [
+        5
+      ],
+      "orders": true,
+      "source": "registry"
+    },
     "paytm": {
       "depth": [
         5

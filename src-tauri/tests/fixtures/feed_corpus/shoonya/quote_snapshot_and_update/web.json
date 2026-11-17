@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
   "adapter": "shoonya",
   "inputs_sha256": "d5f6b5382bed77817e141030ec6cb1b26eea3a80b67a7d0b351ab34629464399",
   "instruments": [

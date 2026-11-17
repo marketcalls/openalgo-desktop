@@ -1961,6 +1961,7 @@ fn family_harness() -> (TestCtx, Vec<Arc<MockBroker>>) {
         "rmoney",
         "kotak",
         "aliceblue",
+        "nuvama",
         "jainamxts",
     ];
     let mocks: Vec<Arc<MockBroker>> = ids.iter().map(|i| Arc::new(MockBroker::new(i))).collect();
@@ -1984,10 +1985,10 @@ fn family_harness() -> (TestCtx, Vec<Arc<MockBroker>>) {
     {
         let conn = t.ctx.sqlite.conn().unwrap();
         for b in ids {
-            // AliceBlue's app code does not carry the account: the Profile
-            // client id names it.
+            // AliceBlue's app code and Nuvama's API key do not carry the
+            // account: the saved client id names it.
             let (api_key, client_id) = match b {
-                "aliceblue" => ("APPCODE", Some("U1".to_string())),
+                "aliceblue" | "nuvama" => ("APPCODE", Some("U1".to_string())),
                 _ => ("U1:::appkey", None),
             };
             crate::db::sqlite::credentials::save(
@@ -2231,6 +2232,11 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
             "aliceblue",
         ),
         ("AliceBlue pasted address, other account", "aliceblue"),
+        ("Nuvama callback, forged state", "nuvama"),
+        ("Nuvama callback, no session cookie", "nuvama"),
+        ("Nuvama callback, other browser session", "nuvama"),
+        ("Nuvama callback, no pending sign-in", "nuvama"),
+        ("Nuvama callback, other account", "nuvama"),
         // The web signs these in on a GET of the callback; here only the
         // broker page's CSRF-checked POST does.
         ("Saved-key sign-in, GET callback", "jainamxts"),
@@ -2297,6 +2303,7 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
             )
         };
         const ALICE: &str = "/aliceblue/callback?authCode=c&userId=U1";
+        const NUVAMA: &str = "/nuvama/callback?request_id=c";
         let alice_paste = || {
             post_json(
                 MANUAL,
@@ -2416,6 +2423,31 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
             "AliceBlue callback, other account" => {
                 start(sid.clone()).await;
                 with_session(get(ALICE), &cookie, None)
+            }
+            // Nuvama's login address takes no `state`: only the pending
+            // sign-in this browser session started, for the saved account.
+            "Nuvama callback, forged state" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get(&format!("{}&state=forged", NUVAMA)), &cookie, None)
+            }
+            "Nuvama callback, no session cookie" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                get(NUVAMA)
+            }
+            "Nuvama callback, other browser session" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get(NUVAMA), &other_cookie, None)
+            }
+            "Nuvama callback, no pending sign-in" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get(NUVAMA), &cookie, None)
+            }
+            "Nuvama callback, other account" => {
+                start(sid.clone()).await;
+                with_session(get(NUVAMA), &cookie, None)
             }
             "AliceBlue pasted address, sign-in started by another session" => {
                 start(other_sid.clone()).await;

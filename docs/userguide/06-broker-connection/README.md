@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenAlgo Desktop works with 38 brokers, including Rupeezy and Delta Exchange
+OpenAlgo Desktop works with 39 brokers, including Rupeezy and Delta Exchange
 (crypto). You enter each broker's keys inside the app, there is no `.env`
 file, and:
 
@@ -105,6 +105,7 @@ need your client ID:
 | Dhan, Flattrade | In the first key, as `client_id:::api_key` |
 | Shoonya, Zebu, TradeSmart | In the first key, as `userid:::client_id` |
 | Arrow, HDFC Sky, HDFC Securities, Rupeezy | The **Client ID** field |
+| Nuvama | The **Account ID** field |
 | Alice Blue | The **User ID** field |
 
 A login with a different account is refused: "This sign-in is for a different
@@ -120,7 +121,7 @@ What happens next depends on how your broker signs in:
 
 | Kind | Brokers | What you do |
 | --- | --- | --- |
-| On the broker's website | Zerodha, Fyers, Upstox, Dhan, Arrow, Paytm Money, Pocketful, HDFC Sky, HDFC Securities, IIFL Capital, Alice Blue, CompositEdge, RMoney, Flattrade, Shoonya, Zebu, TradeSmart, Rupeezy | Log in on the broker's page and approve access; the broker sends you back to OpenAlgo |
+| On the broker's website | Zerodha, Fyers, Upstox, Dhan, Arrow, Paytm Money, Pocketful, HDFC Sky, HDFC Securities, IIFL Capital, Alice Blue, CompositEdge, RMoney, Flattrade, Shoonya, Zebu, TradeSmart, Rupeezy, Nuvama | Log in on the broker's page and approve access; the broker sends you back to OpenAlgo |
 | A form in the app | Angel One, Kotak Securities, 5 Paisa, Firstock, Motilal Oswal, mStock, Tradejini, Nubra, IndMoney, Definedge, Groww; Samco on its own **Connect** page | Type the TOTP, PIN, OTP or password the card asks for. OpenAlgo uses them for that login only and does not save them |
 | One click from saved keys | 5 Paisa (XTS), JainamXts, Ibulls, IIFL, Wisdom Capital, Delta Exchange, Sahi, Dhan (Sandbox) | Nothing to type |
 

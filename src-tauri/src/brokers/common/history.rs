@@ -32,6 +32,20 @@ pub fn sort_dedupe(mut candles: Vec<Candle>) -> Vec<Candle> {
     candles
 }
 
+/// The bar length of an OpenAlgo intraday interval Nuvama's chart serves,
+/// in minutes (web nuvama `_INTRADAY_MINUTES`); `None` for any other.
+pub fn intraday_minutes(interval: &str) -> Option<i64> {
+    match interval {
+        "1m" => Some(1),
+        "3m" => Some(3),
+        "5m" => Some(5),
+        "15m" => Some(15),
+        "30m" => Some(30),
+        "1h" => Some(60),
+        _ => None,
+    }
+}
+
 /// The exchange whose session an exchange's bars follow: an index
 /// exchange shares its cash exchange's (web dhan `_SESSION_EXCHANGE`).
 pub fn session_exchange(exchange: &str) -> &str {
@@ -81,7 +95,7 @@ pub fn drop_bars_after_close(
 }
 
 /// The IST calendar day of an epoch-seconds timestamp.
-fn ist_day(ts: i64) -> Option<NaiveDate> {
+pub(crate) fn ist_day(ts: i64) -> Option<NaiveDate> {
     chrono::DateTime::from_timestamp(ts, 0)
         .map(|d| d.with_timezone(&chrono_tz::Asia::Kolkata).date_naive())
 }

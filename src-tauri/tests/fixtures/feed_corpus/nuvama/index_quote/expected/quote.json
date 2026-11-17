@@ -1,0 +1,23 @@
+{
+  "broker": "nuvama",
+  "data": {
+    "change": 65.25,
+    "change_percent": 0.25,
+    "close": 25950.1,
+    "exchange": "NSE_INDEX",
+    "high": 26040.2,
+    "last_price": 26015.35,
+    "low": 25930.55,
+    "ltp": 26015.35,
+    "ltt": 1794890730000,
+    "mode": 2,
+    "open": 25960.0,
+    "prev_close": 25950.1,
+    "symbol": "NIFTY",
+    "timestamp": "<receipt_ms>"
+  },
+  "exchange": "NSE_INDEX",
+  "mode": 2,
+  "symbol": "NIFTY",
+  "type": "market_data"
+}

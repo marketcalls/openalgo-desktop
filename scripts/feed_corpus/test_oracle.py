@@ -352,9 +352,9 @@ def probe_gate_catalog() -> list[str]:
     with tempfile.TemporaryDirectory() as tmp:
         temporary_corpus(Path(tmp), "zerodha", method="by-hand")
         short = with_corpus(Path(tmp), ["zerodha"]).get("catalog", [])
-        if not any("not 38" in item for item in short):
+        if not any("not 39" in item for item in short):
             problems.append(f"gate_catalog: a catalog of one broker passes: {short}")
-        beside = with_corpus(Path(tmp), [f"b{i}" for i in range(38)]).get("catalog", [])
+        beside = with_corpus(Path(tmp), [f"b{i}" for i in range(39)]).get("catalog", [])
         if not any(item.startswith("zerodha:") for item in beside):
             problems.append(f"gate_catalog: a folder of no catalog broker passes: {beside}")
     return problems

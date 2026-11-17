@@ -23,7 +23,7 @@ one installer.
 ### One API for every broker
 
 Your code calls OpenAlgo; OpenAlgo calls your broker. Order fields, symbols,
-status values and error messages are the same whichever of the 38 brokers is
+status values and error messages are the same whichever of the 39 brokers is
 logged in, so a script written for one broker runs against another.
 
 ```
@@ -124,7 +124,7 @@ server that runs around the clock, or a Raspberry Pi, use
 | Symbol and expiry mapping | One symbol format, master contracts downloaded for you |
 | A dashboard | The full OpenAlgo interface |
 | Order logs | Live Logs, Sandbox Logs, traffic and latency monitors |
-| Support for more than one broker | 38 brokers behind one API |
+| Support for more than one broker | 39 brokers behind one API |
 | Webhook receivers | TradingView, Chartink, GoCharting and strategy webhooks |
 | Alerts | Telegram and WhatsApp |
 | Risk rules | Stops, targets and trailing rules in the strategy module and scalping |

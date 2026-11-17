@@ -42,6 +42,8 @@
 //! * mstock: exchange time, circuits.
 //! * paytm: 52-week range, OI change.
 //! * pocketful: change and OI in compact (LTP) packets, best bid and ask.
+//! * nuvama: circuits in Depth, OI in Quote when the packet carries it
+//!   (done).
 //! * rupeezy, tradejini: circuits; Tradejini OI in Quote.
 //! * sahi: circuits, OI in Quote.
 //! * upstox: last quantity and close in LTPC packets (`carried`), the
