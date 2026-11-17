@@ -278,10 +278,19 @@ async fn api_calls_are_timed_for_the_latency_dashboard() {
         Some(json!({"apikey": "wrong", "date": "2026-10-01"})),
     ))
     .await;
+    // The market calendar is in "Symbols and settings", not the orders the
+    // page opens on (web c46a4b19a).
     let (s, v) = h.json(with(get("/latency/api/logs"), &c, None)).await;
+    assert_eq!((s, v), (StatusCode::OK, json!([])));
+    let (s, v) = h
+        .json(with(get("/latency/api/logs?group=reference"), &c, None))
+        .await;
     assert_eq!(s, StatusCode::OK);
     let rows = v.as_array().unwrap();
     assert_eq!(rows.len(), 4);
+    assert!(rows
+        .iter()
+        .all(|r| r["group"] == "reference" && r["endpoint"].is_string()));
     let failed = rows.iter().find(|r| r["status"] == "FAILED").unwrap();
     assert_eq!(failed["order_type"], "MARKET_TIMINGS");
     assert_eq!(failed["error"], "Invalid openalgo apikey");
@@ -299,11 +308,15 @@ async fn api_calls_are_timed_for_the_latency_dashboard() {
         "total_latency_ms",
         "status",
         "error",
+        "endpoint",
+        "group",
     ] {
         assert!(rows[0].get(k).is_some(), "{}", k);
     }
     assert!(!v.to_string().contains(&api_key));
-    let (s, v) = h.json(with(get("/latency/api/stats"), &c, None)).await;
+    let (s, v) = h
+        .json(with(get("/latency/api/stats?group=reference"), &c, None))
+        .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(v["total_orders"], 4);
     assert_eq!(v["failed_orders"], 1);
@@ -318,10 +331,12 @@ async fn api_calls_are_timed_for_the_latency_dashboard() {
         "sla_150ms",
         "sla_200ms",
         "broker_stats",
-        "broker_histograms",
+        "endpoints",
+        "groups",
     ] {
         assert!(v.get(k).is_some(), "{}", k);
     }
+    assert!(v.get("broker_histograms").is_none());
     let (s, v) = h
         .json(with(get("/latency/api/broker/nobroker/stats"), &c, None))
         .await;
@@ -329,12 +344,155 @@ async fn api_calls_are_timed_for_the_latency_dashboard() {
     assert_eq!(v, json!({"error": "Broker not found"}));
     let (s, _, b) = h.send(with(get("/latency/export"), &c, None)).await;
     assert_eq!(s, StatusCode::OK);
-    assert!(String::from_utf8(b)
-        .unwrap()
-        .starts_with("Date & Time (IST),Broker,Order ID"));
+    let csv = String::from_utf8(b).unwrap();
+    assert!(csv.starts_with("Date & Time (IST),Broker,Order ID"));
+    assert_eq!(csv.lines().count(), 5, "every call when no group is named");
     // The invalid key was tracked for the security dashboard.
     let (_, v) = h.json(with(get("/security/api/data"), &c, None)).await;
     assert_eq!(v["api_abuse_ips"][0]["ip_address"], "127.0.0.1");
+}
+
+fn close_to(v: &serde_json::Value, want: f64) -> bool {
+    v.as_f64().is_some_and(|got| (got - want).abs() < 1e-9)
+}
+
+/// `n` latency records under `tag`, straight into the log.
+fn seed_calls(h: &H, tag: &str, total: f64, n: usize) {
+    let conn = h.ctx.logs.conn().unwrap();
+    for _ in 0..n {
+        store::insert_latency(
+            &conn,
+            &store::LatencyRow {
+                timestamp: store::ts(h.ctx.now()),
+                order_id: "1".into(),
+                broker: Some("zerodha".into()),
+                order_type: tag.into(),
+                rtt_ms: total * 0.8,
+                overhead_ms: total * 0.2,
+                total_latency_ms: total,
+                status: "SUCCESS".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+}
+
+/// Web test/test_latency_groups.py, its route cases: the figures answer
+/// for orders unless told otherwise; a name that is no group is refused in
+/// plain words on every route; the records name each endpoint and its
+/// group; the export holds the group on screen, or everything.
+#[tokio::test]
+async fn the_latency_routes_answer_one_group_at_a_time() {
+    let (h, c, _) = signed_in();
+    seed_calls(&h, "PLACE", 60.0, 2);
+    seed_calls(&h, "OPTIONSORDER", 80.0, 1);
+    seed_calls(&h, "HISTORY", 1200.0, 9);
+
+    let (_, default) = h.json(with(get("/latency/api/stats"), &c, None)).await;
+    let (_, data) = h
+        .json(with(get("/latency/api/stats?group=market_data"), &c, None))
+        .await;
+    assert_eq!(
+        (&default["group"], &default["total_orders"]),
+        (&json!("orders"), &json!(3))
+    );
+    assert_eq!(
+        (&data["group"], &data["total_orders"]),
+        (&json!("market_data"), &json!(9))
+    );
+    assert_eq!(default["groups"][0]["key"], "orders");
+
+    // A broker's page: its figures in the group asked for, and the
+    // histogram of every record of that broker.
+    let broker_page = |query: &'static str| {
+        let (h, c) = (&h, &c);
+        async move {
+            h.json(with(
+                get(&format!("/latency/api/broker/zerodha/stats{query}")),
+                c,
+                None,
+            ))
+            .await
+        }
+    };
+    let (s, page) = broker_page("").await;
+    assert_eq!((s, &page["total_orders"]), (StatusCode::OK, &json!(3)));
+    let counts = page["histogram"]["counts"].as_array().unwrap();
+    assert_eq!(counts.len(), 30);
+    let every: i64 = counts.iter().map(|n| n.as_i64().unwrap()).sum();
+    assert_eq!(every, 12);
+    let (s, page) = broker_page("?group=market_data").await;
+    assert_eq!((s, &page["total_orders"]), (StatusCode::OK, &json!(9)));
+    assert!(close_to(&page["avg_total"], 1200.0), "{page}");
+    let (s, page) = broker_page("?group=tools").await;
+    assert_eq!(
+        (s, page),
+        (StatusCode::NOT_FOUND, json!({"error": "Broker not found"}))
+    );
+
+    for path in ["/latency/api/stats", "/latency/api/logs", "/latency/export"] {
+        let (s, v) = h
+            .json(with(get(&format!("{path}?group=nonsense")), &c, None))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{path}");
+        let message = v["error"].as_str().unwrap();
+        assert!(
+            message.contains("Orders") && message.contains("Market data"),
+            "{message}"
+        );
+        assert!(
+            !message.contains("nonsense") && !message.contains("400"),
+            "{message}"
+        );
+    }
+
+    let (_, orders) = h.json(with(get("/latency/api/logs"), &c, None)).await;
+    let orders = orders.as_array().unwrap();
+    assert_eq!(orders.len(), 3);
+    assert_eq!(orders[0]["order_type"], "OPTIONSORDER");
+    assert_eq!(
+        (&orders[0]["endpoint"], &orders[0]["group"]),
+        (&json!("Options order"), &json!("orders"))
+    );
+    let (_, data) = h
+        .json(with(
+            get("/latency/api/logs?group=market_data&limit=5"),
+            &c,
+            None,
+        ))
+        .await;
+    let data = data.as_array().unwrap();
+    assert!(data.len() == 5 && data.iter().all(|r| r["endpoint"] == "History"));
+    let (s, _) = h
+        .json(with(get("/latency/api/logs?limit=many"), &c, None))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    let exported = |query: &'static str| {
+        let (h, c) = (&h, &c);
+        async move {
+            let (s, headers, body) = h
+                .send(with(get(&format!("/latency/export{query}")), c, None))
+                .await;
+            assert_eq!(s, StatusCode::OK);
+            let name = headers[header::CONTENT_DISPOSITION]
+                .to_str()
+                .unwrap()
+                .to_string();
+            (name, String::from_utf8(body).unwrap().lines().count() - 1)
+        }
+    };
+    let (name, rows) = exported("").await;
+    assert!(
+        name.contains("latency_logs.csv") && rows == 12,
+        "{name} {rows}"
+    );
+    let (name, rows) = exported("?group=orders").await;
+    assert!(
+        name.contains("latency_orders.csv") && rows == 3,
+        "{name} {rows}"
+    );
 }
 
 #[tokio::test]

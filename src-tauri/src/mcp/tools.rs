@@ -5,6 +5,7 @@
 
 use super::dispatch::{self, sdk_post};
 use super::envelope::{self, error, fail, write_result, Output, DEFAULT_VERIFY_WITH};
+use super::indices::{self, BSE_INDEX_SYMBOLS, NSE_INDEX_SYMBOLS};
 use super::research;
 use super::ToolDef;
 use crate::db::sqlite::market_calendar as cal;
@@ -16,111 +17,6 @@ use std::sync::Arc;
 
 /// Default strategy for orders from MCP (`MCP_STRATEGY`).
 pub const MCP_STRATEGY: &str = "python mcp";
-
-/// OpenAlgo standardised index symbols (`NSE_INDEX_SYMBOLS`).
-pub const NSE_INDEX_SYMBOLS: &[&str] = &[
-    "NIFTY",
-    "NIFTYNXT50",
-    "FINNIFTY",
-    "BANKNIFTY",
-    "MIDCPNIFTY",
-    "INDIAVIX",
-    "HANGSENGBEESNAV",
-    "NIFTY100",
-    "NIFTY200",
-    "NIFTY500",
-    "NIFTYALPHA50",
-    "NIFTYAUTO",
-    "NIFTYCOMMODITIES",
-    "NIFTYCONSUMPTION",
-    "NIFTYCPSE",
-    "NIFTYDIVOPPS50",
-    "NIFTYENERGY",
-    "NIFTYFMCG",
-    "NIFTYGROWSECT15",
-    "NIFTYGS10YR",
-    "NIFTYGS10YRCLN",
-    "NIFTYGS1115YR",
-    "NIFTYGS15YRPLUS",
-    "NIFTYGS48YR",
-    "NIFTYGS813YR",
-    "NIFTYGSCOMPSITE",
-    "NIFTYINFRA",
-    "NIFTYIT",
-    "NIFTYMEDIA",
-    "NIFTYMETAL",
-    "NIFTYMIDLIQ15",
-    "NIFTYMIDCAP100",
-    "NIFTYMIDCAP150",
-    "NIFTYMIDCAP50",
-    "NIFTYMIDSML400",
-    "NIFTYMNC",
-    "NIFTYPHARMA",
-    "NIFTYPSE",
-    "NIFTYPSUBANK",
-    "NIFTYPVTBANK",
-    "NIFTYREALTY",
-    "NIFTYSERVSECTOR",
-    "NIFTYSMLCAP100",
-    "NIFTYSMLCAP250",
-    "NIFTYSMLCAP50",
-    "NIFTY100EQLWGT",
-    "NIFTY100LIQ15",
-    "NIFTY100LOWVOL30",
-    "NIFTY100QUALTY30",
-    "NIFTY200QUALTY30",
-    "NIFTY50DIVPOINT",
-    "NIFTY50EQLWGT",
-    "NIFTY50PR1XINV",
-    "NIFTY50PR2XLEV",
-    "NIFTY50TR1XINV",
-    "NIFTY50TR2XLEV",
-    "NIFTY50VALUE20",
-];
-
-/// `BSE_INDEX_SYMBOLS`.
-pub const BSE_INDEX_SYMBOLS: &[&str] = &[
-    "SENSEX",
-    "BANKEX",
-    "SENSEX50",
-    "BSE100",
-    "BSE150MIDCAPINDEX",
-    "BSE200",
-    "BSE250LARGEMIDCAPINDEX",
-    "BSE400MIDSMALLCAPINDEX",
-    "BSE500",
-    "BSEAUTO",
-    "BSECAPITALGOODS",
-    "BSECARBONEX",
-    "BSECONSUMERDURABLES",
-    "BSECPSE",
-    "BSEDOLLEX100",
-    "BSEDOLLEX200",
-    "BSEDOLLEX30",
-    "BSEENERGY",
-    "BSEFASTMOVINGCONSUMERGOODS",
-    "BSEFINANCIALSERVICES",
-    "BSEGREENEX",
-    "BSEHEALTHCARE",
-    "BSEINDIAINFRASTRUCTUREINDEX",
-    "BSEINDUSTRIALS",
-    "BSEINFORMATIONTECHNOLOGY",
-    "BSEIPO",
-    "BSELARGECAP",
-    "BSEMETAL",
-    "BSEMIDCAP",
-    "BSEMIDCAPSELECTINDEX",
-    "BSEOIL&GAS",
-    "BSEPOWER",
-    "BSEPSU",
-    "BSEREALTY",
-    "BSESENSEXNEXT50",
-    "BSESMALLCAP",
-    "BSESMALLCAPSELECTINDEX",
-    "BSESMEIPO",
-    "BSETECK",
-    "BSETELECOM",
-];
 
 /// Exchanges the holiday check accepts (web `SUPPORTED_EXCHANGES`).
 const CALENDAR_EXCHANGES: &[&str] = &[
@@ -488,23 +384,17 @@ async fn run_account(ctx: &Arc<AppState>, name: &str, a: &Args) -> Option<Output
 /// tool of another group.
 async fn run_quotes(ctx: &Arc<AppState>, name: &str, a: &Args) -> Option<Output> {
     Some(match name {
-        "get_quote" | "get_market_depth" => {
-            let endpoint = if name == "get_quote" {
-                "quotes"
-            } else {
-                "depth"
-            };
-            sdk_post(
-                ctx,
-                endpoint,
-                payload(&[
-                    ("symbol", json!(up(a, "symbol"))),
-                    ("exchange", json!(up(a, "exchange"))),
-                ]),
-            )
-            .await
-            .into()
-        }
+        "get_quote" => sdk_post(ctx, "quotes", quote_payload(a)).await.into(),
+        "get_market_depth" => sdk_post(
+            ctx,
+            "depth",
+            payload(&[
+                ("symbol", json!(up(a, "symbol"))),
+                ("exchange", json!(up(a, "exchange"))),
+            ]),
+        )
+        .await
+        .into(),
         "get_multi_quotes" => {
             let mut list = Vec::new();
             for s in present(a, "symbols")
@@ -601,20 +491,7 @@ async fn run_symbols(ctx: &Arc<AppState>, name: &str, a: &Args) -> Option<Output
                 _ => error(format!("Unknown exchange: {}. Use NSE or BSE.", ex), &[]).into(),
             }
         }
-        "get_expiry_dates" => sdk_post(
-            ctx,
-            "expiry",
-            payload(&[
-                ("symbol", json!(up(a, "symbol"))),
-                ("exchange", json!(up(a, "exchange"))),
-                (
-                    "instrumenttype",
-                    json!(st(a, "instrument_type").to_lowercase()),
-                ),
-            ]),
-        )
-        .await
-        .into(),
+        "get_expiry_dates" => sdk_post(ctx, "expiry", expiry_payload(a)).await.into(),
         "get_available_intervals" => sdk_post(ctx, "intervals", Map::new()).await.into(),
         "get_option_symbol" => {
             let mut p = payload(&[
@@ -947,6 +824,30 @@ async fn instruments(ctx: &Arc<AppState>, a: &Args) -> Value {
     })
 }
 
+/// What `get_quote` asks `/api/v1/quotes` for: an index without an
+/// exchange is quoted on its index exchange (web f456b3216).
+fn quote_payload(a: &Args) -> Args {
+    let exchange = indices::quote_exchange(&st(a, "symbol"), &st(a, "exchange"));
+    payload(&[
+        ("symbol", json!(up(a, "symbol"))),
+        ("exchange", json!(exchange)),
+    ])
+}
+
+/// What `get_expiry_dates` asks `/api/v1/expiry` for: a BSE index without
+/// an exchange looks on BFO (web f456b3216).
+fn expiry_payload(a: &Args) -> Args {
+    let exchange = indices::derivatives_exchange(&st(a, "symbol"), &st(a, "exchange"));
+    payload(&[
+        ("symbol", json!(up(a, "symbol"))),
+        ("exchange", json!(exchange)),
+        (
+            "instrumenttype",
+            json!(st(a, "instrument_type").to_lowercase()),
+        ),
+    ])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -973,6 +874,95 @@ mod tests {
         assert_eq!(
             multi_legs(bad.as_object().unwrap()).unwrap_err(),
             ("'offset'".to_string(), "KeyError")
+        );
+    }
+
+    /// The arguments as the transport binds them to the tool (defaults
+    /// filled), then the `/api/v1` body the tool sends: what the web's
+    /// `_RecordingClient` records reaching the SDK.
+    fn sent(tool: &str, args: Value, body: fn(&Args) -> Args) -> Value {
+        let Some(def) = crate::mcp::tool(tool) else {
+            panic!("{tool} is not registered");
+        };
+        let bound = crate::mcp::schema::bind(def.params, args.as_object().unwrap()).unwrap();
+        Value::Object(body(&bound))
+    }
+
+    /// Web test/test_mcp_integrity.py::test_quote_without_exchange_uses_the_symbols_exchange
+    #[test]
+    fn quote_without_exchange_uses_the_symbols_exchange() {
+        for (symbol, expected) in [
+            ("SENSEX", "BSE_INDEX"),
+            ("bankex", "BSE_INDEX"),
+            ("SENSEX50", "BSE_INDEX"),
+            ("NIFTY", "NSE_INDEX"),
+            ("BANKNIFTY", "NSE_INDEX"),
+            ("INDIAVIX", "NSE_INDEX"),
+            ("RELIANCE", "NSE"),
+            // BSE Ltd, the NSE-listed stock, not an index.
+            ("BSE", "NSE"),
+        ] {
+            assert_eq!(
+                sent("get_quote", json!({"symbol": symbol}), quote_payload),
+                json!({"symbol": symbol.to_uppercase(), "exchange": expected})
+            );
+        }
+    }
+
+    /// Web test/test_mcp_integrity.py::test_quote_treats_an_empty_exchange_as_omitted
+    #[test]
+    fn quote_treats_an_empty_exchange_as_omitted() {
+        let body = sent(
+            "get_quote",
+            json!({"symbol": "SENSEX", "exchange": ""}),
+            quote_payload,
+        );
+        assert_eq!(body["exchange"], "BSE_INDEX");
+    }
+
+    /// Web test/test_mcp_integrity.py::test_quote_keeps_the_exchange_the_caller_named
+    #[test]
+    fn quote_keeps_the_exchange_the_caller_named() {
+        for (symbol, exchange, expected) in [
+            ("SENSEX", "nse", "NSE"),
+            ("RELIANCE", "BSE", "BSE"),
+            ("NIFTY", "NSE_INDEX", "NSE_INDEX"),
+        ] {
+            let args = json!({"symbol": symbol, "exchange": exchange});
+            assert_eq!(sent("get_quote", args, quote_payload)["exchange"], expected);
+        }
+    }
+
+    /// Web test/test_mcp_integrity.py::test_expiry_without_exchange_uses_the_underlyings_fo_exchange
+    #[test]
+    fn expiry_without_exchange_uses_the_underlyings_fo_exchange() {
+        for (symbol, expected) in [
+            ("SENSEX", "BFO"),
+            ("BANKEX", "BFO"),
+            ("sensex50", "BFO"),
+            ("NIFTY", "NFO"),
+            ("BANKNIFTY", "NFO"),
+            ("RELIANCE", "NFO"),
+        ] {
+            assert_eq!(
+                sent(
+                    "get_expiry_dates",
+                    json!({"symbol": symbol}),
+                    expiry_payload
+                ),
+                json!({"symbol": symbol.to_uppercase(), "exchange": expected,
+                       "instrumenttype": "options"})
+            );
+        }
+    }
+
+    /// Web test/test_mcp_integrity.py::test_expiry_keeps_the_exchange_the_caller_named
+    #[test]
+    fn expiry_keeps_the_exchange_the_caller_named() {
+        let args = json!({"symbol": "CRUDEOIL", "exchange": "mcx", "instrument_type": "Futures"});
+        assert_eq!(
+            sent("get_expiry_dates", args, expiry_payload),
+            json!({"symbol": "CRUDEOIL", "exchange": "MCX", "instrumenttype": "futures"})
         );
     }
 }

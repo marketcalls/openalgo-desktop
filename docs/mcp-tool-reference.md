@@ -420,7 +420,7 @@ Prompts:
 
 | Tool | Parameters | Calls |
 | --- | --- | --- |
-| `get_quote` | `symbol`*, `exchange`=NSE | `quotes` |
+| `get_quote` | `symbol`*, `exchange` (omitted: an index uses `BSE_INDEX` or `NSE_INDEX`, any other symbol `NSE`) | `quotes` |
 | `get_multi_quotes` | `symbols`* (list of `{symbol, exchange}`) | `multiquotes` |
 | `get_market_depth` | `symbol`*, `exchange`=NSE | `depth` |
 | `get_historical_data` | `symbol`*, `exchange`*, `interval`*, `start_date`, `end_date`, `source`=api, `bars`=20, `lookback_days` | `history` |
@@ -428,7 +428,7 @@ Prompts:
 | `get_option_symbol` | `underlying`*, `exchange`*, `offset`*, `option_type`*, `expiry_date` | `optionsymbol` |
 | `get_option_greeks` | `symbol`*, `exchange`*, `interest_rate`, `forward_price`, `underlying_symbol`, `underlying_exchange`, `expiry_time` | `optiongreeks` |
 | `get_synthetic_future` | `underlying`*, `exchange`*, `expiry_date`* | `syntheticfuture` |
-| `get_expiry_dates` | `symbol`*, `exchange`=NFO, `instrument_type`=options | `expiry` |
+| `get_expiry_dates` | `symbol`*, `exchange` (omitted: `BFO` for SENSEX, BANKEX and SENSEX50, else `NFO`), `instrument_type`=options | `expiry` |
 | `search_instruments` | `query`*, `exchange`, `instrument_type` | `search` |
 | `get_symbol_info` | `symbol`*, `exchange`=NSE, `instrument_type` | `symbol` |
 | `get_index_symbols` | `exchange`=NSE (NSE or BSE) | none: the standard list of 57 NSE and 40 BSE index symbols |

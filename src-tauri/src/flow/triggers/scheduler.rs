@@ -596,6 +596,11 @@ impl Scheduler {
         removed
     }
 
+    /// The workflow's next fire, `None` when it has no job.
+    pub fn next_of(&self, workflow_id: i64) -> Option<DateTime<Utc>> {
+        self.jobs.lock().get(&workflow_id).and_then(|j| j.next)
+    }
+
     pub fn has(&self, workflow_id: i64) -> bool {
         self.jobs.lock().contains_key(&workflow_id)
     }

@@ -15,7 +15,7 @@
 //! the request and `orderid` / `request_id` / `message` from the response,
 //! and takes the broker time from `services::latency_probe`.
 
-use crate::db::sqlite::monitor::{self as store, LatencyRow, TrafficRow};
+use crate::db::sqlite::monitor::{self as store, latency_groups, LatencyRow, TrafficRow};
 use crate::db::sqlite::webui::{self, SecuritySettings};
 use crate::server::envelope::EarlyReply;
 use crate::server::middleware::client_ip;
@@ -433,55 +433,16 @@ pub fn loggable_path(path: &str) -> String {
     store::redact_secret_paths(path)
 }
 
-/// Latency record type for an `/api/v1` path (web `api_types`).
+/// Latency record tag for an `/api/v1` path: the one table of endpoints
+/// and groups (`latency_groups`, web `TAG_FOR_NAMESPACE`), and for a path
+/// in no group yet its first segment uppercased, which lands in "Other"
+/// (`every_api_v1_route_is_in_a_group` fails until it is placed).
 pub fn api_type(path: &str) -> String {
-    let name = path
-        .trim_start_matches("/api/v1/")
-        .trim_end_matches('/')
-        .to_string();
-    let t = match name.as_str() {
-        "placeorder" => "PLACE",
-        "placesmartorder" => "SMART",
-        "modifyorder" => "MODIFY",
-        "cancelorder" => "CANCEL",
-        "closeposition" => "CLOSE",
-        "cancelallorder" => "CANCEL_ALL",
-        "basketorder" => "BASKET",
-        "splitorder" => "SPLIT",
-        "optionsorder" => "OPTIONS",
-        "optionsmultiorder" => "OPTIONS_MULTI",
-        "placegttorder" => "GTT_PLACE",
-        "modifygttorder" => "GTT_MODIFY",
-        "cancelgttorder" => "GTT_CANCEL",
-        "quotes" => "QUOTES",
-        "history" => "HISTORY",
-        "depth" => "DEPTH",
-        "intervals" => "INTERVALS",
-        "funds" => "FUNDS",
-        "orderbook" => "ORDERBOOK",
-        "tradebook" => "TRADEBOOK",
-        "positionbook" => "POSITIONBOOK",
-        "holdings" => "HOLDINGS",
-        "orderstatus" => "STATUS",
-        "openposition" => "POSITION",
-        "instruments" => "INSTRUMENTS",
-        "search" => "SEARCH",
-        "symbol" => "SYMBOL",
-        "expiry" => "EXPIRY",
-        "margin" => "MARGIN",
-        "optiongreeks" => "GREEKS",
-        "multioptiongreeks" => "MULTI_GREEKS",
-        "optionsymbol" => "OPTION_SYMBOL",
-        "syntheticfuture" => "SYNTHETIC",
-        "ping" => "PING",
-        "analyzer" => "ANALYZER",
-        "chart" => "CHART",
-        "market/holidays" => "MARKET_HOLIDAYS",
-        "market/timings" => "MARKET_TIMINGS",
-        n if n.starts_with("ticker") => "TICKER",
-        n => return n.split('/').next().unwrap_or(n).to_ascii_uppercase(),
-    };
-    t.to_string()
+    let name = path.trim_start_matches("/api/v1/").trim_end_matches('/');
+    match latency_groups::tag_for_path(name) {
+        Some(tag) => tag.to_string(),
+        None => name.split('/').next().unwrap_or(name).to_ascii_uppercase(),
+    }
 }
 
 fn too_large() -> Response {
@@ -717,7 +678,7 @@ async fn timed(
         broker.signed_in,
     );
     if let Some(row) = row {
-        let order = store::LATENCY_ORDER_TYPES.contains(&row.order_type.as_str());
+        let order = latency_groups::order_tags().contains(&row.order_type.as_str());
         let t = timings(stages, &broker, order);
         ctx.monitor.send(Record::Latency(LatencyRow {
             broker: broker.broker.or(row.broker),
@@ -882,6 +843,24 @@ mod tests {
         assert_eq!(api_type("/api/v1/market/holidays"), "MARKET_HOLIDAYS");
         assert_eq!(api_type("/api/v1/ticker/NSE:SBIN"), "TICKER");
         assert_eq!(api_type("/api/v1/newthing"), "NEWTHING");
+        // Web c46a4b19a: the options tools keep the web's tags.
+        assert_eq!(api_type("/api/v1/optiongreeks"), "OPTIONGREEKS");
+        assert_eq!(api_type("/api/v1/optionsorder"), "OPTIONS");
+        assert_eq!(api_type("/api/v1/gttorderbook"), "GTT_ORDERBOOK");
+        assert_eq!(api_type("/api/v1/strategy/list"), "STRATEGY");
+    }
+
+    /// Web test/test_latency_groups.py::test_routes_timed_outside_the_api_use_a_tag_that_is_in_a_group:
+    /// the orders a trader sends from a page are recorded under an order tag.
+    #[test]
+    fn page_orders_are_recorded_under_an_order_tag() {
+        for (path, tag) in PAGE_ORDER_ROUTES {
+            assert_eq!(
+                latency_groups::group_key_of(Some(tag)),
+                latency_groups::ORDERS,
+                "{path}"
+            );
+        }
     }
 
     /// OBS-02: a batch that fails as a whole is tried once more; a second

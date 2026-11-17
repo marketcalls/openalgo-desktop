@@ -1149,6 +1149,75 @@ async fn daily_schedule_fires_across_days_and_skips_late_misfires() {
     assert_eq!(row["total_runs"], 2);
 }
 
+/// Web ceb116807, its Historify half, the desktop's way: while another
+/// write holds the store (an import of a large file, a bulk delete), a
+/// tick dispatches every due schedule at once, waiting neither on the save
+/// of a next run nor on another schedule's run, and each next run is
+/// written once the store is free, so a restart does not run the fire
+/// again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn due_schedules_dispatch_while_the_store_is_busy() {
+    let e = open_engine(
+        tempfile::tempdir().unwrap(),
+        false,
+        EngineConfig::immediate(),
+        ist(2026, 10, 7, 8, 0),
+    );
+    add_watch(&e, &["SBIN"]).await;
+    let ids = ["busy0001", "busy0002"];
+    for id in ids {
+        e.h.scheduler.add(id, daily("15:45")).await.unwrap();
+    }
+    // Another write holds the store until the tick returns, or for 3 s.
+    let (taken_tx, taken_rx) = std::sync::mpsc::channel();
+    let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
+    let db = e.h.db.clone();
+    let writer = std::thread::spawn(move || {
+        db.mutate(|_| {
+            taken_tx.send(()).ok();
+            done_rx.recv_timeout(Duration::from_secs(3)).ok();
+            Ok(())
+        })
+        .unwrap()
+    });
+    taken_rx.recv().unwrap();
+
+    e.clock.set(ist(2026, 10, 7, 15, 45));
+    let asked = std::time::Instant::now();
+    let t = e.h.scheduler.tick(ist(2026, 10, 7, 15, 45)).await;
+    let took = asked.elapsed();
+    done_tx.send(()).ok();
+    writer.join().unwrap();
+    assert!(
+        took < Duration::from_secs(1),
+        "a tick waited {took:?} on a busy store"
+    );
+    let mut fired = t.fired.clone();
+    fired.sort();
+    assert_eq!(fired, ids);
+
+    for id in ids {
+        e.rec
+            .wait("historify_schedule_execution_complete", |v| {
+                v["schedule_id"] == id
+            })
+            .await;
+    }
+    wait_idle(&e).await;
+    for id in ids {
+        let stored =
+            || e.h.db.read(|c| db::schedule(c, id)).unwrap().unwrap()["next_run_at"].clone();
+        for _ in 0..500 {
+            if stored() == "2026-10-08T15:45:00" {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(stored(), "2026-10-08T15:45:00", "{id}");
+    }
+    e.h.shutdown().await;
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn interval_schedule_restores_after_restart_with_misfire_rules() {
     let dir = tempfile::tempdir().unwrap();

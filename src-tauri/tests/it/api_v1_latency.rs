@@ -25,7 +25,12 @@ fn order_body() -> Value {
 /// Every latency row, oldest first.
 fn rows(h: &H) -> Vec<LatencyRow> {
     h.ctx.monitor.drain_now(&h.ctx);
-    let mut v = store::recent_latency(&h.ctx.logs.conn().unwrap(), None).unwrap();
+    let mut v = store::recent_latency(
+        &h.ctx.logs.conn().unwrap(),
+        &store::LatencyFilter::All,
+        None,
+    )
+    .unwrap();
     v.reverse();
     v
 }

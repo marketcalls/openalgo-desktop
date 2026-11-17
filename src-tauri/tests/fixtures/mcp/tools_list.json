@@ -806,7 +806,7 @@
     },
     {
       "name": "get_quote",
-      "description": "Get current quote for a symbol.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name",
+      "description": "Get current quote for a symbol.\n\n    Args:\n        symbol: OpenAlgo symbol, e.g. RELIANCE, NIFTY, SENSEX, NIFTY28MAR2420800CE\n        exchange: NSE, BSE, NFO, BFO, MCX, CDS, BCD, NSE_INDEX or BSE_INDEX.\n            Optional. When omitted, an index uses its index exchange (SENSEX,\n            BANKEX and SENSEX50 use BSE_INDEX; NIFTY, BANKNIFTY and the other\n            NSE indices use NSE_INDEX) and any other symbol uses NSE. Pass it\n            for BSE equities and for every derivative contract.",
       "inputSchema": {
         "properties": {
           "symbol": {
@@ -814,9 +814,16 @@
             "type": "string"
           },
           "exchange": {
-            "default": "NSE",
-            "title": "Exchange",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exchange"
           }
         },
         "required": [
@@ -1131,7 +1138,7 @@
     },
     {
       "name": "get_expiry_dates",
-      "description": "Get expiry dates for derivatives.\n\n    Args:\n        symbol: Underlying symbol\n        exchange: Exchange name (typically NFO for F&O)\n        instrument_type: 'options' or 'futures'",
+      "description": "Get expiry dates for derivatives.\n\n    Args:\n        symbol: Underlying symbol, e.g. NIFTY, BANKNIFTY, SENSEX, RELIANCE\n        exchange: Derivatives exchange: NFO, BFO, MCX or CDS. Optional. When\n            omitted, SENSEX, BANKEX and SENSEX50 use BFO and any other\n            underlying uses NFO. Pass MCX or CDS for commodity and currency\n            underlyings.\n        instrument_type: 'options' or 'futures'",
       "inputSchema": {
         "properties": {
           "symbol": {
@@ -1139,9 +1146,16 @@
             "type": "string"
           },
           "exchange": {
-            "default": "NFO",
-            "title": "Exchange",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exchange"
           },
           "instrument_type": {
             "default": "options",

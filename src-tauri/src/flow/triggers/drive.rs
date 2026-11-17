@@ -10,12 +10,14 @@ use super::price_monitor::{Alert, Observed};
 use super::runs::Fired;
 use super::scheduler::Due;
 use super::{store, TriggerSide};
+use crate::error::Result;
 use crate::events::{Event, Lane, OrderUpdate, Subscriber, Topic};
 use crate::flow::contract::client::app::AppFlowClient;
 use crate::flow::contract::client::FlowClient;
 use crate::flow::contract::node::RunTrigger;
 use crate::flow::contract::pyfmt;
 use crate::flow::nodes::timing::{is_within_market_hours, market_hours_config, MarketHours};
+use crate::services::next_run_saves::{NextRun, Saved};
 use crate::state::AppState;
 use serde_json::{json, Value};
 use std::sync::{Arc, Weak};
@@ -28,7 +30,14 @@ impl TriggerSide {
         while self.app().is_some() {
             let now = self.now();
             for due in self.scheduler.tick(now) {
-                self.persist_next(&due).await;
+                // The run and the save of the next run each on a task of
+                // their own: the driver never waits on the database to
+                // dispatch, so a locked database holds no schedule back
+                // (web ceb116807, issues #2355 and #2326).
+                if self.next_runs.hold(due.workflow_id, due.next) {
+                    let me = self.clone();
+                    self.spawn(async move { me.save_next_runs().await });
+                }
                 let me = self.clone();
                 self.spawn(async move { me.run_scheduled(due).await });
             }
@@ -41,18 +50,36 @@ impl TriggerSide {
         }
     }
 
-    /// Keep the recorded next run in step with the job.
-    async fn persist_next(&self, due: &Due) {
-        let Some(app) = self.app() else {
-            return;
-        };
-        let (id, next) = (due.workflow_id, due.next);
-        let saved = app
-            .blocking(move |c| store::set_next_run(&*c.sqlite.conn()?, id, next))
+    /// Keep the recorded next run in step with the job, which a restart
+    /// reads (`restore`): the saver of the held next runs
+    /// (`services::next_run_saves`), one write at a time, retried while
+    /// the database refuses.
+    async fn save_next_runs(&self) {
+        self.next_runs
+            .save(&self.stop, |id, next| self.write_next_run(id, next))
             .await;
-        if let Err(e) = saved {
-            tracing::error!("Could not record the next run of workflow {}: {}", id, e);
-        }
+    }
+
+    /// Write one held next run, under the write lock (`BEGIN IMMEDIATE`)
+    /// and only while the job still has it, so a save that waited for the
+    /// lock never puts back a fire already made, a changed schedule or a
+    /// removed one.
+    pub(super) async fn write_next_run(&self, id: i64, next: NextRun) -> Result<Saved> {
+        let Some(app) = self.app() else {
+            return Ok(Saved::Superseded);
+        };
+        let jobs = self.scheduler.clone();
+        app.blocking(move |c| {
+            let conn = c.sqlite.conn()?;
+            let tx = crate::db::sqlite::write_transaction(&conn)?;
+            if jobs.next_of(id) != next {
+                return Ok(Saved::Superseded);
+            }
+            store::set_next_run(&tx, id, next)?;
+            tx.commit()?;
+            Ok(Saved::Written)
+        })
+        .await
     }
 
     /// One scheduled fire (`execute_workflow_scheduled`): the workflow must

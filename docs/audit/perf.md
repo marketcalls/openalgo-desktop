@@ -155,7 +155,8 @@ answers are serialized where they are read (`webui::json_text`): a week of
 health samples serialized on the async worker still held it for up to
 0.46 s on a loaded machine. The Traffic statistics (19 scans of the log,
 refreshed every 30 s by every open page) are computed once for concurrent
-refreshes (`ReportFlight`, shared with the Latency report). Regressions:
+refreshes (`ReportFlight`; the Latency report shares one per group,
+`KeyedFlight`). Regressions:
 `webui_reports::report_pages_over_a_large_log_do_not_hold_the_runtime`
 (two of each page at once: the runtime was held for 2.1-3.4 s at once
 before, 16-26 ms after at load 16-21) and

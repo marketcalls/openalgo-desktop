@@ -39,6 +39,7 @@ pub mod store;
 use crate::clock::Clock;
 use crate::flow::contract::subscriptions::FeedRelease;
 use crate::flow::contract::triggers::{TriggerError, TriggerHooks};
+use crate::services::next_run_saves::NextRunSaves;
 use crate::state::AppState;
 use async_trait::async_trait;
 use parking_lot::Mutex;
@@ -52,7 +53,11 @@ use tokio_util::sync::CancellationToken;
 pub struct TriggerSide {
     app: Weak<AppState>,
     clock: Arc<dyn Clock>,
-    pub scheduler: scheduler::Scheduler,
+    /// Shared with the next-run saves, which check a job under the
+    /// database's write lock (`drive::write_next_run`).
+    pub scheduler: Arc<scheduler::Scheduler>,
+    /// Next runs the database has not taken yet (web ceb116807).
+    next_runs: NextRunSaves<i64>,
     pub alerts: price_monitor::Alerts,
     pub watches: order_monitor::Watches,
     pub feed: Arc<feed::AppFeed>,
@@ -75,6 +80,7 @@ impl TriggerSide {
             app,
             clock,
             scheduler: Default::default(),
+            next_runs: NextRunSaves::new("workflow", "in the last minute"),
             alerts: Default::default(),
             watches: Default::default(),
             tasks: Mutex::new(JoinSet::new()),
@@ -338,6 +344,12 @@ impl TriggerHooks for TriggerSide {
         let first = !self.stop.is_cancelled();
         self.stop.cancel();
         self.watches.detach();
+        // Before the jobs go: each last save checks its job's next run.
+        if first {
+            self.next_runs
+                .finish(|id, next| self.write_next_run(id, next))
+                .await;
+        }
         self.scheduler.clear();
         self.alerts.clear();
         // The runs first, so a monitor's run ends and its one-shot is

@@ -110,8 +110,10 @@ pub struct AppState {
     pub data_dir: PathBuf,
     /// Traffic, latency and security monitoring (bounded queue + writer).
     pub monitor: crate::services::monitor::Monitor,
-    /// The Latency page's report, one computation for concurrent requests.
-    pub latency_reports: crate::services::report_flight::ReportFlight,
+    /// The Latency page's report of each group, one computation for the
+    /// concurrent requests for that group.
+    pub latency_reports:
+        crate::services::report_flight::KeyedFlight<&'static str, serde_json::Value>,
     /// The Traffic page's statistics, one computation for concurrent requests.
     pub traffic_reports: crate::services::report_flight::ReportFlight,
     /// The log reports built at once (`AppState::report`).
@@ -444,7 +446,9 @@ impl AppState {
             tasks: Mutex::new(JoinSet::new()),
             data_dir: data_dir.to_path_buf(),
             monitor: crate::services::monitor::Monitor::new(),
-            latency_reports: Default::default(),
+            latency_reports: crate::services::report_flight::KeyedFlight::new(
+                "a latency group's figures",
+            ),
             traffic_reports: Default::default(),
             reports: Default::default(),
             action_center_reads: crate::services::report_flight::KeyedFlight::fresh(
