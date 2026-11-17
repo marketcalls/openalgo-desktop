@@ -16,6 +16,7 @@ pub mod jobs;
 pub mod scheduler;
 pub mod service;
 pub mod source;
+mod symbol_resolution;
 pub mod time;
 
 use crate::clock::Clock;
