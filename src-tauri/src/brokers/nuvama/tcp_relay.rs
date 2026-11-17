@@ -84,9 +84,11 @@ fn classify(text: &str) -> Option<(String, bool)> {
 }
 
 /// The quote and depth requests waiting to go (web `_dirty`, `_active`,
-/// `_first_change`, `_last_change`, `SEND_GAP`).
-#[derive(Debug, Default)]
-pub struct Batcher {
+/// `_first_change`, `_last_change`, `SEND_GAP`). No `Debug`: each queued
+/// line carries the session's `appID`, the only credential Nuvama's
+/// socket asks for.
+#[derive(Default)]
+pub(crate) struct Batcher {
     /// Streaming type -> its latest request and whether it subscribes.
     pending: BTreeMap<String, (String, bool)>,
     /// Types this socket has subscribed (so an unsubscribe goes out).
