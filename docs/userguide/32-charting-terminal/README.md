@@ -3,7 +3,7 @@
 ## Introduction
 
 The charting terminal at `/trading` is where you read a chart and trade from
-it. It uses `openalgo-charts` 2.7.2, the same charting engine as OpenAlgo web:
+it. It uses `openalgo-charts` 2.7.3, the same charting engine as OpenAlgo web:
 19 chart types, 112 built-in indicators plus your own, and 90 drawing tools,
 on the same broker session and market data feed as the rest of the app. It
 also runs OpenScript studies, backtests and live strategies.
@@ -66,6 +66,12 @@ the same with downloaded daily data.
 Only confirmed values are drawn: during the session a daily study uses
 completed days. If its history cannot be fetched, the study says so instead
 of drawing a made-up line.
+
+A study computed from the chart's own bars instead of its timeframe's history
+refuses a timeframe those bars do not divide into, such as 5 minutes on a
+3-minute chart, with a message, rather than drawing it from buckets of the
+wrong length (6 and 3 minutes, each read as 5). A day or longer still works
+on any intraday chart.
 
 ## One-Click trading
 
