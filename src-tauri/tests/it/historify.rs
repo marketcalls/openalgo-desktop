@@ -37,6 +37,9 @@ use std::time::Duration;
 use tokio::sync::Semaphore;
 use tower::ServiceExt;
 
+/// Web test/test_historify_symbol_resolution.py (openalgo#2463).
+mod symbol_resolution;
+
 // ------------------------------------------------------------- fixtures
 
 fn ist(y: i32, m: u32, d: u32, h: u32, mi: u32) -> DateTime<Utc> {
@@ -1839,6 +1842,8 @@ async fn watchlist_catalog_data_and_utility_routes_answer_in_the_web_shapes() {
     assert_eq!(v["added"], 2);
     assert_eq!(v["skipped"], 1);
     assert_eq!(v["total"], 5);
+    // Bulk Add says which symbols it stored under another spelling (openalgo#2463).
+    assert_eq!(v["renamed"], json!([]));
     assert_eq!(v["failed"].as_array().unwrap().len(), 2);
     assert_eq!(
         v["failed"][0],

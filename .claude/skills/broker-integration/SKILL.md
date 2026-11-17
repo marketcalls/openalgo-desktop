@@ -136,7 +136,10 @@ close-position silently mismatch. Resolve through `SymbolResolver`
 for the rest) and constants through `common::mapping` (`Exchange`,
 `Product`, `PriceType`, `Action`, `OrderStatus`, `Validity`). Requests reach
 you as `ResolvedOrder` / `ResolvedModify`, already resolved against the
-master.
+master. Map a book row with `oa_symbol_or_raw`, which keeps the broker's
+own symbol for a row the master does not list: once `symbol` and
+`brsymbol` differ (a series suffix, below), a book that copies the
+tradingsymbol reports a symbol no order can use.
 
 ## 5. Master contract
 
@@ -158,6 +161,104 @@ table (`db/sqlite/symbol.rs`), loads them into the shared resolver and emits
 the web's Socket.IO events. Ground truth for symbol formats is the web's
 `symtoken` for the same broker, or the web docs
 `docs/prompt/symbol-format.md`.
+
+### Series suffixes: the OpenAlgo symbol is NSE's Symbol, not the broker's
+
+NSE lists a stock's base symbol and its series separately (Symbol `HFCL`,
+Series `BE`). Brokers fold the series into the tradingsymbol for anything
+outside EQ: Kite ships `HFCL-BE` and `EMBASSY-RR`. The OpenAlgo `symbol` is
+the base symbol; `brsymbol` keeps the broker's tradingsymbol exactly,
+because that is what `br_symbol()` sends on every order, quote and history
+call (web openalgo#2463).
+
+- **Which suffixes.** On NSE cash rows: `-BE`, `-BZ`, `-RR` (the REITs),
+  `-IV` (the InvITs), `-SM` and `-ST`. Strip by the row's own series column
+  when the broker has one; Kite has none, so Zerodha matches the suffix
+  (`strip_nse_series_suffix` in `brokers/zerodha/master_contract.rs`).
+- **Which not.** Debt and government securities (`-SG`, `-GS`, `-TB`,
+  `-GB`, `-N0` to `-NX`) are not equity and keep their tradingsymbol. `-RL`
+  rows have a bare twin (`HDFCSIINAV` and `HDFCSIINAV-RL` both exist).
+- **Never create a duplicate.** `symtoken` has no unique key on
+  `(symbol, exchange)` (migration 043) and `SymbolGeneration::build` keeps
+  the first row of a duplicate pair, so two rows sharing a symbol store
+  without an error and then send one stock's orders to the other. Keep the
+  suffix wherever the bare name is already a symbol on that exchange, or
+  two suffixed rows would claim it.
+- **Map it back** in every book (section 4).
+- **Changing it on a live broker is a breaking change.** A symbol saved as
+  `HFCL-BE` names nothing after the next master contract download. Live
+  books need nothing: they map the broker's `HFCL-BE` back to `HFCL`. What
+  holds a quantity no running owner keeps in memory moves to the base
+  symbol once the master is installed
+  (`services/master_contract_service/renamed_symbols.rs`): the sandbox's
+  orders, trades, positions, holdings and GTTs, and the strategy book's
+  legs and order tags. A row stays when the base symbol already holds the
+  same position (both names held); that is logged, not merged. Everything
+  else stays under the old name and the trader redoes it under the base
+  symbol. The CHANGELOG names each of these with what to do:
+  - scalping stops and the scalping list: set the stop again;
+  - Strategy module legs and runs, OpenScript deployments and their
+    orders: edit the symbol, and close a position a run holds under the
+    old name from the positions page;
+  - Action Center queued orders: reject them and place them again;
+  - Chartink symbol mappings: map the base symbol;
+  - the `/trading` watchlists, chart alerts and Flow nodes: replace the
+    symbol;
+  - Historify: its watchlist rows fail every download until replaced, and
+    the stored candles stay under `HFCL-BE`; add `HFCL` and download again.
+- **A symbol search that finds HFCL proves nothing about its symbol.**
+  Search matches substrings, so it shows HFCL-BE for "HFCL". Only an exact
+  lookup of NSE's own list does: the Nifty 500 check.
+
+### The Nifty 500 check (required for every broker)
+
+Every broker must store all 500 Nifty 500 constituents on `NSE` under the
+`Symbol` column of NSE's list, each exactly once.
+`scripts/check_nifty500.py` (standard-library Python) prints
+`NIFTY 500 COMPLETE` and exits 0, or names each constituent it could not
+find with what the master holds instead. It downloads NSE's
+`ind_nifty500list.csv` (or takes `--nifty-csv` for a saved copy) and skips
+rows NSE marks as placeholders (ISIN beginning `DUM`, such as `DUMMYHEG`).
+Zerodha failed it with 495 of 500 until HFCL-BE, STLTECH-BE, EMBASSY-RR,
+BIRET-RR and BAGMANE-RR were given their base symbols. A missing
+constituent is fixed in the master contract, never worked around in a
+consumer.
+
+The web's script reads the web's own `db/openalgo.db` by default. The
+desktop's master lives in the trader's data folder, which no agent may open
+(CLAUDE.md, the shared machine), so this port has no default source: it
+takes one, and refuses a path inside the app's data folder
+(`com.openalgo.desktop` under Application Support, `XDG_DATA_HOME` or
+`%APPDATA%`) before opening anything, however the path is spelled: the
+folder's identity decides, so another letter case, a link or macOS's
+`/System/Volumes/Data` is refused too (`test_check_nifty500.py`, run in CI).
+
+```bash
+# The master as the app stores it: sign in to the broker in the dev_server
+# example (temporary data folder; it holds 5500 and 8766, so check
+# `lsof -nP -iTCP:5500 -sTCP:LISTEN` first), let the master download, then,
+# while it still runs (its folder is deleted at exit):
+python3 .claude/skills/broker-integration/scripts/check_nifty500.py --db <data folder it printed>/openalgo.db
+
+# The adapter's parsed rows, before anything is written:
+python3 .claude/skills/broker-integration/scripts/check_nifty500.py --rows-csv rows.csv
+```
+
+`rows.csv` needs `symbol`, `brsymbol` and `exchange` columns. Write it
+from the adapter's own parser and a saved copy of the broker's instrument
+file, in a scratch test you do not commit (the scratch path is yours):
+
+```rust
+#[test]
+fn dump_rows_for_nifty500_check() {
+    let raw = std::fs::read_to_string("<saved instruments file>").unwrap();
+    let mut out = String::from("symbol,brsymbol,exchange\n");
+    for r in parse_instruments(&raw).unwrap() {
+        out.push_str(&format!("{},{},{}\n", r.symbol, r.brsymbol, r.exchange));
+    }
+    std::fs::write("<scratch>/rows.csv", out).unwrap();
+}
+```
 
 ## 6. Streaming
 
@@ -343,6 +444,7 @@ the web checkout.
 - [ ] `catalog.rs`: `ALL_BROKERS`, `auth_type`, authorize URL, `extract_code`, state carriage, `configured_account` / `CLIENT_ID_BROKERS`, form fields
 - [ ] Every book returns OpenAlgo symbols and web status strings
 - [ ] Master contract fills every `SymToken` column, expiry `DD-MMM-YY`
+- [ ] Nifty 500 check prints `NIFTY 500 COMPLETE`, on the parsed rows (`--rows-csv`) and on the stored master (`--db` of a dev_server data folder); NSE series suffixes stripped from `symbol`, kept in `brsymbol`
 - [ ] Feeds via `BrokerFeed` on the shared manager (relay only for non-WebSocket transports); depth and order feeds as the broker offers
 - [ ] Shared HTTP client; every error through `common::redact`; nothing secret in logs
 - [ ] Fixtures under `src-tauri/tests/fixtures/brokers/<broker>/` with placeholders

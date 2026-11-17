@@ -50,19 +50,15 @@ fn invalid_fno() -> Reply {
     )
 }
 
-/// Web `validate_symbol`: index exchanges are not in the master.
-fn validate_symbol(symbols: &SymbolResolver, symbol: &str, exchange: &str) -> Result<(), String> {
-    let ex = exchange.to_uppercase();
-    if ex == "NSE_INDEX" || ex == "BSE_INDEX" {
-        return Ok(());
-    }
-    if symbols.by_symbol(&ex, &symbol.to_uppercase()).is_none() {
-        return Err(format!(
-            "Symbol '{}' not found in {} master contract. Please check the symbol name.",
-            symbol, exchange
-        ));
-    }
-    Ok(())
+/// Web `resolve_symbol` against the loaded master contract.
+fn resolve_symbol(
+    symbols: &SymbolResolver,
+    symbol: &str,
+    exchange: &str,
+) -> Result<String, String> {
+    super::symbol_resolution::resolve_symbol(symbol, exchange, |s, e| {
+        symbols.by_symbol(e, s).is_some()
+    })
 }
 
 /// Dates for the chart and export routes (IST midnight).
@@ -98,14 +94,11 @@ impl Historify {
         if !SUPPORTED_EXCHANGES.contains(&exchange.to_uppercase().as_str()) {
             return invalid_exchange();
         }
-        if let Err(m) = validate_symbol(symbols, symbol, exchange) {
-            return Reply::error(400, m);
-        }
-        let (s, e, now) = (
-            symbol.to_string(),
-            exchange.to_string(),
-            ist_naive(self.now()),
-        );
+        let resolved = match resolve_symbol(symbols, symbol, exchange) {
+            Ok(s) => s,
+            Err(m) => return Reply::error(400, m),
+        };
+        let (s, e, now) = (resolved, exchange.to_string(), ist_naive(self.now()));
         match self
             .db
             .write(move |c| db::watchlist_add(c, &s, &e, display_name.as_deref(), now))
@@ -166,6 +159,7 @@ impl Historify {
         let total = items.len();
         let mut valid = Vec::new();
         let mut invalid = Vec::new();
+        let mut renamed = Vec::new();
         for it in items {
             let (s, e) = (it.symbol.to_uppercase(), it.exchange.to_uppercase());
             if s.is_empty() || e.is_empty() {
@@ -180,11 +174,21 @@ impl Historify {
                 invalid.push(json!({"symbol": s, "exchange": e, "error": "Invalid exchange"}));
                 continue;
             }
-            if let Err(m) = validate_symbol(symbols, &s, &e) {
-                invalid.push(json!({"symbol": s, "exchange": e, "error": m}));
-                continue;
+            let resolved = match resolve_symbol(symbols, &s, &e) {
+                Ok(r) => r,
+                Err(m) => {
+                    invalid.push(json!({"symbol": s, "exchange": e, "error": m}));
+                    continue;
+                }
+            };
+            if resolved != s {
+                renamed.push(json!({"from": s, "to": resolved, "exchange": e}));
             }
-            valid.push(it);
+            valid.push(SymbolReq {
+                symbol: resolved,
+                exchange: e,
+                display_name: it.display_name,
+            });
         }
         let now = ist_naive(self.now());
         match self
@@ -196,7 +200,7 @@ impl Historify {
                 fails.extend(invalid);
                 Reply::ok(json!({
                     "status": "success", "added": added, "skipped": skipped,
-                    "failed": fails, "total": total,
+                    "failed": fails, "renamed": renamed, "total": total,
                 }))
             }
             Err(e) => failed("adding to the watchlist", e),

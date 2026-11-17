@@ -14,6 +14,9 @@
 //!   when a download ends, then `cache_loaded` with the symbol counts.
 //! * The downloaded list is written to SQLite on a blocking thread and
 //!   handed to the resolver; nothing else keeps it.
+//! * After a master is installed, rows saved under a symbol it renamed
+//!   (Zerodha's HFCL-BE, now HFCL) move to the current symbol
+//!   (`renamed_symbols`).
 
 use crate::brokers::setup_guide::display_name;
 use crate::brokers::types::{AuthToken, SymbolData};
@@ -28,6 +31,8 @@ use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::sync::Arc;
+
+mod renamed_symbols;
 
 /// Trader-facing refusal while a download runs (web
 /// `MASTER_CONTRACT_BUSY_MESSAGE`).
@@ -260,6 +265,16 @@ fn emit_cache_loaded(ctx: &AppState, broker: &str, started: std::time::Instant) 
 /// `AppError::Validation` (the trader-facing reason) when the stored master
 /// is not `broker`'s: its tokens would resolve to other instruments.
 pub async fn load_cached(ctx: &Arc<AppState>, broker: &str) -> Result<usize> {
+    let n = load_stored(ctx, broker).await?;
+    if n > 0 {
+        renamed_symbols::carry_over(ctx).await;
+    }
+    Ok(n)
+}
+
+/// `load_cached` without moving saved rows, for a caller that holds the
+/// download claim and moves them once it is released.
+async fn load_stored(ctx: &Arc<AppState>, broker: &str) -> Result<usize> {
     let started = std::time::Instant::now();
     // Read before the stored master is: a logout or switch that clears the
     // master meanwhile keeps this load out (KEY-01).
@@ -421,6 +436,20 @@ async fn download_claimed(
         ));
     };
     clear_unavailable(ctx);
+    record_success(ctx, id, total, started, &stats)?;
+    Ok(total)
+}
+
+/// A download that stored and installed `total` instruments: its status
+/// row, its history with the per-exchange counts, and the web's two
+/// Socket.IO events.
+fn record_success(
+    ctx: &AppState,
+    id: &str,
+    total: usize,
+    started: std::time::Instant,
+    stats: &std::collections::BTreeMap<String, i64>,
+) -> Result<()> {
     {
         let conn = ctx.sqlite.conn()?;
         let now = ctx.now();
@@ -432,7 +461,7 @@ async fn download_claimed(
             Some(total as i64),
             now,
         )?;
-        mcs::record_download(&conn, id, started.elapsed().as_secs() as i64, &stats, now)?;
+        mcs::record_download(&conn, id, started.elapsed().as_secs() as i64, stats, now)?;
     }
     emit_download(ctx, id, "success", "Successfully Downloaded");
     emit_cache_loaded(ctx, id, started);
@@ -442,7 +471,7 @@ async fn download_claimed(
         total,
         started.elapsed().as_secs_f64()
     );
-    Ok(total)
+    Ok(())
 }
 
 /// Download now (the claim must not be held). `Err` with `BUSY_MESSAGE`
@@ -515,6 +544,9 @@ pub async fn run_claimed(
     let id = broker.id();
     let r = download_claimed(ctx, broker, auth).await;
     drop(claim);
+    if r.is_ok() {
+        renamed_symbols::carry_over(ctx).await;
+    }
     if let Err(e) = &r {
         tracing::error!("Master contract download for {} failed: {}", id, e);
         let msg = e.client_message();
@@ -568,8 +600,12 @@ pub async fn ensure(
             mcs::init_pending(&conn, id, ctx.now())?;
             mcs::mark_ready_cached(&conn, id, ctx.now())?;
         }
-        match load_cached(ctx, id).await {
-            Ok(n) if n > 0 => return Ok(n),
+        match load_stored(ctx, id).await {
+            Ok(n) if n > 0 => {
+                drop(claim);
+                renamed_symbols::carry_over(ctx).await;
+                return Ok(n);
+            }
             Ok(_) => tracing::warn!("Stored master for {} is empty; downloading", id),
             Err(e) => tracing::warn!("Stored master for {} could not be read: {}", id, e),
         }

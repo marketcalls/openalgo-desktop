@@ -95,6 +95,7 @@ pub mod orders;
 mod placement;
 pub mod positions;
 pub mod quotes;
+mod renames;
 pub mod replies;
 pub mod session;
 pub mod squareoff;

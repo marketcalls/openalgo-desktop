@@ -10,12 +10,13 @@ use super::mapping::contract_size;
 use super::{session_expired, ZerodhaBroker};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
-    format_expiry, future_symbol, option_symbol, parse_broker_expiry, rename, CsvHeader,
-    BSE_INDEX_RENAMES, NSE_INDEX_RENAMES,
+    format_expiry, future_symbol, option_symbol, parse_broker_expiry, rename, series_base,
+    CsvHeader, BSE_INDEX_RENAMES, NSE_INDEX_RENAMES,
 };
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::types::AuthToken;
 use crate::error::{AppError, Result};
+use std::collections::{HashMap, HashSet};
 
 /// Kite exchange -> OpenAlgo exchange (rows on any other exchange are dropped).
 fn map_exchange(kite: &str) -> Option<&'static str> {
@@ -102,7 +103,64 @@ pub fn parse_instruments(csv: &str) -> Result<Vec<SymToken>> {
             dropped
         );
     }
+    strip_nse_series_suffix(&mut out);
     Ok(out)
+}
+
+/// Web `strip_nse_series_suffix`: NSE cash rows traded outside the EQ
+/// series get their base symbol; `brsymbol` stays Kite's tradingsymbol.
+///
+/// A row keeps its suffix when the base is already another NSE cash row's
+/// symbol, or when two suffixed rows would claim the same base, so no two
+/// NSE rows share a symbol. The master has no unique key on
+/// `(symbol, exchange)` (migration 043) and the resolver answers a
+/// duplicate pair with its first row, so a shared symbol would quietly
+/// send one stock's orders to the other.
+fn strip_nse_series_suffix(rows: &mut [SymToken]) {
+    let is_cash = |r: &&SymToken| r.exchange == "NSE" && r.instrument_type == "EQ";
+    let (renames, suffixed): (Vec<(usize, String)>, usize) = {
+        let taken: HashSet<&str> = rows
+            .iter()
+            .filter(is_cash)
+            .map(|r| r.symbol.as_str())
+            .collect();
+        let mut claims: HashMap<&str, usize> = HashMap::new();
+        for base in rows
+            .iter()
+            .filter(is_cash)
+            .filter_map(|r| series_base(&r.symbol))
+        {
+            *claims.entry(base).or_default() += 1;
+        }
+        let renames = rows
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| is_cash(r))
+            .filter_map(|(i, r)| {
+                let base = series_base(&r.symbol)?;
+                (!taken.contains(base) && claims.get(base) == Some(&1))
+                    .then(|| (i, base.to_string()))
+            })
+            .collect();
+        (renames, claims.values().sum())
+    };
+    if suffixed == 0 {
+        return;
+    }
+    let stripped = renames.len();
+    for (i, base) in renames {
+        rows[i].symbol = base;
+    }
+    let kept = suffixed - stripped;
+    if kept > 0 {
+        tracing::info!(
+            "NSE series suffix removed from {} symbols, kept on {} whose bare name is already in use",
+            stripped,
+            kept
+        );
+    } else {
+        tracing::info!("NSE series suffix removed from {} symbols", stripped);
+    }
 }
 
 fn parse_row<'a>(c: &Cols, get: &dyn Fn(usize) -> &'a str) -> Option<SymToken> {

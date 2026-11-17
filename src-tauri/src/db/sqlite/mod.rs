@@ -27,6 +27,7 @@ pub mod request_count;
 mod settings;
 pub mod strategy_portfolio;
 pub mod symbol;
+pub(crate) mod symbol_renames;
 pub mod tunnel;
 pub mod user;
 pub mod watchlist;
