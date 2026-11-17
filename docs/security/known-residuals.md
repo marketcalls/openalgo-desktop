@@ -27,7 +27,7 @@ On every path, before anything is stored, the account the broker returns
 must be the configured one (`catalog::configured_account`: the client id or
 the `client_id:::key` prefix, for Dhan and the Noren family; the client id
 entered on Broker Configuration for Arrow, HDFC Sky, HDFC Securities,
-AliceBlue, Rupeezy and Nuvama (its login answer's `eqAccID`)), else the account of the last session with that broker. A
+AliceBlue, Rupeezy and Nuvama (its login answer's `eqAccID`, else `coAccID`)), else the account of the last session with that broker. A
 mismatch is refused and the live session and its stored row are left as they
 were. That account is the one the broker itself names for the session
 (marketcalls/openalgo#2337): Dhan's consent answer or its fund limits for a

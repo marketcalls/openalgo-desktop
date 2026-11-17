@@ -143,7 +143,7 @@ will receive, so read the levels from the frames.
 | Broker | LTP and Quote | Depth mode |
 |--------|---------------|------------|
 | Zerodha, Fyers, Upstox, Kotak, Groww, AliceBlue, Shoonya, Flattrade, Zebu, TradeSmart, Firstock, 5paisa, INDmoney, mstock, Paytm, Delta Exchange | The depth asked for | The depth asked for |
-| Arrow, HDFC Sky, HDFC Securities, Rupeezy | `null` | The level streamed |
+| Arrow, HDFC Sky, HDFC Securities, Rupeezy, Nuvama | `null` | The level streamed |
 | IIFL Capital | 5 | 5 |
 | Every other broker (Angel, Dhan, Definedge, Motilal, Nubra, Pocketful, Samco, Tradejini, the XTS brokers ...) | The depth asked for | The level streamed |
 

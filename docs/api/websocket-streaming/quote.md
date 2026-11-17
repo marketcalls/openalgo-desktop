@@ -203,9 +203,9 @@ works:
 | last_quantity | `last_trade_quantity` | Angel, Fyers, Upstox, 5paisa, mstock, Paytm, Pocketful, Samco |
 | last_quantity | `ltq` | Definedge, Motilal |
 | average_price | `avg_trade_price` | Fyers |
-| price_change | `change` | Fyers, Arrow, HDFC Sky, HDFC Securities, Rupeezy, Tradejini, Samco |
+| price_change | `change` | Fyers, Arrow, HDFC Sky, HDFC Securities, Rupeezy, Nuvama, Tradejini, Samco |
 | price_change | `change_absolute` | Paytm |
-| price_change_percent | `change_percent` | Fyers, AliceBlue, Arrow, HDFC Sky, HDFC Securities, Definedge, Paytm, Rupeezy, Tradejini |
+| price_change_percent | `change_percent` | Fyers, AliceBlue, Arrow, HDFC Sky, HDFC Securities, Definedge, Paytm, Rupeezy, Nuvama, Tradejini |
 | price_change_percent | `percent_change` | Shoonya, Flattrade, Zebu, TradeSmart, Fyers, Kotak |
 | price_change_percent | `change_percentage` | Samco |
 | ltt | `last_trade_time` | Sahi, Kotak, Upstox; Fyers and Dhan in epoch seconds, as their web adapters send it. Beside `ltt` in every mode, LTP included |
