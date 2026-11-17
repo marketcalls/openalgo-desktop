@@ -184,6 +184,11 @@ pub struct MockBroker {
     /// `history_trims_after_close` answers this (Dhan's index bar after the
     /// close).
     pub trims_after_close: Mutex<bool>,
+    /// `history_on_session_grid` answers this (Nuvama's clock-grid bars).
+    pub session_grid: Mutex<bool>,
+    /// History answers by interval, ahead of `history` (the session grid
+    /// asks for a finer interval than the caller).
+    pub history_by_interval: Mutex<HashMap<String, Vec<Candle>>>,
     pub gtt: Mutex<Option<Scripted<GttResponse>>>,
     pub gtt_book: Mutex<Option<Scripted<Vec<GttOrder>>>>,
     pub master: Mutex<Option<Scripted<Vec<SymbolData>>>>,
@@ -276,6 +281,8 @@ impl MockBroker {
             depth: Mutex::new(None),
             history: Mutex::new(None),
             trims_after_close: Mutex::new(false),
+            session_grid: Mutex::new(false),
+            history_by_interval: Mutex::new(HashMap::new()),
             gtt: Mutex::new(None),
             gtt_book: Mutex::new(None),
             master: Mutex::new(None),
@@ -699,11 +706,18 @@ impl Broker for MockBroker {
     async fn get_history(&self, _: &AuthToken, req: &HistoryRequest) -> Result<Vec<Candle>> {
         self.pace().await?;
         self.record(MockCall::History(req.clone()));
+        if let Some(bars) = self.history_by_interval.lock().get(&req.interval) {
+            return Ok(bars.clone());
+        }
         out(&self.history, Vec::new)
     }
 
     fn history_trims_after_close(&self, _: &HistoryRequest) -> bool {
         *self.trims_after_close.lock()
+    }
+
+    fn history_on_session_grid(&self, _: &HistoryRequest) -> bool {
+        *self.session_grid.lock()
     }
 
     async fn place_gtt(&self, _: &AuthToken, _: &GttRequest) -> Result<GttResponse> {
