@@ -111,6 +111,7 @@ fn broker_redirect(broker: &str, authorize: &str, cookie: &str) -> Request<Body>
         ],
         "compositedge" | "rmoney" => vec![],
         "rupeezy" => vec![("auth".into(), "c1".into())],
+        "nuvama" => vec![("request_id".into(), "c1".into())],
         _ => vec![("code".into(), "c1".into())],
     };
     if catalog::callback_carries_state(broker) {

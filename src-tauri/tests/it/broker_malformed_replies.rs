@@ -901,3 +901,36 @@ async fn rupeezy() {
     };
     check("rupeezy", &b, &AuthToken::new("rupeezy-token"), &f, &c).await;
 }
+
+#[tokio::test]
+async fn nuvama() {
+    use openalgo_desktop_lib::brokers::nuvama::{NuvamaBroker, NuvamaUrls};
+    let f = fake().await;
+    let b = NuvamaBroker::with_base_url(symbols(), NuvamaUrls::rebased(&f.base, 1));
+    // web `test_position_read_failure` (nuvama): a position matches by its
+    // token (`sym`) and product; the empty book is the ETRD0004 error
+    // object (HTTP 222 in production).
+    let c = Corpus {
+        malformed: &[
+            ("data without its list", r#"{"data":{}}"#),
+            (
+                "a null list",
+                r#"{"data":{"pos":null,"ord":null,"trade":null,"rmsHdg":null}}"#,
+            ),
+            ("text data", r#"{"data":"x"}"#),
+        ],
+        empty: r#"{"error":{"actCd":"54","errCd":"ETRD0004","errMsg":"Seems like there are no positions in your account currently"}}"#,
+        row: r#"{"data":{"pos":[{"sym":"3045","trdSym":"INE062A01020","exc":"NSE","prdCode":"MIS","ntQty":"5"}]}}"#,
+        no_quantity: r#"{"data":{"pos":[{"sym":"3045","trdSym":"INE062A01020","exc":"NSE","prdCode":"MIS"}]}}"#,
+        bad_quantity: r#"{"data":{"pos":[{"sym":"3045","trdSym":"INE062A01020","exc":"NSE","prdCode":"MIS","ntQty":"abc"}]}}"#,
+        exempt: &[],
+    };
+    check(
+        "nuvama",
+        &b,
+        &AuthToken::new("AUTH:::SOURCE:::APPID:::ACC01:::EQ:::KEY01"),
+        &f,
+        &c,
+    )
+    .await;
+}

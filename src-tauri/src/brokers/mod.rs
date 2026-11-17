@@ -36,6 +36,7 @@ pub mod mock;
 pub mod motilal;
 pub mod mstock;
 pub mod nubra;
+pub mod nuvama;
 pub mod paytm;
 pub mod pocketful;
 pub mod rmoney;
@@ -750,6 +751,7 @@ impl BrokerRegistry {
             Arc::new(firstock::FirstockBroker::new(symbols.clone())),
             Arc::new(fivepaisa::FivepaisaBroker::new(symbols.clone())),
             Arc::new(nubra::NubraBroker::new(symbols.clone())),
+            Arc::new(nuvama::NuvamaBroker::new(symbols.clone())),
             Arc::new(tradejini::TradejiniBroker::new(symbols.clone())),
             Arc::new(indmoney::IndmoneyBroker::new(symbols.clone())),
             Arc::new(deltaexchange::DeltaBroker::new(symbols.clone())),
@@ -871,6 +873,7 @@ mod tests {
                 "motilal",
                 "mstock",
                 "nubra",
+                "nuvama",
                 "paytm",
                 "pocketful",
                 "rmoney",

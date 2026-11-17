@@ -1,7 +1,8 @@
 /**
  * Desktop: every broker OpenAlgo Desktop signs in to, with the name the FAQ
- * shows. The web's FAQ says 36 broker plugins and leaves Rupeezy and Sahi
- * out, although the web supports both (`broker/rupeezy`, `broker/sahi`); the
+ * shows. The web's FAQ says 36 broker plugins and leaves Rupeezy, Sahi and
+ * Nuvama out, although the web supports them (`broker/rupeezy`,
+ * `broker/sahi`, `broker/nuvama`); the
  * FAQ here takes its count and its list from this table, and
  * `brokerCatalog.test.ts` fails when the table and the server's catalogue
  * (`src-tauri/src/brokers/catalog.rs`, `ALL_BROKERS`) differ (docs-39).
@@ -41,6 +42,7 @@ export const SUPPORTED_BROKERS: readonly SupportedBroker[] = [
   { id: 'motilal', name: 'Motilal Oswal' },
   { id: 'mstock', name: 'mStock by Mirae Asset' },
   { id: 'nubra', name: 'Nubra' },
+  { id: 'nuvama', name: 'Nuvama' },
   { id: 'paytm', name: 'Paytm Money' },
   { id: 'pocketful', name: 'Pocketful' },
   { id: 'rmoney', name: 'RMoney' },

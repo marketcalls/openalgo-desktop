@@ -41,6 +41,7 @@ pub const ALL_BROKERS: &[&str] = &[
     "motilal",
     "mstock",
     "nubra",
+    "nuvama",
     "paytm",
     "pocketful",
     "rmoney",
@@ -78,7 +79,7 @@ pub fn auth_type(broker: &str) -> AuthType {
     match broker {
         "zerodha" | "fyers" | "upstox" | "dhan" | "arrow" | "paytm" | "pocketful" | "hdfcsky"
         | "hdfcsecurities" | "flattrade" | "compositedge" | "iiflcapital" | "rmoney"
-        | "shoonya" | "zebu" | "tradesmart" | "aliceblue" | "rupeezy" => AuthType::OAuth,
+        | "shoonya" | "zebu" | "tradesmart" | "aliceblue" | "rupeezy" | "nuvama" => AuthType::OAuth,
         _ => AuthType::Form,
     }
 }
@@ -140,7 +141,8 @@ pub struct AuthorizeUrl {
 /// Whether the broker's redirect reliably carries the `state` OpenAlgo
 /// sent. Dhan's consent redirect returns only `tokenId`, and the Noren
 /// OAuth pages (shoonya, zebu, tradesmart, flattrade), Arrow, the HDFC
-/// pair, AliceBlue and Rupeezy may drop it; a callback from these without `state` is
+/// pair, AliceBlue and Rupeezy may drop it, and Nuvama's login address takes
+/// none; a callback from these without `state` is
 /// matched to the newest pending sign-in of that broker started from the
 /// same browser session (single use, 3 minutes) and bound to the
 /// configured account.
@@ -157,14 +159,21 @@ pub fn callback_carries_state(broker: &str) -> bool {
             | "hdfcsecurities"
             | "aliceblue"
             | "rupeezy"
+            | "nuvama"
     )
 }
 
 /// Brokers whose sign-in is bound to a client id the trader enters
 /// separately (the Profile broker form shows the field for these): their
 /// redirect may drop `state` and their API key does not carry the account.
-pub const CLIENT_ID_BROKERS: &[&str] =
-    &["arrow", "hdfcsky", "hdfcsecurities", "aliceblue", "rupeezy"];
+pub const CLIENT_ID_BROKERS: &[&str] = &[
+    "arrow",
+    "hdfcsky",
+    "hdfcsecurities",
+    "aliceblue",
+    "rupeezy",
+    "nuvama",
+];
 
 /// The trading account the stored credentials name, for brokers whose
 /// configuration carries it: Dhan and the Noren family take
@@ -183,7 +192,7 @@ pub fn configured_account(broker: &str, api_key: &str, client_id: Option<&str>) 
         .map(str::trim)
         .filter(|c| !c.is_empty())
         .map(str::to_string);
-    // Arrow, the HDFC pair, AliceBlue and Rupeezy: the client id, when the
+    // Arrow, the HDFC pair, AliceBlue, Rupeezy and Nuvama: the client id, when the
     // trader entered one.
     if CLIENT_ID_BROKERS.contains(&broker) {
         return client;
@@ -379,6 +388,13 @@ fn authorize_url_string(
             "https://flow.rupeezy.in?applicationId={}&state={}",
             enc(api_key),
             enc(state)
+        )),
+        // Nuvama API Connect: the API key only; Nuvama returns to the
+        // redirect URL registered for the key with `request_id` and takes no
+        // state (web `login_url`).
+        "nuvama" => Some(format!(
+            "https://www.nuvamawealth.com/api-connect/login?api_key={}",
+            enc(api_key)
         )),
         _ => None,
     }
@@ -618,6 +634,11 @@ pub fn extract_code(broker: &str, params: &HashMap<String, String>) -> Option<St
         // Rupeezy Vortex SSO returns the code as `auth` (web brlogin also
         // accepts `code`).
         "rupeezy" => get("auth").or_else(|| get("code")),
+        // Nuvama's User Login Flow returns `request_id` (web brlogin also
+        // accepts `requestId` and `reqId`).
+        "nuvama" => get("request_id")
+            .or_else(|| get("requestId"))
+            .or_else(|| get("reqId")),
         _ => get("code").or_else(|| get("request_token")),
     }
 }
@@ -1103,8 +1124,38 @@ mod tests {
     }
 
     #[test]
+    fn nuvama_login_url_and_request_id() {
+        assert_eq!(auth_type("nuvama"), AuthType::OAuth);
+        assert_eq!(sign_in("nuvama"), SignIn::Redirect);
+        let u = authorize_url("nuvama", "key 1", "r", "st5").unwrap().url;
+        assert_eq!(
+            u,
+            "https://www.nuvamawealth.com/api-connect/login?api_key=key%201"
+        );
+        let p = q(&[("request_id", "r9")]);
+        assert_eq!(extract_code("nuvama", &p).as_deref(), Some("r9"));
+        assert_eq!(
+            extract_code("nuvama", &q(&[("requestId", "r2")])).as_deref(),
+            Some("r2")
+        );
+        assert_eq!(
+            extract_code("nuvama", &q(&[("reqId", "r3")])).as_deref(),
+            Some("r3")
+        );
+        assert_eq!(extract_code("nuvama", &q(&[("code", "x")])), None);
+        assert!(!callback_carries_state("nuvama"));
+        assert!(CLIENT_ID_BROKERS.contains(&"nuvama"));
+        assert_eq!(
+            configured_account("nuvama", "key", Some(" ACC1 ")).as_deref(),
+            Some("ACC1")
+        );
+        assert_eq!(configured_account("nuvama", "key", None), None);
+        assert!(login_fields("nuvama").is_empty());
+    }
+
+    #[test]
     fn catalogue_has_all_web_brokers() {
-        assert_eq!(ALL_BROKERS.len(), 38);
+        assert_eq!(ALL_BROKERS.len(), 39);
         assert_eq!(auth_type("angel"), AuthType::Form);
         assert_eq!(auth_type("zerodha"), AuthType::OAuth);
     }

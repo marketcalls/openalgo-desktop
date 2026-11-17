@@ -38,8 +38,8 @@ enum DepthAck {
     /// Pocketful, Samco, Tradejini; the default for a broker not listed).
     Fallback,
     /// The level it falls back to in Depth mode, `null` otherwise: Arrow,
-    /// both HDFC adapters and Rupeezy send `actual_depth=None` outside
-    /// Depth mode.
+    /// both HDFC adapters, Rupeezy and Nuvama send `actual_depth=None`
+    /// outside Depth mode.
     FallbackElseNull,
     /// Always 5, in every mode (IIFL Capital).
     Five,
@@ -50,7 +50,7 @@ fn depth_ack(broker: &str) -> DepthAck {
         "zerodha" | "fyers" | "upstox" | "kotak" | "groww" | "aliceblue" | "shoonya"
         | "flattrade" | "zebu" | "tradesmart" | "firstock" | "fivepaisa" | "indmoney"
         | "mstock" | "paytm" | "deltaexchange" => DepthAck::Echo,
-        "arrow" | "hdfcsecurities" | "hdfcsky" | "rupeezy" => DepthAck::FallbackElseNull,
+        "arrow" | "hdfcsecurities" | "hdfcsky" | "rupeezy" | "nuvama" => DepthAck::FallbackElseNull,
         "iiflcapital" => DepthAck::Five,
         _ => DepthAck::Fallback,
     }
@@ -150,7 +150,7 @@ mod tests {
     /// Capital always names 5.
     #[test]
     fn arrow_and_hdfc_name_no_depth_outside_depth_mode_and_iifl_capital_five() {
-        for broker in ["arrow", "hdfcsecurities", "hdfcsky", "rupeezy"] {
+        for broker in ["arrow", "hdfcsecurities", "hdfcsky", "rupeezy", "nuvama"] {
             for mode in [Mode::Ltp, Mode::Quote] {
                 assert_eq!(subscribe_depth(broker, mode, 5, &[5]), Some((5, None)));
             }
