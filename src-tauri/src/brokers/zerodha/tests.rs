@@ -48,6 +48,9 @@ fn broker() -> ZerodhaBroker {
 /// Web test/test_zerodha_index_packets.py (openalgo#2347).
 mod index_packets;
 
+/// Web test/test_zerodha_series_symbols.py (openalgo#2463).
+mod series_symbols;
+
 // ---------------------------------------------------------------------------
 // Master contract
 // ---------------------------------------------------------------------------
