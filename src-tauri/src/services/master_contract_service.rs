@@ -421,6 +421,20 @@ async fn download_claimed(
         ));
     };
     clear_unavailable(ctx);
+    record_success(ctx, id, total, started, &stats)?;
+    Ok(total)
+}
+
+/// A download that stored and installed `total` instruments: its status
+/// row, its history with the per-exchange counts, and the web's two
+/// Socket.IO events.
+fn record_success(
+    ctx: &AppState,
+    id: &str,
+    total: usize,
+    started: std::time::Instant,
+    stats: &std::collections::BTreeMap<String, i64>,
+) -> Result<()> {
     {
         let conn = ctx.sqlite.conn()?;
         let now = ctx.now();
@@ -432,7 +446,7 @@ async fn download_claimed(
             Some(total as i64),
             now,
         )?;
-        mcs::record_download(&conn, id, started.elapsed().as_secs() as i64, &stats, now)?;
+        mcs::record_download(&conn, id, started.elapsed().as_secs() as i64, stats, now)?;
     }
     emit_download(ctx, id, "success", "Successfully Downloaded");
     emit_cache_loaded(ctx, id, started);
@@ -442,7 +456,7 @@ async fn download_claimed(
         total,
         started.elapsed().as_secs_f64()
     );
-    Ok(total)
+    Ok(())
 }
 
 /// Download now (the claim must not be held). `Err` with `BUSY_MESSAGE`

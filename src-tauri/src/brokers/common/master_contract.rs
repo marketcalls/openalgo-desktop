@@ -268,6 +268,22 @@ pub fn rename<'a>(table: &'a [(&'a str, &'a str)], name: &str) -> Option<&'a str
         .map(|(_, to)| *to)
 }
 
+/// NSE series in which a company's own units trade outside EQ (web
+/// `_NSE_SERIES_SUFFIXES`, openalgo#2463). Brokers fold the series into the
+/// tradingsymbol of these (Kite's HFCL-BE, EMBASSY-RR, GOLDSTAR-ST), while
+/// OpenAlgo's equity symbol is the bare exchange symbol, as NSE lists it
+/// (Symbol HFCL, Series BE); `brsymbol` keeps the broker's tradingsymbol.
+/// Not stripped: the debt and government security series (SG, GS, TB, N0
+/// and the like), and -RL, whose bare names exist as rows of their own.
+const NSE_SERIES_SUFFIXES: [&str; 6] = ["BE", "BZ", "RR", "IV", "SM", "ST"];
+
+/// The base symbol of a series-suffixed tradingsymbol (`HFCL` of
+/// `HFCL-BE`), as the web's `^(.+)-(?:BE|BZ|RR|IV|SM|ST)$` reads it.
+pub fn series_base(symbol: &str) -> Option<&str> {
+    let (base, series) = symbol.rsplit_once('-')?;
+    (!base.is_empty() && NSE_SERIES_SUFFIXES.contains(&series)).then_some(base)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

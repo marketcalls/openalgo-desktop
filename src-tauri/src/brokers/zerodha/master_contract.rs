@@ -10,24 +10,13 @@ use super::mapping::contract_size;
 use super::{session_expired, ZerodhaBroker};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
-    format_expiry, future_symbol, option_symbol, parse_broker_expiry, rename, CsvHeader,
-    BSE_INDEX_RENAMES, NSE_INDEX_RENAMES,
+    format_expiry, future_symbol, option_symbol, parse_broker_expiry, rename, series_base,
+    CsvHeader, BSE_INDEX_RENAMES, NSE_INDEX_RENAMES,
 };
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::types::AuthToken;
 use crate::error::{AppError, Result};
 use std::collections::{HashMap, HashSet};
-
-/// NSE series in which a company's own units trade outside EQ (web
-/// `_NSE_SERIES_SUFFIXES`, openalgo#2463). Kite keeps the series on the
-/// tradingsymbol of these (HFCL-BE, EMBASSY-RR, GOLDSTAR-ST), while
-/// OpenAlgo's equity symbol is the bare exchange symbol, as NSE lists it
-/// (Symbol HFCL, Series BE). `brsymbol` keeps Kite's tradingsymbol: every
-/// order, quote, history and margin call sends `br_symbol()`, and every book
-/// maps back through the resolver. Not stripped: the debt and government
-/// security series (SG, GS, TB, N0 and the like), and -RL, whose bare names
-/// exist as rows of their own.
-const NSE_SERIES_SUFFIXES: [&str; 6] = ["BE", "BZ", "RR", "IV", "SM", "ST"];
 
 /// Kite exchange -> OpenAlgo exchange (rows on any other exchange are dropped).
 fn map_exchange(kite: &str) -> Option<&'static str> {
@@ -116,13 +105,6 @@ pub fn parse_instruments(csv: &str) -> Result<Vec<SymToken>> {
     }
     strip_nse_series_suffix(&mut out);
     Ok(out)
-}
-
-/// The base symbol of a series-suffixed tradingsymbol (`HFCL` of
-/// `HFCL-BE`), as the web's `^(.+)-(?:BE|BZ|RR|IV|SM|ST)$` reads it.
-fn series_base(symbol: &str) -> Option<&str> {
-    let (base, series) = symbol.rsplit_once('-')?;
-    (!base.is_empty() && NSE_SERIES_SUFFIXES.contains(&series)).then_some(base)
 }
 
 /// Web `strip_nse_series_suffix`: NSE cash rows traded outside the EQ
