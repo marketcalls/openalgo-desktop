@@ -113,7 +113,7 @@ webpki-roots = "1"
 # aws-lc-rs would add a second crypto provider, and rustls cannot pick a
 # default when both are built). It verifies ngrok's own CA, bundled in the
 # crate, not the system's roots.
-ngrok = { version = "=0.19.0", default-features = false, features = ["ring"] }
+ngrok = { version = "=0.19.1", default-features = false, features = ["ring"] }
 # Serving the tunnel's connections with the app's own router, as axum
 # serves the listener (`server::tunnel`); both already in the tree via axum.
 hyper = { version = "1", features = ["http1", "server"] }
