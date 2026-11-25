@@ -11,13 +11,17 @@ use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::families::noren::master_contract::parse_file;
 use crate::brokers::families::noren::{NorenBroker, NorenConfig, NorenEndpoints};
 use crate::brokers::types::{AuthToken, HistoryRequest, QuoteKey};
-use crate::brokers::{shoonya, zebu, Broker};
+use crate::brokers::{flattrade, shoonya, zebu, Broker};
+use axum::http::StatusCode;
 use chrono::{NaiveDate, NaiveDateTime, TimeZone};
 use chrono_tz::Asia::Kolkata;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Notify;
 
 macro_rules! fixture {
     ($name:literal) => {
@@ -232,6 +236,15 @@ struct Fake {
     calls: Mutex<Vec<(String, Value)>>,
     /// TPSeries answers the rows inside the asked range.
     tpseries: Mutex<Vec<Value>>,
+    /// EODChartData answers these rows for these `sym` names, "no data"
+    /// for any other.
+    eod: Mutex<Vec<(&'static str, Vec<Value>)>>,
+    /// GetSecurityInfo knows these index names by (exchange, token).
+    index_names: Mutex<Vec<((&'static str, &'static str), &'static str)>>,
+    /// GetSecurityInfo answers 502.
+    security_info_down: AtomicBool,
+    /// GetSecurityInfo says it was reached, then waits to be released.
+    security_info_gate: Mutex<Option<(Arc<Notify>, Arc<Notify>)>>,
 }
 
 impl Fake {
@@ -270,7 +283,39 @@ impl Fake {
                     Value::Array(rows)
                 }
             }
+            "EODChartData" => {
+                let sym = jdata["sym"].as_str().unwrap_or_default();
+                match self.eod.lock().iter().find(|(name, _)| *name == sym) {
+                    Some((_, rows)) => Value::Array(rows.clone()),
+                    None => no_data,
+                }
+            }
+            "GetSecurityInfo" => {
+                let exch = jdata["exch"].as_str().unwrap_or_default();
+                let token = jdata["token"].as_str().unwrap_or_default();
+                let names = self.index_names.lock();
+                match names.iter().find(|(at, _)| *at == (exch, token)) {
+                    Some((_, tsym)) => {
+                        json!({"stat":"Ok","exch":exch,"token":token,"tsym":tsym,"instname":"UNDIND"})
+                    }
+                    None => no_data,
+                }
+            }
             _ => no_data,
+        }
+    }
+
+    /// GetSecurityInfo's gate and outage, before it answers.
+    async fn before_security_info(&self) -> StatusCode {
+        let gate = self.security_info_gate.lock().clone();
+        if let Some((reached, release)) = gate {
+            reached.notify_one();
+            release.notified().await;
+        }
+        if self.security_info_down.load(Ordering::SeqCst) {
+            StatusCode::BAD_GATEWAY
+        } else {
+            StatusCode::OK
         }
     }
 }
@@ -295,7 +340,12 @@ async fn serve(fake: Arc<Fake>) -> String {
                 .to_string();
             let jdata = jdata_of(&body);
             fake.calls.lock().push((leaf.clone(), jdata.clone()));
-            axum::Json(fake.answer(&leaf, &jdata))
+            let status = if leaf == "GetSecurityInfo" {
+                fake.before_security_info().await
+            } else {
+                StatusCode::OK
+            };
+            (status, axum::Json(fake.answer(&leaf, &jdata)))
         }
     });
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -437,5 +487,179 @@ async fn other_noren_members_keep_the_bars_tpseries_sends() {
         let times = bar_times(&b, &history("NSE", "RELIANCE", "1m")).await;
         assert_eq!(times.len(), 5, "{}", cfg.id);
         assert_eq!(times[0], ist("2026-11-18 09:14"), "{}", cfg.id);
+    }
+}
+
+/// Daily rows as EODChartData sends them, from `(YYYY-MM-DD, o, h, l, c)`.
+fn eod_rows(days: &[(&str, f64, f64, f64, f64)]) -> Vec<Value> {
+    days.iter()
+        .map(|&(day, o, h, l, c)| {
+            let date = NaiveDate::parse_from_str(day, "%Y-%m-%d").unwrap();
+            let ssboe = date.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
+            json!({"stat":"Ok","time": date.format("%d-%b-%Y").to_string().to_uppercase(),
+                   "into": o.to_string(), "inth": h.to_string(), "intl": l.to_string(),
+                   "intc": c.to_string(), "ssboe": ssboe.to_string(), "intv": "0"})
+        })
+        .collect()
+}
+
+/// A fake that knows NIFTY and SENSEX by the names GetSecurityInfo reports
+/// (`Nifty 50` for the master's `NIFTY INDEX`) and serves daily candles
+/// under those names, and under RELIANCE's trading symbol, only.
+fn index_fake() -> Arc<Fake> {
+    let fake = Arc::new(Fake::default());
+    *fake.index_names.lock() = vec![(("NSE", "26000"), "Nifty 50"), (("BSE", "1"), "SENSEX")];
+    *fake.eod.lock() = vec![
+        (
+            "NSE:Nifty 50",
+            eod_rows(&[
+                ("2026-11-18", 25_850.0, 26_010.5, 25_801.2, 25_940.7),
+                ("2026-11-19", 25_940.7, 26_102.0, 25_911.3, 26_068.4),
+            ]),
+        ),
+        (
+            "BSE:SENSEX",
+            eod_rows(&[
+                ("2026-11-18", 84_520.0, 84_990.1, 84_310.6, 84_802.3),
+                ("2026-11-19", 84_802.3, 85_244.0, 84_700.9, 85_190.5),
+            ]),
+        ),
+        (
+            "NSE:RELIANCE-EQ",
+            eod_rows(&[
+                ("2026-11-18", 1370.0, 1384.2, 1361.0, 1379.6),
+                ("2026-11-19", 1374.0, 1391.8, 1370.4, 1388.1),
+            ]),
+        ),
+    ];
+    fake
+}
+
+fn eod_names(fake: &Fake) -> Vec<String> {
+    fake.calls("EODChartData")
+        .iter()
+        .map(|j| j["sym"].as_str().unwrap_or_default().to_string())
+        .collect()
+}
+
+/// The scrip master's NIFTY INDEX is not the name EODChartData takes, so
+/// daily history of every NSE index came back empty. Daily index history
+/// asks GetSecurityInfo for the name by token (NSE_INDEX and BSE_INDEX
+/// alike); equities and intraday history ask for nothing.
+#[tokio::test]
+async fn daily_index_history_asks_with_the_name_get_security_info_reports() {
+    let fake = index_fake();
+    let b = adapter(config(), &fake).await;
+    let nifty = b
+        .get_history(&auth(), &history("NSE_INDEX", "NIFTY", "D"))
+        .await
+        .unwrap();
+    assert_eq!(nifty.len(), 2, "daily NIFTY came back empty");
+    assert_eq!(nifty[1].close, 26_068.4);
+    assert_eq!(
+        fake.calls("GetSecurityInfo"),
+        vec![json!({"uid": "<USER_ID>", "exch": "NSE", "token": "26000"})]
+    );
+    let sensex = b
+        .get_history(&auth(), &history("BSE_INDEX", "SENSEX", "D"))
+        .await
+        .unwrap();
+    assert_eq!(sensex.len(), 2);
+    assert_eq!(fake.calls("GetSecurityInfo")[1]["exch"], "BSE");
+    let reliance = b
+        .get_history(&auth(), &history("NSE", "RELIANCE", "D"))
+        .await
+        .unwrap();
+    assert_eq!(reliance.len(), 2);
+    bar_times(&b, &history("NSE_INDEX", "NIFTY", "1m")).await;
+    assert_eq!(
+        eod_names(&fake),
+        ["NSE:Nifty 50", "BSE:SENSEX", "NSE:RELIANCE-EQ"]
+    );
+    assert_eq!(fake.calls("GetSecurityInfo").len(), 2);
+}
+
+/// The name is kept a day (the web's 64-entry, 24-hour LockedTTLCache) and
+/// forgotten when the session ends (`on_logout`: logout, a broker switch,
+/// the daily boundary).
+#[tokio::test]
+async fn the_index_name_is_kept_and_forgotten_when_the_session_ends() {
+    let fake = index_fake();
+    let b = adapter(config(), &fake).await;
+    let nifty = history("NSE_INDEX", "NIFTY", "D");
+    b.get_history(&auth(), &nifty).await.unwrap();
+    b.get_history(&auth(), &nifty).await.unwrap();
+    assert_eq!(fake.calls("GetSecurityInfo").len(), 1, "asked once");
+    b.on_logout().await;
+    b.get_history(&auth(), &nifty).await.unwrap();
+    assert_eq!(fake.calls("GetSecurityInfo").len(), 2, "asked again");
+    assert_eq!(eod_names(&fake), ["NSE:Nifty 50"; 3]);
+}
+
+/// A lookup that fails costs nothing that worked before: daily history
+/// asks with the stored broker symbol, and the failure is not kept.
+#[tokio::test]
+async fn a_failed_lookup_asks_with_the_stored_symbol_and_is_not_kept() {
+    let fake = index_fake();
+    fake.index_names.lock().clear();
+    let b = adapter(config(), &fake).await;
+    let nifty = history("NSE_INDEX", "NIFTY", "D");
+    assert!(b.get_history(&auth(), &nifty).await.unwrap().is_empty());
+    fake.security_info_down.store(true, Ordering::SeqCst);
+    assert!(b.get_history(&auth(), &nifty).await.unwrap().is_empty());
+    assert_eq!(fake.calls("GetSecurityInfo").len(), 2);
+    assert_eq!(eod_names(&fake), ["NSE:NIFTY INDEX"; 2]);
+}
+
+/// The cache's race rule (`crate::cache::TtlCache`): a name that answers
+/// after the session ended is given to the history that asked for it, but
+/// not kept for the next session.
+#[tokio::test]
+async fn an_index_name_answered_after_the_session_ended_is_not_kept() {
+    let fake = index_fake();
+    let b = Arc::new(adapter(config(), &fake).await);
+    let (reached, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
+    *fake.security_info_gate.lock() = Some((reached.clone(), release.clone()));
+    let asking = tokio::spawn({
+        let b = b.clone();
+        async move {
+            b.get_history(&auth(), &history("NSE_INDEX", "NIFTY", "D"))
+                .await
+        }
+    });
+    tokio::time::timeout(Duration::from_secs(10), reached.notified())
+        .await
+        .expect("daily index history never asked GetSecurityInfo");
+    b.on_logout().await;
+    release.notify_one();
+    let nifty = asking.await.unwrap().unwrap();
+    assert_eq!(nifty.len(), 2, "the history that asked gets the name");
+    *fake.security_info_gate.lock() = None;
+    b.get_history(&auth(), &history("NSE_INDEX", "NIFTY", "D"))
+        .await
+        .unwrap();
+    assert_eq!(
+        fake.calls("GetSecurityInfo").len(),
+        2,
+        "the late answer was kept past the session's end"
+    );
+}
+
+/// Shoonya, Zebu and Flattrade never ask GetSecurityInfo: Shoonya keeps
+/// its own index-name table, the others the broker symbol.
+#[tokio::test]
+async fn other_noren_members_never_ask_for_the_index_name() {
+    for (cfg, name) in [
+        (shoonya::config(), "NSE:Nifty 50"),
+        (zebu::config(), "NSE:NIFTY INDEX"),
+        (flattrade::config(), "NSE:NIFTY INDEX"),
+    ] {
+        let fake = index_fake();
+        let b = adapter(cfg, &fake).await;
+        let _ = b
+            .get_history(&auth(), &history("NSE_INDEX", "NIFTY", "D"))
+            .await;
+        assert!(fake.calls("GetSecurityInfo").is_empty(), "{}", cfg.id);
+        assert_eq!(eod_names(&fake)[0], name, "{}", cfg.id);
     }
 }

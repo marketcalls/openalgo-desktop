@@ -298,6 +298,12 @@ pub struct NorenConfig {
     pub history_window_secs: Option<fn(&str) -> i64>,
     /// `EODChartData` names for indices: ((exchange, symbol), name).
     pub eod_index_names: &'static [((&'static str, &'static str), &'static str)],
+    /// Daily history of an NSE_INDEX or BSE_INDEX row asks `/GetSecurityInfo`
+    /// for the name `/EODChartData` accepts, kept a day per (exchange,
+    /// token), the stored broker symbol when the lookup fails (tradesmart,
+    /// web #2475: the master's `NIFTY INDEX` is not the `Nifty 50` the
+    /// endpoint takes; `data::index_eod_name`).
+    pub eod_index_lookup: bool,
     /// Widen high/low to cover open/close and zero negative volume.
     pub history_repair: bool,
     /// Rebuild each day's last intraday bar (3m to 4h) from 1m bars: a
@@ -616,6 +622,9 @@ pub struct NorenBroker {
     pub(crate) order_limiter: Arc<Limiter>,
     pub(crate) data_limiter: Arc<Limiter>,
     pub(crate) quote_limiter: Arc<Limiter>,
+    /// Index names daily history resolved (`eod_index_lookup`), cleared by
+    /// `on_logout`.
+    pub(crate) index_eod_names: data::IndexEodNames,
 }
 
 impl NorenBroker {
@@ -645,6 +654,7 @@ impl NorenBroker {
                 None => data.clone(),
             },
             data_limiter: data,
+            index_eod_names: data::IndexEodNames::default(),
         }
     }
 
@@ -787,6 +797,13 @@ impl Broker for NorenBroker {
 
     async fn download_master_contract(&self, _auth: &AuthToken) -> Result<Vec<SymbolData>> {
         master_contract::download(self).await
+    }
+
+    /// Forget the index names daily history resolved: the session that
+    /// asked for them has ended (logout, a broker switch, the daily
+    /// boundary).
+    async fn on_logout(&self) {
+        self.index_eod_names.clear();
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {

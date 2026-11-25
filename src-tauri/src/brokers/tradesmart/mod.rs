@@ -6,7 +6,9 @@
 //! Its master (web #2475) types every NSE row and both index exchanges EQ,
 //! skips the BSE placeholder rows that carry no tick size, reads the BFO
 //! underlying from the trading symbol's stem, and stores every tick size
-//! as the files give it, in rupees.
+//! as the files give it, in rupees. Intraday history leaves out the flat
+//! pre-open bar opening each session, and daily index history asks
+//! `/GetSecurityInfo` for the name `/EODChartData` takes.
 
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::*;
@@ -75,6 +77,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     timeframes: TIMEFRAMES_NO_4H,
     history_window_secs: None,
     eod_index_names: &[],
+    eod_index_lookup: true,
     history_repair: false,
     day_end_repair: false,
     drop_flat_open_bar: true,

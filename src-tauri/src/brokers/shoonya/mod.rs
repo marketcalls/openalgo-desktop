@@ -76,6 +76,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
         (("NSE_INDEX", "NIFTYNXT50"), "Nifty Next 50"),
         (("NSE_INDEX", "INDIAVIX"), "India VIX"),
     ],
+    eod_index_lookup: false,
     history_repair: true,
     day_end_repair: true,
     drop_flat_open_bar: false,

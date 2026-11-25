@@ -81,6 +81,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     timeframes: TIMEFRAMES_WITH_4H,
     history_window_secs: None,
     eod_index_names: &[],
+    eod_index_lookup: false,
     history_repair: false,
     day_end_repair: false,
     drop_flat_open_bar: false,
