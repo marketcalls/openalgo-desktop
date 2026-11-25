@@ -344,7 +344,7 @@ pub(crate) async fn get_history(
     auth: &AuthToken,
     req: &HistoryRequest,
 ) -> Result<Vec<Candle>> {
-    let compression = super::TIMEFRAME_MAP
+    let compression = super::timeframes(b.cfg)
         .iter()
         .find(|(k, _)| *k == req.interval)
         .map(|(_, v)| *v)

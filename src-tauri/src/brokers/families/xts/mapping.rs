@@ -3,8 +3,9 @@
 //! master is passed in.
 
 use super::protection::Priced;
+use super::XtsHooks;
 use crate::brokers::common::book_read;
-use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product};
+use crate::brokers::common::mapping::{Action, Exchange, OrderStatus, PriceType, Product};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use serde_json::{json, Value};
@@ -116,6 +117,46 @@ pub fn oa_status(s: &str) -> String {
         "Trigger Pending" | "TriggerPending" => "trigger pending".into(),
         other => crate::brokers::lower_status(other),
     }
+}
+
+/// The XTS v2 docs' `OrderStatus` values beyond the template's map that
+/// are open: a modified order (`Replaced`) and the states still working at
+/// the exchange (web fivepaisaxts `ORDER_STATUS_MAPPING`, #2504).
+const DOCUMENTED_OPEN: &[&str] = &["Replaced", "PendingNew", "PendingReplace", "PendingCancel"];
+
+/// What cancel-all cancels for a member that reads answers as documented
+/// (web fivepaisaxts `_CANCELLABLE_STATUSES`): every order still working,
+/// modified and part-filled ones included, but not a `PendingCancel`,
+/// whose cancel is already on its way.
+const DOCUMENTED_CANCELLABLE: &[&str] = &[
+    "New",
+    "Open",
+    "Replaced",
+    "PartiallyFilled",
+    "PendingNew",
+    "PendingReplace",
+];
+
+/// The order-book status of a member: the documented states read as the
+/// XTS v2 docs list them, the rest as `oa_status`.
+pub(crate) fn member_status(s: &str, hooks: &XtsHooks) -> String {
+    if hooks.answers_as_documented && DOCUMENTED_OPEN.contains(&s.trim()) {
+        return "open".into();
+    }
+    oa_status(s)
+}
+
+/// Whether cancel-all cancels this order-book row. A member that reads
+/// answers as documented cancels by XTS's own status; the others what
+/// their book reads as open or trigger pending, as the trait's default does.
+pub(crate) fn cancellable(row: &Value, hooks: &XtsHooks) -> bool {
+    let status = s(row, "OrderStatus");
+    if hooks.answers_as_documented {
+        return DOCUMENTED_CANCELLABLE.contains(&status.trim());
+    }
+    oa_status(&status)
+        .parse::<OrderStatus>()
+        .is_ok_and(OrderStatus::is_pending)
 }
 
 /// `description` (or `message`) of an XTS error envelope.
@@ -328,8 +369,9 @@ fn list(v: &Value) -> &[Value] {
     v.as_array().map(Vec::as_slice).unwrap_or(&[])
 }
 
-/// `transform_order_data` over `GET /orders` `result`.
-pub fn orders(result: &Value, symbols: &SymbolResolver) -> Vec<Order> {
+/// `transform_order_data` over `GET /orders` `result`, with the member's
+/// status map (`member_status`).
+pub fn orders(result: &Value, symbols: &SymbolResolver, hooks: &XtsHooks) -> Vec<Order> {
     list(result)
         .iter()
         .filter(|o| o.is_object())
@@ -359,7 +401,7 @@ pub fn orders(result: &Value, symbols: &SymbolResolver) -> Vec<Order> {
                 average_price: f(o, "OrderAverageTradedPrice"),
                 order_type: oa_order_type(&s(o, "OrderType")),
                 product: s(o, "ProductType"),
-                status: oa_status(&s(o, "OrderStatus")),
+                status: member_status(&s(o, "OrderStatus"), hooks),
                 validity: {
                     let t = s(o, "TimeInForce");
                     if t.is_empty() {
@@ -376,17 +418,55 @@ pub fn orders(result: &Value, symbols: &SymbolResolver) -> Vec<Order> {
         .collect()
 }
 
+/// A field the row carries: not missing, null or empty text (the web's
+/// `not in (None, "")`).
+fn carried(v: &Value, k: &str) -> bool {
+    match v.get(k) {
+        None | Some(Value::Null) => false,
+        Some(Value::String(text)) => !text.is_empty(),
+        Some(_) => true,
+    }
+}
+
+/// The quantity, price and time of one trade-book row. For a member that
+/// reads answers as documented the row is one fill (web fivepaisaxts
+/// #2504): `LastTradedQuantity` and `LastTradedPrice` when it carries both,
+/// since `OrderQuantity` is the whole order and a part-filled order counted
+/// it on every fill, and `LastExecutionTransactTime`; else the order's.
+fn trade_fill(t: &Value, hooks: &XtsHooks) -> (i32, f64, String) {
+    let order_time = || s(t, "OrderGeneratedDateTime");
+    if !hooks.answers_as_documented {
+        return (
+            i(t, "OrderQuantity") as i32,
+            f(t, "OrderAverageTradedPrice"),
+            order_time(),
+        );
+    }
+    let (quantity, price) = if carried(t, "LastTradedQuantity") && carried(t, "LastTradedPrice") {
+        (i(t, "LastTradedQuantity"), f(t, "LastTradedPrice"))
+    } else {
+        (i(t, "OrderQuantity"), f(t, "OrderAverageTradedPrice"))
+    };
+    let executed = s(t, "LastExecutionTransactTime");
+    let time = if executed.is_empty() {
+        order_time()
+    } else {
+        executed
+    };
+    (quantity as i32, price, time)
+}
+
 /// `transform_tradebook_data` over `GET /orders/trades` `result`
-/// (`order_data.py:231-245`; tolerant numbers like wisdom's guards).
-pub fn trades(result: &Value, symbols: &SymbolResolver) -> Vec<Trade> {
+/// (`order_data.py:231-245`; tolerant numbers like wisdom's guards), each
+/// row read as the member reads it (`trade_fill`).
+pub fn trades(result: &Value, symbols: &SymbolResolver, hooks: &XtsHooks) -> Vec<Trade> {
     list(result)
         .iter()
         .filter(|t| t.is_object())
         .map(|t| {
             let exchange = oa_exchange(&s(t, "ExchangeSegment"));
             let token = s(t, "ExchangeInstrumentID");
-            let quantity = i(t, "OrderQuantity") as i32;
-            let average_price = f(t, "OrderAverageTradedPrice");
+            let (quantity, average_price, timestamp) = trade_fill(t, hooks);
             Trade {
                 order_tag: None,
                 order_id: order_id(t.get("AppOrderID")),
@@ -398,7 +478,7 @@ pub fn trades(result: &Value, symbols: &SymbolResolver) -> Vec<Trade> {
                 quantity,
                 average_price,
                 trade_value: f64::from(quantity) * average_price,
-                timestamp: s(t, "OrderGeneratedDateTime"),
+                timestamp,
             }
         })
         .collect()
@@ -560,11 +640,19 @@ fn money(v: &Value, k: &str) -> f64 {
 }
 
 /// `get_margin_data` (`funds.py:31-63`): `BalanceList` entry (the one whose
-/// `limitHeader` matches `header`, else the first), `RMSSubLimits`.
-pub fn funds(result: &Value, header: Option<&str>) -> Option<Funds> {
-    let entries = result.get("BalanceList")?.as_array()?;
+/// `limitHeader` matches the member's `funds_balance_header`, else the
+/// first), `RMSSubLimits`. A member that reads answers as documented also
+/// reads a `BalanceList` sent as one entry (web fivepaisaxts #2504).
+pub fn funds(result: &Value, hooks: &XtsHooks) -> Option<Funds> {
+    let list = result.get("BalanceList")?;
+    let entries: &[Value] = match list {
+        Value::Array(a) => a.as_slice(),
+        Value::Object(_) if hooks.answers_as_documented => std::slice::from_ref(list),
+        _ => return None,
+    };
     let first = entries.first()?;
-    let entry = header
+    let entry = hooks
+        .funds_balance_header
         .and_then(|h| {
             entries
                 .iter()

@@ -175,7 +175,45 @@ pub(crate) async fn get_order_book(b: &XtsBroker, auth: &AuthToken) -> Result<Ve
     Ok(mapping::orders(
         result_list(b, &v, Book::Orders)?,
         b.resolver(),
+        &b.cfg.hooks,
     ))
+}
+
+/// Cancel every order still working, one paced cancel each. Which ones the
+/// member picks from its own order book (`mapping::cancellable`): for
+/// 5paisa XTS what XTS calls working (web #2504), for the others what
+/// their book reads as open or trigger pending, as the trait's default.
+pub(crate) async fn cancel_all_orders(b: &XtsBroker, auth: &AuthToken) -> Result<CancelAllResult> {
+    let v = b.interactive(Method::GET, "/orders", auth, None).await?;
+    let rows = result_list(b, &v, Book::Orders)?
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let mut out = CancelAllResult::default();
+    for row in rows
+        .iter()
+        .filter(|r| r.is_object() && mapping::cancellable(r, &b.cfg.hooks))
+    {
+        let id = mapping::order_id(row.get("AppOrderID"));
+        let cancelled = async {
+            b.order_pacer.acquire().await?;
+            cancel_order(b, auth, &id).await
+        }
+        .await;
+        match cancelled {
+            Ok(_) => out.cancelled.push(id),
+            Err(e) => {
+                tracing::warn!(
+                    broker = b.cfg.id,
+                    "Cancel of order {} failed: {}",
+                    id,
+                    e.code()
+                );
+                out.failed.push(id);
+            }
+        }
+    }
+    Ok(out)
 }
 
 pub(crate) async fn get_trade_book(b: &XtsBroker, auth: &AuthToken) -> Result<Vec<Trade>> {
@@ -185,6 +223,7 @@ pub(crate) async fn get_trade_book(b: &XtsBroker, auth: &AuthToken) -> Result<Ve
     Ok(mapping::trades(
         result_list(b, &v, Book::Trades)?,
         b.resolver(),
+        &b.cfg.hooks,
     ))
 }
 

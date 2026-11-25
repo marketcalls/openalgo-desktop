@@ -19,6 +19,8 @@
 mod auth;
 pub mod binary;
 mod data;
+#[cfg(test)]
+mod documented_tests;
 mod funds;
 pub mod mapping;
 pub mod master_contract;
@@ -122,6 +124,16 @@ pub struct XtsHooks {
     /// its trigger, priced with the MPP slabs (ibulls, web #2466; its RMS
     /// may refuse a native MARKET or SL-M from an API session).
     pub price_protection: bool,
+    /// XTS answers are read as the XTS v2 docs describe them (5paisa XTS,
+    /// web #2504; the other members' web code still reads the older
+    /// shapes): a trade-book row is one fill (`LastTradedQuantity`,
+    /// `LastTradedPrice`, `LastExecutionTransactTime`); `Replaced` and the
+    /// `Pending` states are open, and cancel-all cancels what is still
+    /// working, not a `PendingCancel` already on its way; a `BalanceList`
+    /// sent as one entry is read; F&O master rows are typed by
+    /// `InstrumentType` (a future at strike 0, a spread left out); and the
+    /// smallest OHLC compression is 60, so there is no `1s` interval.
+    pub answers_as_documented: bool,
     /// Days one `/instruments/ohlc` call asks for, each window whole days
     /// from 00:00:00 to 23:59:59 IST: 365 for 5paisa XTS (web #2490), 6 for
     /// the others, as their web clients ask.
@@ -203,8 +215,9 @@ impl XtsConfig {
     }
 }
 
-/// Every timeframe the XTS `/instruments/ohlc` call accepts, with its
+/// Every timeframe the template's `/instruments/ohlc` call offers, with its
 /// `compressionValue` (web `BrokerData.timeframe_map`, `data.py:85-96`).
+/// `1s` comes first, so a member without it takes the rest (`timeframes`).
 pub const TIMEFRAME_MAP: &[(&str, &str)] = &[
     ("1s", "1"),
     ("1m", "60"),
@@ -217,6 +230,17 @@ pub const TIMEFRAME_MAP: &[(&str, &str)] = &[
     ("60m", "3600"),
     ("D", "D"),
 ];
+
+/// The timeframes a member offers: the template's, or from `1m` for a
+/// member that reads XTS answers as documented, where the smallest
+/// compression is 60 (web fivepaisaxts #2504).
+pub(crate) fn timeframes(cfg: &XtsConfig) -> &'static [(&'static str, &'static str)] {
+    if cfg.hooks.answers_as_documented {
+        &TIMEFRAME_MAP[1..]
+    } else {
+        TIMEFRAME_MAP
+    }
+}
 
 /// XTS third-party (OAuth) login URL for compositedge / rmoney
 /// (`frontend/src/pages/BrokerSelect.tsx:174`, `brlogin.py:967-979`). The
@@ -535,7 +559,7 @@ impl Broker for XtsBroker {
     }
 
     fn timeframe_map(&self) -> &'static [(&'static str, &'static str)] {
-        TIMEFRAME_MAP
+        timeframes(self.cfg)
     }
 
     fn symbols(&self) -> Option<&SymbolResolver> {
@@ -567,6 +591,10 @@ impl Broker for XtsBroker {
 
     async fn close_all_positions(&self, auth: &AuthToken) -> Result<CloseAllResult> {
         orders::close_all_positions(self, auth).await
+    }
+
+    async fn cancel_all_orders(&self, auth: &AuthToken) -> Result<CancelAllResult> {
+        orders::cancel_all_orders(self, auth).await
     }
 
     async fn get_order_book(&self, auth: &AuthToken) -> Result<Vec<Order>> {
