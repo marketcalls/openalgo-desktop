@@ -345,6 +345,11 @@ impl BrokerAuthService {
             )
             .await;
         }
+        // A broker that sent its sign-in back with an error, or without a
+        // code, is told in its own words (Pocketful, web openalgo#2467).
+        if let Some(refusal) = catalog::callback_refusal(broker, params) {
+            return Err(AppError::Auth(refusal.into()));
+        }
         let code = catalog::extract_code(broker, params).ok_or_else(|| {
             AppError::Auth("The broker did not complete the sign-in. Try again.".into())
         })?;
@@ -728,6 +733,8 @@ impl BrokerAuthService {
     /// Whether the broker still accepts the stored token. Like the web, a
     /// cheap funds call proves it; per-login state the token does not carry
     /// (Kotak's UCC) comes back from the stored broker credentials first.
+    /// The token is checked with the account it was stored with, as the
+    /// resumed session will use it (Pocketful's calls all name it).
     async fn broker_accepts(state: &AppState, stored: &auth::StoredBrokerSession) -> Result<bool> {
         let Some(broker) = state.brokers.get(&stored.broker_id) else {
             return Ok(false);
@@ -739,14 +746,11 @@ impl BrokerAuthService {
         if let Some(c) = &stored_creds {
             broker.restore_session(&Self::stored_input(c));
         }
-        match tokio::time::timeout(
-            RESUME_CHECK_TIMEOUT,
-            broker.get_funds(&crate::brokers::types::AuthToken::new(
-                stored.auth_token.expose(),
-            )),
-        )
-        .await
-        {
+        let mut token = crate::brokers::types::AuthToken::new(stored.auth_token.expose());
+        if let Some(user_id) = stored.user_id.as_deref().filter(|u| !u.is_empty()) {
+            token = token.with_user_id(user_id);
+        }
+        match tokio::time::timeout(RESUME_CHECK_TIMEOUT, broker.get_funds(&token)).await {
             Ok(Ok(_)) => Ok(true),
             Ok(Err(e)) => {
                 tracing::info!("Stored broker session not accepted by broker: {}", e.code());

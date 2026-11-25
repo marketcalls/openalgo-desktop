@@ -1,7 +1,7 @@
 //! Orders and books (web `api/order_api.py`, `mapping/transform_data.py`).
 
 use super::mapping::{self, text, text_any};
-use super::{data, PocketfulBroker};
+use super::{market, PocketfulBroker};
 use crate::brokers::common::book_read::{self, Book};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price};
@@ -50,10 +50,10 @@ pub async fn place_order(
 ) -> Result<OrderResponse> {
     // The account and price reads come before the order is sent: they
     // never count against its answer (LOG-08).
-    let client_id = outcome::before_send(b.client_id(auth)).await?;
+    let client_id = b.client_id(auth).map_err(outcome::not_sent)?;
     let ltp = if o.pricetype == PriceType::Market {
         let ltp = outcome::before_send(async {
-            Ok::<_, AppError>(data::ltp(b, auth, &o.instrument).await)
+            Ok::<_, AppError>(market::last_price(b, auth, &o.instrument).await)
         })
         .await
         .ok()
@@ -92,7 +92,7 @@ pub async fn modify_order(
     auth: &AuthToken,
     m: &ResolvedModify,
 ) -> Result<OrderResponse> {
-    let client_id = b.client_id(auth).await?;
+    let client_id = b.client_id(auth)?;
     let body = mapping::modify_payload(m, &client_id);
     let v = b
         .call_order(Method::PUT, "/api/v1/orders", auth, Some(&body))
@@ -108,7 +108,7 @@ pub async fn cancel_order(
     auth: &AuthToken,
     order_id: &str,
 ) -> Result<OrderResponse> {
-    let client_id = b.client_id(auth).await?;
+    let client_id = b.client_id(auth)?;
     let v = b
         .call_order(
             Method::DELETE,
@@ -150,7 +150,7 @@ async fn fetch_orders(
 /// web `get_order_book`: completed + pending, merged. A half that fails is
 /// read as empty (web), unless both fail.
 async fn raw_orders(b: &PocketfulBroker, auth: &AuthToken) -> Result<Vec<Value>> {
-    let client_id = b.client_id(auth).await?;
+    let client_id = b.client_id(auth)?;
     let completed = fetch_orders(b, auth, &client_id, "completed").await;
     let pending = fetch_orders(b, auth, &client_id, "pending").await;
     match (completed, pending) {
@@ -176,7 +176,7 @@ async fn positions_read(
     auth: &AuthToken,
     unread: impl Fn() -> AppError,
 ) -> Result<Vec<Value>> {
-    let client_id = b.client_id(auth).await?;
+    let client_id = b.client_id(auth)?;
     let v = b
         .call(
             Method::GET,
@@ -201,7 +201,7 @@ pub async fn get_order_book(b: &PocketfulBroker, auth: &AuthToken) -> Result<Vec
 }
 
 pub async fn get_trade_book(b: &PocketfulBroker, auth: &AuthToken) -> Result<Vec<Trade>> {
-    let client_id = b.client_id(auth).await?;
+    let client_id = b.client_id(auth)?;
     let v = b
         .call(
             Method::GET,
@@ -225,7 +225,7 @@ pub async fn get_positions(b: &PocketfulBroker, auth: &AuthToken) -> Result<Vec<
 }
 
 pub async fn get_holdings(b: &PocketfulBroker, auth: &AuthToken) -> Result<Vec<Holding>> {
-    let client_id = b.client_id(auth).await?;
+    let client_id = b.client_id(auth)?;
     let v = b
         .call(
             Method::GET,
@@ -243,7 +243,7 @@ pub async fn get_holdings(b: &PocketfulBroker, auth: &AuthToken) -> Result<Vec<H
 
 /// web `cancel_all_orders_api`: the pending book, every cancellable row.
 pub async fn cancel_all_orders(b: &PocketfulBroker, auth: &AuthToken) -> Result<CancelAllResult> {
-    let client_id = b.client_id(auth).await?;
+    let client_id = b.client_id(auth)?;
     let pending = fetch_orders(b, auth, &client_id, "pending").await?;
     let mut result = CancelAllResult::default();
     for o in pending.iter().filter(|o| mapping::is_cancellable(o)) {

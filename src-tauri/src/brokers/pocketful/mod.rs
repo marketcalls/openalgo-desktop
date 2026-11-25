@@ -1,24 +1,25 @@
-//! Pocketful adapter (web `broker/pocketful/**`).
+//! Pocketful adapter (web `broker/pocketful/**`, rebuilt on Pocketful's new
+//! API in marketcalls/openalgo#2467).
 //!
-//! * Sign-in is OAuth2 authorization code with HTTP Basic client auth
-//!   (`POST /oauth2/token`), then `GET /api/v1/user/trading_info` for the
-//!   trading `client_id`, which almost every call carries as a query or
-//!   body parameter. The session token is the bare access token, sent as
-//!   `Authorization: Bearer`.
-//! * Quotes and depth have no REST endpoint: the web subscribes on the
-//!   market-data socket and waits for the instrument's packet. `data.rs`
-//!   does the same with a short-lived, bounded connection.
-//! * No history API and no margin calculator (web `timeframe_map = {}`,
-//!   `margin_api.py` raises).
-//! * Order and trade updates arrive on the market-data socket (modes 50 and
-//!   51) and are published as `FeedEvent::OrderUpdate`.
+//! * Every REST call goes to `https://algo.pocketful.in` through
+//!   [`client`] (both documented header forms, both answer envelopes).
+//! * Sign-in ([`auth`]) is OAuth 2.0 on the same host: `/oauth2/auth`, then
+//!   the code exchange at `/oauth2/token` with HTTP Basic client auth and
+//!   `GET /api/v1/user/trading_info` for the trading account, which is the
+//!   session's user id. Every call carries that client id; a session
+//!   without one is expired, never a call with an empty account.
+//! * Order and trade updates and the market feed: [`streaming`].
 
-mod auth;
+pub mod auth;
+pub mod client;
 mod data;
 mod funds;
 pub mod mapping;
+pub mod market;
 pub mod master_contract;
 mod orders;
+#[cfg(test)]
+mod rest_tests;
 pub mod streaming;
 #[cfg(test)]
 mod tests;
@@ -35,16 +36,18 @@ use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
-use parking_lot::Mutex;
-use reqwest::{Method, StatusCode};
+use client::{Lane, Request};
+use reqwest::Method;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
+use std::time::Duration;
 
-pub const BASE_URL: &str = "https://trade.pocketful.in";
-pub const WS_URL: &str = "wss://trade.pocketful.in";
-/// web `download_csv_pocketful_data`.
+/// The REST and OAuth host (web `baseurl.BASE_URL`).
+pub const BASE_URL: &str = "https://algo.pocketful.in";
+/// The feed host; the feed adds its own path (`/ws/v1/feeds`).
+pub const WS_URL: &str = "wss://algo.pocketful.in";
+/// The public exchange-wise contract (web `CONTRACT_URL`).
 pub const MASTER_URL: &str =
-    "https://trade.pocketful.in/api/v1/contract/Compact?info=download&exchanges=NSE,NFO,BSE,BFO,MCX";
+    "https://algo.pocketful.in/api/v1/contract/Compact?info=download&exchanges=NSE,NFO,BSE,BFO,MCX";
 
 /// `plugin.json` supported_exchanges.
 pub const SUPPORTED_EXCHANGES: &[Exchange] = &[
@@ -60,9 +63,9 @@ pub const SUPPORTED_EXCHANGES: &[Exchange] = &[
 /// Hosts the adapter talks to (tests point them at a local fake).
 #[derive(Debug, Clone)]
 pub struct Endpoints {
-    /// REST and OAuth base, e.g. `https://trade.pocketful.in`.
+    /// REST and OAuth base, e.g. `https://algo.pocketful.in`.
     pub rest: String,
-    /// WebSocket base, e.g. `wss://trade.pocketful.in`.
+    /// WebSocket base, e.g. `wss://algo.pocketful.in`.
     pub ws: String,
     /// Master-contract ZIP URL.
     pub master: String,
@@ -82,18 +85,14 @@ pub struct PocketfulBroker {
     http: reqwest::Client,
     urls: Endpoints,
     symbols: SymbolResolver,
-    /// The client id fetched for the current token when the session did not
-    /// carry one: one entry keyed by a digest of the token (bounded).
-    client_id_cache: Mutex<Option<([u8; 32], String)>>,
-    /// Data and account calls.
+    /// Data and account calls, at the web's 8 a second.
     pacer: Pacer,
     /// Places, modifies and cancels, apart from the data calls so none
     /// queues ahead of an exit (RATE-02).
     order_pacer: Pacer,
-}
-
-fn digest(token: &str) -> [u8; 32] {
-    Sha256::digest(token.as_bytes()).into()
+    /// The first wait before a rate-limited data request is sent again
+    /// (web `_RATE_LIMIT_BACKOFF`); tests shorten it.
+    rate_limit_backoff: Duration,
 }
 
 impl PocketfulBroker {
@@ -123,17 +122,25 @@ impl PocketfulBroker {
             http: http::client(),
             urls,
             symbols,
-            client_id_cache: Mutex::new(None),
-            pacer: Pacer::per_second(10.0),
+            pacer: Pacer::with_interval(client::DATA_INTERVAL),
             order_pacer: Pacer::per_second(ORDERS_PER_SECOND),
+            rate_limit_backoff: client::RATE_LIMIT_BACKOFF,
         }
+    }
+
+    /// The same adapter, waiting `first` before repeating a rate-limited
+    /// data request (doubled per retry). Tests use a few milliseconds.
+    pub fn with_rate_limit_backoff(mut self, first: Duration) -> Self {
+        self.rate_limit_backoff = first;
+        self
     }
 
     pub(crate) fn resolver(&self) -> &SymbolResolver {
         &self.symbols
     }
 
-    fn token(auth: &AuthToken) -> Result<&str> {
+    /// The bare access token every request carries.
+    fn access_token(auth: &AuthToken) -> Result<&str> {
         let t = auth.raw().trim();
         if t.is_empty() {
             Err(session_expired())
@@ -142,9 +149,22 @@ impl PocketfulBroker {
         }
     }
 
-    /// One REST call on the data lane. Answers the decoded JSON body when
-    /// Pocketful says `status: success`; anything else becomes a
-    /// trader-facing error.
+    /// The trading client id every call carries: the account the sign-in
+    /// stored with the session (web `baseurl.client_id`). A session without
+    /// one (an older build's, or a damaged row) is treated as expired, so
+    /// the trader is told to log in again before anything is sent.
+    pub(crate) fn client_id(&self, auth: &AuthToken) -> Result<String> {
+        match auth.user_id().map(str::trim).filter(|s| !s.is_empty()) {
+            Some(id) => Ok(id.to_string()),
+            None => {
+                tracing::warn!("The Pocketful session carries no client id");
+                Err(session_expired())
+            }
+        }
+    }
+
+    /// One REST call on the data lane, answering the body when Pocketful
+    /// says success; anything else becomes a trader-facing error.
     pub(crate) async fn call(
         &self,
         method: Method,
@@ -152,7 +172,7 @@ impl PocketfulBroker {
         auth: &AuthToken,
         body: Option<&Value>,
     ) -> Result<Value> {
-        self.call_on(&self.pacer, method, path_and_query, auth, body)
+        self.call_on(Lane::Data, method, path_and_query, auth, body)
             .await
     }
 
@@ -164,100 +184,48 @@ impl PocketfulBroker {
         auth: &AuthToken,
         body: Option<&Value>,
     ) -> Result<Value> {
-        self.call_on(&self.order_pacer, method, path_and_query, auth, body)
+        self.call_on(Lane::Orders, method, path_and_query, auth, body)
             .await
     }
 
     async fn call_on(
         &self,
-        lane: &Pacer,
+        lane: Lane,
         method: Method,
         path_and_query: &str,
         auth: &AuthToken,
         body: Option<&Value>,
     ) -> Result<Value> {
-        let token = Self::token(auth)?;
-        lane.acquire().await?;
-        let url = format!("{}{}", self.urls.rest, path_and_query);
-        let mut req = self
-            .http
-            .request(method, &url)
-            .bearer_auth(token)
-            .header("Content-Type", "application/json");
+        let mut req = Request::new(method, path_and_query);
         if let Some(b) = body {
-            req = req.json(b);
+            req = req.json(b.clone());
         }
-        let resp = req.send().await.map_err(|e| redact(e.into()))?;
-        let status = resp.status();
-        if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-            tracing::warn!(status = status.as_u16(), "Pocketful refused the session");
+        let answer = self.send(lane, auth, req).await?;
+        if answer.session_refused() {
+            tracing::warn!(
+                status = answer.status.as_u16(),
+                "Pocketful refused the session"
+            );
             return Err(session_expired());
         }
-        let (status, v): (_, Value) = http::read_json("pocketful", resp).await.map_err(redact)?;
-        if status.is_success() && v.get("status").and_then(Value::as_str) == Some("success") {
-            return Ok(v);
+        if answer.ok() {
+            return Ok(answer.body.unwrap_or(Value::Null));
         }
         let path = path_and_query.split('?').next().unwrap_or("");
-        let message = mapping::text(&v, "message");
+        let message = answer.message();
         tracing::warn!(
-            status = status.as_u16(),
+            status = answer.status.as_u16(),
             "Pocketful refused {}: {}",
             path,
             message
         );
-        // Only Pocketful's explicit failure (`status: error|failure`) is a
-        // refusal inside a placement (LOG-08); a 2xx without it (`{}`) and
-        // a 5xx leave the order unknown.
-        let failed = v.get("status").and_then(Value::as_str).is_some_and(|s| {
-            matches!(
-                s.to_ascii_lowercase().as_str(),
-                "error" | "failure" | "failed"
-            )
-        });
+        // Only Pocketful's explicit failure is a refusal inside a placement
+        // (LOG-08); a 2xx without it (`{}`) and a 5xx leave the order unknown.
         Err(crate::brokers::common::outcome::not_accepted_err(
-            status.as_u16(),
-            failed,
+            answer.status.as_u16(),
+            answer.failed(),
             broker_error(&message),
         ))
-    }
-
-    /// The trading client id: from the session, else `trading_info`
-    /// (web `get_client_id`), cached for this token.
-    pub(crate) async fn client_id(&self, auth: &AuthToken) -> Result<String> {
-        if let Some(id) = auth.user_id().map(str::trim).filter(|s| !s.is_empty()) {
-            return Ok(id.to_string());
-        }
-        let d = digest(Self::token(auth)?);
-        if let Some((cached, id)) = self.client_id_cache.lock().as_ref() {
-            if *cached == d {
-                return Ok(id.clone());
-            }
-        }
-        let v = self
-            .call(Method::GET, "/api/v1/user/trading_info", auth, None)
-            .await?;
-        let id = mapping::text(&v["data"], "client_id");
-        if id.is_empty() {
-            return Err(AppError::Broker(
-                "Pocketful did not return your trading account id. Log in to Pocketful again."
-                    .into(),
-            ));
-        }
-        *self.client_id_cache.lock() = Some((d, id.clone()));
-        Ok(id)
-    }
-
-    /// The client id without a network call (session, then cache).
-    fn known_client_id(&self, auth: &AuthToken) -> Option<String> {
-        if let Some(id) = auth.user_id().map(str::trim).filter(|s| !s.is_empty()) {
-            return Some(id.to_string());
-        }
-        let d = digest(auth.raw().trim());
-        self.client_id_cache
-            .lock()
-            .as_ref()
-            .filter(|(cached, _)| *cached == d)
-            .map(|(_, id)| id.clone())
     }
 }
 
@@ -265,16 +233,11 @@ pub(crate) fn session_expired() -> AppError {
     AppError::Auth("Your Pocketful session has expired. Log in to Pocketful again.".into())
 }
 
-/// Pocketful error message -> trader-facing error.
+/// Pocketful's message -> trader-facing error.
 pub(crate) fn broker_error(message: &str) -> AppError {
     let m = message.trim();
     if m.is_empty() {
         AppError::Broker("Pocketful refused the request.".into())
-    } else if m.to_ascii_lowercase().contains("permission") {
-        AppError::Broker(
-            "Your Pocketful app does not have permission for this. Check the app's scopes on the Pocketful developer console."
-                .into(),
-        )
     } else {
         AppError::Broker(m.to_string())
     }
@@ -298,12 +261,6 @@ impl Broker for PocketfulBroker {
         LoginKind::Redirect { param: "code" }
     }
 
-    /// The client id cached under the session's token goes with the
-    /// session (KEY-01).
-    async fn on_logout(&self) {
-        *self.client_id_cache.lock() = None;
-    }
-
     fn supported_exchanges(&self) -> &'static [Exchange] {
         SUPPORTED_EXCHANGES
     }
@@ -321,7 +278,6 @@ impl Broker for PocketfulBroker {
     }
 
     fn timeframe_map(&self) -> &'static [(&'static str, &'static str)] {
-        // web `BrokerData.timeframe_map = {}`: no history API.
         &[]
     }
 
@@ -404,8 +360,6 @@ impl Broker for PocketfulBroker {
     }
 
     async fn get_history(&self, _auth: &AuthToken, _req: &HistoryRequest) -> Result<Vec<Candle>> {
-        // web `get_history` answers success without candles ("Pocketful does
-        // not support historical data API"); no rows is the closest shape.
         Ok(Vec::new())
     }
 
@@ -414,10 +368,8 @@ impl Broker for PocketfulBroker {
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
-        let token = Self::token(auth)?;
-        // `create_feed` is synchronous, so the client id must already be
-        // known: from the session (stored at login) or an earlier REST call.
-        let client_id = self.known_client_id(auth).ok_or_else(session_expired)?;
+        let token = Self::access_token(auth)?;
+        let client_id = self.client_id(auth)?;
         Ok(Box::new(streaming::PocketfulFeed::new(
             &self.urls.ws,
             &client_id,
@@ -428,7 +380,7 @@ impl Broker for PocketfulBroker {
 }
 
 /// Transport errors carry the request URL, and with it query credentials
-/// (API key, account id). Strip it before the error can reach a log or a
+/// (the account id). Strip it before the error can reach a log or a
 /// caller; every other error passes through unchanged.
 pub(crate) fn redact(e: AppError) -> AppError {
     match e {

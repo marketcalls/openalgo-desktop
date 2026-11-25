@@ -1,8 +1,8 @@
 //! Pocketful against a local fake: OAuth2 code exchange with Basic client
 //! auth and the trading_info lookup, orders (MARKET sent as a protected
-//! LIMIT priced from the feed), cancel-all, close-all, open position, books
-//! normalised to OpenAlgo symbols, funds, quotes and depth over a fake
-//! market-data socket, and the master-contract ZIP.
+//! LIMIT priced from the REST last price), cancel-all, close-all, open
+//! position, books normalised to OpenAlgo symbols, funds, quotes and depth
+//! over a fake market-data socket, and the master-contract ZIP.
 
 use axum::body::Bytes;
 use axum::http::{HeaderMap, Method, StatusCode, Uri};
@@ -12,7 +12,7 @@ use futures_util::{SinkExt, StreamExt};
 use openalgo_desktop_lib::brokers::common::mapping::{Exchange, Product};
 use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::pocketful::master_contract::parse_archive;
-use openalgo_desktop_lib::brokers::pocketful::{zip, PocketfulBroker};
+use openalgo_desktop_lib::brokers::pocketful::{auth, zip, PocketfulBroker};
 use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{Broker, BrokerCredentials};
 use openalgo_desktop_lib::websocket::handshake;
@@ -52,6 +52,7 @@ struct Seen {
     path: String,
     query: String,
     authorization: String,
+    access_header: String,
     body: String,
 }
 
@@ -125,6 +126,16 @@ fn route(method: &Method, path: &str, query: &str, body: &str, auth: &str) -> Re
         ("GET", "/api/v1/positions") => ok(fixture!("positions.json")),
         ("GET", "/api/v1/holdings") => ok(fixture!("holdings.json")),
         ("GET", "/api/v2/funds/view") => ok(fixture!("funds.json")),
+        ("GET", p)
+            if p.starts_with("/api/v1/marketdata/") && query.contains("key=last_trade_price") =>
+        {
+            let token = query
+                .split('&')
+                .find_map(|kv| kv.strip_prefix("token="))
+                .and_then(|t| t.parse::<u32>().ok())
+                .unwrap_or(0);
+            ok(json!({"status": "success", "message": "", "data": ltp_for(token) as f64 / 100.0}))
+        }
         ("GET", "/contract") => {
             let files: Vec<(&str, &[u8])> = FILES.iter().map(|(n, t)| (*n, t.as_bytes())).collect();
             (StatusCode::OK, zip::build(&files)).into_response()
@@ -139,11 +150,15 @@ async fn serve_rest(fake: Arc<Fake>) -> String {
             let fake = fake.clone();
             async move {
                 let body = String::from_utf8_lossy(&body).to_string();
-                let auth = headers
-                    .get("authorization")
-                    .and_then(|v| v.to_str().ok())
-                    .unwrap_or_default()
-                    .to_string();
+                let header = |k: &str| {
+                    headers
+                        .get(k)
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or_default()
+                        .to_string()
+                };
+                let auth = header("authorization");
+                let access_header = header("x-authorization-token");
                 let path = uri.path().to_string();
                 let query = uri.query().unwrap_or("").to_string();
                 fake.seen.lock().push(Seen {
@@ -151,6 +166,7 @@ async fn serve_rest(fake: Arc<Fake>) -> String {
                     path: path.clone(),
                     query: query.clone(),
                     authorization: auth.clone(),
+                    access_header,
                     body: body.clone(),
                 });
                 route(&method, &path, &query, &body, &auth)
@@ -326,13 +342,14 @@ async fn pocketful_login_exchanges_the_code_with_basic_auth() {
         .any(|(k, v)| k == "redirect_uri" && v.ends_with("/pocketful/callback")));
     let info = fake.calls("GET", "/api/v1/user/trading_info");
     assert_eq!(info[0].authorization, "Bearer acc-pf-1");
+    assert_eq!(info[0].access_header, "acc-pf-1");
 
     let bad = BrokerCredentials {
         auth_code: Some("bad".into()),
         ..creds.clone()
     };
     let e = b.authenticate(bad).await.unwrap_err();
-    assert!(e.client_message().contains("Log in to Pocketful again"));
+    assert_eq!(e.client_message(), auth::CODE_REFUSED);
     let missing = BrokerCredentials {
         api_secret: None,
         ..creds
@@ -360,33 +377,17 @@ async fn pocketful_orders_and_market_protection() {
         "Bearer acc-pf-1"
     );
 
-    // MARKET: LTP 812.25 from the feed, EQ above 500 -> 0.5%, tick 0.05.
+    // MARKET: LTP 812.25 from one REST read, EQ above 500 -> 0.5%, tick 0.05.
     b.place_order(&auth, &order("SBIN", "NSE", "MARKET", 0.0))
         .await
         .unwrap();
     let sent: Value = serde_json::from_str(&fake.calls("POST", "/api/v1/orders")[1].body).unwrap();
     assert_eq!(sent["order_type"], "LIMIT");
     assert_eq!(sent["price"], 816.3);
-    // The price lookup subscribed detailed data and released it.
-    assert!(
-        saw_frame(
-            &fake,
-            json!({"a":"subscribe","v":[[1,3045]],"m":"marketdata"})
-        )
-        .await
-    );
-    assert!(
-        saw_frame(
-            &fake,
-            json!({"a":"unsubscribe","v":[[1,3045]],"m":"marketdata"})
-        )
-        .await
-    );
-    let uri = fake.ws_uris.lock()[0].clone();
-    assert_eq!(
-        uri,
-        "/ws/v1/feeds?login_id=%3CUSER_ID%3E&access_token=acc-pf-1"
-    );
+    let ltp = fake.calls("GET", "/api/v1/marketdata/NSE/Capital");
+    assert_eq!(ltp.len(), 1);
+    assert_eq!(ltp[0].query, "token=3045&key=last_trade_price");
+    assert!(fake.ws_uris.lock().is_empty(), "no socket for a price");
 
     let m = ModifyOrderRequest {
         symbol: "SBIN".into(),
@@ -484,16 +485,18 @@ async fn pocketful_books_funds_and_positions() {
     assert_eq!(n["price"], 25125.0);
 }
 
+/// A session without its trading account (an older build's row, a
+/// damaged one) is expired: nothing is sent, the trader logs in again.
 #[tokio::test]
-async fn pocketful_client_id_lookup_and_expiry() {
+async fn pocketful_a_session_without_its_account_is_expired() {
     let (b, fake, _) = setup().await;
-    // No user id on the session: trading_info once, then cached.
     let bare = AuthToken::new("acc-pf-1");
-    b.get_funds(&bare).await.unwrap();
-    b.get_holdings(&bare).await.unwrap();
-    assert_eq!(fake.calls("GET", "/api/v1/user/trading_info").len(), 1);
-    // The cached id now lets the feed be built.
-    assert!(b.create_feed(&bare).is_ok());
+    let e = b.get_funds(&bare).await.unwrap_err();
+    assert!(e.client_message().contains("Log in to Pocketful again"));
+    let e = b.get_holdings(&bare).await.unwrap_err();
+    assert!(e.client_message().contains("Log in to Pocketful again"));
+    assert!(fake.seen.lock().is_empty(), "nothing was sent");
+    assert!(b.create_feed(&bare).is_err());
 
     let expired = AuthToken::new("expired").with_user_id("<USER_ID>");
     let e = b.get_order_book(&expired).await.unwrap_err();
@@ -527,6 +530,10 @@ async fn pocketful_quotes_and_depth_over_the_socket() {
         (812.25, 812.2, 812.3, 802.25)
     );
     assert_eq!(q.volume, 1000);
+    assert_eq!(
+        fake.ws_uris.lock()[0],
+        "/ws/v1/feeds?login_id=%3CUSER_ID%3E&access_token=acc-pf-1"
+    );
 
     let d = b
         .get_market_depth(&auth, &QuoteKey::new("NSE", "SBIN"))

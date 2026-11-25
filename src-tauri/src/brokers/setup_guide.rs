@@ -475,13 +475,13 @@ fn guide_m_to_p(broker: &str) -> Option<SetupGuide> {
             name: "Pocketful",
             fields: const { &[
                 key(
-                    "App Client ID",
-                    "The client ID of your Pocketful app, not your trading account ID.",
+                    "App ID",
+                    "The App ID of your app on the Pocketful API portal, not your trading client ID.",
                 ),
-                secret("Client Secret", "The client secret of that app."),
+                secret("App Secret", "The App Secret of that app."),
             ] },
             banner: "Login with Pocketful takes you to Pocketful's login page. Log in and approve, and Pocketful sends you back to OpenAlgo.",
-            redirect_hint: REDIRECT_SENT,
+            redirect_hint: "When you create the app on the Pocketful API portal, choose Enter Custom URL and register this exact address. Pocketful's default redirect URL does not send the login back to OpenAlgo.",
         },
         _ => return None,
     })
