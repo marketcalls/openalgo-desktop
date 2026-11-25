@@ -100,7 +100,7 @@ fn route(method: &Method, path: &str, body: &str, auth: &str) -> Response {
     }
     match (method.as_str(), path) {
         ("GET", "/api/v1/user/trading_info") => {
-            ok(json!({"status": "success", "data": {"client_id": "<USER_ID>"}}))
+            ok(json!({"status": "success", "data": {"client_id": "DEMO1"}}))
         }
         ("GET", "/api/v2/funds/view") => ok(fixture!("funds.json")),
         ("GET", "/contract") => {
@@ -276,7 +276,7 @@ async fn pocketful_login_exchanges_the_code_with_basic_auth() {
     };
     let r = b.authenticate(creds.clone()).await.unwrap();
     assert_eq!(r.auth_token, "acc-pf-1");
-    assert_eq!(r.user_id, "<USER_ID>");
+    assert_eq!(r.user_id, "DEMO1");
     assert!(r.feed_token.is_none());
     let tok = fake.calls("POST", "/oauth2/token");
     assert_eq!(tok.len(), 1);
@@ -320,9 +320,9 @@ async fn pocketful_a_session_without_its_account_is_expired() {
 
     let expired = AuthToken::new("expired").with_user_id("<USER_ID>");
     let e = b.get_order_book(&expired).await.unwrap_err();
-    assert!(e.client_message().contains("session has expired"));
+    assert!(e.client_message().contains("Log in to Pocketful again"));
     let e = b.get_funds(&expired).await.unwrap_err();
-    assert!(e.client_message().contains("session has expired"));
+    assert!(e.client_message().contains("Log in to Pocketful again"));
     assert!(b
         .get_history(
             &expired,

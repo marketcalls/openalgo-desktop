@@ -107,7 +107,7 @@ fn pct(price: f64, symbol: &str) -> Result<f64> {
 /// The SL a SL-M goes out as (web `protected_order_type`, SL-M branch).
 pub(crate) fn stop_market(ask: &Ask<'_>) -> Result<Priced> {
     let trigger = ask.trigger_price;
-    if !(trigger.is_finite() && trigger > 0.0) {
+    if !trigger.is_finite() || trigger <= 0.0 {
         return Err(outcome::refusal(
             "An SL-M order needs a trigger price above zero.",
         ));
