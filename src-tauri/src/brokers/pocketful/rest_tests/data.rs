@@ -2,7 +2,8 @@
 //! `test/test_pocketful_data.py`, marketcalls/openalgo#2467, a1d539764),
 //! against the answers printed on Pocketful's pages (fixtures under
 //! `tests/fixtures/brokers/pocketful/`). The master is the web test's token
-//! table. The last price is `client.rs`'s. History is in `data/history.rs`;
+//! table. The last price is `client.rs`'s, apart from its busy refusals
+//! here. History is in `data/history.rs`;
 //! what needs a fixed IST date or a short deadline is in `data/clocked.rs`.
 
 mod clocked;
@@ -12,6 +13,7 @@ use super::{capture, success, Fake, Reply, CLIENT};
 use crate::brokers::common::ratelimit::crowd;
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::pocketful::client::{DATA_INTERVAL, RATE_LIMITED, RATE_LIMIT_RETRIES};
+use crate::brokers::pocketful::market::last_price;
 use crate::brokers::pocketful::session_expired;
 use crate::brokers::types::*;
 use crate::brokers::Broker;
@@ -518,6 +520,36 @@ async fn a_turn_too_far_away_is_refused_as_busy_before_sending() {
         assert_eq!(ServiceReply::broker_failure(&e, 500).status, 429);
     }
     assert!(fake.seen().is_empty(), "nothing was sent");
+}
+
+/// Web test_pocketful_data.py::test_ltp_refused_by_pacing_is_zero_not_an_exception
+/// and ::test_ltp_rate_limited_to_the_end_is_zero: the last price a MARKET
+/// order is protected from is no price, never an error, when its turn is
+/// too far away (nothing is sent) or Pocketful's rate limit holds through
+/// the retries (the web's 0.0 is `None` here).
+#[tokio::test]
+async fn a_last_price_refused_as_busy_is_no_price() {
+    let idea_row = row("IDEA", "NSE", "14366");
+
+    let fake = Fake::start().await;
+    fake.on(NSE, vec![success(json!(12.9))]);
+    let b = fake.broker(master());
+    let queue = crowd(&b.pacer);
+    assert_eq!(last_price(&b, &session(), &idea_row).await, None);
+    assert!(fake.seen().is_empty(), "nothing was sent");
+    drop(queue);
+
+    let fake = Fake::start().await;
+    fake.on(
+        NSE,
+        vec![Reply::Json(
+            429,
+            json!({"status": "error", "message": "Rate limit Exceeded", "data": {}}),
+        )],
+    );
+    let b = fake.broker(master());
+    assert_eq!(last_price(&b, &session(), &idea_row).await, None);
+    assert_eq!(fake.seen().len(), 1 + RATE_LIMIT_RETRIES as usize);
 }
 
 /// Web test_pocketful_data.py::test_requests_are_paced_from_module_state:
