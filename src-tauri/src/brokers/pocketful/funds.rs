@@ -19,7 +19,11 @@
 //! the split the position book itself reports, so the dashboard and the
 //! position book agree. A book that cannot be read leaves both at zero and
 //! the funds still stand, as on the web (and as the Noren family's
-//! position-book M2M).
+//! position-book M2M). So does a book that has not answered by
+//! `ANSWER_WITHIN` after the funds were asked for: the funds answer is
+//! also the session check a resume makes, and a slow book must not turn a
+//! session Pocketful has just accepted into a refused resume. The web
+//! waits for the book up to its request timeout.
 //!
 //! Funds that cannot be read are an error, never a zero balance (BR-03): a
 //! session Pocketful refuses is expired, a refusal reads as Pocketful's
@@ -34,8 +38,17 @@ use crate::brokers::types::{AuthToken, Funds};
 use crate::error::Result;
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::time::Duration;
+use tokio::time::{timeout_at, Instant};
 
 const FUNDS: &str = "/api/v2/funds/view";
+
+/// How long after the funds were asked for the answer, M2M included, comes
+/// back. The session resume gives the whole funds call 15 s
+/// (`broker_auth_service::RESUME_CHECK_TIMEOUT`), and the position book's
+/// own request may take 15 s on its own (`client::REQUEST_TIMEOUT`), so the
+/// book gets what is left of this, never the funds answer's room.
+const ANSWER_WITHIN: Duration = Duration::from_secs(10);
 
 const AVAILABLE: &str = "Available";
 const COLLATERAL_ROWS: [&str; 2] = ["DP Pledge Collateral", "Pool Pledge Collateral"];
@@ -48,6 +61,7 @@ type Table = BTreeMap<String, f64>;
 pub async fn get_funds(b: &PocketfulBroker, auth: &AuthToken) -> Result<Funds> {
     // Checked first, so a session without its account sends nothing.
     let client_id = b.client_id(auth)?;
+    let m2m_by = Instant::now() + ANSWER_WITHIN;
     let req = Request::get(FUNDS)
         .query("client_id", client_id)
         .query("type", "all");
@@ -56,7 +70,7 @@ pub async fn get_funds(b: &PocketfulBroker, auth: &AuthToken) -> Result<Funds> {
         .await
         .inspect_err(|e| tracing::warn!("Pocketful funds request failed: {}", e.code()))?;
     let table = funds_table(&answer)?;
-    let (realised, unrealised) = position_m2m(b, auth).await;
+    let (realised, unrealised) = position_m2m(b, auth, m2m_by).await;
     Ok(funds_from(&table, realised, unrealised))
 }
 
@@ -128,22 +142,26 @@ fn amount(v: &Value) -> f64 {
 }
 
 /// (realised, unrealised) across the net-wise position book; zero when it
-/// cannot be read (web `_position_m2m`). Each row is split on its own: a
-/// position closed in part has booked P&L on the matched quantity and open
-/// P&L on the rest.
-async fn position_m2m(b: &PocketfulBroker, auth: &AuthToken) -> (f64, f64) {
-    match orders::read_positions(b, auth).await {
-        Ok(rows) => rows
+/// cannot be read, or has not answered by `by` (web `_position_m2m`). Each
+/// row is split on its own: a position closed in part has booked P&L on
+/// the matched quantity and open P&L on the rest.
+async fn position_m2m(b: &PocketfulBroker, auth: &AuthToken, by: Instant) -> (f64, f64) {
+    match timeout_at(by, orders::read_positions(b, auth)).await {
+        Ok(Ok(rows)) => rows
             .iter()
             .map(mapping::position_pnl_split)
             .fold((0.0, 0.0), |(realised, unrealised), (booked, open)| {
                 (realised + booked, unrealised + open)
             }),
-        Err(e) => {
+        Ok(Err(e)) => {
             tracing::warn!(
                 "Pocketful position book could not be read for M2M: {}",
                 e.code()
             );
+            (0.0, 0.0)
+        }
+        Err(_) => {
+            tracing::warn!("Pocketful position book did not answer in time for M2M");
             (0.0, 0.0)
         }
     }

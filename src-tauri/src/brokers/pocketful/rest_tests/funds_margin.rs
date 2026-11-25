@@ -9,6 +9,7 @@ use crate::brokers::types::{AuthToken, Funds, MarginLeg, MarginResult, QuoteKey}
 use crate::brokers::Broker;
 use crate::error::AppError;
 use serde_json::{json, Value};
+use std::time::Duration;
 
 macro_rules! fixture {
     ($name:literal) => {
@@ -268,6 +269,38 @@ async fn funds_stand_when_the_position_book_cannot_be_read() {
         assert_eq!(funds["m2mrealized"], "0.00", "{:?}", book);
         assert_eq!(funds["m2munrealized"], "0.00", "{:?}", book);
     }
+}
+
+/// Review of the funds port: the session resume gives the whole funds call
+/// 15 s, and the position book's own request may take 15 s too. A book
+/// that does not answer leaves M2M at zero well inside the resume's time,
+/// so a session Pocketful accepted is not refused for it. The web waits
+/// for the book up to its request timeout.
+#[tokio::test]
+async fn a_position_book_that_does_not_answer_leaves_the_resume_its_time() {
+    let book = success(json!([netwise("IDEA-EQ", 1, 40520.0, 1, 40538.0, 40520.0)]));
+    let silent = Reply::Late(Duration::from_secs(60), Box::new(book));
+    let fake = funds_fake(doc(fixture!("funds.json")), silent).await;
+    let b = fake.broker(master());
+
+    let (log, guard) = capture();
+    let answer = tokio::time::timeout(Duration::from_secs(13), b.get_funds(&session())).await;
+    drop(guard);
+
+    let funds = wire(
+        &answer
+            .expect("the funds answer comes back inside 13 s")
+            .unwrap(),
+    );
+    assert_eq!(funds["availablecash"], "39.99");
+    assert_eq!(funds["m2mrealized"], "0.00");
+    assert_eq!(funds["m2munrealized"], "0.00");
+    assert_eq!(fake.to(POSITIONS).len(), 1, "the book was asked for");
+    assert!(
+        log.text().contains("did not answer in time for M2M"),
+        "{}",
+        log.text()
+    );
 }
 
 /// Web ::test_funds_failures_read_as_no_session: funds that cannot be read
