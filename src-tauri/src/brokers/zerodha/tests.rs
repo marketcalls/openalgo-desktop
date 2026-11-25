@@ -51,6 +51,9 @@ mod index_packets;
 /// Web test/test_zerodha_series_symbols.py (openalgo#2463).
 mod series_symbols;
 
+/// Web test/test_zerodha_full_packet_oi.py (openalgo#2494).
+mod full_packet_oi;
+
 // ---------------------------------------------------------------------------
 // Master contract
 // ---------------------------------------------------------------------------
