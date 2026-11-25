@@ -240,7 +240,8 @@ impl Broker for PocketfulBroker {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
             history: false,
-            multiquotes_batch: true,
+            // One REST request per symbol: no route takes several.
+            multiquotes_batch: false,
             margin: false,
             gtt: false,
             streaming: true,
@@ -325,6 +326,16 @@ impl Broker for PocketfulBroker {
         keys: &[QuoteKey],
     ) -> Result<Vec<QuoteResult>> {
         data::get_multiquotes(self, auth, keys).await
+    }
+
+    /// The derivatives quote's open interest is undocumented: a leg whose
+    /// answer lacks it is reported, never read as zero.
+    async fn get_chain_quotes(
+        &self,
+        auth: &AuthToken,
+        req: &ChainQuoteRequest,
+    ) -> Result<ChainQuotes> {
+        data::get_chain_quotes(self, auth, req).await
     }
 
     async fn get_market_depth(&self, auth: &AuthToken, key: &QuoteKey) -> Result<MarketDepth> {
