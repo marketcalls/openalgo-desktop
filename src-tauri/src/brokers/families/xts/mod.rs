@@ -80,12 +80,9 @@ pub struct XtsHooks {
     pub margin_details: bool,
     /// Multiquotes merge a second 1510 open-interest call (rmoney).
     pub multiquote_oi: bool,
-    /// A subscription batch refused because one of its instruments is
-    /// already subscribed (`e-session-0002`) is retried one instrument at a
-    /// time, so the others still start (rmoney `subscribe_batch`, web
-    /// #2176). Without it the refusal is non-fatal and not retried, as in
-    /// the other members' web adapters.
-    pub split_duplicate_batch: bool,
+    /// Which refused subscription batches are sent again one instrument at
+    /// a time, so the others still start ([`SplitRefused`]).
+    pub split_refused_batch: SplitRefused,
     /// Reconnect the market-data socket after 90 s without market data
     /// while a subscribed segment's session is open (fivepaisaxts, web
     /// #2155). XTS answers pings on an otherwise silent socket, so the
@@ -116,6 +113,24 @@ pub struct XtsHooks {
     /// `_process_json_data` publishes 1505 and 1510 to every subscribed
     /// mode; a 1505 candle carries no trade and is not read).
     pub oi_events: bool,
+}
+
+/// Which subscribe batches of several instruments a member's web client
+/// sends again one instrument at a time when the broker refuses them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SplitRefused {
+    /// None: the refusal is non-fatal and nothing is retried, as in the
+    /// template members' web adapters.
+    #[default]
+    Never,
+    /// One refused because an instrument in it is already subscribed
+    /// (`e-session-0002`; rmoney `subscribe_batch`, web #2176).
+    AlreadySubscribed,
+    /// One refused for any reason, already subscribed or not accepted
+    /// (wisdom `subscribe_batch`, web #2469). A first subscribe a client
+    /// waits on is searched by halves instead (`run_command`), which
+    /// leaves the broker holding the same instruments in fewer calls.
+    Any,
 }
 
 /// Where a member's web client takes a payload's `MessageCode` from.

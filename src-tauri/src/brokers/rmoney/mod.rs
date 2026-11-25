@@ -37,7 +37,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         funds_balance_header: Some("ALL|ALL|ALL"),
         margin_details: true,
         multiquote_oi: true,
-        split_duplicate_batch: true,
+        split_refused_batch: crate::brokers::families::xts::SplitRefused::AlreadySubscribed,
         data_stall_watchdog: false,
         event_code: EventCode::Event,
         text_1105_as_ltp: true,

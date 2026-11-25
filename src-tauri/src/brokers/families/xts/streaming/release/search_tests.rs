@@ -64,7 +64,7 @@ async fn a_search_out_of_time_answers_the_rest_as_not_checked() {
         url: &url,
         token: "tok",
         gap: std::time::Duration::ZERO,
-        split_duplicates: false,
+        split: crate::brokers::families::xts::SplitRefused::Never,
     };
     let (snapshots, _rx) = mpsc::channel(1);
     let report = run_command(&target, &cmd, &snapshots, &mut true).await;

@@ -200,8 +200,8 @@ fn old_code_to_release(cmd: &Command, report: &CommandReport) -> Option<Command>
 /// subscribe answers' snapshots and a needed resync back to the feed.
 pub(super) struct WorkerSetup {
     pub(super) broker: &'static str,
-    /// `XtsHooks::split_duplicate_batch` of the member.
-    pub(super) split_duplicates: bool,
+    /// `XtsHooks::split_refused_batch` of the member.
+    pub(super) split: crate::brokers::families::xts::SplitRefused,
     pub(super) http: reqwest::Client,
     pub(super) url: String,
     pub(super) token: Secret,
@@ -218,7 +218,7 @@ pub(super) async fn subscription_worker(setup: WorkerSetup, rx: mpsc::Receiver<C
         url: &setup.url,
         token: setup.token.expose(),
         gap: SUBSCRIBE_GAP,
-        split_duplicates: setup.split_duplicates,
+        split: setup.split,
     };
     run_commands(&target, rx, &setup.snapshots, &setup.resync, RETRY_BASE).await;
 }

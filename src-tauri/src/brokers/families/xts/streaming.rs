@@ -25,10 +25,11 @@
 //! feed owns (`worker`: aborted on reconnect and when the feed is dropped;
 //! a batch that failed for a passing reason is sent again, BF-03). XTS
 //! refuses a whole batch when one instrument in it is already subscribed
-//! ("e-session-0002"); for a member with `XtsHooks::split_duplicate_batch`
-//! (rmoney) such a batch is retried one instrument at a time so the others
-//! still start (web rmoney #2176); for the others the refusal is non-fatal,
-//! as in their web adapters. The
+//! ("e-session-0002"); a member's `XtsHooks::split_refused_batch` says
+//! whether such a batch is retried one instrument at a time so the others
+//! still start (rmoney, web #2176), or any refused batch is (wisdom, web
+//! #2469); for the others the refusal is non-fatal, as in their web
+//! adapters. The
 //! snapshots in the subscribe answer (`listQuotes`) are decoded like live
 //! events with the next frame.
 //!
@@ -363,7 +364,7 @@ impl XtsFeed {
             self.worker = Some(handle.spawn(subscription_worker(
                 WorkerSetup {
                     broker: self.cfg.id,
-                    split_duplicates: self.cfg.hooks.split_duplicate_batch,
+                    split: self.cfg.hooks.split_refused_batch,
                     http: self.connector.http.clone(),
                     url: format!(
                         "{}{}/instruments/subscription",

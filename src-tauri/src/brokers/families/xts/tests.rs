@@ -1255,7 +1255,7 @@ mod subscription_batches {
             url: &url,
             token: "tok",
             gap: Duration::ZERO,
-            split_duplicates: cfg.hooks.split_duplicate_batch,
+            split: cfg.hooks.split_refused_batch,
         };
         let (tx, mut rx) = tokio::sync::mpsc::channel(512);
         let mut first = true;
@@ -1330,21 +1330,33 @@ mod subscription_batches {
         assert_eq!(sizes, vec![vec![50, 50, 20], vec![50, 5]]);
     }
 
-    /// Only rmoney splits a refused batch (web #2176 changed rmoney alone);
-    /// the other members keep their web behaviour: the refusal is non-fatal
-    /// and nothing is retried.
+    /// Only rmoney (web #2176) and wisdom (web #2469) split a refused
+    /// batch; the other members keep their web behaviour: the refusal is
+    /// non-fatal and nothing is retried.
     #[tokio::test]
     async fn other_members_do_not_split_a_refused_batch() {
-        assert!(crate::brokers::rmoney::CONFIG.hooks.split_duplicate_batch);
+        use crate::brokers::families::xts::SplitRefused;
+        assert_eq!(
+            crate::brokers::rmoney::CONFIG.hooks.split_refused_batch,
+            SplitRefused::AlreadySubscribed
+        );
+        assert_eq!(
+            crate::brokers::wisdom::CONFIG.hooks.split_refused_batch,
+            SplitRefused::Any
+        );
         for cfg in [
             &crate::brokers::fivepaisaxts::CONFIG,
             &crate::brokers::compositedge::CONFIG,
             &crate::brokers::jainamxts::CONFIG,
             &crate::brokers::ibulls::CONFIG,
             &crate::brokers::iifl::CONFIG,
-            &crate::brokers::wisdom::CONFIG,
         ] {
-            assert!(!cfg.hooks.split_duplicate_batch, "{}", cfg.id);
+            assert_eq!(
+                cfg.hooks.split_refused_batch,
+                SplitRefused::Never,
+                "{}",
+                cfg.id
+            );
             let (seen, calls, snaps) = run_as(cfg, &[1], cmd(2)).await;
             assert_eq!(seen, vec![vec![0, 1]], "{}", cfg.id);
             assert_eq!((calls, snaps), (1, 0), "{}", cfg.id);
@@ -1352,6 +1364,91 @@ mod subscription_batches {
             let (seen, calls, snaps) = run_as(cfg, &[], cmd(51)).await;
             assert_eq!(seen.iter().map(Vec::len).collect::<Vec<_>>(), [50, 1]);
             assert_eq!((calls, snaps), (2, 51), "{}", cfg.id);
+        }
+    }
+
+    /// Web test/test_wisdom_streaming.py::test_book_is_sent_in_capped_batches_per_mode
+    /// (web #2469): the book Wisdom subscribes on a connection goes in one
+    /// request group per mode, at most 50 instruments a request.
+    #[tokio::test]
+    async fn wisdom_sends_its_book_in_mode_batches_of_fifty() {
+        use super::super::streaming::{FeedSource, XtsFeed};
+        use crate::brokers::common::streaming::FeedMode;
+        let cfg = &crate::brokers::wisdom::CONFIG;
+        let f = XtsFeed::new(
+            cfg,
+            crate::brokers::common::http::client(),
+            "https://example.invalid".into(),
+            None,
+            FeedSource::default(),
+        );
+        let mut subs: Vec<_> = (0..120)
+            .map(|i| super::sub("S", "NSE", &i.to_string(), FeedMode::Ltp))
+            .collect();
+        subs.extend((1000..1055).map(|i| super::sub("S", "NSE", &i.to_string(), FeedMode::Depth)));
+        let cmds = f.commands(&subs, true);
+        assert_eq!(
+            cmds.iter().map(|c| c.code).collect::<Vec<_>>(),
+            [1512, 1502]
+        );
+        let mut sizes = Vec::new();
+        for c in cmds {
+            let (seen, _, _) = run_as(cfg, &[], c).await;
+            sizes.push(seen.iter().map(Vec::len).collect::<Vec<_>>());
+        }
+        assert_eq!(sizes, vec![vec![50, 50, 20], vec![50, 5]]);
+    }
+
+    /// Web test_refused_batch_is_retried_one_instrument_at_a_time (web
+    /// #2469): a Wisdom batch refused as already subscribed is sent again
+    /// one instrument at a time, and the single refusal is non-fatal.
+    #[tokio::test]
+    async fn wisdom_splits_a_batch_refused_as_already_subscribed() {
+        let (seen, calls, snaps) = run_as(&crate::brokers::wisdom::CONFIG, &[1, 3], cmd(3)).await;
+        assert_eq!(seen, vec![vec![0, 1, 2], vec![0], vec![1], vec![2]]);
+        assert_eq!((calls, snaps), (4, 2));
+    }
+
+    /// Web #2469 `subscribe_batch`: a Wisdom batch the broker refuses for
+    /// any reason is sent again one instrument at a time, so one contract it
+    /// no longer takes (after a reconnect) costs the others nothing; RMoney
+    /// splits only an already-subscribed refusal (web #2176), the template
+    /// members none.
+    #[tokio::test]
+    async fn wisdom_splits_a_refused_batch_and_keeps_the_others() {
+        const REFUSED: &str = "{\"type\":\"error\",\"description\":\"Instrument not allowed\"}";
+        for (cfg, calls) in [
+            (&crate::brokers::wisdom::CONFIG, 4),
+            (&crate::brokers::rmoney::CONFIG, 1),
+            (&crate::brokers::ibulls::CONFIG, 1),
+        ] {
+            let (url, seen) = scripted(vec![(1, 400, REFUSED), (3, 400, REFUSED)]).await;
+            let http = crate::brokers::common::http::client();
+            let t = SubscriptionTarget {
+                broker: cfg.id,
+                http: &http,
+                url: &url,
+                token: "tok",
+                gap: Duration::ZERO,
+                split: cfg.hooks.split_refused_batch,
+            };
+            let (tx, _rx) = tokio::sync::mpsc::channel(512);
+            let report = run_command(&t, &cmd(3), &tx, &mut true).await;
+            assert_eq!(report.calls, calls, "{}", cfg.id);
+            let refused: Vec<i64> = report
+                .refused
+                .iter()
+                .map(|(i, _)| i["exchangeInstrumentID"].as_i64().unwrap())
+                .collect();
+            if calls == 4 {
+                assert_eq!(
+                    seen.lock().clone(),
+                    vec![vec![0, 1, 2], vec![0], vec![1], vec![2]]
+                );
+                assert_eq!(refused, [1], "only the refused instrument is lost");
+            } else {
+                assert_eq!(refused, [0, 1, 2], "{}", cfg.id);
+            }
         }
     }
 
@@ -1432,7 +1529,7 @@ mod subscription_batches {
                 url: &url,
                 token: "tok",
                 gap: Duration::ZERO,
-                split_duplicates: cfg.hooks.split_duplicate_batch,
+                split: cfg.hooks.split_refused_batch,
             };
             super::super::streaming::worker::run_commands(&t, rx, &snap_tx, &flag, retry_base)
                 .await;

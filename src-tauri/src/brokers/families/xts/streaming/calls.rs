@@ -4,6 +4,7 @@
 //! apart.
 
 use super::{mapping, release, SUBSCRIBE_BATCH};
+use crate::brokers::families::xts::SplitRefused;
 use serde_json::{json, Value};
 use std::collections::VecDeque;
 use std::time::Duration;
@@ -170,8 +171,8 @@ pub struct SubscriptionTarget<'a> {
     pub url: &'a str,
     pub token: &'a str,
     pub gap: Duration,
-    /// `XtsHooks::split_duplicate_batch` of the member.
-    pub split_duplicates: bool,
+    /// `XtsHooks::split_refused_batch` of the member.
+    pub split: SplitRefused,
 }
 
 /// What running one command left to do.
@@ -199,9 +200,10 @@ fn split_in_two(mut part: Vec<Value>, parts: &mut VecDeque<Vec<Value>>) {
 }
 
 /// Run one command: at most `SUBSCRIBE_BATCH` instruments per call, `gap`
-/// between calls. With `split_duplicates`, a subscribe batch refused as
-/// already subscribed is retried one instrument at a time; without it the
-/// refusal is non-fatal. A batch that failed for a passing reason is
+/// between calls. A subscribe batch the member's `split` names (refused as
+/// already subscribed, or refused at all outside a first subscribe) is sent
+/// again one instrument at a time; otherwise the refusal is non-fatal. A
+/// batch that failed for a passing reason is
 /// reported for a retry (BF-03; the web retries rmoney's on a timer). A
 /// refused batch of an admission is searched by halves for what the broker
 /// refuses (review R107-03, X1), until `Waited::search_until`: one refused
@@ -252,12 +254,27 @@ pub async fn run_command(
                 }
             }
             (Ok(CallOutcome::AlreadySubscribed), _)
-                if t.split_duplicates && cmd.subscribe && batch.len() > 1 =>
+                if t.split != SplitRefused::Never && cmd.subscribe && batch.len() > 1 =>
             {
                 tracing::info!(
                     broker = t.broker,
                     code = cmd.code,
                     "Batch holds an instrument already subscribed; subscribing one by one"
+                );
+                for inst in batch {
+                    outcomes.push(call(vec![inst]).await);
+                }
+            }
+            // Wisdom's client (web #2469): one refused instrument, a contract
+            // the broker no longer takes after a reconnect, must not cost the
+            // others of its batch their subscription.
+            (Err(CallError::Refused(_)), None)
+                if t.split == SplitRefused::Any && cmd.subscribe && batch.len() > 1 =>
+            {
+                tracing::info!(
+                    broker = t.broker,
+                    code = cmd.code,
+                    "Batch refused; subscribing one by one"
                 );
                 for inst in batch {
                     outcomes.push(call(vec![inst]).await);
