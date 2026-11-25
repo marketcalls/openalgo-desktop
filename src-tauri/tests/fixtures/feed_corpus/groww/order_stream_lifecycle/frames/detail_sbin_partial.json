@@ -1,0 +1,27 @@
+{
+  "status": "SUCCESS",
+  "payload": {
+    "groww_order_id": "GMK2511250001",
+    "trading_symbol": "SBIN",
+    "order_status": "APPROVED",
+    "remark": "",
+    "quantity": 10,
+    "price": 812.5,
+    "trigger_price": 0,
+    "filled_quantity": 4,
+    "remaining_quantity": 6,
+    "average_fill_price": 812.25,
+    "deliverable_quantity": 0,
+    "amo_status": "NA",
+    "validity": "DAY",
+    "exchange": "NSE",
+    "order_type": "LIMIT",
+    "transaction_type": "BUY",
+    "segment": "CASH",
+    "product": "CNC",
+    "created_at": "2026-11-25T09:20:11",
+    "exchange_time": "2026-11-25T09:20:12",
+    "trade_date": "2026-11-25T00:00:00",
+    "order_reference_id": "corpus-sbin-1"
+  }
+}

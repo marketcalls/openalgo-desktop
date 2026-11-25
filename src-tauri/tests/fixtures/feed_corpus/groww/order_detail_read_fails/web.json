@@ -1,0 +1,123 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+  "adapter": "groww",
+  "inputs_sha256": "35d840b0a29e6deb5591191cc329a1e117844091479018e27f91765b84dc27e6",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    },
+    {
+      "symbol": "NIFTY29DEC2626000CE",
+      "exchange": "NFO",
+      "token": "54321",
+      "brsymbol": "NIFTY26DEC26000CE",
+      "name": "NIFTY",
+      "expiry": "29-DEC-26",
+      "strike": 26000.0,
+      "lotsize": 75,
+      "instrumenttype": "CE",
+      "tick_size": 0.05
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "groww",
+            "orderid": "GMK2511250004",
+            "symbol": "INE062A01020",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 5,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "SL-M",
+            "product": "MIS",
+            "order_status": "trigger pending",
+            "filled_quantity": 0,
+            "pending_quantity": 5,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "groww",
+            "orderid": "GMKFO2511250005",
+            "symbol": "NIFTY29DEC2626000CE",
+            "exchange": "NFO",
+            "action": "SELL",
+            "quantity": 75,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "NRML",
+            "order_status": "rejected",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": "Price is outside the circuit limits"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -16,7 +16,6 @@ use super::rate_limiter::{self, paced, retry_delay, ApiType, Attempt, GrowwLimit
 use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Validity};
-use crate::brokers::common::order_poll::{clamp_interval, diff};
 use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, PrepareError,
 };
@@ -1856,34 +1855,6 @@ fn an_emptied_book_side_drops_its_best_bid_or_ask() {
 }
 
 // ---------------------------------------------------------------------------
-// Order poller
-// ---------------------------------------------------------------------------
-
-#[test]
-fn poller_diff_seeds_then_reports_changes() {
-    let r = master();
-    let raw = orders_of(&fx(fixture!("order_list_cash.json")));
-    let mut book = map_orders(&raw, &r);
-    let (snap, changed) = diff(None, &book);
-    assert!(changed.is_empty());
-    assert_eq!(snap.len(), 4);
-    book[1].status = "complete".into();
-    book[1].filled_quantity = 5;
-    let (_, changed) = diff(Some(&snap), &book);
-    assert_eq!(changed.len(), 1);
-    assert_eq!(changed[0].orderid, "GMK39038RDT490CCVRP");
-    assert_eq!(
-        (changed[0].order_status.as_str(), changed[0].filled_quantity),
-        ("complete", 5)
-    );
-    assert_eq!(clamp_interval(std::time::Duration::ZERO).as_secs(), 1);
-    assert_eq!(
-        clamp_interval(std::time::Duration::from_secs(600)).as_secs(),
-        60
-    );
-}
-
-// ---------------------------------------------------------------------------
 // HTTP round trips against a local fake Groww (ephemeral port)
 // ---------------------------------------------------------------------------
 
@@ -2612,24 +2583,6 @@ mod http_round_trip {
         assert_eq!(e.code(), "AUTH_ERROR");
         assert!(b.create_feed(&AuthToken::new(" ")).is_err());
     }
-
-    #[tokio::test]
-    async fn poller_publishes_changes_and_stops() {
-        let (b, _) = broker(false).await;
-        let auth = AuthToken::new("good");
-        let mut rx = b
-            .start_order_updates(&auth, std::time::Duration::from_secs(1))
-            .unwrap();
-        assert!(b.order_updates_running());
-        // Seed poll publishes nothing.
-        let r = tokio::time::timeout(std::time::Duration::from_millis(1500), rx.recv()).await;
-        assert!(r.is_err());
-        b.stop_order_updates();
-        assert!(!b.order_updates_running());
-        // The task is gone, so the channel closes.
-        let end = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv()).await;
-        assert!(matches!(end, Ok(None)));
-    }
 }
 
 /// Web test_groww_positions_price.py (#2173): every position price is the
@@ -2672,24 +2625,6 @@ fn position_prices_are_the_rupees_groww_sent() {
         pos(serde_json::json!({"net_price": "433.0"})).average_price,
         433.0
     );
-}
-
-#[tokio::test]
-async fn order_feed_is_the_poller_and_logout_stops_it() {
-    use crate::brokers::common::streaming::OrderFeed;
-    let b = GrowwBroker::with_base_url(master(), "http://127.0.0.1:9");
-    let auth = AuthToken::new("tok");
-    let feed = b.create_order_feed(&auth).unwrap();
-    assert!(b.order_updates_running());
-    b.on_logout().await;
-    assert!(!b.order_updates_running());
-    // The update channel closes with the poller.
-    let OrderFeed::Stream(mut rx) = feed else {
-        panic!("expected the poller stream")
-    };
-    let closed = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv()).await;
-    assert!(matches!(closed, Ok(None)));
-    assert!(b.create_order_feed(&AuthToken::new(" ")).is_err());
 }
 
 /// Web openalgo#2312: the server sends a second INFO after CONNECT; it is

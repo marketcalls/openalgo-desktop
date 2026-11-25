@@ -53,7 +53,11 @@ broker, symbol, time and the frame text.
   price message ever leaves the LTP out; whether a book arrives before the
   first price; books that empty a side; `remaining_quantity` on cancelled
   and rejected orders and whether a MARKET order's row carries a protected
-  price (needs an order).
+  price (needs an order); the order subjects (needs an order): that Groww
+  accepts a second socket token beside the market feed's, which statuses a
+  partial fill and a modify push, whether `remainingQty` is left at the
+  quantity on a cancel or a rejection, and what unit the push's prices are
+  in (neither side reads them while that is unknown).
 - **IndMoney:** Depth refused; /trading and the depth panels show the quote
   and the note; whether the idle price socket is ever closed by IndMoney;
   whether INDstocks' 0 means "unchanged" or is sometimes a real zero (the

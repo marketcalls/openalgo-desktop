@@ -1,0 +1,23 @@
+# Groww NATS MSG on the F&O order subject (sid 2): NIFTY 26000 CE, a LIMIT sell of 75 (NRML) rejected, with Groww's remark.
+# The push's integer prices have no stated unit; neither side reads them.
+4d 53 47 20 73 74 6f 63 6b 73 5f 66 6f 2f 6f 72 64 65 72 2f 75 70 64 61 74 65 73 2e 61 70 65 78 2e 73 75 62 2d 31 20 32 20 31 31 30 0d 0a  # "MSG stocks_fo/order/updates.apex.sub-1 2 110" CRLF
+                                                                                                                                           # protobuf OrderDetailsBroadCastDto, 110 bytes
+0a 0e                                                                                                                                      # stage (1), 14 bytes
+12 0c                                                                                                                                      #   (2), 12 bytes
+4f 52 44 45 52 5f 50 4c 41 43 45 44                                                                                                        #     "ORDER_PLACED"
+12 5c                                                                                                                                      # order update (2), 92 bytes
+08 4b                                                                                                                                      #   qty (1) = 75
+10 98 75                                                                                                                                   #   price (2) = 15000
+3a 0f                                                                                                                                      #   growwOrderId (7), 15 bytes
+47 4d 4b 46 4f 32 35 31 31 32 35 30 30 30 35                                                                                               #     "GMKFO2511250005"
+48 04                                                                                                                                      #   orderStatus (9) = 4 (REJECTED)
+58 01                                                                                                                                      #   exchange (11) = 1 (NSE)
+60 01                                                                                                                                      #   segment (12) = 1 (FNO)
+68 04                                                                                                                                      #   product (13) = 4 (NRML)
+70 01                                                                                                                                      #   orderType (14) = 1 (LIMIT)
+78 01                                                                                                                                      #   transactionType (15) = 1 (SELL)
+82 01 23                                                                                                                                   #   remark (16), 35 bytes
+50 72 69 63 65 20 69 73 20 6f 75 74 73 69 64 65 20 74 68 65 20 63 69 72 63 75 69 74 20 6c 69 6d 69 74 73                                   #     "Price is outside the circuit limits"
+b2 01 11                                                                                                                                   #   contractId (22), 17 bytes
+4e 49 46 54 59 32 36 44 45 43 32 36 30 30 30 43 45                                                                                         #     "NIFTY26DEC26000CE"
+0d 0a                                                                                                                                      # CRLF ending the message

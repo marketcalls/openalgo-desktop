@@ -1,0 +1,58 @@
+{
+  "broker": "groww",
+  "summary": "Order pushes whose detail cannot be read: an equity stop-loss whose read Groww refuses and an F&O rejection whose read finds nothing, each published from the push alone (status, quantities, exchange, side, type, product, the contract, the remark for the rejection) with no prices.",
+  "scenarios": [
+    "order-open",
+    "order-rejected"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    },
+    {
+      "symbol": "NIFTY29DEC2626000CE",
+      "exchange": "NFO",
+      "token": "54321",
+      "brsymbol": "NIFTY26DEC26000CE",
+      "name": "NIFTY",
+      "expiry": "29-DEC-26",
+      "strike": 26000.0,
+      "lotsize": 75,
+      "instrumenttype": "CE",
+      "tick_size": 0.05
+    }
+  ],
+  "upstream_ignore": [
+    "PING\r\n"
+  ],
+  "http": [
+    {
+      "method": "GET",
+      "path": "/v1/order/detail/GMK2511250004?segment=CASH",
+      "body": "frames/detail_refused.json"
+    }
+  ],
+  "provenance": {
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+    "method": "web-script",
+    "sources": [
+      "broker/groww/streaming/groww_order_adapter.py::GrowwOrderUpdateAdapter._split_frames",
+      "broker/groww/streaming/groww_order_adapter.py::decode_order_update",
+      "broker/groww/streaming/groww_order_adapter.py::GrowwOrderUpdateAdapter.normalize",
+      "broker/groww/streaming/groww_order_adapter.py::GrowwOrderUpdateAdapter._order_detail",
+      "broker/groww/streaming/groww_order_adapter.py::GrowwOrderUpdateAdapter._fields_from",
+      "broker/groww/mapping/order_data.py::map_order_status",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "The pushes are OrderDetailsBroadCastDto messages written field by field as the web's test_groww_order_adapter.py `_order_payload` writes them (field numbers and enum values from growwapi 1.5.0's stock_orders_socket_response_pb2.py, as the web adapter's _ORDER_FIELDS lists them); proto3 leaves zero values off the wire.",
+      "The order details follow Groww's 04-orders \"Get order details\" payload, which the web reads for symbol, prices, side, type and product (`_fields_from`); status and quantities come from the push on both sides.",
+      "The fake NATS server does not echo the `nats` subprotocol, so each connect's first attempt ends and the feed retries without it (as on the market feed); its INFO has no nonce, so the CONNECT carries no nkey or signature and can be compared exactly. The web's handshake is written to a socket the replay does not have (`_ws` None), so what the feed sends Groww is pinned here against the web's `_send_handshake` and `NATSProtocol.create_connect`.",
+      "The refusal follows Groww's error envelope (status FAILURE, error code and message); the web takes any answer without status SUCCESS, or none, as no detail (`_order_detail`), as the web's own test does with its stand-in."
+    ]
+  },
+  "deviations": []
+}

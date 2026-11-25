@@ -23,17 +23,17 @@
         5
       ]
     },
-    "orders": "REST order-book polling"
+    "orders": "the NATS order subjects (stocks/order/updates.apex.<id>, stocks_fo/order/updates.apex.<id>)"
   },
   "sources": [
     "broker/groww/streaming/groww_mapping.py::GrowwCapabilityRegistry.SUPPORTED_DEPTH_LEVELS",
     "broker/groww/streaming/groww_adapter.py::GrowwWebSocketAdapter.subscribe",
-    "services/order_update_service.py:98 (_POLLING_BROKERS)",
-    "websocket_proxy/order_adapter.py::PollingOrderUpdateAdapter"
+    "services/order_update_service.py (_BROKER_FACTORIES)",
+    "broker/groww/streaming/groww_order_adapter.py::GrowwOrderUpdateAdapter"
   ],
   "notes": [
     "The web adapter refuses MCX, CDS and BCD (EXCHANGE_NOT_SUPPORTED, groww_adapter.py:385-390) although its capability registry lists them; Groww publishes NSE and BSE cash, F&O and indices only; the desktop refuses them with the same words (unsupported_exchanges).",
     "Indices have no book: a Depth subscribe on an index takes the price subject on both sides (index_depth_falls_back_to_price).",
-    "Order updates come from polling the order book every 5 s on both sides (web PollingOrderUpdateAdapter, desktop common::order_poll::OrderPoller), reading the CASH and FNO order lists (order_book_polling)."
+    "Order updates come from Groww's order subjects on its NATS server, on a connection of their own with a socket token of their own (web GrowwOrderUpdateAdapter, openalgo#2474; desktop brokers/groww/order_feed.rs): equity and F&O only, Groww has no commodity order subject. Each push is completed from GET /v1/order/detail (symbol, prices, side, type, product) on both sides (order_stream_lifecycle), from the push alone when that read fails (order_detail_read_fails); a reconnect starts with a new token and reader (order_stream_reconnects)."
   ]
 }

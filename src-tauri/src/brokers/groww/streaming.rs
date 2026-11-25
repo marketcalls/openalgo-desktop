@@ -54,8 +54,9 @@ pub const NATS_PING_EVERY: Duration = Duration::from_secs(10);
 pub const ASSUME_READY_AFTER: Duration = Duration::from_secs(2);
 /// Socket-token request budget (web: 15 s).
 const TOKEN_TIMEOUT: Duration = Duration::from_secs(15);
-/// Largest buffered partial NATS op; anything bigger is a broken stream.
-const MAX_PENDING_BYTES: usize = 4 * 1024 * 1024;
+/// Largest buffered partial NATS op; anything bigger is a broken stream
+/// (both feeds' readers).
+pub(super) const MAX_PENDING_BYTES: usize = 4 * 1024 * 1024;
 
 /// Where the feed connects (overridable for tests).
 #[derive(Debug, Clone)]
@@ -174,9 +175,9 @@ pub fn connect_frame(jwt: &str, nkey: Option<&str>, sig: Option<&str>) -> String
 
 /// Credentials minted by one `prepare` for the connection that follows.
 pub struct Minted {
-    jwt: Secret,
-    subscription: String,
-    key: Option<KeyPair>,
+    pub(super) jwt: Secret,
+    pub(super) subscription: String,
+    pub(super) key: Option<KeyPair>,
 }
 
 /// What the trader reads when Groww refuses the socket-token request: the
@@ -184,14 +185,35 @@ pub struct Minted {
 pub const LOGIN_EXPIRED: &str =
     "Your Groww login has expired, so live market data stopped. Log in to Groww again.";
 
+/// Who asks Groww for a socket token. The web's market data client
+/// (`nats_websocket.py`) and its order adapter (`groww_order_adapter.py`,
+/// openalgo#2474) name different SDK versions, and only the order adapter
+/// needs the subscription id, which its order subjects carry.
+pub(super) struct TokenAsk {
+    /// `x-client-platform-version`.
+    pub(super) platform_version: &'static str,
+    /// What the trader reads when Groww refuses the request.
+    pub(super) expired: &'static str,
+    /// An answer without a `subscriptionId` is no token.
+    pub(super) needs_subscription: bool,
+}
+
+/// The market data feed's ask (nats_websocket.py:228-238).
+const MARKET_DATA: TokenAsk = TokenAsk {
+    platform_version: "0.0.8",
+    expired: LOGIN_EXPIRED,
+    needs_subscription: false,
+};
+
 /// Socket token for a fresh key pair (web `_generate_socket_token`). Groww's
 /// NATS server accepts only a socket token, so there is no fallback to the
 /// login token (web openalgo#2312): a 401 or 403 means the login expired and
 /// stops the feed; any other failure is retried with backoff.
-async fn socket_token(
+pub(super) async fn socket_token(
     http: &reqwest::Client,
     url: &str,
     auth: &str,
+    ask: &TokenAsk,
 ) -> std::result::Result<Minted, PrepareError> {
     let key = KeyPair::generate();
     let resp = http
@@ -202,7 +224,7 @@ async fn socket_token(
         .header("Content-Type", "application/json")
         .header("x-client-id", "growwapi")
         .header("x-client-platform", "growwapi-python-client")
-        .header("x-client-platform-version", "0.0.8")
+        .header("x-client-platform-version", ask.platform_version)
         .header("x-api-version", "1.0")
         .json(&json!({"socketKey": key.public_key()}))
         .send()
@@ -223,7 +245,7 @@ async fn socket_token(
             status = status.as_u16(),
             "Groww refused the socket token request; the login has expired"
         );
-        return Err(PrepareError::AuthFailed(LOGIN_EXPIRED.into()));
+        return Err(PrepareError::AuthFailed(ask.expired.into()));
     }
     if status.is_success() {
         if let Ok(v) = r.json::<Value>().await {
@@ -232,7 +254,7 @@ async fn socket_token(
                 .get("subscriptionId")
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            if !token.is_empty() {
+            if !token.is_empty() && !(ask.needs_subscription && sub.is_empty()) {
                 return Ok(Minted {
                     jwt: Secret::new(token),
                     subscription: sub.to_string(),
@@ -732,6 +754,7 @@ impl BrokerFeed for GrowwFeed {
                 &self.http,
                 &self.endpoints.socket_token_url,
                 self.auth_token.expose(),
+                &MARKET_DATA,
             )
             .await?,
         );

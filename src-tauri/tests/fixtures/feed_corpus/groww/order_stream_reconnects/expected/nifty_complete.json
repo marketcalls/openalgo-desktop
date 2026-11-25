@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "groww",
+  "orderid": "GMKFO2511250006",
+  "symbol": "NIFTY29DEC2626000CE",
+  "exchange": "NFO",
+  "action": "BUY",
+  "quantity": 75,
+  "price": 0.0,
+  "trigger_price": 0.0,
+  "pricetype": "MARKET",
+  "product": "NRML",
+  "order_status": "complete",
+  "filled_quantity": 75,
+  "pending_quantity": 0,
+  "average_price": 132.25,
+  "rejection_reason": ""
+}

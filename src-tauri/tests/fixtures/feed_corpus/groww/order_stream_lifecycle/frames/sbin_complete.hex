@@ -1,0 +1,24 @@
+# Groww NATS MSG on the equity order subject (sid 1): SBIN, all 10 filled (EXECUTED).
+# The push's integer prices have no stated unit; neither side reads them.
+4d 53 47 20 73 74 6f 63 6b 73 2f 6f 72 64 65 72 2f 75 70 64 61 74 65 73 2e 61 70 65 78 2e 73 75 62 2d 31 20 31 20 31 30 31 0d 0a  # "MSG stocks/order/updates.apex.sub-1 1 101" CRLF
+                                                                                                                                  # protobuf OrderDetailsBroadCastDto, 101 bytes
+0a 0e                                                                                                                             # stage (1), 14 bytes
+12 0c                                                                                                                             #   (2), 12 bytes
+4f 52 44 45 52 5f 50 4c 41 43 45 44                                                                                               #     "ORDER_PLACED"
+12 53                                                                                                                             # order update (2), 83 bytes
+08 0a                                                                                                                             #   qty (1) = 10
+10 e2 fa 04                                                                                                                       #   price (2) = 81250
+20 0a                                                                                                                             #   filledQty (4) = 10
+30 ce fa 04                                                                                                                       #   avgFillPrice (6) = 81230
+3a 0d                                                                                                                             #   growwOrderId (7), 13 bytes
+47 4d 4b 32 35 31 31 32 35 30 30 30 31                                                                                            #     "GMK2511250001"
+42 10                                                                                                                             #   exchangeOrderId (8), 16 bytes
+31 31 30 30 30 30 30 30 31 32 33 34 35 36 30 31                                                                                   #     "1100000012345601"
+48 06                                                                                                                             #   orderStatus (9) = 6 (EXECUTED)
+58 01                                                                                                                             #   exchange (11) = 1 (NSE)
+70 01                                                                                                                             #   orderType (14) = 1 (LIMIT)
+82 01 0e                                                                                                                          #   remark (16), 14 bytes
+4f 72 64 65 72 20 65 78 65 63 75 74 65 64                                                                                         #     "Order executed"
+b2 01 0c                                                                                                                          #   contractId (22), 12 bytes
+49 4e 45 30 36 32 41 30 31 30 32 30                                                                                               #     "INE062A01020"
+0d 0a                                                                                                                             # CRLF ending the message

@@ -1,0 +1,3 @@
+# The rest of the message, then the server's PONG.
+0d 0a 0a 0e 12 0c 4f 52 44 45 52 5f 50 4c 41 43 45 44 12 3d 08 0a 20 0a 30 fb fa 04 3a 0d 47 4d 4b 32 35 31 31 32 35 30 30 30 37 48 06 58 01 68 01 82 01 0e 4f 72 64 65 72 20 65 78 65 63 75 74 65 64 b2 01 0c 49 4e 45 30 36 32 41 30 31 30 32 30 0d 0a  # bytes 40-122
+50 4f 4e 47 0d 0a                                                                                                                                                                                                                                         # "PONG" CRLF

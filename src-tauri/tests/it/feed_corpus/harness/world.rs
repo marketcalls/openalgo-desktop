@@ -171,8 +171,8 @@ impl Feeds {
     }
 
     /// Order updates as `Broker::create_order_feed` returns them: a socket,
-    /// or the stream of an order-book poller (5paisa, Samco, Groww; start
-    /// it with a short interval, `start_order_updates(&auth, 1 s)`).
+    /// or the stream of an order-book poller (5paisa, Samco; start it with
+    /// a short interval, `start_order_updates(&auth, 1 s)`).
     pub(crate) fn with_order_feed(mut self, feed: OrderFeed) -> Feeds {
         self.orders = Some(feed);
         self

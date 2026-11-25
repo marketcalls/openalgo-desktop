@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "groww",
+  "orderid": "GMK2511250007",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 10,
+  "price": 0.0,
+  "trigger_price": 0.0,
+  "pricetype": "MARKET",
+  "product": "MIS",
+  "order_status": "complete",
+  "filled_quantity": 10,
+  "pending_quantity": 0,
+  "average_price": 812.75,
+  "rejection_reason": ""
+}

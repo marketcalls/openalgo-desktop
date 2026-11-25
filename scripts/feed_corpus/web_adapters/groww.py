@@ -22,20 +22,23 @@ A dropped socket is the web client's own reconnect
 (nats_websocket.py:271-328, `_resubscribe_all`): new sids, and the adapter
 is not told, so its merge cache keeps the old session's values.
 
-Order updates: the web's own order-book poller (`polling.py`:
-`PollingOrderUpdateAdapter._poll_loop` and `_publish_order`,
-`services/orderbook_service.py`) over Groww's own `get_order_book`
-(`broker/groww/api/order_api.py`: `direct_get_order_book` and `_get_paged`
-read the CASH then the FNO order list page by page through `groww_request`,
-a CASH read that fails is the poll's error and an FNO one is skipped, each
-order's exchange and symbol resolved on the case's master) and its
-`broker/groww/mapping/order_data.py`. Every order-list answer the case
-serves (case.json `http`, then each `http_serve`) is what the fake broker
-API answers from then on (`GrowwRest`); one served after the order
-subscription is the poller's next read. Stand-ins: the httpx client
-(`GrowwRest`), the master lookup (`get_oa_symbol`), and the backpressure
-ceiling (none, as under eventlet and the development server:
-`check_queue_wait` and `cap_server_delay` let every wait through).
+Order updates: the web's order adapter on Groww's order subjects
+(`groww_order_adapter.py`, openalgo#2474): its NATS frame reader
+(`GrowwOrderUpdateAdapter._split_frames`, with no socket, so the handshake
+and the PONG it would write are not modelled; the case pins what the feed
+sends), the protobuf decoder (`decode_order_update`) and its `normalize`,
+which reads the order's detail (`_order_detail`, through `groww_request`)
+from the fake broker API and maps it (`_fields_from`). Every answer the
+case serves (case.json `http`, then each `http_serve`) is what that API
+answers from then on (`GrowwRest`; a served answer is 200, its body says
+whether Groww gave the order). The adapter's `_handle_message` reaches the
+base class's through `super()`, which a lifted class has no base for, so
+the glue runs the same steps: split, normalise each payload (a payload
+whose normalising raises is dropped), relay what comes back. A reconnect
+resets the reader as `get_ws_url` does. Stand-ins: the httpx client
+(`GrowwRest`), the master lookups (`get_oa_symbol`, `to_openalgo_symbol`),
+and the backpressure ceiling (none, as under eventlet and the development
+server: `check_queue_wait` and `cap_server_delay` let every wait through).
 """
 
 import email.utils
@@ -43,7 +46,6 @@ import json
 import types
 import urllib.parse
 
-from web_adapters.polling import POLLING_SOURCES, Polling
 from webkit import Glue, Source
 
 PROTOBUF_NAMES = [
@@ -54,22 +56,15 @@ PROTOBUF_NAMES = [
     "parse_groww_market_data",
 ]
 
-ORDER_NAMES = [
-    "GROWW_ORDER_STATUS_MAP", "GROWW_PRICETYPE_MAP", "map_order_status", "_orders_from",
-    "map_order_data", "calculate_order_statistics", "transform_order_data",
-]
-ORDER_API_NAMES = [
-    "GROWW_BASE_URL", "GROWW_ORDER_LIST_URL", "_ORDER_LIST_PAGE_SIZE", "_groww_headers",
-    "_get_paged", "direct_get_order_book", "get_order_book", "_groww_error_message",
-]
+ORDER_NAMES = ["GROWW_ORDER_STATUS_MAP", "GROWW_PRICETYPE_MAP", "map_order_status"]
 RATE_LIMIT_NAMES = [
     "MIN_INTERVAL", "MAX_RETRIES", "BASE_BACKOFF", "_lock", "_last_call_time", "_queue_kind",
     "apply_rate_limit", "retry_delay", "groww_request",
 ]
-EMPTY_BOOK_NAMES = [
-    "_EMPTY_BOOK_MARKERS", "_EMPTY_BOOK_MAX_CHARS", "MESSAGE_FIELDS", "_field", "says_no_positions",
+ORDER_ADAPTER_NAMES = [
+    "GROWW_ORDER_DETAIL_URL", "_ORDER_STATUS", "_EXCHANGE", "_SEGMENT", "_PRODUCT", "_ORDER_TYPE",
+    "_BUY_SELL", "_ORDER_FIELDS", "_read_varint", "_fields", "decode_order_update",
 ]
-ORDER_LIST = "/v1/order/list"
 
 
 class GrowwRest:
@@ -89,7 +84,7 @@ class GrowwRest:
 
 
 class GrowwReply:
-    """An httpx response as `_get_paged` reads it."""
+    """An httpx response as `groww_request` and `_order_detail` read it."""
 
     def __init__(self, status_code, text):
         self.status_code = status_code
@@ -100,9 +95,8 @@ class GrowwReply:
         return json.loads(self.text)
 
 
-class Groww(Polling, Glue):
+class Groww(Glue):
     broker = "groww"
-    order_book_path = ORDER_LIST
     sources = [
         Source("broker/groww/streaming/groww_protobuf.py", None, PROTOBUF_NAMES),
         Source("broker/groww/streaming/groww_protobuf.py", "MiniProtobufParser"),
@@ -125,9 +119,12 @@ class Groww(Polling, Glue):
             ["EXCHANGE_NSE", "EXCHANGE_BSE", "SEGMENT_CASH", "SEGMENT_FNO", "openalgo_exchange"],
         ),
         Source("broker/groww/api/rate_limiter.py", None, RATE_LIMIT_NAMES),
-        Source("utils/position_read.py", None, EMPTY_BOOK_NAMES),
-        Source("broker/groww/api/order_api.py", None, ORDER_API_NAMES),
-        *POLLING_SOURCES,
+        Source("broker/groww/streaming/groww_order_adapter.py", None, ORDER_ADAPTER_NAMES),
+        Source(
+            "broker/groww/streaming/groww_order_adapter.py",
+            "GrowwOrderUpdateAdapter",
+            ["_reset_connection_state", "_split_frames", "_order_detail", "_fields_from", "normalize"],
+        ),
     ]
 
     def stubs(self):
@@ -136,13 +133,13 @@ class Groww(Polling, Glue):
             return row["symbol"] if row else None
 
         return {
-            **self.polling_stubs(),
             # nats_websocket.py imports the decoder as a module (`from . import
             # groww_protobuf`); its one call goes to the lifted function.
             "groww_protobuf": types.SimpleNamespace(
                 parse_groww_market_data=lambda data: self.web["parse_groww_market_data"](data)
             ),
             "get_oa_symbol": get_oa_symbol,
+            "to_openalgo_symbol": self.to_openalgo_symbol,
             "get_httpx_client": lambda: GrowwRest(self.answers),
             "check_queue_wait": lambda wait_seconds, kind="data": None,
             "cap_server_delay": lambda seconds, kind="data": seconds,
@@ -171,6 +168,11 @@ class Groww(Polling, Glue):
         self.next_sid = 1
         # What the fake broker API answers, by path (with its query).
         self.answers = {}
+        # The order adapter, with no socket: its reader writes nothing.
+        self.orders = self.new(
+            "GrowwOrderUpdateAdapter", broker_name="groww", user_id="<USER_ID>", auth_token="t", _ws=None
+        )
+        self.orders._reset_connection_state()
 
     def subscribe(self, row, mode, depth):
         symbol, exchange = row["symbol"], row["exchange"]
@@ -227,29 +229,41 @@ class Groww(Polling, Glue):
             self.ad._maybe_clear_cache_entry(entry)
 
     def reconnect(self, socket):
+        if socket == "orders":
+            # get_ws_url: a fresh socket token and reader for every connect.
+            self.orders._reset_connection_state()
+            return
         self.ws.nats_sids.clear()
         self.next_sid = 1
         for price_key, book_key in self.subjects.values():
             self.number(price_key, book_key)
 
     def push(self, socket, frame):
+        if socket == "orders":
+            self.push_orders(frame.encode("utf-8") if isinstance(frame, str) else frame)
+            return
         # Only a MSG carries market data; INFO, +OK and PING publish nothing.
         if isinstance(frame, bytes) and b"MSG" in frame[:50]:
             self.ws._process_binary_nats_message(frame)
 
-    def serve(self, method, path, body):
-        """The fake broker API answers the order list with `body` from now
-        on; once the order subscription runs, that is the poller's next read
-        (both segments, as `direct_get_order_book` reads them). The
-        subscription's first, silent read is what case.json `http` answers
-        (`empty_book` is not used)."""
-        if not path.startswith(self.order_book_path + "?"):
-            raise SystemExit(f"the groww glue serves no {path}")
-        self.answers[path] = body
-        if self.poller is not None:
-            self.next_poll(None)
+    def push_orders(self, data):
+        """`GrowwOrderUpdateAdapter._handle_message` and the base class's:
+        a frame the reader cannot read empties its buffer; each payload is
+        normalised, and one that raises or gives nothing is dropped."""
+        try:
+            payloads = self.orders._split_frames(bytes(data))
+        except Exception:  # noqa: BLE001 (the web catches every error here)
+            self.orders._buffer = b""
+            return
+        for payload in payloads:
+            try:
+                fields = self.orders.normalize(payload)
+            except Exception:  # noqa: BLE001 (as BaseOrderUpdateAdapter._handle_message)
+                continue
+            if fields:
+                self.order(fields)
 
-    def order_book_reply(self, auth, served):
-        """Groww's own `get_order_book` (order_api.py:176-188) on what the
-        fake broker API answers now."""
-        return self.web["get_order_book"](auth)
+    def serve(self, method, path, body):
+        """The fake broker API answers `path` (with its query) with `body`
+        from now on: the order detail the next order push reads."""
+        self.answers[path] = body
