@@ -15,6 +15,7 @@ pub mod client;
 mod data;
 mod funds;
 pub mod mapping;
+mod margin;
 pub mod market;
 pub mod master_contract;
 mod orders;
@@ -241,7 +242,7 @@ impl Broker for PocketfulBroker {
         Capabilities {
             history: false,
             multiquotes_batch: true,
-            margin: false,
+            margin: true,
             gtt: false,
             streaming: true,
             order_feed: true,
@@ -313,6 +314,10 @@ impl Broker for PocketfulBroker {
 
     async fn get_funds(&self, auth: &AuthToken) -> Result<Funds> {
         funds::get_funds(self, auth).await
+    }
+
+    async fn calculate_margin(&self, auth: &AuthToken, legs: &[MarginLeg]) -> Result<MarginResult> {
+        margin::calculate_margin(self, auth, legs).await
     }
 
     async fn get_quote(&self, auth: &AuthToken, key: &QuoteKey) -> Result<Quote> {

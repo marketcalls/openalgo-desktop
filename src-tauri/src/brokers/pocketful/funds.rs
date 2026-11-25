@@ -1,7 +1,6 @@
 //! Funds (web `api/funds.py`): `GET /api/v2/funds/view?client_id=&type=all`,
-//! `data.values` as `[label, value]` pairs. Pocketful has no margin
-//! calculator (web `margin_api.py` raises), so `calculate_margin` keeps the
-//! trait's `Unsupported` default.
+//! `data.values` as `[label, value]` pairs. The margin calculator is in
+//! `margin.rs`.
 
 use super::{mapping, PocketfulBroker};
 use crate::brokers::types::*;

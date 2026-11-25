@@ -5,6 +5,7 @@
 
 mod auth;
 mod client;
+mod funds_margin;
 mod orders;
 
 use super::PocketfulBroker;
