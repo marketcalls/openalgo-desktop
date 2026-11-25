@@ -670,13 +670,6 @@ async fn a_refusal_reads_as_pocketfuls_reason() {
             "Pocketful could not calculate the margin: Margin data not found",
         ),
         (
-            Reply::Json(
-                401,
-                json!({"status": "error", "message": "Request Unauthorised", "error_code": 40000, "data": {}}),
-            ),
-            "Pocketful could not calculate the margin: Request Unauthorised",
-        ),
-        (
             Reply::Json(200, json!({"status": false, "message": "", "data": {}})),
             "Pocketful could not calculate the margin. Check the positions and try again.",
         ),
@@ -691,6 +684,34 @@ async fn a_refusal_reads_as_pocketfuls_reason() {
             .unwrap_err();
 
         assert_eq!(refusal_text(e), want, "{:?}", reply);
+    }
+}
+
+/// Review of the margin port: a session Pocketful refuses (401 or 403,
+/// whatever the body) tells the trader to log in again, in the words the
+/// books and orders use, as a refusal `/api/v1/margin` answers with 400.
+/// The web passes the 401 on with its generic margin sentence.
+#[tokio::test]
+async fn an_expired_session_reads_as_log_in_again() {
+    const LOG_IN_AGAIN: &str = "Pocketful did not accept your session for the margin. Log in to Pocketful again from OpenAlgo, then try again.";
+    for reply in [
+        Reply::Json(
+            401,
+            json!({"status": "error", "message": "Request Unauthorised", "error_code": 40000, "data": {}}),
+        ),
+        Reply::Json(401, json!({})),
+        Reply::Text(403, "<html>Forbidden</html>"),
+    ] {
+        let fake = Fake::start().await;
+        fake.on(MARGIN, vec![reply.clone()]);
+        let b = fake.broker(master());
+
+        let e = b
+            .calculate_margin(&session(), &calendar())
+            .await
+            .unwrap_err();
+
+        assert_eq!(refusal_text(e), LOG_IN_AGAIN, "{:?}", reply);
     }
 }
 

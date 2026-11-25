@@ -33,14 +33,16 @@
 //! web's sentence, which `/api/v1/margin` answers with 400, the desktop's
 //! one rule for a margin that was not calculated. The web answers
 //! Pocketful's own HTTP status for its refusal and 502 when the calculator
-//! did not answer or sent nothing readable.
+//! did not answer or sent nothing readable. A session Pocketful refuses
+//! (401 or 403) reads as the adapter's "log in to Pocketful again"
+//! sentence, where the web gives its generic margin sentence with the 401.
 //!
 //! A derivative's underlying is read from its OpenAlgo symbol
 //! (`common::underlying`), not from the master's `name` column, which is
 //! not an identity (CLAUDE.md, the symbol master); the web reads `name`.
 
 use super::client::{Answer, Lane, Request};
-use super::{mapping, PocketfulBroker};
+use super::{mapping, orders, PocketfulBroker};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, py_round};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::common::underlying::row_underlying;
@@ -250,6 +252,11 @@ fn number_text(v: f64) -> String {
 
 /// Pocketful's answer as the margin, or the refusal a trader reads.
 fn margin_of(answer: &Answer) -> Result<MarginResult> {
+    // First, whatever the body: an expired session needs a new login, not
+    // another look at the positions.
+    if answer.session_refused() {
+        return Err(session_refused(answer));
+    }
     if matches!(answer.body, None | Some(Value::Null)) {
         tracing::error!(
             status = answer.status.as_u16(),
@@ -275,6 +282,18 @@ fn margin_of(answer: &Answer) -> Result<MarginResult> {
         tracing::error!("Pocketful margin answer has no combinedMargin block");
         AppError::Broker(UNREADABLE.into())
     })
+}
+
+/// The "log in to Pocketful again" sentence every book and order of this
+/// adapter gives (`orders::refused`), as a refusal: `/api/v1/margin`
+/// answers it with 400 like every margin refusal, where the
+/// `AppError::Auth` the books use would be its 500 "internal error". The
+/// web passes Pocketful's 401 or 403 on.
+fn session_refused(answer: &Answer) -> AppError {
+    match orders::refused(answer, "margin", false) {
+        AppError::Auth(text) => AppError::Broker(text),
+        other => other,
+    }
 }
 
 /// Pocketful's own message without its backend code prefix, its first
