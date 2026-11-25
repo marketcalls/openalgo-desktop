@@ -40,13 +40,33 @@ class AliceBlue(Glue):
         Source("broker/aliceblue/streaming/aliceblue_mapping.py", "AliceBlueExchangeMapper"),
         Source(
             "broker/aliceblue/streaming/aliceblue_mapping.py",
+            None,
+            [
+                "_to_float",
+                "_to_int",
+                "QUOTE_FIELD_MAP",
+                "DEPTH_LEVEL_FIELDS",
+                "_clean_symbol",
+                "_parse_quote_fields",
+            ],
+        ),
+        Source(
+            "broker/aliceblue/streaming/aliceblue_mapping.py",
             "AliceBlueMessageMapper",
             ["parse_tick_data", "parse_depth_data"],
         ),
         Source(
             "broker/aliceblue/streaming/aliceblue_adapter.py",
             "AliceblueWebSocketAdapter",
-            ["_handle_message", "_on_data_received", "_update_market_snapshot", "_handle_generic_market_data"],
+            [
+                "_handle_message",
+                "_on_data_received",
+                "_update_market_snapshot",
+                "_feed_time",
+                "_quote_fields",
+                "_depth_side",
+                "_handle_generic_market_data",
+            ],
         ),
         Source(
             "broker/aliceblue/streaming/aliceblue_order_adapter.py",

@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "rupeezy",
   "inputs_sha256": "526d3b8b1b6f900f2e70ec5c8a60a264eb5eb0a3aee77099d8593710563f5bd7",
   "instruments": [

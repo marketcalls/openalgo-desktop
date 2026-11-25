@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "zerodha",
   "inputs_sha256": "4923c47f2e29274a10acb8b0b6805faaaaed9765271bdcec491e7a550ad54686",
   "instruments": [
@@ -66,8 +66,8 @@
             "high": 24520.0,
             "low": 24360.5,
             "close": 24380.0,
-            "oi": 458752,
-            "open_interest": 458752,
+            "oi": 13456725,
+            "open_interest": 13456725,
             "depth": {
               "buy": [
                 {
@@ -165,8 +165,8 @@
             "high": 24520.0,
             "low": 24360.5,
             "close": 24380.0,
-            "oi": 0,
-            "open_interest": 0,
+            "oi": 13460025,
+            "open_interest": 13460025,
             "depth": {
               "buy": [
                 {

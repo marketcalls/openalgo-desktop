@@ -34,10 +34,10 @@
     }
   ],
   "provenance": {
-    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
     "method": "web-script",
     "sources": [
-      "broker/wisdom/streaming/wisdom_websocket.py::WisdomWebSocketClient._setup_socketio",
+      "broker/wisdom/streaming/wisdom_websocket.py::WisdomWebSocketClient._new_socketio",
       "broker/wisdom/streaming/wisdom_adapter.py::WisdomWebSocketAdapter._process_json_data",
       "broker/wisdom/streaming/wisdom_adapter.py::WisdomWebSocketAdapter._normalize_market_data"
     ],

@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "aliceblue",
   "inputs_sha256": "8c2a2cd5ea3558fd67290fc21337dc98bfb8f32184cf2efb0bf87519841f63bc",
   "instruments": [
@@ -55,15 +55,13 @@
           "mode": 2,
           "data": {
             "ltp": 24450.3,
-            "ltt": "1794302700",
-            "volume": 0,
+            "ltt": 1794302700,
             "open": 24400.0,
             "high": 24520.0,
             "low": 24360.5,
             "close": 24380.0,
             "change_percent": 0.29,
-            "average_price": 0.0,
-            "total_oi": 0
+            "percent_change": 0.29
           }
         }
       ],

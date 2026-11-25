@@ -1,8 +1,8 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "wisdom",
-  "inputs_sha256": "e55258da0759a095010d034e878459a550dbcf4fbb54e191f117fe352d24648b",
+  "inputs_sha256": "913750154dd0ccc1eeafbd2046631f95f8708badb344fb7d8ed50c4b7d80c972",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -183,12 +183,73 @@
     },
     {
       "line": 15,
-      "published": [],
-      "deliveries": []
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
+          "mode": 2,
+          "data": {
+            "ltp": 812.6,
+            "ltt": 1478686562,
+            "volume": 9880100,
+            "open": 806.0,
+            "high": 815.9,
+            "low": 804.1,
+            "close": 805.7,
+            "last_quantity": 10,
+            "average_price": 810.47,
+            "total_buy_quantity": 321000,
+            "total_sell_quantity": 297900,
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "wisdom",
+          "serves": [
+            2
+          ]
+        }
+      ]
     },
     {
       "line": 17,
-      "published": [],
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 2501.5,
+            "ltt": 1478686530,
+            "volume": 4500123,
+            "open": 2490.0,
+            "high": 2510.5,
+            "low": 2485.0,
+            "close": 2487.6,
+            "last_quantity": 7,
+            "average_price": 2495.8,
+            "total_buy_quantity": 150000,
+            "total_sell_quantity": 160000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
       "deliveries": []
     }
   ]

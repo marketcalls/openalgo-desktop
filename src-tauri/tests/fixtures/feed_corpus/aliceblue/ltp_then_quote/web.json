@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "aliceblue",
   "inputs_sha256": "6bdb4594416694c4b5edbc62bba099821432749f69272799029540a826c8232e",
   "instruments": [
@@ -98,7 +98,7 @@
           "mode": 1,
           "data": {
             "ltp": 1295.5,
-            "ltt": "1794302700"
+            "ltt": 1794302700
           }
         }
       ],
@@ -126,7 +126,7 @@
           "mode": 1,
           "data": {
             "ltp": 1296.0,
-            "ltt": "1794302702"
+            "ltt": 1794302702
           }
         },
         {
@@ -137,7 +137,7 @@
           "mode": 2,
           "data": {
             "ltp": 1296.0,
-            "ltt": "1794302702",
+            "ltt": 1794302702,
             "volume": 4567890,
             "open": 1288.0,
             "high": 1301.2,
@@ -145,7 +145,12 @@
             "close": 1280.0,
             "change_percent": 1.21,
             "average_price": 1292.33,
-            "total_oi": 0
+            "total_oi": 0,
+            "last_quantity": 15,
+            "total_buy_quantity": 234567,
+            "total_sell_quantity": 345678,
+            "percent_change": 1.21,
+            "oi": 0
           }
         }
       ],
@@ -183,7 +188,7 @@
           "mode": 2,
           "data": {
             "ltp": 1296.0,
-            "ltt": "1794302705",
+            "ltt": 1794302705,
             "volume": 4568100,
             "open": 1288.0,
             "high": 1301.2,
@@ -191,7 +196,12 @@
             "close": 1280.0,
             "change_percent": 1.25,
             "average_price": 1292.33,
-            "total_oi": 0
+            "total_oi": 0,
+            "last_quantity": 5,
+            "total_buy_quantity": 234000,
+            "total_sell_quantity": 345678,
+            "percent_change": 1.25,
+            "oi": 0
           }
         }
       ],

@@ -199,7 +199,7 @@
       "depth": [
         5
       ],
-      "orders": false,
+      "orders": true,
       "source": "registry"
     },
     "rmoney": {
@@ -221,7 +221,7 @@
       "depth": [
         5
       ],
-      "orders": false,
+      "orders": true,
       "source": "registry"
     },
     "samco": {
@@ -242,7 +242,7 @@
       "depth": [
         5
       ],
-      "orders": false,
+      "orders": true,
       "source": "by-hand"
     },
     "tradesmart": {

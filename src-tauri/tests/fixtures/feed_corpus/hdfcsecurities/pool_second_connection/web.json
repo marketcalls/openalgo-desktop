@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "hdfcsecurities",
   "inputs_sha256": "d3e5e5e5120bd3e8f0d369361178791023221995f91344ebf101a16edda3f4d5",
   "instruments": [

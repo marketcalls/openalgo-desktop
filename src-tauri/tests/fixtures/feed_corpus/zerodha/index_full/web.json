@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "zerodha",
   "inputs_sha256": "3a800daa83838345cf334b9c1e064fdc49dfcf81134b03c79372f977f04dd707",
   "instruments": [

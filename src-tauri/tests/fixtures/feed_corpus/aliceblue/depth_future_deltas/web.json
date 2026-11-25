@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "aliceblue",
   "inputs_sha256": "c2d31a5150cc496064cb1f301b6167363f6e2342f77d6679799b33968bb34be9",
   "instruments": [
@@ -57,60 +57,74 @@
           "mode": 3,
           "data": {
             "ltp": 24450.3,
-            "timestamp": "1794302700",
+            "ltt": 1794302700,
+            "volume": 1234500,
+            "open": 24400.0,
+            "high": 24520.0,
+            "low": 24360.5,
+            "close": 24380.0,
+            "change_percent": 0.29,
+            "average_price": 24435.15,
+            "total_oi": 13456725,
+            "last_quantity": 75,
+            "total_buy_quantity": 456000,
+            "total_sell_quantity": 398250,
+            "percent_change": 0.29,
+            "oi": 13456725,
+            "timestamp": 1794302700,
             "depth": {
               "buy": [
                 {
                   "price": 24450.0,
                   "quantity": 150,
-                  "orders": 0
+                  "orders": 3
                 },
                 {
                   "price": 24449.5,
                   "quantity": 300,
-                  "orders": 0
+                  "orders": 5
                 },
                 {
                   "price": 24449.0,
                   "quantity": 450,
-                  "orders": 0
+                  "orders": 6
                 },
                 {
                   "price": 24448.5,
                   "quantity": 600,
-                  "orders": 0
+                  "orders": 8
                 },
                 {
                   "price": 24448.0,
                   "quantity": 750,
-                  "orders": 0
+                  "orders": 9
                 }
               ],
               "sell": [
                 {
                   "price": 24450.5,
                   "quantity": 75,
-                  "orders": 0
+                  "orders": 1
                 },
                 {
                   "price": 24451.0,
                   "quantity": 225,
-                  "orders": 0
+                  "orders": 2
                 },
                 {
                   "price": 24451.5,
                   "quantity": 375,
-                  "orders": 0
+                  "orders": 4
                 },
                 {
                   "price": 24452.0,
                   "quantity": 525,
-                  "orders": 0
+                  "orders": 5
                 },
                 {
                   "price": 24452.5,
                   "quantity": 675,
-                  "orders": 0
+                  "orders": 7
                 }
               ]
             }
@@ -141,40 +155,74 @@
           "mode": 3,
           "data": {
             "ltp": 24451.0,
-            "timestamp": "1794302703",
+            "ltt": 1794302703,
+            "volume": 1234650,
+            "open": 24400.0,
+            "high": 24520.0,
+            "low": 24360.5,
+            "close": 24380.0,
+            "change_percent": 0.29,
+            "average_price": 24435.15,
+            "total_oi": 13456725,
+            "last_quantity": 150,
+            "total_buy_quantity": 456000,
+            "total_sell_quantity": 398250,
+            "percent_change": 0.29,
+            "oi": 13456725,
+            "timestamp": 1794302703,
             "depth": {
               "buy": [
                 {
                   "price": 24450.2,
                   "quantity": 75,
-                  "orders": 0
+                  "orders": 1
+                },
+                {
+                  "price": 24449.5,
+                  "quantity": 300,
+                  "orders": 5
+                },
+                {
+                  "price": 24449.0,
+                  "quantity": 450,
+                  "orders": 6
+                },
+                {
+                  "price": 24448.5,
+                  "quantity": 600,
+                  "orders": 8
+                },
+                {
+                  "price": 24448.0,
+                  "quantity": 750,
+                  "orders": 9
                 }
               ],
               "sell": [
                 {
                   "price": 24450.5,
-                  "quantity": 75,
-                  "orders": 0
+                  "quantity": 150,
+                  "orders": 1
                 },
                 {
                   "price": 24451.0,
                   "quantity": 225,
-                  "orders": 0
+                  "orders": 2
                 },
                 {
                   "price": 24451.5,
                   "quantity": 375,
-                  "orders": 0
+                  "orders": 4
                 },
                 {
                   "price": 24452.0,
                   "quantity": 525,
-                  "orders": 0
+                  "orders": 5
                 },
                 {
                   "price": 24452.5,
                   "quantity": 675,
-                  "orders": 0
+                  "orders": 7
                 }
               ]
             }

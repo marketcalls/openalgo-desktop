@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "paytm",
   "inputs_sha256": "ef045ac532c64f7c393583b4b1910070483e11fb15ac1fe5f7c9ca15b560be0d",
   "instruments": [

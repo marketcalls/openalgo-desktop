@@ -31,10 +31,10 @@
     "broker/wisdom/streaming/wisdom_mapping.py::WisdomCapabilityRegistry",
     "broker/wisdom/streaming/wisdom_adapter.py",
     "broker/wisdom/streaming/wisdom_websocket.py",
-    "services/order_update_service.py:36 (no XTS order adapter) and :98 (_POLLING_BROKERS: groww, fivepaisa, samco)"
+    "services/order_update_service.py (no XTS order adapter, Wisdom not in _POLLING_BROKERS)"
   ],
   "notes": [
-    "The standard XTS template: the topic comes from the message code (1512 LTP, 1501 Quote, 1502 Depth), the quote from Touchline for 1502 only, and any unsubscribe disconnects the whole adapter.",
+    "The standard XTS template: the topic comes from the message code (1512 LTP, 1501 Quote, 1502 Depth), the quote from Touchline for 1502 only. Since web #2469 an unsubscribe drops only its instrument (it disconnected the whole adapter before), subscribes go in batches of at most 50 instruments of one mode, a refused batch is sent again one instrument at a time, and every reconnect logs in afresh and subscribes the book again.",
     "Depth 20 on NSE and NFO, as the web's registry lists it (XtsBroker::feed_depth_levels, audit FB-06): both depths subscribe the same 1502 code, and the frames carry the levels its events bring.",
     "The web streams no order updates for this broker (no order adapter, no polling); the desktop has none either (order_feed: false)."
   ]

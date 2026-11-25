@@ -141,8 +141,27 @@ class XtsGlue(Glue):
             subscription_url="https://xts.invalid/apimarketdata/instruments/subscription",
             _binary_packet_seen=False,
         )
-        self.ws._setup_socketio()
+        self.setup_client()
         self.ad.ws_client = self.ws
+
+    # -- the client's interface, which a member's client may change -------
+
+    def setup_client(self):
+        """Register the client's Socket.IO handlers."""
+        self.ws._setup_socketio()
+
+    def socket_handlers(self) -> dict:
+        """The handlers the client registered, by event name."""
+        return self.ws.sio.handlers
+
+    def send_subscribe(self, cid, mode, instruments):
+        """The client's subscribe for the adapter's `cid` entry."""
+        self.ws.subscribe(cid, mode, instruments)
+
+    def send_unsubscribe(self, key, mode, instruments):
+        """The client's unsubscribe for the adapter's `key` entry."""
+        if key in self.ws.subscriptions:
+            self.ws.unsubscribe(key, mode, instruments)
 
     def instrument(self, row: dict) -> dict:
         seg = self.web[f"{self.prefix}ExchangeMapper"].get_exchange_type(row["brexchange"])
@@ -165,14 +184,13 @@ class XtsGlue(Glue):
             "depth_level": depth,
             "instruments": instruments,
         }
-        self.ws.subscribe(cid, mode, instruments)
+        self.send_subscribe(cid, mode, instruments)
 
     def unsubscribe(self, row, mode, depth):
         cid = f"{row['symbol']}_{row['exchange']}_{mode}"
         for key in [k for k in self.ad.subscriptions if k == cid or k.startswith(cid + "_")]:
             del self.ad.subscriptions[key]
-            if key in self.ws.subscriptions:
-                self.ws.unsubscribe(key, mode, [self.instrument(row)])
+            self.send_unsubscribe(key, mode, [self.instrument(row)])
         if self.disconnects_on_unsubscribe:
             # The adapter's `disconnect()`: running and connected go false,
             # nothing reconnects, nothing more is published.
@@ -182,7 +200,7 @@ class XtsGlue(Glue):
         if self.dead or not isinstance(frame, str) or not frame.startswith("42"):
             return
         name, *args = json.loads(frame[2:])
-        handlers = self.ws.sio.handlers
+        handlers = self.socket_handlers()
         if name in handlers:
             handlers[name](*args)
         elif "*" in handlers:

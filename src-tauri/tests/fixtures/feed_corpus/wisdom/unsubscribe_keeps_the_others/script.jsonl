@@ -13,6 +13,6 @@
 {"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "wisdom"}], "failed": [], "broker": "wisdom"}}
 {"step": "http_receives", "requests": [{"method": "PUT", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}]}
 {"step": "push", "frame": "frames/sbin_1501_after.txt"}
-{"step": "receive", "client": "a", "frame": "expected/sbin_quote_after.json", "web": false}
+{"step": "receive", "client": "a", "frame": "expected/sbin_quote_after.json"}
 {"step": "push", "frame": "frames/reliance_1501.txt", "note": "RELIANCE was let go."}
 {"step": "silence", "client": "a"}
