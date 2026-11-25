@@ -86,6 +86,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     margin_mpp: MarginMpp::LtpOrSupplied,
     position_pnl: PositionPnl::RealisedPlusUnrealised,
     tradebook_time_only: false,
+    tradebook_by_fill: false,
     orderbook_price_fallback: true,
     depth_oi: true,
     feed_oi: FeedOi::NativeFromQuote,

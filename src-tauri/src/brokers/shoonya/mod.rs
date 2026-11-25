@@ -91,6 +91,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     margin_mpp: MarginMpp::LtpOrSupplied,
     position_pnl: PositionPnl::NetAverage,
     tradebook_time_only: true,
+    tradebook_by_fill: false,
     orderbook_price_fallback: false,
     depth_oi: false,
     feed_oi: FeedOi::TotalInDepth,

@@ -309,6 +309,13 @@ pub struct NorenConfig {
     pub position_pnl: PositionPnl,
     /// Tradebook keeps only `HH:MM:SS` of `norentm` (shoonya).
     pub tradebook_time_only: bool,
+    /// Tradebook quantity and price come from each row's own fill,
+    /// `flqty` and `flprc` (flattrade, web #2480): TradeBook has one row
+    /// per fill and repeats the order's `qty` and running `avgprc` on each,
+    /// so reading those counted a part-filled order once per fill. Off, the
+    /// order's `qty` and `avgprc` are read, as the shoonya, zebu and
+    /// tradesmart plugins read them.
+    pub tradebook_by_fill: bool,
     /// Orderbook price falls back to `avgprc` / `rprc` (flattrade).
     pub orderbook_price_fallback: bool,
     /// Depth carries `oi` (shoonya reports 0).

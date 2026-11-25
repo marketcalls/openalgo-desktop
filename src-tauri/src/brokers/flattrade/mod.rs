@@ -4,7 +4,8 @@
 //! rows with no exchange dropped, every file required), hardened candle
 //! parsing, the basket's own margin (`marginusedtrade` less what is in
 //! use), funds M2M from the position book, a dual rolling-window limiter,
-//! and one socket per session (order updates ride the market socket).
+//! one socket per session (order updates ride the market socket), and a
+//! trade book counted by each fill.
 
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::*;
@@ -69,6 +70,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     margin_mpp: MarginMpp::TriggerFirst,
     position_pnl: PositionPnl::RealisedPlusUnrealised,
     tradebook_time_only: false,
+    tradebook_by_fill: true,
     orderbook_price_fallback: true,
     depth_oi: true,
     feed_oi: FeedOi::TotalInDepth,
@@ -92,3 +94,6 @@ pub fn config() -> &'static NorenConfig {
 pub fn broker(symbols: SymbolResolver) -> NorenBroker {
     NorenBroker::new(&CONFIG, symbols)
 }
+
+#[cfg(test)]
+mod tests;
