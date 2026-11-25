@@ -78,6 +78,7 @@
 //! [`Sandbox::square_off_now`], [`Sandbox::t1_settlement`].
 
 pub mod catch_up;
+pub mod charges;
 pub mod clock;
 pub mod config;
 mod core;
