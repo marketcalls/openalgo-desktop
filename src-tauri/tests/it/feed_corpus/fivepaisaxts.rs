@@ -1,11 +1,14 @@
 //! 5paisa XTS: the XTS market data feed with its own configuration
 //! (`brokers::fivepaisaxts::CONFIG`; the family's feed in [`super::xts`]).
+//! Its cases run signed in, with the market data keys in memory, since its
+//! feed connects with the stored session and must log in for nothing (web
+//! #2484).
 
 use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::fivepaisaxts::CONFIG;
 
 fn feeds(env: &Env) -> Feeds {
-    super::xts::feeds(&CONFIG, env)
+    super::xts::feeds_signed_in(&CONFIG, env)
 }
 
 corpus_cases!(
@@ -24,6 +27,7 @@ corpus_cases!(
         quote_partial_keeps_the_quote,
         quote_root,
         quote_touchline,
+        reconnect_keeps_the_market_session,
         reconnect_replays,
         server_disconnect_reconnects,
         subscribe_refused_by_the_broker,

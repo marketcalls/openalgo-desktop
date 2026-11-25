@@ -1,0 +1,75 @@
+{
+  "broker": "fivepaisaxts",
+  "summary": "Quote on an NSE equity across two dropped sockets of a signed-in session: each reconnect connects with the market data session stored at sign-in, logs in for nothing, and subscribes the book again whole, the instrument once in one request, so the next 1501 event reaches the client.",
+  "scenarios": [
+    "reconnect",
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+    "method": "web-script",
+    "sources": [
+      "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter.initialize",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_websocket.py::FivepaisaXTSWebSocketClient.connect",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_websocket.py::FivepaisaXTSWebSocketClient._remember",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._normalize_market_data",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._resubscribe_all"
+    ],
+    "notes": [
+      "Web #2484 (5749d4126): the feed connects with the market data token stored at broker login, read again on every reconnect (feed_token_provider), and never logs in while one is stored; a login of its own at /apibinarymarketdata cancelled the /apimarketdata session history uses. The corpus's 5paisa XTS module keeps the market keys in memory as a session does (tests/it/feed_corpus/xts.rs feeds_signed_in), so a login would show.",
+      "Web #2504: the client keeps one entry per instrument, so a reconnect's replay never grows the book (test_replaying_the_book_on_every_reconnect_does_not_grow_it); the desktop's book is keyed by segment and instrument (families/xts/streaming.rs).",
+      "The third frame is made for this case from the second, a later trade."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "fivepaisaxts_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1478686530,
+          1794199530000
+        ],
+        [
+          1478686562,
+          1794199562000
+        ],
+        [
+          1478686600,
+          1794199600000
+        ]
+      ]
+    }
+  ]
+}

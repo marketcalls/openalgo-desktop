@@ -16,7 +16,7 @@
 use super::harness::{Env, Feeds};
 use openalgo_desktop_lib::brokers::families::xts::{XtsBroker, XtsConfig};
 use openalgo_desktop_lib::brokers::types::AuthToken;
-use openalgo_desktop_lib::brokers::Broker;
+use openalgo_desktop_lib::brokers::{Broker, BrokerCredentials};
 use std::sync::Arc;
 
 /// The broker login's interactive token, and the stored market data token
@@ -26,10 +26,31 @@ const TOKEN: &str = "tok";
 const USER: &str = "U1";
 
 pub(super) fn feeds(cfg: &'static XtsConfig, env: &Env) -> Feeds {
+    feeds_with(cfg, env, None)
+}
+
+/// The feed of a session signed in with its market data keys, which the
+/// adapter keeps in memory (`Broker::restore_session`, as a resume does).
+/// 5paisa XTS's feed still connects with the stored session and logs in
+/// for nothing (web #2484), so a login would reach the fake API unanswered
+/// and fail the case.
+pub(super) fn feeds_signed_in(cfg: &'static XtsConfig, env: &Env) -> Feeds {
+    let keys = BrokerCredentials {
+        api_key_market: Some("mkey".into()),
+        api_secret_market: Some("msecret".into()),
+        ..Default::default()
+    };
+    feeds_with(cfg, env, Some(keys))
+}
+
+fn feeds_with(cfg: &'static XtsConfig, env: &Env, keys: Option<BrokerCredentials>) -> Feeds {
     let broker = Arc::new(
         XtsBroker::with_base_url(cfg, env.symbols(), env.http_url())
             .with_socket_base(env.url("main")),
     );
+    if let Some(keys) = &keys {
+        broker.restore_session(keys);
+    }
     let auth = AuthToken::new(INTERACTIVE)
         .with_feed(Some(TOKEN))
         .with_user_id(USER);

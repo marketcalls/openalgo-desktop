@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+  "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
   "adapter": "tradejini",
   "inputs_sha256": "5fb864caa09e213f871d749efc9ee52840ded2bd060e611b7f59440944afd9e8",
   "instruments": [

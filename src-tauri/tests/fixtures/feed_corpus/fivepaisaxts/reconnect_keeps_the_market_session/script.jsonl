@@ -1,0 +1,24 @@
+{"step": "upstream_connected", "connection": 1, "path": "/apimarketdata/socket.io/?token=tok&userID=U1&publishFormat=JSON&broadcastMode=FULL&EIO=4&transport=websocket", "note": "The broker knows the market data keys, as after a sign-in, and the feed connects with the session stored at sign-in: no login of its own (a login would reach the fake API unanswered and fail the case)."}
+{"step": "push", "frame": {"text": "0{\"sid\":\"s1\",\"upgrades\":[],\"pingInterval\":25000,\"pingTimeout\":20000,\"maxPayload\":1000000}"}, "note": "Engine.IO open; the feed answers with the Socket.IO connect."}
+{"step": "upstream_receives", "frames": [{"text": "40"}]}
+{"step": "push", "frame": {"text": "40{\"sid\":\"n1\"}"}, "note": "The Socket.IO connect ack accepts the session; the feed subscribes its book over REST."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "fivepaisaxts"}], "message": "Subscription processing complete", "broker": "fivepaisaxts"}}
+{"step": "http_receives", "requests": [{"method": "POST", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}]}
+{"step": "push", "frame": "frames/quote_1501.txt"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "path": "/apimarketdata/socket.io/?token=tok&userID=U1&publishFormat=JSON&broadcastMode=FULL&EIO=4&transport=websocket", "note": "Connection 2: the same stored session, read again at the connect; still no login."}
+{"step": "push", "frame": {"text": "0{\"sid\":\"s2\",\"upgrades\":[],\"pingInterval\":25000,\"pingTimeout\":20000,\"maxPayload\":1000000}"}}
+{"step": "upstream_receives", "frames": [{"text": "40"}], "connection": 2}
+{"step": "push", "frame": {"text": "40{\"sid\":\"n2\"}"}}
+{"step": "http_receives", "requests": [{"method": "POST", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}], "note": "The book again, whole: the instrument once, in one request."}
+{"step": "push", "frame": "frames/quote_1501_after.txt"}
+{"step": "receive", "client": "a", "frame": "expected/quote_after.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 3, "path": "/apimarketdata/socket.io/?token=tok&userID=U1&publishFormat=JSON&broadcastMode=FULL&EIO=4&transport=websocket", "note": "Connection 3: the same session again."}
+{"step": "push", "frame": {"text": "0{\"sid\":\"s3\",\"upgrades\":[],\"pingInterval\":25000,\"pingTimeout\":20000,\"maxPayload\":1000000}"}}
+{"step": "upstream_receives", "frames": [{"text": "40"}], "connection": 3}
+{"step": "push", "frame": {"text": "40{\"sid\":\"n3\"}"}}
+{"step": "http_receives", "requests": [{"method": "POST", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1501}}], "note": "A second reconnect sends the same one request: the book did not grow."}
+{"step": "push", "frame": "frames/quote_1501_third.txt"}
+{"step": "receive", "client": "a", "frame": "expected/quote_third.json"}

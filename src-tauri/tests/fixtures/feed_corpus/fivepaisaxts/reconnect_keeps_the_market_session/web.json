@@ -1,0 +1,195 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+  "adapter": "fivepaisaxts",
+  "inputs_sha256": "30fa46ef74a888282ddbf3b83d9f3d68fedad37e270a6b25fc5c3ffdd817b92d",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "fivepaisaxts"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "fivepaisaxts"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 4,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 2501.5,
+            "ltt": 1478686530,
+            "volume": 4500123,
+            "open": 2490.0,
+            "high": 2510.5,
+            "low": 2485.0,
+            "close": 2487.6,
+            "last_quantity": 7,
+            "average_price": 2495.8,
+            "total_buy_quantity": 150000,
+            "total_sell_quantity": 160000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "fivepaisaxts",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 13,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 15,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 2502.75,
+            "ltt": 1478686562,
+            "volume": 4512460,
+            "open": 2490.0,
+            "high": 2510.5,
+            "low": 2485.0,
+            "close": 2487.6,
+            "last_quantity": 3,
+            "average_price": 2495.95,
+            "total_buy_quantity": 151200,
+            "total_sell_quantity": 158800,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "fivepaisaxts",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 19,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 21,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 23,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "ltp": 2503.5,
+            "ltt": 1478686600,
+            "volume": 4520000,
+            "open": 2490.0,
+            "high": 2510.5,
+            "low": 2485.0,
+            "close": 2487.6,
+            "last_quantity": 5,
+            "average_price": 2496.1,
+            "total_buy_quantity": 152000,
+            "total_sell_quantity": 158000,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "fivepaisaxts",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}
