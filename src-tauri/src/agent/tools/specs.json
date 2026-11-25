@@ -1,6 +1,6 @@
 {
   "_comment": "Generated from the web by scripts/agent/capture_web_tools.py: what the model is sent for each Agent tool. Never edit by hand.",
-  "web_commit": "dbb608e0",
+  "web_commit": "a2ae9f1f",
   "tools": {
     "read_chart": {
       "description": "Report what is on the chart right now. Draws nothing, fetches nothing.\nEverything here came with the operator's message, so this call is free\nand instant. Use it before commenting on the operator's own drawings,\nbefore deciding whether your markup is still on screen, and whenever you\nneed the exact indicator settings or the drawing anchors, which the\nsession summary does not carry.\n\nReach for it only when you need those lists. The instrument, the\ninterval, the viewport and the last price are already stated in your\nTHIS SESSION instructions.",
@@ -1890,7 +1890,7 @@
       "needs_approval": true
     },
     "web_search": {
-      "description": "Search the public web and get back a list of pages with short extracts.\nUse this to find sources, recent news, filings, exchange circulars or\nanything else that is not in the platform's own data. A figure an\nexchange publishes, such as market breadth or a 52-week high, comes from\ncall_mcp_tool first when that tool is offered. It returns links,\nnot conclusions: read the snippets, follow up with the operator, and say\nwhich source a claim came from. It is never a source for a price, a\nposition or an order status, all of which come from a platform tool.\n\nThe query that actually goes out is built from the operator's own words,\nso a term they never used is dropped before the call. Ask for what they\nasked for, in their words.",
+      "description": "Search the public web and get back a list of pages with short extracts.\nUse this to find sources, recent news, filings, exchange circulars or\nanything else that is not in the platform's own data. To read a page it\nfinds, call web_fetch with one of the returned URLs: a result's snippet\nis a teaser, and figures should be read from the page. A figure an\nexchange publishes, such as market breadth or a 52-week high, comes from\ncall_mcp_tool first when that tool is offered. It returns links,\nnot conclusions: read the snippets, follow up with the operator, and say\nwhich source a claim came from. It is never a source for a price, a\nposition or an order status, all of which come from a platform tool.\n\nFor anything about a company's fundamentals (market cap, P/E, ROCE, ROE,\nrevenue, profit, balance sheet, cash flow, quarterly results,\nshareholding, peers, ratios) pass ``topic=\"fundamentals\"``. The search\nthen looks on the operator's preferred sources in priority order and\nreturns the pages of the first one that has any, with ``preferred_source``\nset. Open the best with web_fetch. If it cannot be read, call this again\nwith the same topic: that source is dropped and the next one is searched.\nOnly when every preferred source has failed or has no page does the search\ngo to the open web, and the result says so in ``notices``.\n\nThe query that actually goes out is built from the operator's own words,\nso a term they never used is dropped before the call. Ask for what they\nasked for, in their words.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1901,6 +1901,10 @@
           "max_results": {
             "type": "integer",
             "description": "How many results to return, from 1 to 10. Defaults to 5.\nAsk for more only when the operator wants a survey rather than an\nanswer."
+          },
+          "topic": {
+            "type": "string",
+            "description": "``general`` (the default) searches the open web.\n``fundamentals`` tries the preferred fundamentals sources first."
           }
         },
         "required": [
@@ -1921,6 +1925,30 @@
         },
         "required": [
           "question"
+        ]
+      },
+      "needs_approval": false
+    },
+    "web_fetch": {
+      "description": "Open one web page and read its text, as a browser would show it.\nUse this after web_search to read a page the way a person would: a\ncompany's page on a data portal, an exchange circular, a filing, an\narticle. It returns the page as markdown, tables included. Read the\nfigures from the page rather than from a search snippet, and say which\npage a number came from.\n\nOnly two kinds of address are accepted: one the operator wrote in their\nmessage, and one a web_search in this turn returned. Search first, then\nfetch one of those URLs exactly as returned. An address you assemble\nyourself is refused, and so is a private or local one.\n\nA long page comes back in slices. When ``truncated`` is true, call again\nwith the same url and ``offset`` set to ``next_offset`` to read on; that\ncosts nothing extra because the page is kept for the rest of this turn.\nFor a list or table spread over one page, read it in slices rather than\nsearching for each row.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The full page address, for example\n``https://www.screener.in/company/RELIANCE/consolidated/``."
+          },
+          "max_chars": {
+            "type": "integer",
+            "description": "How much text to return, from 1000 to 30000. Defaults to\n10000."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Character position to start from, for reading a long page on.\nDefaults to 0, the top of the page."
+          }
+        },
+        "required": [
+          "url"
         ]
       },
       "needs_approval": false

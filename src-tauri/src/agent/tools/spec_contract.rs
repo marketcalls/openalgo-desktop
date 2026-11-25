@@ -145,10 +145,10 @@ mod tests {
     fn the_fixture_holds_every_web_tool() {
         let f = fixture();
         assert_eq!(f["toolkits"].as_array().map(Vec::len), Some(18));
-        assert_eq!(f["tools"].as_array().map(Vec::len), Some(63));
-        assert_eq!(f["surfaces"]["chat"].as_array().map(Vec::len), Some(53));
-        assert_eq!(f["surfaces"]["chart"].as_array().map(Vec::len), Some(58));
-        assert_eq!(f["surfaces"]["voice"].as_array().map(Vec::len), Some(45));
+        assert_eq!(f["tools"].as_array().map(Vec::len), Some(64));
+        assert_eq!(f["surfaces"]["chat"].as_array().map(Vec::len), Some(54));
+        assert_eq!(f["surfaces"]["chart"].as_array().map(Vec::len), Some(59));
+        assert_eq!(f["surfaces"]["voice"].as_array().map(Vec::len), Some(46));
         assert_eq!(f["approval"].as_array().map(Vec::len), Some(10));
     }
 

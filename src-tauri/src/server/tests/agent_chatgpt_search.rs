@@ -96,9 +96,16 @@ async fn the_web_search_configuration_reads_and_writes_as_the_web() {
     assert_eq!(v["status"], "success");
     assert_eq!(
         v["defaults"],
-        json!({"provider": "duckduckgo", "perplexity_model": "openai/gpt-5.6-luna", "max_calls_per_turn": 5, "daily_cap": 200})
+        json!({
+            "provider": "duckduckgo",
+            "fetch_provider": "firecrawl",
+            "preferred_sources": ["screener.in", "scanx.trade", "tickertape.in"],
+            "perplexity_model": "openai/gpt-5.6-luna",
+            "max_calls_per_turn": 10,
+            "daily_cap": 200
+        })
     );
-    assert_eq!(v["data"]["providers"].as_array().unwrap().len(), 3);
+    assert_eq!(v["data"]["providers"].as_array().unwrap().len(), 5);
     let (s, v) = h
         .json(call(
             Method::PUT,
@@ -125,7 +132,7 @@ async fn the_web_search_configuration_reads_and_writes_as_the_web() {
         (s, v["message"].clone()),
         (
             StatusCode::BAD_REQUEST,
-            json!("provider must be one of: duckduckgo, tavily, perplexity")
+            json!("provider must be one of: duckduckgo, tavily, perplexity, firecrawl, tinyfish")
         )
     );
     let (s, v) = h
@@ -165,7 +172,7 @@ async fn a_key_goes_in_write_only_and_comes_back_as_a_fingerprint() {
         (s, v["message"].clone()),
         (
             StatusCode::BAD_REQUEST,
-            json!("provider must be one of: duckduckgo, tavily, perplexity")
+            json!("provider must be one of: duckduckgo, tavily, perplexity, firecrawl, tinyfish")
         ),
         "the provider is resolved first"
     );
@@ -312,6 +319,76 @@ async fn a_provider_test_runs_one_real_query_and_never_stores_a_typed_key() {
         ))
         .await;
     assert_eq!(v["message"], "Tavily answered but returned no results. It is most likely rate limiting this server; try again in a minute.");
+}
+
+/// Web 46af9591f: a Firecrawl or TinyFish test runs a search and then a
+/// page read, since one key answers both tools and a pass has to mean
+/// both work.
+#[tokio::test]
+async fn a_firecrawl_or_tinyfish_test_reads_a_page_too() {
+    let (h, c, t) = harness();
+    let fake = FakeServer::start().await;
+    let _on = crate::agent::websearch::tests::OnFake::new(&fake, 8);
+    let row = json!({"url": "https://e.example/h", "title": "Hamlet", "description": "Shakespeare", "snippet": "Shakespeare"});
+    fake.script(
+        "/firecrawl/v2/search",
+        vec![Answer::json(200, json!({"data": {"web": [row.clone()]}}))],
+    );
+    fake.script(
+        "/firecrawl/v2/scrape",
+        vec![Answer::json(
+            200,
+            json!({"data": {"markdown": "Example Domain", "metadata": {"statusCode": 200}}}),
+        )],
+    );
+    let (s, v) = h
+        .json(call(
+            Method::POST,
+            "/agent/api/websearch/providers/firecrawl/test",
+            Some(r#"{"api_key": "fc-ccccccccdddddddd"}"#),
+            &c,
+            &t,
+        ))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        (v["ok"].clone(), v["message"].clone()),
+        (
+            json!(true),
+            json!("Firecrawl answered with 1 result. Reading a page worked too.")
+        )
+    );
+    assert_eq!(
+        fake.seen_at("/firecrawl/v2/scrape")[0].json()["url"],
+        "https://example.com"
+    );
+    fake.script(
+        "/tinyfish/search",
+        vec![Answer::json(200, json!({"results": [row]}))],
+    );
+    fake.script(
+        "/tinyfish/fetch",
+        vec![Answer::json(
+            200,
+            json!({"results": [], "errors": [{"error": "bot_blocked"}]}),
+        )],
+    );
+    let (_, v) = h
+        .json(call(
+            Method::POST,
+            "/agent/api/websearch/providers/tinyfish/test",
+            Some(r#"{"api_key": "tf-ccccccccdddddddd"}"#),
+            &c,
+            &t,
+        ))
+        .await;
+    assert_eq!(
+        (v["ok"].clone(), v["message"].clone()),
+        (
+            json!(false),
+            json!("Search works, but reading a page failed. TinyFish could not read the page (bot_blocked).")
+        )
+    );
 }
 
 fn plan_on(h: &H, fake: &FakeServer) {

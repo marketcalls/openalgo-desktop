@@ -10,10 +10,12 @@ use crate::agent::contract::model::{ModelError, ResolvedModel};
 use crate::agent::contract::tool::{AgentTool, Capabilities, Surface, ToolCtx};
 use crate::agent::contract::viz::VizSink;
 use crate::agent::conversations::store::{self, Claim, Conversation};
-use crate::agent::prompts::{self, SystemPrompt};
+use crate::agent::prompts::{self, PromptSection, SystemPrompt};
 use crate::agent::run::client::{effective_effort, ModelClient};
 use crate::agent::run::{history, PausedState};
 use crate::agent::tools::build_tools;
+use crate::agent::websearch::prompt::section as web_sources_section;
+use crate::agent::websearch::settings::Config as WebSearchConfig;
 use crate::security::Secret;
 use crate::services::apikey_service::ApiKeyService;
 use crate::state::AppState;
@@ -215,12 +217,16 @@ struct Reads {
     settings: crate::agent::contract::policy::RunSettings,
     analyzer: bool,
     history: Vec<String>,
+    /// The trader's preferred sources for company figures, read only for a
+    /// run offered the web tools.
+    web_sources: Vec<String>,
 }
 
 async fn reads(
     app: &Arc<AppState>,
     surface: Surface,
     session: Option<String>,
+    web_search: bool,
 ) -> Result<Reads, Refusal> {
     let policy = app.agent.policy();
     app.blocking(move |ctx| {
@@ -228,14 +234,21 @@ async fn reads(
         // Live is the safe reading of an unreadable analyzer switch: an
         // order that needs analyzer mode is then refused, never let through.
         let analyzer = ctx.sqlite.get_analyze_mode().unwrap_or(false);
+        let conn = ctx.sqlite.conn()?;
         let history = match session {
-            Some(s) => store::history(&*ctx.sqlite.conn()?, &s, history::HISTORY_RUNS)?,
+            Some(s) => store::history(&conn, &s, history::HISTORY_RUNS)?,
             None => Vec::new(),
+        };
+        let web_sources = if web_search {
+            WebSearchConfig::read(&conn).preferred_sources
+        } else {
+            Vec::new()
         };
         Ok(Reads {
             settings,
             analyzer,
             history,
+            web_sources,
         })
     })
     .await
@@ -274,9 +287,14 @@ pub async fn run_parts(app: &Arc<AppState>, key: Turnkey) -> Result<RunParts, Re
         .agent
         .client()
         .map_err(|e| failed(internal("Agent model client", e)))?;
-    let r = reads(app, key.surface, key.conversation.session_id.clone())
-        .await
-        .map_err(failed)?;
+    let r = reads(
+        app,
+        key.surface,
+        key.conversation.session_id.clone(),
+        key.web_search,
+    )
+    .await
+    .map_err(failed)?;
     let trading = key.trading_asked
         && r.settings.trading_enabled
         && (key.surface != Surface::Voice || r.settings.voice_trading_enabled);
@@ -305,12 +323,7 @@ pub async fn run_parts(app: &Arc<AppState>, key: Turnkey) -> Result<RunParts, Re
         cancel: CancellationToken::new(),
     };
     let tools = build_tools(app.agent.toolkits(), &ctx);
-    let extra = app
-        .agent
-        .section_sources()
-        .iter()
-        .flat_map(|s| s.sections(app, key.surface, &caps))
-        .collect();
+    let extra = extra_sections(app, key.surface, &caps, &r.web_sources);
     let system_prompt = prompts::build_system_prompt(&SystemPrompt {
         surface: Some(key.surface),
         trading_enabled: trading,
@@ -341,6 +354,25 @@ pub async fn run_parts(app: &Arc<AppState>, key: Turnkey) -> Result<RunParts, Re
         client,
         session: key.caller.session,
     })
+}
+
+/// The sections other parts add to a run's prompt (skills, external data)
+/// and, on a run offered the web tools, where company figures are looked
+/// for first (the web's `_web_section`; `web_sources` is empty otherwise).
+fn extra_sections(
+    app: &AppState,
+    surface: Surface,
+    caps: &Capabilities,
+    web_sources: &[String],
+) -> Vec<PromptSection> {
+    let mut extra: Vec<PromptSection> = app
+        .agent
+        .section_sources()
+        .iter()
+        .flat_map(|s| s.sections(app, surface, caps))
+        .collect();
+    extra.extend(web_sources_section(web_sources));
+    extra
 }
 
 /// The app's own addresses for generated code: the configured App and

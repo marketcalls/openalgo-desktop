@@ -1,6 +1,7 @@
-//! The two tools end to end against fake providers: their specs, when
-//! they are offered, the routing between providers, the caps, the
-//! untrusted wrapping (D-020) and every refusal.
+//! `web_search` and `web_research` end to end against fake providers:
+//! their specs, when they are offered, the routing between providers, the
+//! caps, the untrusted wrapping (D-020) and every refusal. `web_fetch` and
+//! the fundamentals search are in `fetch` and `preferred`.
 
 use super::*;
 use crate::agent::contract::tool::{AgentTool, Capabilities, Surface, ToolCtx, ToolOutcome};
@@ -13,7 +14,7 @@ use serde_json::{json, Map, Value};
 
 const OPERATOR: &str = "What did the RBI say about the repo rate today?";
 
-fn run_ctx(t: &crate::state::testing::TestCtx, surface: Surface) -> ToolCtx {
+pub(super) fn run_ctx(t: &crate::state::testing::TestCtx, surface: Surface) -> ToolCtx {
     let mut c = tool_ctx(
         t.ctx.clone(),
         surface,
@@ -31,12 +32,12 @@ fn tools(c: &ToolCtx) -> (std::sync::Arc<dyn AgentTool>, std::sync::Arc<dyn Agen
     (built[0].clone(), built[1].clone())
 }
 
-fn args(v: Value) -> Map<String, Value> {
+pub(super) fn args(v: Value) -> Map<String, Value> {
     v.as_object().unwrap().clone()
 }
 
 /// The JSON inside a result, wrapped or not, and the wrapper's open tag.
-fn read(o: &ToolOutcome) -> (String, Value) {
+pub(super) fn read(o: &ToolOutcome) -> (String, Value) {
     let text = o.text();
     if let Some(rest) = text.strip_prefix("<web_result") {
         let (open, body) = rest.split_once('\n').unwrap();
@@ -50,11 +51,11 @@ fn read(o: &ToolOutcome) -> (String, Value) {
     }
 }
 
-fn configure(t: &crate::state::testing::TestCtx, v: Value) {
+pub(super) fn configure(t: &crate::state::testing::TestCtx, v: Value) {
     settings::update(&t.ctx, v.as_object().unwrap()).unwrap();
 }
 
-fn ddg(fake: &FakeServer) {
+pub(super) fn ddg(fake: &FakeServer) {
     fake.script(
         DDG_HTML,
         vec![Answer::text(
@@ -79,7 +80,12 @@ async fn the_tools_are_the_webs_and_are_offered_only_with_the_switch_on() {
             .filter(|x| x.spec().name.starts_with("web_"))
             .collect();
         let names: Vec<&str> = on.iter().map(|x| x.spec().name).collect();
-        assert_eq!(names, ["web_search", "web_research"], "{:?}", surface);
+        assert_eq!(
+            names,
+            ["web_search", "web_research", "web_fetch"],
+            "{:?}",
+            surface
+        );
         for tool in &on {
             let web = crate::agent::tools::spec_contract::tool(tool.spec().name);
             assert_eq!(
@@ -95,7 +101,7 @@ async fn the_tools_are_the_webs_and_are_offered_only_with_the_switch_on() {
             build_tools(TOOLKITS, &off)
                 .iter()
                 .all(|x| !x.spec().name.starts_with("web_")),
-            "the switch off withholds both"
+            "the switch off withholds all three"
         );
     }
 }
@@ -214,7 +220,7 @@ async fn the_per_turn_budget_and_the_daily_cap_refuse_before_dispatch() {
     );
     let (_, p) = read(&search.call(&c, args(json!({"query": "RBI"}))).await);
     assert_eq!(p["error"], "per_turn_budget_exhausted");
-    assert_eq!(p["message"], "This turn has already used its 1 web searches. Answer from what you have and tell the operator you stopped searching.");
+    assert_eq!(p["message"], "This turn has already used its 1 web calls. Answer from what you have and tell the operator you stopped looking.");
     // A new message is a new turn; the daily cap still holds.
     let c2 = run_ctx(&t, Surface::Chat);
     let (search2, _) = tools(&c2);
@@ -226,12 +232,12 @@ async fn the_per_turn_budget_and_the_daily_cap_refuse_before_dispatch() {
     let (search3, _) = tools(&c3);
     let (_, p) = read(&search3.call(&c3, args(json!({"query": "RBI"}))).await);
     assert_eq!(p["error"], "daily_cap_reached");
-    assert_eq!(p["message"], "The daily web search cap of 2 calls is reached. Tell the operator; they can raise it in the agent settings.");
+    assert_eq!(p["message"], "The daily web cap of 2 calls is reached. Tell the operator; they can raise it in the agent settings.");
     assert_eq!(fake.seen_at(DDG_HTML).len(), 2);
 }
 
 #[tokio::test]
-async fn a_failed_search_spends_no_budget_and_comes_back_wrapped() {
+async fn a_failed_search_spends_none_of_the_daily_cap_and_comes_back_wrapped() {
     let t = ctx();
     let fake = FakeServer::start().await;
     let _on = OnFake::new(&fake, 8);
@@ -278,7 +284,7 @@ async fn tavily_answers_when_chosen_and_falls_back_when_it_cannot() {
     let (search2, _) = tools(&c2);
     let (_, p) = read(&search2.call(&c2, args(json!({"query": "RBI"}))).await);
     assert_eq!(p["provider"], "duckduckgo");
-    assert_eq!(p["notices"], json!(["Tavily rate limited this request (HTTP 429). Wait before searching again. DuckDuckGo answered instead."]));
+    assert_eq!(p["notices"], json!(["Tavily rate limited this request (HTTP 429). Wait before trying again. DuckDuckGo answered instead."]));
 }
 
 #[tokio::test]

@@ -46,6 +46,7 @@ impl WebTool {
             config.max_calls_per_turn,
         );
         if !o.ok {
+            self.shared.budget.record_attempt();
             let p = NotOk::new("provider_failed", o.error.clone())
                 .by(PERPLEXITY)
                 .with_cost(o.cost_usd);

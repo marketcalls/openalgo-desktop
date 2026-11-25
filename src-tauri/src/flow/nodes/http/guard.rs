@@ -127,8 +127,9 @@ pub struct Vetted {
 pub const UNPARSEABLE: &str = "URL could not be parsed";
 
 /// Whether the WHATWG parser the request is sent with sees the same host
-/// the check saw.
-fn same_host(url: &str, hostname: &str) -> bool {
+/// the check saw. The Agent's fetch boundary (`agent::websearch::fetch_url`)
+/// holds a page address to the same rule.
+pub(crate) fn same_host(url: &str, hostname: &str) -> bool {
     let Ok(parsed) = ::url::Url::parse(url) else {
         return false;
     };

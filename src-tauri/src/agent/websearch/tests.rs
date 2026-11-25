@@ -1,9 +1,20 @@
-//! Tests of web search: the taint boundary, the settings and keys, the
-//! daily counter under concurrency (D-019), each provider against a local
-//! fake (no real provider, no real key), and the two tools end to end.
+//! Tests of web search: the taint boundary, the fetch boundary, the
+//! settings and keys, the daily counter under concurrency (D-019), each
+//! provider against a local fake (no real provider, no real key), the
+//! prompt section, and the three tools end to end.
+//!
+//! The web's `test/test_agent_webfetch.py` and
+//! `test_agent_websearch_settings.py` are ported in `fetch_url`, `keyed`,
+//! `sources`, `fetch`, `preferred` and `prompt`.
 
 mod config;
+mod fetch;
+mod fetch_url;
+mod keyed;
+mod preferred;
+mod prompt;
 mod providers;
+mod sources;
 mod taint;
 mod tool;
 
@@ -19,6 +30,10 @@ pub const TAVILY_PATH: &str = "/tavily/search";
 pub const PERPLEXITY_PATH: &str = "/perplexity/v1/agent";
 pub const DDG_HTML: &str = "/ddg/html/";
 pub const DDG_LITE: &str = "/ddg/lite/";
+pub const FIRECRAWL_SEARCH: &str = "/firecrawl/v2/search";
+pub const FIRECRAWL_SCRAPE: &str = "/firecrawl/v2/scrape";
+pub const TINYFISH_SEARCH: &str = "/tinyfish/search";
+pub const TINYFISH_FETCH: &str = "/tinyfish/fetch";
 
 pub fn ctx() -> TestCtx {
     let t = crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
@@ -33,6 +48,10 @@ pub fn net_on(fake: &FakeServer, places: usize) -> Net {
         perplexity: fake.url(PERPLEXITY_PATH),
         duckduckgo_html: fake.url(DDG_HTML),
         duckduckgo_lite: fake.url(DDG_LITE),
+        firecrawl_search: fake.url(FIRECRAWL_SEARCH),
+        firecrawl_scrape: fake.url(FIRECRAWL_SCRAPE),
+        tinyfish_search: fake.url(TINYFISH_SEARCH),
+        tinyfish_fetch: fake.url(TINYFISH_FETCH),
         gate: Arc::new(Semaphore::new(places)),
         gate_wait: Duration::from_millis(100),
     }

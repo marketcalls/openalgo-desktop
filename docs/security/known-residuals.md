@@ -250,3 +250,30 @@ fixed amount beyond the trader's own words. No external MCP server is registered
 version, so nothing is sent at all; adding one is a change to the app
 (`agent/mcp/registry.rs`), and the trader's External data switch on
 `/agent/config` withholds every server from the Agent.
+
+## The Agent's page reads (web_fetch)
+
+`web_fetch` sends a page address to Firecrawl or TinyFish, which read the
+page from their own network; the app connects only to the provider's
+fixed API address, on the Agent's client (no redirect followed, the
+link-local block refused, no cookie, the provider's own key alone, an
+answer read up to 5 MiB within 60 seconds). An address goes out only when
+no character of it is the model's (`agent/websearch/fetch_url.rs`, tested
+in `agent::websearch::tests::fetch_url`): the trader typed it (in this
+turn's message), a search of the same run returned it, or it is a
+screener.in company page built from a symbol that is one of the trader's
+words. What is sent is that text, never the model's spelling of it. Refused
+whatever its source: another scheme, a login part, a port other than 80
+and 443 (so never the app's own ports), a name with no dot, `localhost`,
+`.local`, `.internal`, `.lan`, and a private, loopback, link-local or
+reserved address as either Python's or a WHATWG reader sees the host. A
+page that ended up on such an address after a redirect is not returned
+(`agent::websearch::tests::fetch`). Fetched pages return no links, and
+their text comes back wrapped as third-party content.
+
+Residual: which of the accepted addresses the model fetches, and in what
+order, can still carry a few bits a call; the per-turn budget (10 calls by
+default, at most 50) and the daily cap bound the number of calls. A host
+name is not resolved here, since the app never connects to it: a public
+name that resolves to a private address reaches the provider's own
+network, not the trader's.

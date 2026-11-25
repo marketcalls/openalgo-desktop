@@ -12,10 +12,11 @@
 //! searches at once could lose a count. Here one SQL statement does it.
 
 use super::{
-    keyed_spec, provider_spec, secret_name, today, ProviderSpec, DEFAULT_DAILY_CAP,
-    DEFAULT_MAX_CALLS_PER_TURN, DEFAULT_PERPLEXITY_MODEL, DEFAULT_PROVIDER, KEY_DAILY_CAP,
-    KEY_MAX_CALLS_PER_TURN, KEY_PERPLEXITY_MODEL, KEY_PROVIDER, KEY_USAGE, MAX_CALLS_PER_TURN,
-    MAX_DAILY_CAP, MAX_KEY_CHARS, MAX_PERPLEXITY_MODEL_CHARS, PROVIDERS,
+    fetch_spec, keyed_spec, provider_spec, secret_name, sources, today, ProviderSpec,
+    DEFAULT_DAILY_CAP, DEFAULT_FETCH_PROVIDER, DEFAULT_MAX_CALLS_PER_TURN,
+    DEFAULT_PERPLEXITY_MODEL, DEFAULT_PROVIDER, FETCH_PROVIDERS, KEY_DAILY_CAP, KEY_FETCH_PROVIDER,
+    KEY_MAX_CALLS_PER_TURN, KEY_PERPLEXITY_MODEL, KEY_PREFERRED_SOURCES, KEY_PROVIDER, KEY_USAGE,
+    MAX_CALLS_PER_TURN, MAX_DAILY_CAP, MAX_KEY_CHARS, MAX_PERPLEXITY_MODEL_CHARS, PROVIDERS,
 };
 use crate::agent::models::secrets::{self, SecretInfo};
 use crate::agent::settings::store;
@@ -28,6 +29,8 @@ use std::collections::HashMap;
 /// The keys `PUT /agent/api/websearch` accepts.
 pub const UPDATABLE: &[&str] = &[
     "provider",
+    "fetch_provider",
+    "preferred_sources",
     "perplexity_model",
     "max_calls_per_turn",
     "daily_cap",
@@ -37,6 +40,11 @@ pub const UPDATABLE: &[&str] = &[
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
     pub provider: &'static str,
+    /// The provider `web_fetch` tries first.
+    pub fetch_provider: &'static str,
+    /// Where company figures are looked for first, best first; empty when
+    /// the trader turned the preference off.
+    pub preferred_sources: Vec<String>,
     pub perplexity_model: String,
     pub max_calls_per_turn: i64,
     pub daily_cap: i64,
@@ -75,6 +83,23 @@ impl Config {
                 DEFAULT_PROVIDER
             }
         };
+        let fetch_raw = rows
+            .get(KEY_FETCH_PROVIDER)
+            .map(|s| s.trim().to_lowercase())
+            .unwrap_or_default();
+        let fetch_provider = match FETCH_PROVIDERS.iter().find(|p| **p == fetch_raw) {
+            Some(p) => *p,
+            None => {
+                if !fetch_raw.is_empty() {
+                    tracing::warn!(
+                        "Agent setting {} holds an unknown provider; using {}",
+                        KEY_FETCH_PROVIDER,
+                        DEFAULT_FETCH_PROVIDER
+                    );
+                }
+                DEFAULT_FETCH_PROVIDER
+            }
+        };
         let model = rows
             .get(KEY_PERPLEXITY_MODEL)
             .map(|s| s.trim())
@@ -82,6 +107,10 @@ impl Config {
             .unwrap_or(DEFAULT_PERPLEXITY_MODEL);
         Config {
             provider,
+            fetch_provider,
+            preferred_sources: sources::from_row(
+                rows.get(KEY_PREFERRED_SOURCES).map(String::as_str),
+            ),
             perplexity_model: model.to_string(),
             max_calls_per_turn: bounded(
                 rows,
@@ -159,6 +188,8 @@ pub fn count_one(conn: &Connection, today: &str) -> crate::error::Result<i64> {
 pub fn defaults() -> Value {
     json!({
         "provider": DEFAULT_PROVIDER,
+        "fetch_provider": DEFAULT_FETCH_PROVIDER,
+        "preferred_sources": sources::defaults(),
         "perplexity_model": DEFAULT_PERPLEXITY_MODEL,
         "max_calls_per_turn": DEFAULT_MAX_CALLS_PER_TURN,
         "daily_cap": DEFAULT_DAILY_CAP,
@@ -218,13 +249,27 @@ pub fn config(app: &AppState) -> crate::error::Result<Value> {
     let day = today(app.now());
     let count = usage_from(rows.get(KEY_USAGE).map(String::as_str), &day);
     let stored = stored_keys(&conn);
+    let providers: Vec<Value> = PROVIDERS
+        .iter()
+        .map(|p| provider_entry(p, &stored))
+        .collect();
+    // Whether web_fetch can run at all: it has no keyless provider.
+    let fetch_ready = providers.iter().any(|p| {
+        p["ready"] == json!(true)
+            && p["id"]
+                .as_str()
+                .is_some_and(|id| FETCH_PROVIDERS.contains(&id))
+    });
     Ok(json!({
         "provider": c.provider,
+        "fetch_provider": c.fetch_provider,
+        "fetch_ready": fetch_ready,
+        "preferred_sources": c.preferred_sources,
         "perplexity_model": c.perplexity_model,
         "max_calls_per_turn": c.max_calls_per_turn,
         "daily_cap": c.daily_cap,
         "usage": {"date": day, "count": count, "remaining": (c.daily_cap - count).max(0)},
-        "providers": PROVIDERS.iter().map(|p| provider_entry(p, &stored)).collect::<Vec<_>>(),
+        "providers": providers,
     }))
 }
 
@@ -292,6 +337,18 @@ pub fn prepare(values: &Map<String, Value>) -> Result<Vec<(&'static str, String)
                 .id
                 .to_string(),
         ));
+    }
+    if let Some(v) = values.get("fetch_provider") {
+        let raw = crate::agent::settings::pyrepr::py_str(v);
+        let raw = if crate::agent::models::truthy(v) {
+            raw.as_str()
+        } else {
+            ""
+        };
+        rows.push((KEY_FETCH_PROVIDER, fetch_spec(raw)?.id.to_string()));
+    }
+    if let Some(v) = values.get("preferred_sources") {
+        rows.push((KEY_PREFERRED_SOURCES, sources::validated(v)?));
     }
     if let Some(v) = values.get("perplexity_model") {
         rows.push((KEY_PERPLEXITY_MODEL, perplexity_model(v)?));

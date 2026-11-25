@@ -1,13 +1,18 @@
 //! The `websearch` toolkit (the web's `WebSearchToolkit`): `web_search`
-//! for links from DuckDuckGo or Tavily, `web_research` for Perplexity's
-//! cited answer. Offered on every surface, only when the turn's Web search
-//! switch is on (the composer's per-turn switch; absent means on).
+//! for links from DuckDuckGo, Tavily, Firecrawl or TinyFish,
+//! `web_research` for Perplexity's cited answer, and `web_fetch` for the
+//! text of one page through Firecrawl or TinyFish. Offered on every
+//! surface, only when the turn's Web search switch is on (the composer's
+//! per-turn switch; absent means on).
 //!
 //! The safety envelope is the web's: the outgoing query is built from the
-//! trader's own message (`websearch::taint`), a per-turn budget and a
-//! daily cap are checked before a call and counted only after one
-//! succeeds, results come back inside a `<web_result trust="third-party">`
-//! block, and the decision is logged, never the query.
+//! trader's own message (`websearch::taint`), a page address must be one
+//! the trader wrote or a search of this run returned
+//! (`websearch::fetch_url`), a per-turn budget and a daily cap are checked
+//! before a call (the turn counts every request that went out, the day
+//! only answers), results come back inside a
+//! `<web_result trust="third-party">` block, and the decision is logged,
+//! never the query or the address.
 //!
 //! D-020: the web returned a provider's failure as bare JSON while its
 //! results were wrapped; a provider's failure is third-party text too, so
@@ -17,12 +22,21 @@
 //!   the shapes a refusal takes.
 //! - `args`: the model's arguments, checked as the web checks them.
 //! - `budget`: the per-turn budget and the daily cap.
-//! - `search`: `web_search` and the provider that answers it.
+//! - `run_state`: what one run remembers: the URLs its searches returned,
+//!   the pages it read, the preferred sources that failed.
+//! - `search`: `web_search` on the open web, and the provider that
+//!   answers it.
+//! - `preferred`: `web_search` for company figures, on the trader's
+//!   preferred sources first.
+//! - `fetch`: `web_fetch`.
 //! - `research`: `web_research`.
 
 mod args;
 mod budget;
+mod fetch;
+mod preferred;
 mod research;
+mod run_state;
 mod search;
 
 use crate::agent::contract::json::dumps_capped_ordered;
@@ -39,6 +53,7 @@ use crate::security::Secret;
 use crate::state::AppState;
 use async_trait::async_trait;
 use budget::Budget;
+use run_state::RunState;
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
@@ -55,8 +70,10 @@ const NO_OPERATOR_MESSAGE: &str = "Nothing was sent to any provider. Every outgo
 
 /// What the toolkit's tools share in one run.
 struct Shared {
+    /// The trader's message for the turn, redacted.
     operator_message: String,
     budget: Budget,
+    run: RunState,
     net: Net,
 }
 
@@ -64,12 +81,14 @@ fn build(ctx: &ToolCtx) -> Vec<Arc<dyn AgentTool>> {
     let shared = Arc::new(Shared {
         operator_message: taint::redact(&ctx.operator_message),
         budget: Budget::new(),
+        run: RunState::default(),
         net: providers::net(),
     });
     let mut tools: Vec<Arc<dyn AgentTool>> = Vec::new();
     for (name, kind) in [
         ("web_search", Kind::Search),
         ("web_research", Kind::Research),
+        ("web_fetch", Kind::Fetch),
     ] {
         if let Some(spec) = web_or_log(GROUP.key, name) {
             tools.push(Arc::new(WebTool {
@@ -87,6 +106,7 @@ fn build(ctx: &ToolCtx) -> Vec<Arc<dyn AgentTool>> {
 enum Kind {
     Search,
     Research,
+    Fetch,
 }
 
 struct WebTool {
@@ -105,6 +125,7 @@ impl AgentTool for WebTool {
         match self.kind {
             Kind::Search => self.search(ctx, &args).await,
             Kind::Research => self.research(ctx, &args).await,
+            Kind::Fetch => self.fetch(ctx, &args).await,
         }
     }
 }
@@ -115,7 +136,7 @@ fn json_text<T: serde::Serialize>(v: &T) -> String {
 }
 
 /// A provider's failure, wrapped as third-party text (D-020).
-fn failure(provider: &str, payload: &NotOk<'_>) -> ToolOutcome {
+fn failure<T: serde::Serialize>(provider: &str, payload: &T) -> ToolOutcome {
     ToolOutcome::Ok(wrap_web_result(
         provider,
         &json_text(payload),
@@ -137,6 +158,15 @@ fn blocked(tool: &str) -> ToolOutcome {
         tool
     );
     ToolOutcome::json_ordered(&NotOk::new("no_operator_message", NO_OPERATOR_MESSAGE))
+}
+
+/// Names joined for a sentence (`_or_list`): `a`, `a or b`, `a, b or c`.
+fn or_list(names: &[String]) -> String {
+    match names {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} or {}", rest.join(", "), last),
+    }
 }
 
 /// A provider's stored key, opened at the moment of use.

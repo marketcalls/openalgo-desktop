@@ -51,6 +51,8 @@ impl Answer {
 pub struct Seen {
     pub method: String,
     pub path: String,
+    /// The query string, without its `?`.
+    pub query: String,
     /// Names lower-cased.
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
@@ -179,10 +181,14 @@ async fn serve(mut sock: TcpStream, scripts: Scripts, seen: Arc<Mutex<Vec<Seen>>
     let Some((method, path, headers, body)) = read_request(&mut sock).await else {
         return;
     };
-    let route = path.split('?').next().unwrap_or_default().to_string();
+    let (route, query) = match path.split_once('?') {
+        Some((route, query)) => (route.to_string(), query.to_string()),
+        None => (path.clone(), String::new()),
+    };
     seen.lock().push(Seen {
         method,
         path: route.clone(),
+        query,
         headers,
         body,
         at: Instant::now(),

@@ -264,13 +264,11 @@ async fn a_reasoning_gpt_with_tools_is_asked_on_the_responses_api() {
     assert_eq!(bodies[1]["reasoning_effort"], "medium");
 }
 
-/// The Agent's own `web_search` (the web's tool name) goes out as a
-/// function with its schema on every provider format. genai turned a tool
-/// with that name into Anthropic's and OpenAI's own server-side search
-/// (VENDORED.md, change 3): the search left the trader's chosen provider
-/// and the web-search boundary, and an Anthropic reply then failed.
-#[tokio::test]
-async fn a_tool_named_web_search_is_sent_as_ours() {
+/// Each provider format's request for one tool named `name` with a
+/// `query` schema; the problems where it did not go out as our function
+/// with its schema, or went out as one of `builtins` (a provider's own
+/// server-side tool).
+async fn sent_as_ours(name: &str, builtins: &[&str]) -> Vec<String> {
     use genai::adapter::AdapterKind as A;
     use genai::chat::Tool;
     let fake = FakeProvider::start(vec![]).await;
@@ -282,10 +280,10 @@ async fn a_tool_named_web_search_is_sent_as_ours() {
         .enumerate()
     {
         let model = fake_model(&fake.endpoint(), adapter);
-        let tool = Tool::new("web_search")
-            .with_description("Search the web.")
+        let tool = Tool::new(name)
+            .with_description("A tool of the Agent's own.")
             .with_schema(schema.clone());
-        let request = ChatRequest::from_user("search").with_tools(vec![tool]);
+        let request = ChatRequest::from_user("go").with_tools(vec![tool]);
         if let Ok(resp) = client.stream(&model, request, None).await {
             let mut stream = resp.stream;
             while let Some(Ok(_)) = stream.next().await {}
@@ -297,17 +295,50 @@ async fn a_tool_named_web_search_is_sent_as_ours() {
         .await
         .expect("a request");
         let tools = fake.sent()[n]["tools"].to_string();
-        let ours = tools.contains("\"web_search\"") && tools.contains("\"query\"");
-        let builtin = [
-            "web_search_20250305",
-            "{\"type\":\"web_search\"}",
-            "googleSearch",
-        ]
-        .iter()
-        .any(|b| tools.contains(b));
+        let ours = tools.contains(&format!("\"{}\"", name)) && tools.contains("\"query\"");
+        let builtin = builtins.iter().any(|b| tools.contains(b));
         if !ours || builtin {
             problems.push(format!("{:?}: {}", adapter, tools));
         }
     }
+    problems
+}
+
+/// The Agent's own `web_search` (the web's tool name) goes out as a
+/// function with its schema on every provider format. genai turned a tool
+/// with that name into Anthropic's and OpenAI's own server-side search
+/// (VENDORED.md, change 3): the search left the trader's chosen provider
+/// and the web-search boundary, and an Anthropic reply then failed.
+#[tokio::test]
+async fn a_tool_named_web_search_is_sent_as_ours() {
+    let problems = sent_as_ours(
+        "web_search",
+        &[
+            "web_search_20250305",
+            "{\"type\":\"web_search\"}",
+            "googleSearch",
+        ],
+    )
+    .await;
+    assert!(problems.is_empty(), "{:#?}", problems);
+}
+
+/// The same for `web_fetch` (web 46af9591f): Anthropic has a server tool
+/// of that name and Gemini a URL reader, and a tool sent as either would
+/// read pages outside the fetch boundary and the trader's providers. The
+/// vendored genai special-cases neither name; this keeps it so after an
+/// upgrade.
+#[tokio::test]
+async fn a_tool_named_web_fetch_is_sent_as_ours() {
+    let problems = sent_as_ours(
+        "web_fetch",
+        &[
+            "web_fetch_20250910",
+            "{\"type\":\"web_fetch\"}",
+            "urlContext",
+            "url_context",
+        ],
+    )
+    .await;
     assert!(problems.is_empty(), "{:#?}", problems);
 }

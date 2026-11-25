@@ -70,8 +70,8 @@ mod tests {
             spec_contract::assert_tool(&spec);
             expected.push(name);
         }
-        assert_eq!(expected.len(), 61);
-        assert_eq!(SPECS["tools"].as_object().map(|m| m.len()), Some(61));
+        assert_eq!(expected.len(), 62);
+        assert_eq!(SPECS["tools"].as_object().map(|m| m.len()), Some(62));
         assert!(web("validate_flow").is_some_and(|s| !s.needs_approval));
         assert!(web("save_flow").is_some_and(|s| s.needs_approval));
         assert_eq!(SPECS["web_commit"], fixture["web_commit"]);

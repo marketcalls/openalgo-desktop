@@ -103,6 +103,8 @@ def main(web_root: str) -> int:
         "voice_keys": list(s.get_voice_defaults()),
         "websearch_keys": [
             s.KEY_WEBSEARCH_PROVIDER,
+            s.KEY_WEBFETCH_PROVIDER,
+            s.KEY_WEBSEARCH_PREFERRED_SOURCES,
             s.KEY_WEBSEARCH_PERPLEXITY_MODEL,
             s.KEY_WEBSEARCH_MAX_CALLS_PER_TURN,
             s.KEY_WEBSEARCH_DAILY_CAP,
