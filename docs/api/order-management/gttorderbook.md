@@ -215,12 +215,17 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 ## Notes
 
 - Active only by default: without `status`, or with `"status": "active"`, no fired, cancelled, lapsed or rejected GTT appears.
-- With `"status": "all"`, the sandbox, Zerodha and Rupeezy return the history. Upstox, Angel One, Fyers and Dhan return active GTTs only, as on the web.
+- With `"status": "all"`, the sandbox, Zerodha, Pocketful and Rupeezy return the history. Upstox, Angel One, Fyers and Dhan return active GTTs only, as on the web.
+- Pocketful gives no last price, so its rows carry `last_price` 0; an account with no rules at all is an empty book, not an error.
 - A fired GTT's order is an ordinary order: it appears in the [order book](../account-services/orderbook.md) in both modes.
 - On Angel One an OCO is two independent rules: the book shows two SINGLE rows, not one OCO, and one firing does not cancel the other. See [Angel One](./placegttorder.md#angel-one-an-oco-is-two-separate-rules).
 - A broker keeps its own history for a limited time, so `"status": "all"` can show less than a GTT's whole life.
 - `last_price`, `created_at`, `updated_at` and `expires_at` depend on what the broker gives; they may be `0` or empty.
 - Rate limit: 100 requests per second per caller, shared with the other read endpoints. See [Rate limiting](../rate-limiting.md).
+
+## In the desktop
+
+- In the desktop, a Pocketful GTT book that Pocketful refuses, or that cannot be reached or read, answers 400 with the reason; the web answers with Pocketful's own status (for example 401), and 502 when Pocketful cannot be reached or read.
 
 ---
 

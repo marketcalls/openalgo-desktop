@@ -12,7 +12,8 @@ use super::core::{
 };
 use super::order_service::{fractional_refusal, route_to_pending, Route};
 use super::schemas::{GTT_QUANTITY_NOT_POSITIVE, MAX_BROKER_QUANTITY, QUANTITY_TOO_LARGE};
-use crate::brokers::types::{GttOrder, GttRequest, GttTriggerType, QuoteKey};
+use crate::brokers::common::outcome::PlaceOutcome;
+use crate::brokers::types::{GttOrder, GttRequest, GttResponse, GttTriggerType, QuoteKey};
 use crate::error::AppError;
 use crate::events::{Event, GttKind};
 use crate::sandbox::types::dec_from_f64;
@@ -71,10 +72,7 @@ pub fn sandbox_gtt(req: &Value) -> Result<crate::sandbox::GttRequest, Reply> {
             .get("strategy")
             .and_then(Value::as_str)
             .map(str::to_string),
-        expires_at: req
-            .get("expires_at")
-            .and_then(Value::as_str)
-            .map(str::to_string),
+        expires_at: expires_at(req),
     })
 }
 
@@ -105,7 +103,16 @@ pub fn broker_gtt(req: &Value) -> Result<GttRequest, AppError> {
         triggerprice_tg: f(req, "triggerprice_tg"),
         target: f(req, "target"),
         last_price: None,
+        expires_at: expires_at(req),
     })
+}
+
+/// The request's `expires_at` when it is a string (the schema's
+/// `Str(allow_none)`), for the sandbox and the broker alike.
+fn expires_at(req: &Value) -> Option<String> {
+    req.get("expires_at")
+        .and_then(Value::as_str)
+        .map(str::to_string)
 }
 
 fn not_supported(broker: &str) -> Reply {
@@ -147,10 +154,41 @@ fn live_error(e: &AppError, internal: &str, broker: &str) -> Reply {
         // Not sent: the web's busy refusal (docs-20).
         AppError::Busy(_) => Reply::broker_failure(e, 429),
         AppError::NotFound(m) => Reply::error(404, m.clone()),
+        // Sent, with no definite answer (CLAUDE.md, three outcomes): the GTT
+        // may exist, so the trader reads the adapter's "check the GTT list"
+        // sentence with the web's 502 (web pocketful gtt_api, openalgo#2467),
+        // never a failure that invites placing it again.
+        AppError::Uncertain(u) if !u.internal => {
+            tracing::warn!("GTT call has no definite answer: {}", u.message);
+            Reply::error(502, u.message.clone())
+        }
         _ => {
             tracing::error!("GTT call failed: {}", e);
             Reply::error(500, internal)
         }
+    }
+}
+
+/// A live placement's reply: the web's wire answer, and beside it, when the
+/// adapter could not tell whether the GTT was created, that it may exist
+/// (CLAUDE.md, three outcomes). The Action Center then keeps its claim, so
+/// an approved GTT is never sent again, and MCP reports the outcome as
+/// unknown; both read any other failure as "not placed".
+fn live_place_reply(result: Result<GttResponse, AppError>, broker: &str) -> Reply {
+    let e = match result {
+        Ok(r) => return Reply::ok(json!({"status": "success", "trigger_id": r.trigger_id})),
+        Err(e) => e,
+    };
+    let reply = live_error(&e, "Failed to place GTT due to internal error", broker);
+    match e {
+        AppError::Uncertain(u) => {
+            let u = *u;
+            reply.with_placement(PlaceOutcome::Uncertain {
+                client_tag: u.client_tag,
+                reason: u.message,
+            })
+        }
+        _ => reply,
     }
 }
 
@@ -205,10 +243,7 @@ pub async fn place_gtt_with(ctx: &AppState, req: &Value, route: Route) -> Reply 
         Ok(g) => broker_call(&h.id, h.broker.place_gtt(&h.auth, &g)).await,
         Err(e) => Err(e),
     };
-    let reply = match result {
-        Ok(r) => Reply::ok(json!({"status": "success", "trigger_id": r.trigger_id})),
-        Err(e) => live_error(&e, "Failed to place GTT due to internal error", &h.id),
-    };
+    let reply = live_place_reply(result, &h.id);
     let id = s(&reply.body, "trigger_id");
     let kind = if reply.is_success() {
         GttKind::Placed
@@ -497,6 +532,113 @@ mod tests {
         let b = broker_gtt(&req).unwrap();
         assert_eq!(b.trigger_type, GttTriggerType::Oco);
         assert_eq!(b.target, 1001.0);
+    }
+
+    /// A GTT call sent without a definite answer is not a failure: it
+    /// answers the web's 502 with the adapter's own sentence (web pocketful
+    /// test_pocketful_account.py::test_an_unconfirmed_create_is_not_retried_and_says_to_check),
+    /// where it answered "internal error", which reads as "not placed". A
+    /// transport or parse failure and the other errors keep their answers.
+    #[test]
+    fn a_gtt_with_no_definite_answer_says_to_check() {
+        let check = "Pocketful did not answer, so the GTT may or may not have been created. \
+Check the GTT list before placing it again.";
+        let reply = live_error(&AppError::uncertain(check, None), "internal", "pocketful");
+        assert_eq!((reply.status, reply.message()), (502, check.to_string()));
+
+        let internal = AppError::Uncertain(Box::new(crate::error::UncertainOrder {
+            message: "unreadable".into(),
+            client_tag: None,
+            internal: true,
+            unanswered: false,
+            session: false,
+        }));
+        let reply = live_error(&internal, "internal", "pocketful");
+        assert_eq!(
+            (reply.status, reply.message()),
+            (500, "internal".to_string())
+        );
+        let reply = live_error(&AppError::Broker("no".into()), "internal", "zerodha");
+        assert_eq!((reply.status, reply.message()), (400, "no".to_string()));
+        let reply = live_error(&AppError::Unsupported("gtt"), "internal", "shoonya");
+        assert_eq!(reply.status, 501);
+    }
+
+    /// Desktop (CLAUDE.md, three outcomes): a live GTT created without a
+    /// definite answer carries that outcome beside the web's 502, so the
+    /// Action Center keeps its claim instead of marking it rejected, and
+    /// MCP reports it unknown. Before, the reply carried no outcome and
+    /// answered 500 "internal error", which both read as "not placed". A
+    /// refusal and a success carry no uncertain outcome.
+    #[test]
+    fn an_unconfirmed_gtt_placement_is_never_read_as_refused() {
+        let check = "Pocketful did not answer, so the GTT may or may not have been created. \
+Check the GTT list before placing it again.";
+        let reply = live_place_reply(Err(AppError::uncertain(check, None)), "pocketful");
+        assert_eq!((reply.status, reply.message()), (502, check.to_string()));
+        assert!(reply.is_uncertain());
+
+        let refused = live_place_reply(Err(AppError::Refused("no".into())), "pocketful");
+        assert_eq!((refused.status, refused.is_uncertain()), (400, false));
+        let placed = live_place_reply(
+            Ok(GttResponse {
+                trigger_id: "t1".into(),
+            }),
+            "pocketful",
+        );
+        assert_eq!(
+            placed.body,
+            json!({"status": "success", "trigger_id": "t1"})
+        );
+        assert!(!placed.is_uncertain());
+    }
+
+    /// The request's `expires_at` reaches the broker request as sent (web
+    /// openalgo#2467: Pocketful's GTT needs an expiry and reads it; every
+    /// other broker ignores it), and the sandbox request alike. A null or a
+    /// non-string, and a modify's body, which has none, carry none.
+    #[test]
+    fn the_expiry_reaches_the_broker_as_sent() {
+        let mut req = json!({"trigger_type": "SINGLE", "symbol": "NIFTY24NOV2624000CE",
+            "exchange": "NFO", "action": "BUY", "product": "NRML", "quantity": 75,
+            "pricetype": "LIMIT", "price": 11.3, "trigger_price": 13.6,
+            "expires_at": "2026-11-20T15:30:00+05:30"});
+        let sent = Some("2026-11-20T15:30:00+05:30");
+        assert_eq!(broker_gtt(&req).unwrap().expires_at.as_deref(), sent);
+        assert_eq!(sandbox_gtt(&req).unwrap().expires_at.as_deref(), sent);
+        for absent in [Value::Null, json!(20261120)] {
+            req["expires_at"] = absent;
+            assert_eq!(broker_gtt(&req).unwrap().expires_at, None);
+        }
+        req.as_object_mut().unwrap().remove("expires_at");
+        assert_eq!(broker_gtt(&req).unwrap().expires_at, None);
+        assert_eq!(sandbox_gtt(&req).unwrap().expires_at, None);
+    }
+
+    /// Web test_pending_order_execution_service.py::test_only_pilot_brokers_ship_gtt_modules:
+    /// the set is exhaustive on purpose, so a broker that gains GTT by
+    /// accident fails here instead of silently routing live GTTs. Pocketful
+    /// joined with its single-trigger GTT (web openalgo#2467).
+    #[test]
+    fn only_the_webs_gtt_brokers_route_live_gtts() {
+        let reg = crate::brokers::BrokerRegistry::new();
+        let gtt: Vec<String> = reg
+            .ids()
+            .into_iter()
+            .filter(|id| reg.get(id).is_some_and(|b| b.capabilities().gtt))
+            .collect();
+        assert_eq!(
+            gtt,
+            [
+                "angel",
+                "dhan",
+                "fyers",
+                "pocketful",
+                "rupeezy",
+                "upstox",
+                "zerodha"
+            ]
+        );
     }
 
     /// A fractional CRYPTO quantity is refused by both conversions, never

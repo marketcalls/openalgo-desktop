@@ -547,6 +547,7 @@ fn gtt(kind: GttTriggerType, action: Action, pricetype: PriceType) -> GttRequest
         triggerprice_tg: 1500.0,
         target: 1505.0,
         last_price: Some(1400.0),
+        expires_at: None,
     }
 }
 

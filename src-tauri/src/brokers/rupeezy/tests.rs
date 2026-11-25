@@ -861,6 +861,7 @@ fn gtt(trigger_type: GttTriggerType, action: Action, symbol: &str, exchange: &st
         triggerprice_tg: 0.0,
         target: 0.0,
         last_price: None,
+        expires_at: None,
     }
 }
 

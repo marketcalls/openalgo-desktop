@@ -553,6 +553,7 @@ async fn gtt_place_cancel_and_book() {
         triggerprice_tg: 0.0,
         target: 0.0,
         last_price: None,
+        expires_at: None,
     };
     let r = b.place_gtt(&auth(), &req).await.unwrap();
     assert_eq!(r.trigger_id, "GTT-C26210900009");

@@ -14,6 +14,7 @@ pub mod auth;
 pub mod client;
 mod data;
 mod funds;
+mod gtt;
 pub mod mapping;
 mod margin;
 pub mod market;
@@ -194,7 +195,7 @@ impl Broker for PocketfulBroker {
             history: false,
             multiquotes_batch: true,
             margin: true,
-            gtt: false,
+            gtt: true,
             streaming: true,
             order_feed: true,
             depth_levels: &[5],
@@ -293,6 +294,27 @@ impl Broker for PocketfulBroker {
 
     async fn download_master_contract(&self, _auth: &AuthToken) -> Result<Vec<SymbolData>> {
         master_contract::download(self).await
+    }
+
+    async fn place_gtt(&self, auth: &AuthToken, req: &GttRequest) -> Result<GttResponse> {
+        gtt::place_gtt(self, auth, req).await
+    }
+
+    async fn modify_gtt(
+        &self,
+        auth: &AuthToken,
+        trigger_id: &str,
+        req: &GttRequest,
+    ) -> Result<GttResponse> {
+        gtt::modify_gtt(self, auth, trigger_id, req).await
+    }
+
+    async fn cancel_gtt(&self, auth: &AuthToken, trigger_id: &str) -> Result<GttResponse> {
+        gtt::cancel_gtt(self, auth, trigger_id).await
+    }
+
+    async fn get_gtt_book(&self, auth: &AuthToken, include_history: bool) -> Result<Vec<GttOrder>> {
+        gtt::get_gtt_book(self, auth, include_history).await
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {

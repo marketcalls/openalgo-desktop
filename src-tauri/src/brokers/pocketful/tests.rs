@@ -613,11 +613,12 @@ fn broker_identity_and_capabilities() {
     assert_eq!(b.id(), "pocketful");
     assert!(b.timeframe_map().is_empty());
     let c = b.capabilities();
-    assert!(!c.history && !c.gtt);
+    assert!(!c.history);
     assert!(
         c.margin,
         "the margin calculator (marketcalls/openalgo#2467)"
     );
+    assert!(c.gtt);
     assert!(c.streaming && c.order_feed && c.multiquotes_batch);
     assert_eq!(b.login_kind(), LoginKind::Redirect { param: "code" });
     assert_eq!(b.supported_exchanges().len(), 7);
