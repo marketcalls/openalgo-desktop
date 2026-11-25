@@ -1,0 +1,77 @@
+{
+  "broker": "fivepaisaxts",
+  "summary": "Quote on two NSE equities across a dropped socket of a signed-in session: the reconnect keeps the market data session, so XTS refuses the replayed book as already subscribed; the feed sends each instrument again alone, counts each refusal as subscribed, and both keep streaming.",
+  "scenarios": [
+    "reconnect",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+    "method": "web-script",
+    "sources": [
+      "broker/fivepaisaxts/streaming/fivepaisaxts_websocket.py::FivepaisaXTSWebSocketClient.subscribe",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_websocket.py::FivepaisaXTSWebSocketClient._send_subscription",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_websocket.py::FivepaisaXTSWebSocketClient.connect",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._resubscribe_all",
+      "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "Web #2504 (5749d4126) subscribe: a request for several instruments that XTS refuses is sent again one instrument at a time, so one refusal does not cost the others their subscription, and 'already subscribed' (e-session-0002) counts as subscribed, since the feed now keeps its market data session across reconnects (#2484) and the server can still hold what a reconnect replays (test_a_refused_batch_is_sent_one_at_a_time, test_a_single_already_subscribed_instrument_counts_as_subscribed). The desktop: XtsHooks::split_refused_batch is SplitRefused::Any for 5paisa XTS (families/xts/streaming/calls.rs run_command).",
+      "web.json holds the web's frames, not its REST requests: the request sequence in the http_receives step is the desktop's, read against _send_subscription. Before #2504 both sent the replayed book once and stopped at the refusal.",
+      "The refusal's code and description follow XTS's e-session-0002 answer as the web matches it ('already subscribed' or 'e-session-0002'); no recorded answer exists, and the status 400 is assumed. The later RELIANCE frame is reconnect_keeps_the_market_session's."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "fivepaisaxts_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms",
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1478686530,
+          1794199530000
+        ],
+        [
+          1478686562,
+          1794199562000
+        ]
+      ]
+    }
+  ]
+}

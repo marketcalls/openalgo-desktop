@@ -1,0 +1,24 @@
+{
+  "type": "market_data",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "mode": 2,
+  "broker": "fivepaisaxts",
+  "data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "mode": 2,
+    "ltp": 812.35,
+    "timestamp": "<receipt_ms>",
+    "ltt": 1794199530000,
+    "volume": 9876543,
+    "last_quantity": 25,
+    "average_price": 810.45,
+    "total_buy_quantity": 320500,
+    "total_sell_quantity": 298750,
+    "open": 806.0,
+    "high": 815.9,
+    "low": 804.1,
+    "close": 805.7
+  }
+}

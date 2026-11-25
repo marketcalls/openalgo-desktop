@@ -27,6 +27,7 @@ corpus_cases!(
         quote_partial_keeps_the_quote,
         quote_root,
         quote_touchline,
+        reconnect_keeps_already_subscribed_instruments,
         reconnect_keeps_the_market_session,
         reconnect_replays,
         server_disconnect_reconnects,
