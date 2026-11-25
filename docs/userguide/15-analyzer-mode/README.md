@@ -138,6 +138,45 @@ The first row is deliberate parity: a modify behaves as on the web. The other
 differences are places where the web's sandbox loses track of margin or
 skips an order; the desktop keeps its funds equal to what its own books hold.
 
+## Brokerage and charges
+
+Every sandbox trade pays brokerage and statutory charges, so sandbox results
+come close to what the same trades cost in a live account. The charges are
+taken from the available balance when the order fills. P&L is shown before
+charges, with the charges beside it, as a broker's position book shows it.
+
+| Page | What it is for |
+| --- | --- |
+| **Sandbox Charges** (`/sandbox/commissions`) | Set your broker's brokerage for each segment, switch charges on or off, and see what trades have cost (**Transaction Costs**, with a CSV export) |
+| **Brokerage Calculator** (`/sandbox/calculator`) | Work out what a buy and a sell cost before placing them: brokerage, every statutory line, points to breakeven and net P&L |
+| **My P&L** (`/sandbox/mypnl`) | Today's and lifetime charges beside the P&L, and a charges column per day and per trade |
+
+Open them from the **Sandbox** page (**Charges**, **Calculator**) or from
+**My P&L** (**Transaction Costs**).
+
+Brokerage is two numbers per segment: an amount per executed order and a
+percentage of the trade value. With both set, the lower of the two is charged
+on each order. Set either to 0 to leave it out.
+
+| Segment | Default brokerage |
+| --- | --- |
+| Equity delivery | 20 per order or 2.5% of the trade value, whichever is lower |
+| Equity intraday | 20 per order or 0.1%, whichever is lower |
+| Futures (equity, currency, commodity) | 20 per order or 0.03%, whichever is lower |
+| Options (equity, currency, commodity) | 20 per order |
+| Crypto | Nothing until you enter your venue's fee |
+
+STT or CTT, exchange transaction charges, SEBI fees, stamp duty and GST are
+added at the published rates. They are the same at every broker and cannot
+be changed. Logged in to a crypto venue, you see the crypto segments only,
+as a venue fee and a **Fee Calculator**.
+
+Not charged: depository (DP) charges on a delivery sell, and STT on an option
+that is held to expiry and exercised. Trades made before charges were
+introduced are not charged after the fact. The same figures for one order,
+before it is placed, come from `POST /api/v1/charges`
+([Charges](../../api/account-services/charges.md)).
+
 ## Times and settlement
 
 | What | When |
@@ -169,12 +208,14 @@ Profile menu, **Sandbox** (titled **Sandbox Configuration**):
 | Expired option price | Last traded price (keeps in-the-money value) |
 
 The page also shows the **Sandbox model** box (what the simulation leaves
-out), **My P&L** (daily sandbox P&L history) and **Reset to Defaults**.
+out), **My P&L** (daily sandbox P&L history), **Charges** (the brokerage plan
+and the transaction cost report), **Calculator** (the brokerage calculator)
+and **Reset to Defaults**.
 
 **Reset to Defaults** asks for confirmation, then deletes sandbox orders,
 trades, positions, holdings, GTT orders and P&L history, restores the
-starting capital and puts every setting back to its default. It cannot be
-undone, and it touches nothing at your broker.
+starting capital and puts every setting back to its default, the brokerage
+plan included. It cannot be undone, and it touches nothing at your broker.
 
 ## Sandbox Logs
 
@@ -186,7 +227,9 @@ exactly what a webhook or script sent.
 
 - Orders fill in full or not at all: no partial fills, queue position or
   market impact.
-- P&L is before costs: no brokerage, exchange charges or taxes.
+- P&L is shown before charges: brokerage and statutory charges are taken
+  from the available balance at each fill and shown beside it. Depository
+  charges and STT on an option exercised at expiry are not charged.
 - Margin is a leverage rule, not your broker's margin.
 - Capital is in rupees and crypto prices in US dollars, without conversion.
 - Fills depend on your broker's data: outages and missing entitlements affect
@@ -207,7 +250,8 @@ Details: [Sandbox mode](../../user/sandbox.md#limits-of-the-simulation).
    **Sandbox Logs**.
 6. Let an MIS position reach the square-off time, or check the times on the
    Sandbox page.
-7. Review **My P&L**.
+7. Review **My P&L**, and what the trades cost on **Sandbox Charges**,
+   **Transaction Costs**.
 8. Before going live: switch to Live, reduce the quantity, check the badge
    again, and watch your broker's own terminal for the first orders.
 

@@ -51,7 +51,7 @@ page per endpoint.
 | Overview, authentication, error shapes | [api/README.md](api/README.md) |
 | Order management (place, smart, basket, split, options orders, modify, cancel, close, GTT) | [api/order-management/](api/order-management/) |
 | Order information (order status, open position) | [api/order-information/](api/order-information/) |
-| Account services (funds, order, trade and position books, holdings, margin) | [api/account-services/](api/account-services/) |
+| Account services (funds, order, trade and position books, holdings, margin, charges) | [api/account-services/](api/account-services/) |
 | Analyzer services (analyzer status and toggle, P&L by symbol) | [api/analyzer-services/](api/analyzer-services/) |
 | Utility services (ping) | [api/utility-services/](api/utility-services/) |
 | Symbol services (search, symbol, expiry, instruments) | [api/symbol-services/](api/symbol-services/) |
