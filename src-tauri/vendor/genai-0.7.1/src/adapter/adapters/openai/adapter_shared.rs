@@ -4,12 +4,13 @@ use super::cache_policy::{
 	OpenAiPromptCachePolicy, OpenAiProtocol, openai_prompt_cache_policy, requires_explicit_cache,
 };
 use super::schema::{OpenAiResponseFormatPlan, response_format_plan, tool_parameters_schema};
+use crate::adapter::adapters::anthropic::cache_control_to_json;
 use crate::adapter::adapters::openai::OpenAIAdapter;
 use crate::adapter::adapters::support::get_api_key;
 use crate::adapter::{AdapterDispatcher, AdapterKind, ServiceType, WebRequestData};
 use crate::chat::{
-	BinarySource, CacheControl, ChatOptionsSet, ChatRequest, ChatRole, ContentPart, CustomPart, ReasoningEffort,
-	ToolChoice, Usage,
+	BinarySource, CacheControl, ChatMessage, ChatOptionsSet, ChatRequest, ChatRole, ContentPart, CustomPart,
+	ReasoningEffort, ToolChoice, ToolResponse, Usage,
 };
 use crate::resolver::{AuthData, Endpoint};
 use crate::webc::WebClient;
@@ -322,6 +323,7 @@ impl OpenAIAdapter {
 					.as_ref()
 					.and_then(|options| options.cache_control.as_ref())
 					.is_some();
+			let passed_through = openrouter_cache_control(model_iden, &msg);
 
 			// Note: Will handle more types later
 			match msg.role {
@@ -332,6 +334,10 @@ impl OpenAIAdapter {
 							let mut values = vec![json!({"type": "text", "text": content})];
 							apply_chat_cache_breakpoint(model_iden, &mut values, "message")?;
 							messages.push(json!({"role": "system", "content": values}));
+						} else if let Some(cache_control) = passed_through {
+							messages.push(json!({"role": "system", "content": [
+								{"type": "text", "text": content, "cache_control": cache_control}
+							]}));
 						} else {
 							messages.push(json!({"role": "system", "content": content}))
 						}
@@ -342,7 +348,7 @@ impl OpenAIAdapter {
 				// User - For now support Text and Binary
 				ChatRole::User => {
 					// -- If we have only text, then, we jjust returned the joined_texts
-					if msg.content.is_text_only() && !cache_controlled {
+					if msg.content.is_text_only() && !cache_controlled && passed_through.is_none() {
 						// NOTE: for now, if no content, just return empty string (respect current logic)
 						let content = json!(msg.content.joined_texts().unwrap_or_else(String::new));
 						messages.push(json! ({"role": "user", "content": content}));
@@ -417,6 +423,8 @@ impl OpenAIAdapter {
 						}
 						if cache_controlled {
 							apply_chat_cache_breakpoint(model_iden, &mut values, "message")?;
+						} else if let (Some(cache_control), Some(last)) = (passed_through, values.last_mut()) {
+							last.x_insert("cache_control", cache_control)?;
 						}
 						messages.push(json! ({"role": "user", "content": values}));
 					}
@@ -497,14 +505,28 @@ impl OpenAIAdapter {
 
 				// Tool - For now, support only tool responses
 				ChatRole::Tool => {
-					for part in msg.content {
-						if let ContentPart::ToolResponse(tool_response) = part {
-							messages.push(json!({
-								"role": "tool",
-								"content": tool_response.content,
-								"tool_call_id": tool_response.call_id,
-							}))
-						}
+					let responses: Vec<ToolResponse> = msg
+						.content
+						.into_iter()
+						.filter_map(|part| match part {
+							ContentPart::ToolResponse(tool_response) => Some(tool_response),
+							_ => None,
+						})
+						.collect();
+					let last = responses.len().saturating_sub(1);
+					for (i, tool_response) in responses.into_iter().enumerate() {
+						let content = match &passed_through {
+							// The last result carries the mark, as LiteLLM places it.
+							Some(cache_control) if i == last => json!([
+								{"type": "text", "text": tool_response.content, "cache_control": cache_control}
+							]),
+							_ => json!(tool_response.content),
+						};
+						messages.push(json!({
+							"role": "tool",
+							"content": content,
+							"tool_call_id": tool_response.call_id,
+						}))
 					}
 
 					// TODO: Probably need to trace/warn that this will be ignored
@@ -621,6 +643,17 @@ pub struct ToWebRequestDataOptions {
 struct OpenAIRequestParts {
 	messages: Vec<Value>,
 	tools: Option<Vec<Value>>,
+}
+
+/// OpenAlgo Desktop (VENDORED.md, change 4): the Anthropic `cache_control` a message
+/// marked for caching carries on OpenRouter, which passes it through to a Claude model.
+/// genai sent no mark there. An assistant message is left as it was: the desktop marks
+/// only the last message of a request, which is the trader's or a tool's.
+fn openrouter_cache_control(model_iden: &ModelIden, msg: &ChatMessage) -> Option<Value> {
+	if model_iden.adapter_kind != AdapterKind::OpenRouter {
+		return None;
+	}
+	msg.options.as_ref()?.cache_control.as_ref().map(cache_control_to_json)
 }
 
 fn apply_chat_cache_breakpoint(_model_iden: &ModelIden, content: &mut [Value], _scope: &'static str) -> Result<()> {
