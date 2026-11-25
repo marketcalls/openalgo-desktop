@@ -7,11 +7,10 @@
 //! `{"stat":"Not_ok","emsg":..}`.
 
 use super::{text, AliceBlueBroker};
-use crate::brokers::common::redact;
+use crate::brokers::common::{jwt, redact};
 use crate::brokers::types::AuthToken;
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
-use base64::Engine;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -33,13 +32,8 @@ pub fn split_code(code: &str) -> Option<(String, String)> {
 }
 
 /// The `ucc` claim of the session JWT (web order adapter fallback).
-pub fn ucc_from_jwt(jwt: &str) -> Option<String> {
-    let payload = jwt.split('.').nth(1)?;
-    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(payload.trim_end_matches('='))
-        .ok()?;
-    let v: Value = serde_json::from_slice(&bytes).ok()?;
-    let ucc = text(v.get("ucc"));
+pub fn ucc_from_jwt(token: &str) -> Option<String> {
+    let ucc = text(jwt::claims(token)?.get("ucc"));
     (!ucc.is_empty()).then_some(ucc)
 }
 

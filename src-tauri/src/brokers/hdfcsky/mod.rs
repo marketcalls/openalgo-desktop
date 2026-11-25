@@ -22,16 +22,15 @@ pub mod streaming;
 #[cfg(test)]
 mod tests;
 
-use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
+use crate::brokers::common::{http, jwt};
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
-use base64::Engine;
 use parking_lot::Mutex;
 use reqwest::{Method, StatusCode};
 use serde_json::Value;
@@ -316,18 +315,10 @@ pub(crate) fn session_expired() -> AppError {
 /// The account id in the access token's JWT `sub` (or `client_id`) claim.
 /// The token is only read, not verified.
 pub fn client_id_from_jwt(token: &str) -> Option<String> {
-    let payload = token.split('.').nth(1)?;
-    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(payload.trim_end_matches('='))
-        .ok()?;
-    let claims: Value = serde_json::from_slice(&bytes).ok()?;
+    let claims = jwt::claims(token)?;
     ["sub", "client_id"]
         .iter()
-        .find_map(|k| match claims.get(*k) {
-            Some(Value::String(s)) if !s.is_empty() => Some(s.clone()),
-            Some(Value::Number(n)) => Some(n.to_string()),
-            _ => None,
-        })
+        .find_map(|k| jwt::text_claim(&claims, k))
 }
 
 #[async_trait]

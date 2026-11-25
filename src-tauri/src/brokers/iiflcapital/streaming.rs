@@ -20,17 +20,16 @@
 
 use super::mapping;
 use super::mqtt_relay::{self, MqttEndpoint, MqttRelay, MqttUpstream, Prepare, Prepared};
-use crate::brokers::common::relay;
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
     NormalizedTick, OrderUpdate, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
+use crate::brokers::common::{jwt, relay};
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use crate::security::Secret;
 use async_trait::async_trait;
-use base64::Engine;
 use parking_lot::Mutex;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -53,12 +52,7 @@ pub const MAX_INSTRUMENTS: usize = 5800;
 /// `preferred_username` claim of the session JWT (bridgePy
 /// `__get_user_name`).
 pub fn jwt_username(token: &str) -> Option<String> {
-    let payload = token.split('.').nth(1)?;
-    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(payload.trim_end_matches('='))
-        .ok()?;
-    let claims: Value = serde_json::from_slice(&bytes).ok()?;
-    claims
+    jwt::claims(token)?
         .get("preferred_username")
         .and_then(Value::as_str)
         .map(str::trim)

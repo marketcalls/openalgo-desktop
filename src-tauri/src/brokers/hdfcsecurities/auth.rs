@@ -5,10 +5,9 @@
 //! answer is `{"accessToken": ..}`, or the same inside `data`.
 
 use super::{error_message, HdfcSecuritiesBroker, USER_AGENT};
-use crate::brokers::common::http;
+use crate::brokers::common::{http, jwt};
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
-use base64::Engine;
 use serde_json::{json, Value};
 
 /// `accessToken` / `access_token`, top level or under `data`.
@@ -25,16 +24,7 @@ pub fn access_token(v: &Value) -> Option<String> {
 
 /// The `sub` claim of a JWT (the InvestRight client id), if readable.
 pub fn jwt_subject(token: &str) -> Option<String> {
-    let payload = token.split('.').nth(1)?;
-    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(payload.trim_end_matches('='))
-        .ok()?;
-    let v: Value = serde_json::from_slice(&bytes).ok()?;
-    match v.get("sub")? {
-        Value::String(s) if !s.is_empty() => Some(s.clone()),
-        Value::Number(n) => Some(n.to_string()),
-        _ => None,
-    }
+    jwt::text_claim(&jwt::claims(token)?, "sub")
 }
 
 pub async fn authenticate(
