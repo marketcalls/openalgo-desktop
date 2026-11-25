@@ -7,11 +7,13 @@
 use super::{MppScope, NorenConfig, PositionPnl};
 use crate::brokers::common::mapping::{Action, PriceType, Product};
 use crate::brokers::common::master_contract::format_strike;
-use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price, py_round};
+use crate::brokers::common::mpp::{
+    instrument_type_from_symbol, protected_price, py_round, stop_limit_off_trigger, StopLimit,
+};
 use crate::brokers::common::streaming::OrderUpdate;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use serde_json::{json, Map, Value};
 
 // ---------------------------------------------------------------------------
@@ -220,6 +222,40 @@ pub struct MppOrder<'a> {
     pub trigger: f64,
 }
 
+/// What the trader reads for an SL-M without a trigger price (web
+/// `SLM_NO_TRIGGER_MESSAGE`, #2390).
+const SLM_NO_TRIGGER: &str = "A stop-loss market (SL-M) order needs a trigger price. \
+Set a trigger price above zero and place the order again.";
+
+/// The trigger of an SL-M sent as a stop-limit, or the refusal, before
+/// anything is sent, of one without (web `slm_trigger_price`, #2390): its
+/// limit is priced off the trigger, so without one there is nothing to
+/// price.
+pub(crate) fn slm_trigger(trigger: f64) -> Result<f64> {
+    if trigger.is_finite() && trigger > 0.0 {
+        Ok(trigger)
+    } else {
+        Err(AppError::Validation(SLM_NO_TRIGGER.into()))
+    }
+}
+
+/// The limit of an SL-M sent as SL-LMT (web `slm_limit_from_trigger`,
+/// #2390; Shoonya, Flattrade and Firstock): priced off its own trigger,
+/// never the LTP, since the limit only matters once the trigger trades.
+/// Off the LTP a SELL stop at 980 with the LTP at 1000 went out at 995,
+/// above its own trigger, and rested away from the market once triggered.
+/// Without a tick size to snap to, or for a SELL trigger with no tick
+/// left below it, these brokers send the trigger itself (already on a
+/// tick) as the limit rather than refuse the order.
+pub(crate) fn slm_limit(symbol: &str, action: Action, trigger: f64, tick: f64) -> Result<f64> {
+    let trigger = slm_trigger(trigger)?;
+    let limit = match stop_limit_off_trigger(symbol, action, trigger, tick)? {
+        StopLimit::Priced(limit) => limit,
+        StopLimit::NoTick | StopLimit::TooLow => trigger,
+    };
+    Ok(limit)
+}
+
 /// `(prctyp, prc)` for a place order. `quote` is `None` when it could not
 /// be fetched; `master_tick` is the SymToken tick size.
 pub fn mpp_place(
@@ -254,22 +290,16 @@ pub fn mpp_place(
             }
         }
         MppScope::MarketAndStop => {
+            if is_slm {
+                // Off the trigger, with the quote's tick, else the master's.
+                let tick = tick.unwrap_or(master_tick);
+                return Ok(("SL-LMT", num(slm_limit(symbol, action, trigger, tick)?)));
+            }
             if ltp > 0.0 {
-                return Ok((target, num(protected_price(ltp, action, it, tick)?)));
+                ("LMT", num(protected_price(ltp, action, it, tick)?))
+            } else {
+                (base, num(price))
             }
-            if is_market {
-                return Ok((base, num(price)));
-            }
-            // SL-M without a quote still goes as SL-LMT, priced off the
-            // trigger; the MPP buffer only when the master has a tick size.
-            if trigger > 0.0 {
-                if master_tick > 0.0 {
-                    let p = protected_price(trigger, action, it, Some(master_tick))?;
-                    return Ok(("SL-LMT", num(p)));
-                }
-                return Ok(("SL-LMT", num(trigger)));
-            }
-            ("SL-LMT", num(price))
         }
         MppScope::AlwaysConvert => {
             let basis = if is_market {

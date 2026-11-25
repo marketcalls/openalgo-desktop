@@ -10,6 +10,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Router;
 use chrono::NaiveDate;
 use openalgo_desktop_lib::brokers::common::mapping::{Action, Exchange, PriceType, Product};
+use openalgo_desktop_lib::brokers::common::outcome::{classify, placing, PlaceOutcome};
 use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::families::noren::master_contract::parse_file;
 use openalgo_desktop_lib::brokers::families::noren::{
@@ -19,6 +20,7 @@ use openalgo_desktop_lib::brokers::firstock::FirstockBroker;
 use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{firstock, flattrade, shoonya, tradesmart, zebu};
 use openalgo_desktop_lib::brokers::{Broker, BrokerCredentials};
+use openalgo_desktop_lib::services::order_service::broker_error_reply;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -1373,6 +1375,74 @@ async fn zebu_has_no_margin_and_keeps_sl_m() {
 }
 
 // ---------------------------------------------------------------------------
+// SL-M priced off the trigger (web test/test_slm_trigger_pricing_2390.py,
+// marketcalls/openalgo#2495): the requests; the pricing cases are in
+// `families::noren::slm_tests` and `firstock::slm_tests`.
+// ---------------------------------------------------------------------------
+
+const SLM_NO_TRIGGER: &str = "A stop-loss market (SL-M) order needs a trigger price. Set a trigger price above zero and place the order again.";
+
+/// Web `test_place_order_api_refuses_sl_m_without_trigger`: a definite
+/// refusal (never an uncertain placement), answered on `/api/v1` with 400
+/// and the web's sentence.
+fn assert_refused_for_no_trigger(placed: &openalgo_desktop_lib::error::Result<OrderResponse>) {
+    assert!(
+        matches!(classify(placed), PlaceOutcome::Refused { .. }),
+        "{:?}",
+        placed
+    );
+    let Err(e) = placed else {
+        panic!("an SL-M without a trigger was placed")
+    };
+    let reply = broker_error_reply(e, "internal");
+    assert_eq!(reply.status, 400);
+    assert_eq!(
+        reply.body,
+        json!({"status": "error", "message": SLM_NO_TRIGGER})
+    );
+}
+
+/// Shoonya and Flattrade read the quote for its tick only: against the
+/// fake's LTP of 812.40, a SELL stop at 800 went out at 808.35 (above its
+/// own trigger) and a BUY stop at 820 at 816.45 (below it).
+#[tokio::test]
+async fn shoonya_and_flattrade_price_sl_m_off_the_trigger() {
+    for cfg in [shoonya::config(), flattrade::config()] {
+        let (b, fake, auth) = noren(cfg).await;
+        for (action, trigger, limit) in
+            [(Action::Sell, 800.0, "796"), (Action::Buy, 820.0, "824.1")]
+        {
+            let mut o = order("SBIN", "NSE", "SL-M", 0.0);
+            o.action = action;
+            o.trigger_price = trigger;
+            b.place_order(&auth, &o).await.unwrap();
+            let calls = fake.calls("/PlaceOrder");
+            let p = &calls.last().unwrap().jdata;
+            assert_eq!(
+                (&p["prctyp"], &p["prc"], &p["trgprc"]),
+                (&json!("SL-LMT"), &json!(limit), &json!(trigger.to_string())),
+                "{} {:?}",
+                cfg.id,
+                action
+            );
+        }
+        assert_eq!(fake.calls("/GetQuotes").len(), 2, "{}", cfg.id);
+    }
+}
+
+/// An SL-M without a trigger reaches neither the quote nor the order
+/// endpoint.
+#[tokio::test]
+async fn shoonya_and_flattrade_send_nothing_for_an_sl_m_without_a_trigger() {
+    for cfg in [shoonya::config(), flattrade::config()] {
+        let (b, fake, auth) = noren(cfg).await;
+        let o = order("SBIN", "NSE", "SL-M", 0.0);
+        assert_refused_for_no_trigger(&placing(b.place_order(&auth, &o)).await);
+        assert!(fake.seen.lock().is_empty(), "{}", cfg.id);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Firstock
 // ---------------------------------------------------------------------------
 
@@ -1457,6 +1527,81 @@ async fn firstock_login_orders_and_books() {
     assert_eq!(f.available_cash, 85000.0);
     assert_eq!(b.get_holdings(&auth).await.unwrap()[0].symbol, "SBIN");
     assert_eq!(b.get_trade_book(&auth).await.unwrap()[0].quantity, 5);
+}
+
+/// A Firstock SL-M SELL on SBIN with this trigger.
+fn firstock_slm(b: &FirstockBroker, trigger: Option<f64>) -> ResolvedOrder {
+    let req = OrderRequest {
+        symbol: "SBIN".into(),
+        exchange: "NSE".into(),
+        side: "SELL".into(),
+        quantity: 1,
+        price: 0.0,
+        order_type: "SL-M".into(),
+        product: "MIS".into(),
+        validity: "DAY".into(),
+        trigger_price: trigger,
+        disclosed_quantity: None,
+        amo: false,
+    };
+    ResolvedOrder::resolve(&req, b.symbols().unwrap()).unwrap()
+}
+
+fn firstock_slm_modify(b: &FirstockBroker, trigger: f64) -> ResolvedModify {
+    let req = ModifyOrderRequest {
+        symbol: "SBIN".into(),
+        exchange: "NSE".into(),
+        action: "SELL".into(),
+        product: "MIS".into(),
+        pricetype: "SL-M".into(),
+        quantity: 1,
+        price: 0.0,
+        trigger_price: trigger,
+        disclosed_quantity: 0,
+    };
+    ResolvedModify::resolve("1234567890111", &req, b.symbols().unwrap()).unwrap()
+}
+
+/// Web test/test_slm_trigger_pricing_2390.py (#2495) for Firstock: an SL-M
+/// reads no quote (Firstock's has no tick size), and goes as SL-LMT off
+/// its trigger with the master's tick on a place and on a modify; off the
+/// LTP of 812.40 the SELL stop at 800 went out at 808.35. One without a
+/// trigger reaches nothing.
+#[tokio::test]
+async fn firstock_prices_sl_m_off_the_trigger_without_a_quote() {
+    let (b, fake, auth) = firstock_setup().await;
+    b.place_order(&auth, &firstock_slm(&b, Some(800.0)))
+        .await
+        .unwrap();
+    b.modify_order(&auth, &firstock_slm_modify(&b, 800.0))
+        .await
+        .unwrap();
+    for leaf in ["/placeOrder", "/modifyOrder"] {
+        let p = &fake.calls(leaf)[0].jdata;
+        assert_eq!(
+            (
+                &p["priceType"],
+                &p["price"],
+                &p["triggerPrice"],
+                &p["mkt_protection"]
+            ),
+            (&json!("SL-LMT"), &json!("796"), &json!("800"), &json!("0")),
+            "{}",
+            leaf
+        );
+    }
+    assert!(fake.calls("/getQuote").is_empty());
+
+    assert_refused_for_no_trigger(&placing(b.place_order(&auth, &firstock_slm(&b, None))).await);
+    let e = b
+        .modify_order(&auth, &firstock_slm_modify(&b, 0.0))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        broker_error_reply(&e, "internal").body["message"],
+        SLM_NO_TRIGGER
+    );
+    assert_eq!(fake.seen.lock().len(), 2);
 }
 
 #[tokio::test]

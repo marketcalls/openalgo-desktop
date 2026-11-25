@@ -4,7 +4,7 @@ use super::mapping::{
     self, mpp_place, noren_exchange, product_code, reverse_product, text, MppOrder, MppQuote,
 };
 use super::transport::{as_list, noren_error, session, stat_ok, Category, Session};
-use super::NorenBroker;
+use super::{MppScope, NorenBroker};
 use crate::brokers::common::book_read::{self, Book};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
 use crate::brokers::common::position_read::unread;
@@ -43,7 +43,8 @@ async fn positions(
     Ok(rows)
 }
 
-/// LTP and `ti` for MPP; `None` when the quote cannot be read.
+/// LTP and `ti` for MPP (an SL-M reads only the tick); `None` when the
+/// quote cannot be read.
 async fn mpp_quote(b: &NorenBroker, s: &Session, o: &ResolvedOrder) -> Option<MppQuote> {
     let exch = noren_exchange(o.exchange.as_str());
     match super::data::quote_response(b, s, exch, o.token()).await {
@@ -68,9 +69,13 @@ async fn mpp_quote(b: &NorenBroker, s: &Session, o: &ResolvedOrder) -> Option<Mp
 
 /// PlaceOrder `jData` for a resolved order, MPP applied.
 pub(crate) async fn place_body(b: &NorenBroker, s: &Session, o: &ResolvedOrder) -> Result<Value> {
+    if o.pricetype == PriceType::SlM && b.cfg.mpp == MppScope::MarketAndStop {
+        // Refused before anything is sent, its quote included (web #2390).
+        mapping::slm_trigger(o.trigger_price)?;
+    }
     let needs_quote = match o.pricetype {
         PriceType::Market => true,
-        PriceType::SlM => b.cfg.mpp != super::MppScope::MarketOnly,
+        PriceType::SlM => b.cfg.mpp != MppScope::MarketOnly,
         _ => false,
     };
     let quote = if needs_quote {

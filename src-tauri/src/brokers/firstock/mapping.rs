@@ -6,7 +6,7 @@ use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price, 
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::mapping::{
     book_pricetype, book_product, escape_tsym, f, i, num, oa_symbol, pricetype_code, product_code,
-    side, text,
+    side, slm_limit, text, MppOrder,
 };
 use crate::brokers::types::*;
 use crate::error::Result;
@@ -30,51 +30,50 @@ pub fn map_status(raw: &str) -> String {
     }
 }
 
-/// `(priceType, price, mkt_protection)` with client-side MPP: MARKET and
-/// SL-M convert when an LTP is known; otherwise the order goes as sent and
-/// Firstock's server-side protection applies. Tick size comes from the
-/// master (`/getQuote` has none).
+/// `(priceType, price, mkt_protection)` with client-side MPP. Tick size
+/// comes from the master (`/getQuote` has none).
+/// - MARKET converts to LMT when an LTP is known; otherwise it goes as sent
+///   and Firstock's server-side protection applies (on a modify with
+///   `mkt_protection` 1).
+/// - SL-M always goes as SL-LMT priced off its trigger, never the LTP, and
+///   is refused without one (web #2390, `slm_limit`); it needs no quote.
 pub fn mpp(
-    symbol: &str,
-    action: Option<Action>,
-    pricetype: PriceType,
-    price: f64,
+    o: &MppOrder<'_>,
     ltp: Option<f64>,
     tick: f64,
     on_modify: bool,
 ) -> Result<(&'static str, String, &'static str)> {
-    let base = pricetype_code(pricetype);
-    if !matches!(pricetype, PriceType::Market | PriceType::SlM) {
-        return Ok((base, num(price), "0"));
+    let base = pricetype_code(o.pricetype);
+    match o.pricetype {
+        PriceType::SlM => Ok((
+            "SL-LMT",
+            num(slm_limit(o.symbol, o.action, o.trigger, tick)?),
+            "0",
+        )),
+        PriceType::Market => Ok(match ltp.filter(|l| *l > 0.0) {
+            Some(l) => {
+                let t = (tick > 0.0).then_some(tick);
+                let p = protected_price(l, o.action, instrument_type_from_symbol(o.symbol), t)?;
+                ("LMT", num(p), "0")
+            }
+            // Modify without a usable quote defers to server-side protection.
+            None if on_modify => (base, num(o.price), "1"),
+            None => (base, num(o.price), "0"),
+        }),
+        _ => Ok((base, num(o.price), "0")),
     }
-    let target = if pricetype == PriceType::Market {
-        "LMT"
-    } else {
-        "SL-LMT"
-    };
-    Ok(match (action, ltp.filter(|l| *l > 0.0)) {
-        (Some(a), Some(l)) => {
-            let t = (tick > 0.0).then_some(tick);
-            let p = protected_price(l, a, instrument_type_from_symbol(symbol), t)?;
-            (target, num(p), "0")
-        }
-        // Modify without a usable quote defers to server-side protection.
-        _ if on_modify => (base, num(price), "1"),
-        _ => (base, num(price), "0"),
-    })
 }
 
 /// `/placeOrder` body (without `jKey`/`userId`).
 pub fn place_body(o: &ResolvedOrder, ltp: Option<f64>) -> Result<Value> {
-    let (pt, prc, mp) = mpp(
-        &o.symbol,
-        Some(o.action),
-        o.pricetype,
-        o.price,
-        ltp,
-        o.instrument.tick_size,
-        false,
-    )?;
+    let terms = MppOrder {
+        symbol: &o.symbol,
+        action: o.action,
+        pricetype: o.pricetype,
+        price: o.price,
+        trigger: o.trigger_price,
+    };
+    let (pt, prc, mp) = mpp(&terms, ltp, o.instrument.tick_size, false)?;
     Ok(json!({
         "exchange": o.exchange.as_str(),
         "tradingSymbol": escape_tsym(o.brsymbol()),
@@ -92,15 +91,14 @@ pub fn place_body(o: &ResolvedOrder, ltp: Option<f64>) -> Result<Value> {
 
 /// `/modifyOrder` body (without `jKey`/`userId`).
 pub fn modify_body(m: &ResolvedModify, ltp: Option<f64>) -> Result<Value> {
-    let (pt, prc, mp) = mpp(
-        &m.symbol,
-        Some(m.action),
-        m.pricetype,
-        m.price,
-        ltp,
-        m.instrument.tick_size,
-        true,
-    )?;
+    let terms = MppOrder {
+        symbol: &m.symbol,
+        action: m.action,
+        pricetype: m.pricetype,
+        price: m.price,
+        trigger: m.trigger_price,
+    };
+    let (pt, prc, mp) = mpp(&terms, ltp, m.instrument.tick_size, true)?;
     Ok(json!({
         "exchange": m.exchange.as_str(),
         "orderNumber": m.order_id,
