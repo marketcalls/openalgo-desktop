@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "pocketful",
   "inputs_sha256": "4874e5c984a3274e2bdd765b1f1620d8696ccce037bead2a79f6136d91a7e6f4",
   "instruments": [
@@ -71,22 +71,21 @@
           "symbol": "NIFTY",
           "mode": 2,
           "data": {
-            "ltp": 24500.1,
-            "ltt": 1762656900,
             "volume": 0,
+            "last_trade_quantity": 0,
+            "bid_price": 0.0,
+            "bid_size": 0,
+            "ask_price": 0.0,
+            "ask_size": 0,
+            "oi": 0,
+            "timestamp": "<receipt_ms>",
+            "ltp": 24500.1,
             "open": 24450.0,
             "high": 24600.0,
             "low": 24400.0,
             "close": 24300.0,
-            "last_trade_quantity": 0,
-            "average_price": 0.0,
-            "total_buy_quantity": 0,
-            "total_sell_quantity": 0,
-            "oi": 0,
-            "symbol": "NIFTY",
-            "exchange": "NSE_INDEX",
-            "mode": 2,
-            "timestamp": "<receipt_ms>"
+            "change": 200.1,
+            "change_percent": 0.82
           }
         }
       ],

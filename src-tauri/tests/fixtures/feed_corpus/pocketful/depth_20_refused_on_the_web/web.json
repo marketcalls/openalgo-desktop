@@ -1,8 +1,8 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "pocketful",
-  "inputs_sha256": "7490e6fdf8b71de6564bfe7a8b7500bd1343cda88d45b7de35d0c6e6ed497d9f",
+  "inputs_sha256": "6f4c06dd07206527f7a905c56b51f917cb671c70033292cd614892a32361fd88",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -25,7 +25,7 @@
               "symbol": "RELIANCE",
               "exchange": "NSE",
               "status": "error",
-              "message": "Invalid depth level 20. Must be 5",
+              "message": "Pocketful streams 5 levels of market depth; 20 levels are not available.",
               "broker": "pocketful"
             }
           ],
@@ -91,18 +91,6 @@
           "symbol": "RELIANCE",
           "mode": 3,
           "data": {
-            "ltp": 1498.76,
-            "open": 1490.0,
-            "high": 1510.0,
-            "low": 1485.0,
-            "close": 1488.0,
-            "volume": 1234567,
-            "total_buy_quantity": 500000,
-            "total_sell_quantity": 600000,
-            "symbol": "RELIANCE",
-            "exchange": "NSE",
-            "mode": 3,
-            "timestamp": "<receipt_ms>",
             "depth": {
               "buy": [
                 {
@@ -158,7 +146,16 @@
                   "orders": 12
                 }
               ]
-            }
+            },
+            "volume": 1234567,
+            "totalbuyqty": 500000,
+            "totalsellqty": 600000,
+            "timestamp": "<receipt_ms>",
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1485.0,
+            "close": 1488.0,
+            "avg_trade_price": 1498.76
           }
         }
       ],

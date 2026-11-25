@@ -1,8 +1,8 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "pocketful",
-  "inputs_sha256": "48dd08aa045eb9ea264d60822ffbb917a4101daeeae8aee204f42c4a97b43be7",
+  "inputs_sha256": "d71192d485a9abce80cc1e3584ae4ff9749b503001971ca6ee7af0ca355cf146",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -37,7 +37,7 @@
       "from_adapter": true
     },
     {
-      "line": 7,
+      "line": 11,
       "frames": [
         {
           "type": "unsubscribe",
@@ -70,18 +70,6 @@
           "symbol": "RELIANCE",
           "mode": 3,
           "data": {
-            "ltp": 1498.76,
-            "open": 1490.0,
-            "high": 1510.0,
-            "low": 1485.0,
-            "close": 1488.0,
-            "volume": 1234567,
-            "total_buy_quantity": 500000,
-            "total_sell_quantity": 600000,
-            "symbol": "RELIANCE",
-            "exchange": "NSE",
-            "mode": 3,
-            "timestamp": "<receipt_ms>",
             "depth": {
               "buy": [
                 {
@@ -137,7 +125,16 @@
                   "orders": 12
                 }
               ]
-            }
+            },
+            "volume": 1234567,
+            "totalbuyqty": 500000,
+            "totalsellqty": 600000,
+            "timestamp": "<receipt_ms>",
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1485.0,
+            "close": 1488.0,
+            "avg_trade_price": 1498.76
           }
         }
       ],
@@ -164,18 +161,6 @@
           "symbol": "RELIANCE",
           "mode": 3,
           "data": {
-            "ltp": 1498.8,
-            "open": 1490.0,
-            "high": 1510.0,
-            "low": 1485.0,
-            "close": 1488.0,
-            "volume": 1234600,
-            "total_buy_quantity": 0,
-            "total_sell_quantity": 0,
-            "symbol": "RELIANCE",
-            "exchange": "NSE",
-            "mode": 3,
-            "timestamp": "<receipt_ms>",
             "depth": {
               "buy": [
                 {
@@ -231,7 +216,113 @@
                   "orders": 0
                 }
               ]
-            }
+            },
+            "volume": 1234600,
+            "totalbuyqty": 0,
+            "totalsellqty": 0,
+            "timestamp": "<receipt_ms>",
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1485.0,
+            "close": 1488.0,
+            "avg_trade_price": 1498.8
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "broker": "pocketful",
+          "serves": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "depth": {
+              "buy": [
+                {
+                  "price": 1500.0,
+                  "quantity": 100,
+                  "orders": 3
+                },
+                {
+                  "price": 1499.95,
+                  "quantity": 101,
+                  "orders": 4
+                },
+                {
+                  "price": 1499.9,
+                  "quantity": 102,
+                  "orders": 5
+                },
+                {
+                  "price": 1499.85,
+                  "quantity": 103,
+                  "orders": 6
+                },
+                {
+                  "price": 1499.8,
+                  "quantity": 104,
+                  "orders": 7
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1500.1,
+                  "quantity": 200,
+                  "orders": 8
+                },
+                {
+                  "price": 1500.15,
+                  "quantity": 201,
+                  "orders": 9
+                },
+                {
+                  "price": 1500.2,
+                  "quantity": 202,
+                  "orders": 10
+                },
+                {
+                  "price": 1500.25,
+                  "quantity": 203,
+                  "orders": 11
+                },
+                {
+                  "price": 1500.3,
+                  "quantity": 204,
+                  "orders": 12
+                }
+              ]
+            },
+            "volume": 1234567,
+            "totalbuyqty": 500000,
+            "totalsellqty": 600000,
+            "timestamp": "<receipt_ms>",
+            "ltp": 1500.25,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1485.0,
+            "close": 1488.0,
+            "avg_trade_price": 1498.76
           }
         }
       ],

@@ -179,12 +179,14 @@ fn an_instruments_change_goes_under_the_brokers_names() {
         assert_eq!(d[name], 1.25, "{}: {}", broker, d);
         assert!(d.get("price_change").is_none(), "{}: {}", broker, d);
     }
-    // pocketful_adapter.py:629-637: the compact (LTP) packet alone has one.
-    let pocketful = data_at(equity(), Mode::Ltp, "pocketful");
+    // pocketful_adapter.py `_handle_detailed_data`: the Quote frame alone
+    // has one; the LTP and Depth frames none.
+    let pocketful = data_at(equity(), Mode::Quote, "pocketful");
     assert_eq!(pocketful["change"], 1.25, "{}", pocketful);
-    assert!(data_at(equity(), Mode::Quote, "pocketful")
-        .get("change")
-        .is_none());
+    for mode in [Mode::Ltp, Mode::Depth] {
+        let d = data_at(equity(), mode, "pocketful");
+        assert!(d.get("change").is_none(), "{:?}: {}", mode, d);
+    }
     for broker in ["zerodha", "unknown"] {
         for mode in [Mode::Quote, Mode::Depth] {
             let d = data_at(equity(), mode, broker);
@@ -482,15 +484,31 @@ fn shared_fields_go_out_under_the_brokers_names() {
     assert_eq!(dhan["day_close"], 101.0);
     let shoonya = render(&u, Mode::Ltp, "shoonya");
     assert_eq!(shoonya["shoonya_timestamp"], 1_791_000_000);
+    // pocketful_adapter.py `_handle_detailed_data`: the best prices with
+    // their sizes, and the OI, in the Quote frame alone.
+    let pocketful_quote = render(&at_quote, Mode::Quote, "pocketful");
+    assert_eq!(
+        (
+            pocketful_quote["bid_price"].as_f64(),
+            pocketful_quote["bid_size"].as_i64(),
+            pocketful_quote["ask_size"].as_i64(),
+            pocketful_quote["oi"].as_i64()
+        ),
+        (Some(101.2), Some(40), Some(50), Some(5000))
+    );
     let mut at_ltp = u.clone();
     at_ltp.mode = Mode::Ltp;
-    let pocketful = render(&at_ltp, Mode::Ltp, "pocketful");
-    assert_eq!(
-        (pocketful["bid_price"].as_f64(), pocketful["oi"].as_i64()),
-        (Some(101.2), Some(5000))
-    );
-    let pocketful_quote = render(&at_quote, Mode::Quote, "pocketful");
-    assert!(pocketful_quote.get("bid_price").is_none(), "LTP only");
+    for (pocketful, mode) in [
+        (render(&at_ltp, Mode::Ltp, "pocketful"), "LTP"),
+        (render(&u, Mode::Depth, "pocketful"), "Depth"),
+    ] {
+        assert!(
+            pocketful.get("bid_price").is_none() && pocketful.get("oi").is_none(),
+            "{}: {}",
+            mode,
+            pocketful
+        );
+    }
     let zerodha = render(&u, Mode::Depth, "zerodha");
     assert!(zerodha.get("upper_circuit").is_none() && zerodha.get("bid_price").is_none());
     let none = render(&update(equity()), Mode::Depth, "angel");
@@ -766,7 +784,7 @@ fn no_key_is_ever_null() {
 /// `data.mode` of a lower holder's frame from a one-dict broker: the dict's
 /// own mode where the web adapter writes the packet's (Paytm, Dhan, the XTS
 /// adapters but Jainam), the holder's where it writes each subscription's
-/// (mStock, Delta Exchange, Angel, Pocketful). Jainam XTS publishes each
+/// (mStock, Delta Exchange, Angel). Jainam XTS publishes each
 /// subscription its own mode's dict, so its frames are cut to the holder's
 /// mode (the per-mode fold) and carry the holder's mode.
 #[test]
@@ -775,7 +793,7 @@ fn data_mode_is_the_packets_or_the_holders_as_each_web_adapter_writes_it() {
     for broker in ["paytm", "dhan", "compositedge", "rmoney"] {
         assert_eq!(render(&u, Mode::Ltp, broker)["mode"], 3, "{}", broker);
     }
-    for broker in ["mstock", "deltaexchange", "angel", "pocketful"] {
+    for broker in ["mstock", "deltaexchange", "angel"] {
         let d = render(&u, Mode::Ltp, broker);
         assert_eq!(d["mode"], 1, "{}", broker);
         assert_eq!(render(&u, Mode::Quote, broker)["mode"], 2, "{}", broker);
@@ -789,6 +807,14 @@ fn data_mode_is_the_packets_or_the_holders_as_each_web_adapter_writes_it() {
     let jainam = render(&u, Mode::Ltp, "jainamxts");
     assert_eq!(jainam["mode"], 1);
     assert!(jainam.get("volume").is_none(), "LTP's own dict: {}", jainam);
+    // Pocketful's rebuilt adapter (a1d539764) writes no mode; its lower
+    // holder still gets the richer dict, as the web's listener sends it.
+    let pocketful = render(&u, Mode::Ltp, "pocketful");
+    assert!(
+        pocketful.get("mode").is_none() && pocketful.get("volume").is_some(),
+        "{}",
+        pocketful
+    );
 }
 
 /// An index's order flow goes out where the broker's web adapter sends it
@@ -1252,5 +1278,101 @@ fn the_canonical_index_change_follows_the_broker() {
     assert_eq!(
         data_at(index(), Mode::Quote, "zerodha")["price_change"],
         1.25
+    );
+}
+
+/// Pocketful's rebuilt adapter (web a1d539764, marketcalls/openalgo#2467):
+/// a dict per channel with no symbol, exchange or mode; the LTP frame
+/// `{ltp, timestamp}` (and the trade time the web drops); the Quote frame
+/// under the web's names (`last_trade_quantity`, `avg_trade_price`), with
+/// the book's totals under the canonical names; the Depth frame's totals as
+/// `totalbuyqty` / `totalsellqty`, and no OI or last quantity there.
+/// Web test/test_pocketful_streaming.py::test_ltp_mode_publishes_only_the_documented_ltp_frame,
+/// ::test_quote_mode_publishes_the_documented_quote_frame,
+/// ::test_depth_never_publishes_the_average_price_as_the_last_traded_price
+#[test]
+fn pocketful_frames_carry_the_rebuilt_adapters_keys() {
+    let keys = |d: &Value| -> Vec<String> {
+        let mut k: Vec<String> = d.as_object().unwrap().keys().cloned().collect();
+        k.sort();
+        k
+    };
+    let ltp = data_at(equity(), Mode::Ltp, "pocketful");
+    assert_eq!(keys(&ltp), ["ltp", "ltt", "timestamp"], "{}", ltp);
+    let quote = data_at(equity(), Mode::Quote, "pocketful");
+    assert_eq!(
+        keys(&quote),
+        [
+            "avg_trade_price",
+            "change",
+            "change_percent",
+            "close",
+            "high",
+            "last_trade_quantity",
+            "low",
+            "ltp",
+            "ltt",
+            "oi",
+            "open",
+            "timestamp",
+            "total_buy_quantity",
+            "total_sell_quantity",
+            "volume"
+        ],
+        "{}",
+        quote
+    );
+    assert_eq!(
+        (
+            quote["avg_trade_price"].as_f64(),
+            quote["last_trade_quantity"].as_i64()
+        ),
+        (Some(100.75), Some(7))
+    );
+    let depth = data(equity(), Mode::Depth, "pocketful");
+    assert_eq!(
+        keys(&depth),
+        [
+            "avg_trade_price",
+            "close",
+            "depth",
+            "high",
+            "low",
+            "ltp",
+            "open",
+            "timestamp",
+            "totalbuyqty",
+            "totalsellqty",
+            "volume"
+        ],
+        "{}",
+        depth
+    );
+    assert_eq!(
+        (
+            depth["totalbuyqty"].as_i64(),
+            depth["totalsellqty"].as_i64()
+        ),
+        (Some(300), Some(400))
+    );
+    // An index: no order flow, no OI, the change under the web's names only.
+    let index_quote = data_at(index(), Mode::Quote, "pocketful");
+    assert_eq!(
+        keys(&index_quote),
+        [
+            "change",
+            "change_percent",
+            "close",
+            "high",
+            "low",
+            "ltp",
+            "ltt",
+            "oi",
+            "open",
+            "timestamp",
+            "volume"
+        ],
+        "{}",
+        index_quote
     );
 }

@@ -15,10 +15,10 @@
     }
   ],
   "upstream_ignore": [
-    "{\"a\":\"h\"}"
+    "{\"a\":\"h\",\"v\":[],\"m\":\"\"}"
   ],
   "provenance": {
-    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
     "method": "web-script",
     "sources": [
       "broker/pocketful/api/packet_decoder.py::decodeDetailedMarketData",
@@ -26,20 +26,46 @@
       "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_detailed_data"
     ],
     "notes": [
-      "The web's detailed frame sends no change, bid/ask or 52-week fields though the packet carries them (pocketful_adapter.py:581-598); the desktop does not send them either."
+      "The web's Quote frame (pocketful_adapter.py _handle_detailed_data) has no trade time and no book totals though the packet carries both; the desktop keeps them (lost data)."
     ]
   },
   "deviations": [
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
-      "ref": "pocketful_adapter.py:583, 631",
-      "approval": "alias-unit",
+      "approval": "lost-data-kept",
+      "reason": "Pocketful's compact and detailed packets carry the last trade time (last_traded_time, epoch seconds, packet_decoder.py); the web's frames leave it out since a1d539764 (pocketful_adapter.py _handle_compact_data, _handle_detailed_data): market data the broker sent, lost. The desktop sends it as ltt in epoch milliseconds, the unit the docs give every WebSocket time.",
+      "ref": "pocketful_adapter.py _handle_compact_data, _handle_detailed_data",
       "allows": [
         [
-          1762656900,
+          "<absent>",
           1762656900000
+        ]
+      ]
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "approval": "lost-data-kept",
+      "reason": "The detailed packet carries the book's totals (total_buy_quantity and total_sell_quantity, packet_decoder.py _DETAILED at bytes 38 and 46); the web's Quote frame leaves them out (pocketful_adapter.py _handle_detailed_data; its Depth frame names the snapquote's as totalbuyqty and totalsellqty): market data the broker sent, lost. The desktop's Quote frame keeps them.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
+      "allows": [
+        [
+          "<absent>",
+          500000
+        ]
+      ]
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "approval": "lost-data-kept",
+      "reason": "The detailed packet carries the book's totals (total_buy_quantity and total_sell_quantity, packet_decoder.py _DETAILED at bytes 38 and 46); the web's Quote frame leaves them out (pocketful_adapter.py _handle_detailed_data; its Depth frame names the snapquote's as totalbuyqty and totalsellqty): market data the broker sent, lost. The desktop's Quote frame keeps them.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
+      "allows": [
+        [
+          "<absent>",
+          600000
         ]
       ]
     }

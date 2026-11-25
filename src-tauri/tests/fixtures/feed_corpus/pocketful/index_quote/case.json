@@ -16,29 +16,29 @@
     }
   ],
   "upstream_ignore": [
-    "{\"a\":\"h\"}"
+    "{\"a\":\"h\",\"v\":[],\"m\":\"\"}"
   ],
   "provenance": {
-    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
     "method": "web-script",
     "sources": [
       "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_detailed_data",
       "broker/pocketful/api/packet_decoder.py::decodeDetailedMarketData"
     ],
     "notes": [
-      "Whether Pocketful streams indices with the detailed layout, and with what in the trade fields, needs a live check."
+      "An index's detailed packet carries no trade quantity, book or OI; the web sends those zeros, the desktop leaves them out. Whether Pocketful streams indices with the detailed layout needs a live check."
     ]
   },
   "deviations": [
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
-      "ref": "pocketful_adapter.py:583, 631",
-      "approval": "alias-unit",
+      "approval": "lost-data-kept",
+      "reason": "Pocketful's compact and detailed packets carry the last trade time (last_traded_time, epoch seconds, packet_decoder.py); the web's frames leave it out since a1d539764 (pocketful_adapter.py _handle_compact_data, _handle_detailed_data): market data the broker sent, lost. The desktop sends it as ltt in epoch milliseconds, the unit the docs give every WebSocket time.",
+      "ref": "pocketful_adapter.py _handle_compact_data, _handle_detailed_data",
       "allows": [
         [
-          1762656900,
+          "<absent>",
           1762656900000
         ]
       ]
@@ -46,39 +46,49 @@
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
-      "ref": "pocketful_adapter.py:580-594",
-      "approval": "leave-out-unsent",
+      "approval": "index-quote-zero-left-out",
+      "reason": "An index's detailed packet fills the last trade quantity, the best bid and ask with their sizes and the OI with 0, values an index does not have; the web sends those zeros (pocketful_adapter.py _handle_detailed_data), the desktop leaves them out.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
       "allows": [
         "zero-left-out"
       ]
     },
     {
-      "key": "average_price",
+      "key": "bid_price",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
-      "ref": "pocketful_adapter.py:580-594",
-      "approval": "leave-out-unsent",
+      "approval": "index-quote-zero-left-out",
+      "reason": "An index's detailed packet fills the last trade quantity, the best bid and ask with their sizes and the OI with 0, values an index does not have; the web sends those zeros (pocketful_adapter.py _handle_detailed_data), the desktop leaves them out.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
       "allows": [
         "zero-left-out"
       ]
     },
     {
-      "key": "total_buy_quantity",
+      "key": "bid_size",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
-      "ref": "pocketful_adapter.py:580-594",
-      "approval": "leave-out-unsent",
+      "approval": "index-quote-zero-left-out",
+      "reason": "An index's detailed packet fills the last trade quantity, the best bid and ask with their sizes and the OI with 0, values an index does not have; the web sends those zeros (pocketful_adapter.py _handle_detailed_data), the desktop leaves them out.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
       "allows": [
         "zero-left-out"
       ]
     },
     {
-      "key": "total_sell_quantity",
+      "key": "ask_price",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
-      "ref": "pocketful_adapter.py:580-594",
-      "approval": "leave-out-unsent",
+      "approval": "index-quote-zero-left-out",
+      "reason": "An index's detailed packet fills the last trade quantity, the best bid and ask with their sizes and the OI with 0, values an index does not have; the web sends those zeros (pocketful_adapter.py _handle_detailed_data), the desktop leaves them out.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
+      "allows": [
+        "zero-left-out"
+      ]
+    },
+    {
+      "key": "ask_size",
+      "kind": "web-defect",
+      "approval": "index-quote-zero-left-out",
+      "reason": "An index's detailed packet fills the last trade quantity, the best bid and ask with their sizes and the OI with 0, values an index does not have; the web sends those zeros (pocketful_adapter.py _handle_detailed_data), the desktop leaves them out.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
       "allows": [
         "zero-left-out"
       ]
@@ -86,9 +96,9 @@
     {
       "key": "oi",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Pocketful's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
-      "ref": "pocketful_adapter.py:580-594",
-      "approval": "leave-out-unsent",
+      "approval": "index-quote-zero-left-out",
+      "reason": "An index's detailed packet fills the last trade quantity, the best bid and ask with their sizes and the OI with 0, values an index does not have; the web sends those zeros (pocketful_adapter.py _handle_detailed_data), the desktop leaves them out.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
       "allows": [
         "zero-left-out"
       ]

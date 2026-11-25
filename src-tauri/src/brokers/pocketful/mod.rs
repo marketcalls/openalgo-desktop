@@ -10,8 +10,8 @@
 //!   does the same with a short-lived, bounded connection.
 //! * No history API and no margin calculator (web `timeframe_map = {}`,
 //!   `margin_api.py` raises).
-//! * Order and trade updates arrive on the market-data socket (modes 50 and
-//!   51) and are published as `FeedEvent::OrderUpdate`.
+//! * Order updates come on a socket of their own (`streaming::order_feed`,
+//!   web `pocketful_order_adapter.py`), published as `FeedEvent::OrderUpdate`.
 
 mod auth;
 mod data;
@@ -424,6 +424,28 @@ impl Broker for PocketfulBroker {
             token,
             self.symbols.clone(),
         )))
+    }
+
+    /// web `create_pocketful_order_adapter`: the session's client id and
+    /// bare access token, on the market feed's host.
+    fn create_order_feed(
+        &self,
+        auth: &AuthToken,
+    ) -> Result<crate::brokers::common::streaming::OrderFeed> {
+        let token = Self::token(auth)?;
+        let client_id = auth
+            .user_id()
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .ok_or_else(session_expired)?;
+        Ok(crate::brokers::common::streaming::OrderFeed::Socket(
+            Box::new(streaming::order_feed::PocketfulOrderFeed::new(
+                &self.urls.ws,
+                client_id,
+                token,
+                self.symbols.clone(),
+            )),
+        ))
     }
 }
 

@@ -137,7 +137,7 @@ pub(crate) enum DataMode {
     /// 1, 2, 3 (most adapters).
     Number,
     /// No `mode` key (Arrow, both HDFC, Kotak, Rupeezy, Upstox, Fyers,
-    /// AliceBlue).
+    /// AliceBlue, Pocketful).
     Absent,
 }
 
@@ -153,8 +153,8 @@ pub(crate) enum Fold {
     /// AliceBlue, Jainam, ...): each frame is trimmed to its holder's mode.
     PerMode,
     /// The adapter publishes one dict per packet (Arrow, Paytm, mStock, the
-    /// other XTS members, Delta Exchange, Angel, Dhan, IndMoney, Pocketful): a
-    /// lower mode's frame carries the whole packet, its book
+    /// other XTS members, Delta Exchange, Angel, Dhan, IndMoney, Pocketful):
+    /// a lower mode's frame carries the whole packet, its book
     /// and circuits included. The desktop still sends one frame per mode a
     /// client holds (lead decision 2026-11-09): the web's single frame
     /// leaves a client's lower-mode callbacks unrun, a web defect.
@@ -191,7 +191,7 @@ pub(crate) struct Dialect {
     /// the dict a `Fold::Richer` broker sends lower holders: its web
     /// adapter publishes per subscription and writes that subscription's
     /// mode (mStock, Delta Exchange, Jainam XTS), or writes the mode of the
-    /// one subscription it keeps per token (Angel, Pocketful).
+    /// one subscription it keeps per token (Angel).
     pub mode_of_holder: bool,
     pub names: &'static [WebName],
 }
@@ -624,14 +624,23 @@ const PAYTM: &[WebName] = &[
     n("oi_change", S::Extra(E::OiChange), D),
 ];
 
-/// pocketful_adapter.py:629-637: the compact (LTP) frame alone carries the
-/// change and the best prices; the detailed (Quote) frame has neither.
+/// pocketful_adapter.py `_handle_detailed_data` (Quote): the last trade
+/// quantity, the change and the best bid and ask with their sizes, in that
+/// frame alone; the average trade price in Quote and Depth
+/// (`_handle_snapquote_data`); the book's totals as `totalbuyqty` /
+/// `totalsellqty` in Depth alone (the desktop's Quote keeps the detailed
+/// packet's under the canonical names: market data the web drops).
 const POCKETFUL: &[WebName] = &[
-    nt("change", S::Change, L, L),
-    n("oi", S::Oi, L),
-    nt("bid_price", S::Extra(E::BidPrice), L, L),
-    nt("ask_price", S::Extra(E::AskPrice), L, L),
-    n("last_trade_quantity", S::LastQuantity, Q),
+    nt("last_trade_quantity", S::LastQuantity, Q, Q),
+    n("avg_trade_price", S::AveragePrice, Q),
+    nt("change", S::Change, Q, Q),
+    nt("change_percent", S::ChangePercent, Q, Q),
+    nt("bid_price", S::Extra(E::BidPrice), Q, Q),
+    nt("bid_size", S::Extra(E::BidQuantity), Q, Q),
+    nt("ask_price", S::Extra(E::AskPrice), Q, Q),
+    nt("ask_size", S::Extra(E::AskQuantity), Q, Q),
+    nt("totalbuyqty", S::TotalBuyQuantity, D, D),
+    nt("totalsellqty", S::TotalSellQuantity, D, D),
 ];
 
 const SAHI: &[WebName] = &[
@@ -793,6 +802,30 @@ fn named_modes(broker: &str) -> Option<Dialect> {
             .floats(&["oi"]),
         // fyers_mapping.py: the change only under Fyers' own names.
         "fyers" => d(Absent, FYERS).no_ltt().no_index_change(),
+        // pocketful_adapter.py (a1d539764): a dict per channel, each to its
+        // own mode's topic, with no symbol, exchange or mode; LTP `{ltp,
+        // timestamp}`. A holder of a lower mode gets the richer channel's
+        // dict, as the web's listener sends it there. The trade time and
+        // the Quote's book totals, which the web drops, stay (lost data);
+        // OI, the last quantity and the best prices in Quote alone, under
+        // the web's names.
+        "pocketful" => d(Absent, POCKETFUL)
+            .richer()
+            .key(Key::Symbol, Modes::NEVER)
+            .key(Key::Exchange, Modes::NEVER)
+            .key(Key::Ltt, Modes::range(Mode::Ltp, Mode::Quote))
+            .key(Key::Oi, Modes::range(Mode::Quote, Mode::Quote))
+            .key(Key::LastQuantity, Modes::NEVER)
+            .key(Key::AveragePrice, Modes::NEVER)
+            .instrument_key(
+                Key::TotalBuyQuantity,
+                Modes::range(Mode::Quote, Mode::Quote),
+            )
+            .instrument_key(
+                Key::TotalSellQuantity,
+                Modes::range(Mode::Quote, Mode::Quote),
+            )
+            .no_index_change(),
         _ => return None,
     })
 }
@@ -867,12 +900,6 @@ fn numbered_modes(broker: &str) -> Dialect {
             .richer()
             .no_index_change()
             .instrument_key(Key::LastQuantity, Modes::DEPTH),
-        // pocketful_adapter.py:565-600: `mode` is the token's subscription's.
-        "pocketful" => d(Number, POCKETFUL)
-            .richer()
-            .mode_of_holder()
-            .no_index_change()
-            .instrument_key(Key::LastQuantity, Modes::NEVER),
         // An index's last quantity when Samco sends one (samco_adapter.py
         // sends last_quantity for every instrument at Quote and Depth).
         "samco" => d(Number, SAMCO)

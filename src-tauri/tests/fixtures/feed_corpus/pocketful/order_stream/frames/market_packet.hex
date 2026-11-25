@@ -1,0 +1,13 @@
+# A compact market packet on the order socket: not an update, ignored.
+02                      # mode 2: compact market data
+01                      # exchange code
+000029aa                # instrument token 10666
+00000e6f                # last traded price 3695 paise
+00000000                # change
+69100284                # last traded time
+00000000
+00000000
+00000000
+00000000
+00000e6e                # bidPrice
+00000e70                # askPrice

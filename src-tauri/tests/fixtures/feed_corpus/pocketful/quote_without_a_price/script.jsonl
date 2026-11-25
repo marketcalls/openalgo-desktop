@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "pocketful"}], "message": "Subscription processing complete", "broker": "pocketful"}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [[1, 2885]], "m": "marketdata"}}], "note": "OpenAlgo Quote is Pocketful's detailed market data."}
+{"step": "push", "frame": "frames/detailed_unpriced.hex", "note": "Web test/test_pocketful_streaming.py::test_a_price_the_feed_does_not_have_is_left_out_not_sent_as_zero"}
+{"step": "silence", "client": "a", "web": {"symbol": "RELIANCE", "exchange": "NSE", "mode": 2}, "note": "No trade price: the desktop sends no Quote frame for the packet (the 1.0.6 rule); the web sends one without ltp, open, close or the change."}
+{"step": "push", "frame": "frames/detailed.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "unsubscribe", "status": "success", "message": "Unsubscription processing complete", "successful": [{"symbol": "RELIANCE", "exchange": "NSE", "mode": "Quote", "status": "success", "broker": "pocketful"}], "failed": [], "broker": "pocketful"}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [[1, 2885]], "m": "marketdata"}}]}

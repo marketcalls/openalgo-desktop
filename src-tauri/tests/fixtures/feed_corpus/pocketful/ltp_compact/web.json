@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "pocketful",
   "inputs_sha256": "5f2b20a414a0aa24714d95661742f04f0449ab81efac5a3fbe9a36739b6e302b",
   "instruments": [
@@ -71,14 +71,6 @@
           "mode": 1,
           "data": {
             "ltp": 1500.25,
-            "ltt": 1762656900,
-            "change": 10.25,
-            "oi": 0,
-            "bid_price": 1500.2,
-            "ask_price": 1500.3,
-            "symbol": "RELIANCE",
-            "exchange": "NSE",
-            "mode": 1,
             "timestamp": "<receipt_ms>"
           }
         }
@@ -107,14 +99,6 @@
           "mode": 1,
           "data": {
             "ltp": 1489.75,
-            "ltt": 1762656960,
-            "change": 42949662.46,
-            "oi": 0,
-            "bid_price": 1489.7,
-            "ask_price": 1489.8,
-            "symbol": "RELIANCE",
-            "exchange": "NSE",
-            "mode": 1,
             "timestamp": "<receipt_ms>"
           }
         }

@@ -17,54 +17,31 @@
     }
   ],
   "upstream_ignore": [
-    "{\"a\":\"h\"}"
+    "{\"a\":\"h\",\"v\":[],\"m\":\"\"}"
   ],
   "provenance": {
-    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
     "method": "web-script",
     "sources": [
       "broker/pocketful/api/packet_decoder.py::decodeSnapquoteData",
       "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_snapquote_data",
-      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._extract_depth_buy",
-      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._extract_depth_sell"
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._levels"
     ],
     "notes": [
-      "Average as LTP is inherited from the web (audit inherited limitation 1): both publish 1498.76 here, pinned as it is.",
-      "A Depth subscriber gets the book frame only; the desktop's frame takes its quote fields from the snapquote's own tick."
+      "A snapquote carries no trade price: before one arrives on the price stream the web's Depth frame has no ltp and the desktop's has 0.0 (the 1.0.6 rule); the detailed packet's price then goes with the next book on both sides (web _note_ltp from a detailed packet, desktop the instrument's snapshot)."
     ]
   },
   "deviations": [
     {
       "key": "ltp",
-      "kind": "web-defect",
-      "reason": "A snapquote carries no trade price (packet_decoder.py:83-137, averageTradePrice at 126); the web publishes its average trade price as ltp (pocketful_adapter.py:676), so a client reads the day's average as the last trade. The desktop sends the average as average_price and ltp from a real trade only: the last one known, or 0 before the instrument's first (the 1.0.6 rule for a book before any price). R107-07.",
-      "ref": "pocketful_adapter.py:676; packet_decoder.py:129; R107-07",
-      "approval": "pocketful-average-not-ltp",
-      "allows": [
-        [
-          1498.76,
-          0.0
-        ],
-        [
-          1498.8,
-          0.0
-        ]
-      ]
-    },
-    {
-      "key": "average_price",
-      "kind": "web-defect",
-      "reason": "A snapquote carries no trade price (packet_decoder.py:83-137, averageTradePrice at 126); the web publishes its average trade price as ltp (pocketful_adapter.py:676), so a client reads the day's average as the last trade. The desktop sends the average as average_price and ltp from a real trade only: the last one known, or 0 before the instrument's first (the 1.0.6 rule for a book before any price). R107-07.",
-      "ref": "pocketful_adapter.py:674-686; R107-07",
-      "approval": "pocketful-average-not-ltp",
+      "kind": "desktop-decision",
+      "approval": "per-broker-wire-shape",
+      "reason": "A snapquote carries no trade price, and none has come on the price stream yet: the web's Depth frame then has no ltp (pocketful_adapter.py _handle_snapquote_data); the desktop's keeps ltp 0.0 beside the book, as every broker's Depth frame does before the first quote (the 1.0.6 rule: the SDK's Depth callback reads ltp and timestamp).",
+      "ref": "pocketful_adapter.py _handle_snapquote_data; feed::bridge",
       "allows": [
         [
           "<absent>",
-          1498.76
-        ],
-        [
-          "<absent>",
-          1498.8
+          0.0
         ]
       ]
     }

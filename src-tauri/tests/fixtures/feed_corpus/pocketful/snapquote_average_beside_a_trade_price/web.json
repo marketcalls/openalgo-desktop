@@ -1,8 +1,8 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "pocketful",
-  "inputs_sha256": "20f45b05b0d4717168245bab8723749f772a81ebed09c4f24d2bc37f0afdc9e8",
+  "inputs_sha256": "f148ea1120ebebe8b9206baee958dc4de957d4ebcaf515c0afee740c78a5846b",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -114,22 +114,22 @@
           "symbol": "RELIANCE",
           "mode": 2,
           "data": {
-            "ltp": 1500.25,
-            "ltt": 1762656900,
             "volume": 1234567,
+            "last_trade_quantity": 25,
+            "bid_price": 1500.2,
+            "bid_size": 300,
+            "ask_price": 1500.3,
+            "ask_size": 400,
+            "oi": 0,
+            "timestamp": "<receipt_ms>",
+            "ltp": 1500.25,
             "open": 1490.0,
             "high": 1510.0,
             "low": 1485.0,
             "close": 1488.0,
-            "last_trade_quantity": 25,
-            "average_price": 1498.76,
-            "total_buy_quantity": 500000,
-            "total_sell_quantity": 600000,
-            "oi": 0,
-            "symbol": "RELIANCE",
-            "exchange": "NSE",
-            "mode": 2,
-            "timestamp": "<receipt_ms>"
+            "avg_trade_price": 1498.76,
+            "change": 12.25,
+            "change_percent": 0.82
           }
         }
       ],
@@ -151,23 +151,11 @@
       "published": [
         {
           "kind": "market",
-          "topic": "NSE_RELIANCE_QUOTE",
+          "topic": "NSE_RELIANCE_DEPTH",
           "exchange": "NSE",
           "symbol": "RELIANCE",
-          "mode": 2,
+          "mode": 3,
           "data": {
-            "ltp": 1499.1,
-            "open": 1490.0,
-            "high": 1510.0,
-            "low": 1485.0,
-            "close": 1488.0,
-            "volume": 1234600,
-            "total_buy_quantity": 500000,
-            "total_sell_quantity": 600000,
-            "symbol": "RELIANCE",
-            "exchange": "NSE",
-            "mode": 2,
-            "timestamp": "<receipt_ms>",
             "depth": {
               "buy": [
                 {
@@ -223,7 +211,17 @@
                   "orders": 12
                 }
               ]
-            }
+            },
+            "volume": 1234600,
+            "totalbuyqty": 500000,
+            "totalsellqty": 600000,
+            "timestamp": "<receipt_ms>",
+            "ltp": 1500.25,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1485.0,
+            "close": 1488.0,
+            "avg_trade_price": 1499.1
           }
         }
       ],
@@ -232,10 +230,20 @@
           "client": "a",
           "publication": 0,
           "mode": 2,
-          "topic_mode": 2,
+          "topic_mode": 3,
           "broker": "pocketful",
           "serves": [
             2
+          ]
+        },
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 3,
+          "topic_mode": 3,
+          "broker": "pocketful",
+          "serves": [
+            3
           ]
         }
       ]
