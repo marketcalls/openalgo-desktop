@@ -9,6 +9,7 @@
 
 use crate::brokers::common::book_read::whole;
 use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product};
+use crate::brokers::common::streaming::OrderUpdate;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -281,6 +282,53 @@ pub fn map_order(row: &Value, symbols: &SymbolResolver) -> Order {
         exchange_timestamp: Some(ist_timestamp(row.get("placed_at"))).filter(|x| !x.is_empty()),
         rejection_reason: Some(rejection).filter(|x| !x.is_empty()),
         order_tag: None,
+    }
+}
+
+/// One frame of Sahi's order stream, shaped like an element of
+/// `GET /v1/orders`, as an order update (web `sahi_order_adapter.py`
+/// `normalize_order`, openalgo#2474): the order book's own mapping, so the
+/// stream always agrees with the book. Only a working order, open or
+/// waiting for its trigger, has quantity left at the exchange; a
+/// cancelled, rejected or completed one has none, whatever was unfilled.
+/// A frame without an order id is not an order.
+pub fn order_update(row: &Value, symbols: &SymbolResolver) -> Option<OrderUpdate> {
+    if !has_order_id(row) {
+        return None;
+    }
+    let o = map_order(row, symbols);
+    let quantity = i64::from(o.quantity);
+    let filled = i64::from(o.filled_quantity);
+    let pending = if matches!(o.status.as_str(), "open" | "trigger pending") {
+        (quantity - filled).max(0)
+    } else {
+        0
+    };
+    Some(OrderUpdate {
+        orderid: o.order_id,
+        symbol: o.symbol,
+        exchange: o.exchange,
+        action: o.side,
+        quantity,
+        price: o.price,
+        trigger_price: o.trigger_price,
+        pricetype: o.order_type,
+        product: o.product,
+        order_status: o.status,
+        filled_quantity: filled,
+        pending_quantity: pending,
+        average_price: o.average_price,
+        rejection_reason: o.rejection_reason.unwrap_or_default(),
+    })
+}
+
+/// Whether a row names an order, as the web's `row.get("order_id")` reads
+/// true (a non-empty text or a number other than 0).
+fn has_order_id(row: &Value) -> bool {
+    match row.get("order_id") {
+        Some(Value::String(id)) => !id.is_empty(),
+        Some(Value::Number(n)) => n.as_f64().is_some_and(|v| v != 0.0),
+        _ => false,
     }
 }
 

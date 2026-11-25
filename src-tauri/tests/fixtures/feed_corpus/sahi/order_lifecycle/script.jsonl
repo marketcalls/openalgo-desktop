@@ -1,0 +1,17 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
+{"step": "upstream_connected", "socket": "orders", "connection": 1, "headers": {"authorization": "Bearer t", "user-agent": "openalgo-sahi/1.0"}, "note": "The session's REST token on the upgrade, and the User-Agent CloudFront needs."}
+{"step": "push", "socket": "orders", "frame": "frames/reliance_open.json"}
+{"step": "receive", "client": "a", "frame": "expected/reliance_open.json"}
+{"step": "push", "socket": "orders", "frame": "frames/reliance_partial.json", "note": "OpenPartial is still working: the unfilled 6 are pending."}
+{"step": "receive", "client": "a", "frame": "expected/reliance_partial.json"}
+{"step": "push", "socket": "orders", "frame": "frames/reliance_complete.json"}
+{"step": "receive", "client": "a", "frame": "expected/reliance_complete.json"}
+{"step": "push", "socket": "orders", "frame": "frames/nifty_trigger_pending.json", "note": "A stop-loss sell of the option, mapped through the master; prices in paise."}
+{"step": "receive", "client": "a", "frame": "expected/nifty_trigger_pending.json"}
+{"step": "push", "socket": "orders", "frame": "frames/not_an_order.json", "note": "A frame that names no order publishes nothing."}
+{"step": "push", "socket": "orders", "frame": "frames/nifty_cancelled.json"}
+{"step": "receive", "client": "a", "frame": "expected/nifty_cancelled.json"}
+{"step": "push", "socket": "orders", "frame": "frames/reliance_rejected.json"}
+{"step": "receive", "client": "a", "frame": "expected/reliance_rejected.json"}
+{"step": "push", "socket": "orders", "frame": "frames/reliance_partly_filled_ioc.json", "note": "PartialFilled is terminal (the rest cancelled): cancelled, nothing pending."}
+{"step": "receive", "client": "a", "frame": "expected/reliance_partly_filled_ioc.json"}

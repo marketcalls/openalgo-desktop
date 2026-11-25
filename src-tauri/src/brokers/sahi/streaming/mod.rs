@@ -26,8 +26,12 @@
 //!   answered by its close code, as the web's `sahi_websocket.py` does
 //!   (`close.rs`, audit P-12): 4401 and 4403 stop for a new login, 4429
 //!   waits 60 to 300 s and then stops with what the trader has to close.
+//!
+//! Order updates come from a second stream, `/v1/stream/orders`
+//! (`orders.rs`, web openalgo#2474).
 
 mod close;
+mod orders;
 mod proto;
 #[cfg(test)]
 mod tests;
@@ -43,6 +47,8 @@ use proto::{ServerMessage, Tick, TickKind};
 use std::collections::HashMap;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
+
+pub use orders::SahiOrderFeed;
 
 /// The User-Agent CloudFront requires on the upgrade (web `baseurl.py`).
 const USER_AGENT: &str = "openalgo-sahi/1.0";

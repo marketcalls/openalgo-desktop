@@ -1,0 +1,34 @@
+{
+  "broker": "sahi",
+  "summary": "Sahi drops the order stream: the feed connects again with the session's token and no frame of its own, an update Sahi repeats after the drop is relayed again, and the next order follows.",
+  "scenarios": [
+    "reconnect",
+    "order-open",
+    "order-complete"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+    "method": "web-script",
+    "sources": [
+      "broker/sahi/streaming/sahi_order_adapter.py::SahiOrderUpdateAdapter.normalize",
+      "broker/sahi/streaming/sahi_order_adapter.py::normalize_order",
+      "broker/sahi/mapping/order_data.py::map_order_data",
+      "broker/sahi/mapping/transform_data.py::from_paise",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Each frame is one JSON order object shaped like an element of GET /v1/orders, as the sample under \"WSS /v1/stream/orders -- Order updates\" in Sahi's API reference shows it and the web's test_sahi_order_adapter.py `DOC_FRAME` copies it: prices in paise, Sahi's codes and statuses.",
+      "Prices are whole quarters of a rupee in paise, so the web's round(paise / 100, 2) and the desktop's paise / 100 give the same double.",
+      "There is no login or subscribe frame: Sahi pushes as soon as the upgrade (Bearer token, User-Agent) is accepted."
+    ]
+  },
+  "deviations": []
+}

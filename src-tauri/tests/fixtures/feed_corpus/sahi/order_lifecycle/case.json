@@ -1,0 +1,48 @@
+{
+  "broker": "sahi",
+  "summary": "Sahi's order stream: an equity limit order open, partly filled and completed, an option stop-loss waiting for its trigger and then cancelled, a market order rejected by RMS with its reason, and an IOC order partly filled and ended, each a GET /v1/orders-shaped frame mapped by the order book's own mapping; a frame that names no order publishes nothing.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE"
+    },
+    {
+      "symbol": "NIFTY29DEC2626000CE",
+      "exchange": "NFO",
+      "token": "60001",
+      "brsymbol": "NIFTY26DEC26000CE",
+      "name": "NIFTY",
+      "expiry": "29-DEC-26",
+      "strike": 26000.0,
+      "lotsize": 75,
+      "instrumenttype": "CE",
+      "tick_size": 0.05
+    }
+  ],
+  "provenance": {
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+    "method": "web-script",
+    "sources": [
+      "broker/sahi/streaming/sahi_order_adapter.py::SahiOrderUpdateAdapter.normalize",
+      "broker/sahi/streaming/sahi_order_adapter.py::normalize_order",
+      "broker/sahi/mapping/order_data.py::map_order_data",
+      "broker/sahi/mapping/transform_data.py::from_paise",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Each frame is one JSON order object shaped like an element of GET /v1/orders, as the sample under \"WSS /v1/stream/orders -- Order updates\" in Sahi's API reference shows it and the web's test_sahi_order_adapter.py `DOC_FRAME` copies it: prices in paise, Sahi's codes and statuses.",
+      "Prices are whole quarters of a rupee in paise, so the web's round(paise / 100, 2) and the desktop's paise / 100 give the same double.",
+      "There is no login or subscribe frame: Sahi pushes as soon as the upgrade (Bearer token, User-Agent) is accepted."
+    ]
+  },
+  "deviations": []
+}

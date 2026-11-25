@@ -48,7 +48,10 @@ broker, symbol, time and the frame text.
   Sahi streaming apps" message, then prices back when an app reconnects; an
   NFO tick carries open interest and the price band, an equity tick leaves
   open interest out; book levels are never padded by Sahi; an index's depth
-  tick has no levels.
+  tick has no levels; the order stream (needs an order): its frames match
+  the order book's rows, the market data stream keeps streaming beside it,
+  and after the token expires the reconnect is refused and the stream stops
+  until the next login.
 - **Groww:** an idle feed stays connected without WebSocket pings; whether a
   price message ever leaves the LTP out; whether a book arrives before the
   first price; books that empty a side; `remaining_quantity` on cancelled

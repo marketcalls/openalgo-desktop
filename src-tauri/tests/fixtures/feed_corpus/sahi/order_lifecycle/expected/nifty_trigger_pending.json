@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "sahi",
+  "orderid": "26112500100000000002",
+  "symbol": "NIFTY29DEC2626000CE",
+  "exchange": "NFO",
+  "action": "SELL",
+  "quantity": 75,
+  "price": 120.5,
+  "trigger_price": 120.0,
+  "pricetype": "SL",
+  "product": "NRML",
+  "order_status": "trigger pending",
+  "filled_quantity": 0,
+  "pending_quantity": 75,
+  "average_price": 0.0,
+  "rejection_reason": ""
+}
