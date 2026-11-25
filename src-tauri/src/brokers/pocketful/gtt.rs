@@ -1,0 +1,737 @@
+//! Pocketful GTT rules, single trigger only (web `api/gtt_api.py` and
+//! `mapping/gtt_data.py`, marketcalls/openalgo#2467).
+//!
+//! Routes, from Pocketful's docs and its SDK 0.1.2:
+//!
+//! * `POST /api/v1/event/gtt`: create (create-gtt-order.md).
+//! * `PUT /api/v1/event/gtt`: modify (modify-gtt-order.md).
+//! * `DELETE /api/v1/event/gtt/{client_id}/{id}`: cancel (cancel-gtt-order.md).
+//! * `GET /api/v1/event/gtt/{client_id}?client_id=`: the rules
+//!   (fetch-gtt-order.md puts the client id in the path and lists it again
+//!   as a query parameter, the SDK sends only the query: both are sent).
+//!
+//! What OpenAlgo's contract asks for, and what of it Pocketful documents:
+//!
+//! * SINGLE: `trigger_price` is the trigger, `price` the child's limit.
+//! * OCO: refused before sending. The only `action_type` documented is
+//!   `single_order`; a guessed two-leg rule could fire a stop nobody set.
+//! * MARKET: the annexure allows only LIMIT and SL through the API, so the
+//!   child goes out as a LIMIT protected by the shared MPP slabs, measured
+//!   from the trigger, where the child is placed: measured from today's
+//!   price, a SELL stop below the market would carry a limit above the
+//!   price it fires at and never fill.
+//! * Expiry: Pocketful needs a date on every rule. The request's
+//!   `expires_at` when sent; otherwise a derivative's rule expires with its
+//!   contract and any other after 365 days. A modify keeps the rule's own.
+//!
+//! A create has the three outcomes of a placement (CLAUDE.md): an id is
+//! accepted; a refusal before sending or Pocketful's own "no" is refused;
+//! a request sent without a definite answer (a lost or unreadable reply, a
+//! server error, a success without an id, a reply that says neither) is
+//! [`AppError::Uncertain`]. A modify or cancel whose reply was lost or
+//! unreadable is uncertain too. None is ever sent twice, and the trader is
+//! told to check the GTT list first. Writes take the order lane, the list
+//! the data lane.
+
+use super::client::{Answer, Lane, Request};
+use super::mapping::{int, num, row_symbol, text, text_any};
+use super::PocketfulBroker;
+use crate::brokers::common::mapping::{Action, PriceType};
+use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price};
+use crate::brokers::common::outcome;
+use crate::brokers::common::ratelimit::today_ist;
+use crate::brokers::common::symbols::{SymToken, SymbolResolver};
+use crate::brokers::types::{AuthToken, GttLeg, GttOrder, GttRequest, GttResponse, GttTriggerType};
+use crate::error::{AppError, Result, UncertainOrder};
+use chrono::{Days, NaiveDate};
+use regex::Regex;
+use reqwest::Method;
+use serde_json::{json, Map, Value};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::LazyLock;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub(super) const GTT_PATH: &str = "/api/v1/event/gtt";
+/// The one rule type Pocketful documents.
+const ACTION_TYPE: &str = "single_order";
+const INDEX_EXCHANGES: &[&str] = &["NSE_INDEX", "BSE_INDEX"];
+const DERIVATIVE_EXCHANGES: &[&str] = &["NFO", "BFO", "MCX", "CDS", "BCD"];
+const DEFAULT_VALIDITY_DAYS: u64 = 365;
+/// fetch-gtt-order.md's error example, "Error from backend: (500)-no gtt
+/// data found": an account with no rules, not a failure.
+const NO_GTT_DATA: &str = "no gtt data found";
+
+pub(super) const NO_CLIENT_ID: &str =
+    "Your Pocketful session carries no client id. Log in to Pocketful again and retry.";
+pub(super) const BAD_ID: &str =
+    "That GTT id is not one Pocketful issued. Copy the id from the GTT list and retry.";
+const OCO_REFUSAL: &str = "Pocketful's GTT takes one trigger only, so an OCO (stop loss and \
+target together) cannot be placed. Place the stop loss and the target as two SINGLE GTTs; \
+Pocketful will not cancel one when the other fires.";
+const NOT_ACTIVE: &str = "This GTT is no longer active at Pocketful: it may have fired, expired \
+or been cancelled. Check the GTT list.";
+const NOT_SINGLE: &str = "This GTT is not a single trigger, so it cannot be changed from \
+OpenAlgo. Change it in Pocketful's app.";
+const FIXED_FIELDS: &str =
+    "A GTT's symbol, exchange and side cannot be changed. Cancel it and place a new one.";
+const NO_EXPIRY: &str = "Pocketful did not report this GTT's expiry, so it was not changed. \
+Change it in Pocketful's app.";
+const NO_ID: &str = "Pocketful accepted the GTT but did not return its id. Check the GTT list \
+before placing it again.";
+const LIST_UNREACHABLE: &str =
+    "OpenAlgo could not reach Pocketful for the GTT list. Check your connection and try again.";
+const LIST_UNREADABLE: &str =
+    "Pocketful sent the GTT list in a form OpenAlgo could not read. Try again in a moment.";
+
+/// "Error from backend: (500)-event id not found" -> "event id not found".
+static BACKEND_PREFIX: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"(?i)^\s*error from backend:\s*(\(\s*\d+\s*\)\s*-?\s*)?").ok());
+
+/// `user_order_id`, "the unique order ID generated by the user" (an
+/// integer): seeded from the clock so a restart does not reuse the last
+/// run's numbers, and kept below 2^31 (web `next_user_order_id`).
+static USER_ORDER_IDS: LazyLock<AtomicU64> = LazyLock::new(|| {
+    let ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() % 1_000_000_000)
+        .unwrap_or(0);
+    AtomicU64::new(u64::try_from(ms).unwrap_or(0))
+});
+
+fn next_user_order_id() -> u64 {
+    USER_ORDER_IDS.fetch_add(1, Ordering::Relaxed) % 2_000_000_000
+}
+
+/// The three GTT writes, for their trader-facing sentences.
+#[derive(Debug, Clone, Copy)]
+enum GttWrite {
+    Place,
+    Change,
+    Cancel,
+}
+
+impl GttWrite {
+    fn verb(self) -> &'static str {
+        match self {
+            GttWrite::Place => "place",
+            GttWrite::Change => "change",
+            GttWrite::Cancel => "cancel",
+        }
+    }
+
+    fn done(self) -> &'static str {
+        match self {
+            GttWrite::Place => "placed",
+            GttWrite::Change => "changed",
+            GttWrite::Cancel => "cancelled",
+        }
+    }
+
+    /// What may have happened when no definite answer came (web wording).
+    fn maybe(self) -> &'static str {
+        match self {
+            GttWrite::Place => "the GTT may or may not have been created",
+            GttWrite::Change => "the change may or may not have been made",
+            GttWrite::Cancel => "the GTT may or may not have been cancelled",
+        }
+    }
+
+    fn check(self) -> &'static str {
+        match self {
+            GttWrite::Place => "Check the GTT list before placing it again.",
+            GttWrite::Change | GttWrite::Cancel => "Check the GTT list before trying again.",
+        }
+    }
+}
+
+/// Not done, and known not to be: refused before anything was sent, or
+/// Pocketful's own "no". The message is for the trader (web `GttRefused`).
+fn refused(message: impl Into<String>) -> AppError {
+    AppError::Refused(message.into())
+}
+
+/// Sent, with no definite answer: the rule may exist (or have changed).
+fn uncertain(message: String, unanswered: bool) -> AppError {
+    AppError::Uncertain(Box::new(UncertainOrder {
+        message,
+        client_tag: None,
+        internal: false,
+        unanswered,
+        session: false,
+    }))
+}
+
+/// Pocketful's own message without its backend code prefix, first letter
+/// capitalised, or "" (web `broker_reason`).
+pub(super) fn broker_reason(message: &str) -> String {
+    let stripped = match BACKEND_PREFIX.as_ref() {
+        Some(re) => re.replace(message, "").into_owned(),
+        None => message.to_string(),
+    };
+    let mut chars = stripped.trim().chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// web `_refusal_text`.
+fn refusal_text(message: &str, write: &str) -> String {
+    match broker_reason(message) {
+        r if r.is_empty() => format!(
+            "Pocketful refused to {} the GTT without giving a reason. Try again in a moment.",
+            write
+        ),
+        r => format!("Pocketful refused to {} the GTT: {}", write, r),
+    }
+}
+
+/// A GTT id Pocketful issues is a UUID; anything else is refused before it
+/// is put into a request path (web `valid_trigger_id`).
+pub(super) fn valid_trigger_id(id: &str) -> bool {
+    (1..=64).contains(&id.len()) && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+}
+
+/// The trigger of a SINGLE rule: the request's `trigger_price`, else
+/// whichever of `triggerprice_sl` / `triggerprice_tg` is set (a route that
+/// bypasses the schema sends only those; web `trigger_price`).
+fn trigger_of(req: &GttRequest) -> f64 {
+    [req.trigger_price, req.triggerprice_sl, req.triggerprice_tg]
+        .into_iter()
+        .find(|p| p.is_finite() && *p > 0.0)
+        .unwrap_or(0.0)
+}
+
+/// The checks of web `build_gtt_order` that need no master row; answers
+/// the trigger. `gtt_service::gtt_quantity` refuses a quantity below one
+/// first; this holds for any other caller.
+fn checked_trigger(req: &GttRequest) -> Result<f64> {
+    if req.trigger_type == GttTriggerType::Oco {
+        return Err(refused(OCO_REFUSAL));
+    }
+    if req.quantity < 1 {
+        return Err(refused(
+            "The GTT quantity must be a whole number above zero.",
+        ));
+    }
+    match trigger_of(req) {
+        t if t > 0.0 => Ok(t),
+        _ => Err(refused("A GTT needs a trigger price above zero.")),
+    }
+}
+
+/// The master row a rule is placed on (web `_instrument`).
+fn instrument(symbols: &SymbolResolver, req: &GttRequest) -> Result<SymToken> {
+    let (exchange, symbol) = (req.key.exchange.as_str(), req.key.symbol.as_str());
+    if INDEX_EXCHANGES.contains(&exchange) {
+        return Err(refused(
+            "An index cannot be traded, so a GTT cannot be placed on it.",
+        ));
+    }
+    symbols
+        .by_symbol(exchange, symbol)
+        .filter(|r| !r.token.trim().is_empty())
+        .ok_or_else(|| {
+            refused(format!(
+                "{} on {} is not in the Pocketful master contract. Check the symbol, or download \
+the master contract again and retry.",
+                symbol, exchange
+            ))
+        })
+}
+
+/// The child order's limit (web `_limit_price`): the request's for LIMIT;
+/// for MARKET the trigger protected by the MPP slabs.
+fn limit_price(req: &GttRequest, row: &SymToken, trigger: f64) -> Result<f64> {
+    match req.pricetype {
+        PriceType::Limit if req.price.is_finite() && req.price > 0.0 => Ok(req.price),
+        PriceType::Limit => Err(refused("A LIMIT GTT needs a limit price above zero.")),
+        PriceType::Market => {
+            let tick = (row.tick_size > 0.0).then_some(row.tick_size);
+            let itype = instrument_type_from_symbol(&req.key.symbol);
+            match protected_price(trigger, req.action, itype, tick)? {
+                p if p > 0.0 => Ok(p),
+                _ => Err(refused(
+                    "The trigger price is too low to protect a MARKET order. Send a LIMIT GTT \
+with the price you want instead.",
+                )),
+            }
+        }
+        _ => Err(refused("The GTT price type must be LIMIT or MARKET.")),
+    }
+}
+
+/// The `order` block of a rule (web `build_gtt_order`).
+pub(super) fn order_block(
+    req: &GttRequest,
+    row: &SymToken,
+    trigger: f64,
+    client_id: &str,
+    user_order_id: u64,
+) -> Result<Map<String, Value>> {
+    let price = limit_price(req, row, trigger)?;
+    let order = json!({
+        "client_id": client_id,
+        "disclosed_quantity": 0,
+        "exchange": row.br_exchange(),
+        "instrument_token": row.token,
+        "market_protection_percentage": 0,
+        "order_side": req.action.as_str(),
+        "order_type": "LIMIT",
+        "price": price,
+        "product": req.product.as_str(),
+        "quantity": req.quantity,
+        "sl_order_price": 0,
+        "sl_order_quantity": 0,
+        "sl_trigger_price": 0,
+        "trigger_price": trigger,
+        "user_order_id": user_order_id,
+    });
+    Ok(match order {
+        Value::Object(m) => m,
+        _ => Map::new(),
+    })
+}
+
+/// What a create and a modify check before sending: the rule, its master
+/// row, and the order block with its trigger and limit.
+struct Prepared {
+    order: Map<String, Value>,
+    row: SymToken,
+    trigger: f64,
+    limit: f64,
+}
+
+fn prepare(b: &PocketfulBroker, req: &GttRequest, client_id: &str) -> Result<Prepared> {
+    let trigger = checked_trigger(req)?;
+    let row = instrument(b.resolver(), req)?;
+    let order = order_block(req, &row, trigger, client_id, next_user_order_id())?;
+    let limit = order.get("price").and_then(Value::as_f64).unwrap_or(0.0);
+    Ok(Prepared {
+        order,
+        row,
+        trigger,
+        limit,
+    })
+}
+
+/// The dates the web's `_parse_date` reads.
+fn parse_date(written: &str) -> Option<NaiveDate> {
+    let t = written.trim();
+    ["%Y-%m-%d", "%d-%b-%y", "%d-%b-%Y", "%d%b%y", "%d%b%Y"]
+        .iter()
+        .find_map(|f| NaiveDate::parse_from_str(t, f).ok())
+}
+
+fn iso(d: NaiveDate) -> String {
+    d.format("%Y-%m-%d").to_string()
+}
+
+/// The rule's `expiry_time` (web `expiry_date`): the request's
+/// `expires_at` (its first ten characters, a date from today on), else a
+/// derivative's contract expiry, else a year from today.
+pub(super) fn expiry_date(req: &GttRequest, row: &SymToken, today: NaiveDate) -> Result<String> {
+    if let Some(sent) = req.expires_at.as_deref().filter(|s| !s.is_empty()) {
+        let head: String = sent.chars().take(10).collect();
+        return match parse_date(&head) {
+            Some(d) if d >= today => Ok(iso(d)),
+            _ => Err(refused(
+                "The GTT expiry must be a date from today onward, written as YYYY-MM-DD.",
+            )),
+        };
+    }
+    if DERIVATIVE_EXCHANGES.contains(&req.key.exchange.as_str()) {
+        if let Some(contract) = parse_date(&row.expiry).filter(|d| *d >= today) {
+            return Ok(iso(contract));
+        }
+    }
+    Ok(iso(today
+        .checked_add_days(Days::new(DEFAULT_VALIDITY_DAYS))
+        .unwrap_or(today)))
+}
+
+/// The session's trading client id; a session without one sends nothing.
+fn account(b: &PocketfulBroker, auth: &AuthToken) -> Result<String> {
+    b.client_id(auth).map_err(|_| refused(NO_CLIENT_ID))
+}
+
+/// Send one write on the order lane. A request that never left is
+/// refused; one whose reply was lost is uncertain and never sent again.
+async fn send_write(
+    b: &PocketfulBroker,
+    auth: &AuthToken,
+    req: Request,
+    write: GttWrite,
+) -> Result<Answer> {
+    match b.send(Lane::Orders, auth, req).await {
+        Ok(a) => Ok(a),
+        Err(AppError::Http(e)) if outcome::after_send(&e) => {
+            tracing::warn!("Pocketful GTT {}: no answer ({})", write.verb(), e);
+            Err(uncertain(
+                format!(
+                    "Pocketful did not answer, so {}. {}",
+                    write.maybe(),
+                    write.check()
+                ),
+                true,
+            ))
+        }
+        Err(AppError::Http(e)) => {
+            tracing::warn!("Pocketful GTT {}: not sent ({})", write.verb(), e);
+            Err(refused(format!(
+                "OpenAlgo could not reach Pocketful, so the GTT was not {}. Check your \
+connection and try again.",
+                write.done()
+            )))
+        }
+        // No access token: nothing was sent.
+        Err(AppError::Auth(m)) => Err(refused(m)),
+        Err(e) => Err(e),
+    }
+}
+
+/// The `id` in an answer's `data`, or "".
+fn answered_id(a: &Answer) -> String {
+    a.payload().map(|p| text(p, "id")).unwrap_or_default()
+}
+
+/// A create's answer, by the three outcomes.
+fn created(a: &Answer) -> Result<GttResponse> {
+    let write = GttWrite::Place;
+    if a.body.is_none() {
+        return Err(uncertain(
+            format!(
+                "Pocketful's answer could not be read, so {}. {}",
+                write.maybe(),
+                write.check()
+            ),
+            false,
+        ));
+    }
+    if !a.ok() {
+        let message = a.message();
+        tracing::warn!(
+            status = a.status.as_u16(),
+            "Pocketful GTT create not accepted: {}",
+            message
+        );
+        if a.status.is_server_error() {
+            // A server error says nothing definite about the rule (CLAUDE.md;
+            // the web reads it as a refusal).
+            let reason = match broker_reason(&message) {
+                r if r.is_empty() => String::new(),
+                r => format!(" ({})", r),
+            };
+            return Err(uncertain(
+                format!(
+                    "Pocketful answered with an error{}, so {}. {}",
+                    reason,
+                    write.maybe(),
+                    write.check()
+                ),
+                false,
+            ));
+        }
+        if a.status.is_success() && !a.failed() {
+            // Neither success nor Pocketful's failure marker (LOG-08).
+            return Err(uncertain(
+                format!(
+                    "Pocketful's answer did not say whether it worked, so {}. {}",
+                    write.maybe(),
+                    write.check()
+                ),
+                false,
+            ));
+        }
+        return Err(refused(refusal_text(&message, write.verb())));
+    }
+    match answered_id(a) {
+        id if id.is_empty() => {
+            tracing::error!("Pocketful GTT create succeeded without a GTT id");
+            Err(uncertain(NO_ID.to_string(), false))
+        }
+        id => Ok(GttResponse { trigger_id: id }),
+    }
+}
+
+/// A modify's or cancel's answer (web): a reply that could not be read is
+/// uncertain, any other "not done" Pocketful's refusal.
+fn settled(a: &Answer, write: GttWrite, trigger_id: &str) -> Result<GttResponse> {
+    if !a.ok() {
+        tracing::warn!(
+            status = a.status.as_u16(),
+            "Pocketful GTT {} not accepted: {}",
+            write.verb(),
+            a.message()
+        );
+        if a.body.is_none() {
+            return Err(uncertain(
+                format!(
+                    "Pocketful's answer could not be read, so {}. {}",
+                    write.maybe(),
+                    write.check()
+                ),
+                false,
+            ));
+        }
+        return Err(refused(refusal_text(&a.message(), write.verb())));
+    }
+    let id = answered_id(a);
+    Ok(GttResponse {
+        trigger_id: if id.is_empty() {
+            trigger_id.to_string()
+        } else {
+            id
+        },
+    })
+}
+
+/// Pocketful's rules (web `_read_rules`), on the data lane.
+async fn read_rules(b: &PocketfulBroker, auth: &AuthToken, account: &str) -> Result<Vec<Value>> {
+    let req = Request::get(format!("{}/{}", GTT_PATH, urlencoding::encode(account)))
+        .query("client_id", account);
+    let a = match b.send(Lane::Data, auth, req).await {
+        Ok(a) => a,
+        Err(AppError::Http(e)) => {
+            tracing::warn!("Pocketful GTT list could not be read: {}", e);
+            return Err(AppError::Broker(LIST_UNREACHABLE.into()));
+        }
+        Err(AppError::Auth(m)) => return Err(refused(m)),
+        Err(e) => return Err(e),
+    };
+    if a.body.is_none() {
+        return Err(AppError::Broker(LIST_UNREADABLE.into()));
+    }
+    if !a.ok() {
+        let message = a.message();
+        if message.to_lowercase().contains(NO_GTT_DATA) {
+            return Ok(Vec::new());
+        }
+        tracing::warn!(
+            status = a.status.as_u16(),
+            "Pocketful GTT list read failed: {}",
+            message
+        );
+        return Err(AppError::Broker(refusal_text(&message, "list")));
+    }
+    Ok(gtt_rows(a.payload()))
+}
+
+/// The rules in a fetch answer's `data` (web `gtt_rows`).
+pub(super) fn gtt_rows(payload: Option<&Value>) -> Vec<Value> {
+    match payload {
+        Some(Value::Array(rows)) => rows.iter().filter(|r| r.is_object()).cloned().collect(),
+        Some(rule @ Value::Object(_)) if !text(rule, "id").is_empty() => vec![rule.clone()],
+        _ => Vec::new(),
+    }
+}
+
+/// What a rule without an `order` block reads as: every field empty.
+static NO_ORDER: Value = Value::Null;
+
+/// A rule's `order` block.
+fn order_of(rule: &Value) -> &Value {
+    rule.get("order").unwrap_or(&NO_ORDER)
+}
+
+/// A rule's status, lowercase (web `row_status`).
+fn rule_status(rule: &Value) -> String {
+    let status = match text(order_of(rule), "status") {
+        s if s.is_empty() => text(rule, "status"),
+        s => s,
+    };
+    status.to_lowercase()
+}
+
+/// The rule a modify replaces, checked before anything is written (web
+/// `modify_gtt_order`): still active, a single trigger, and the same
+/// instrument and side. Tokens are per exchange (MCX and NFO share some),
+/// so the exchange is compared too: a modify never moves a rule to another
+/// contract.
+fn held_rule<'a>(
+    rules: &'a [Value],
+    trigger_id: &str,
+    row: &SymToken,
+    side: Action,
+) -> Result<&'a Value> {
+    let current = rules
+        .iter()
+        .find(|r| text(r, "id") == trigger_id)
+        .filter(|r| rule_status(r) == "active")
+        .ok_or_else(|| AppError::NotFound(NOT_ACTIVE.into()))?;
+    if current.get("action_type").and_then(Value::as_str) != Some(ACTION_TYPE) {
+        return Err(refused(NOT_SINGLE));
+    }
+    let held = order_of(current);
+    let same = text_any(held, &["token", "instrument_token"]) == row.token.trim()
+        && text(held, "order_side").eq_ignore_ascii_case(side.as_str())
+        && text(held, "exchange").eq_ignore_ascii_case(row.br_exchange());
+    if !same {
+        return Err(refused(FIXED_FIELDS));
+    }
+    Ok(current)
+}
+
+/// One Pocketful rule as an OpenAlgo GTT book row (web `map_gtt_book`;
+/// fields from fetch-gtt-order.md). Pocketful reports no last price.
+fn book_row(rule: &Value, status: String, symbols: &SymbolResolver) -> GttOrder {
+    let order = order_of(rule);
+    let exchange = text(order, "exchange");
+    let symbol = row_symbol(
+        symbols,
+        &text(order, "trading_symbol"),
+        &text_any(order, &["token", "instrument_token"]),
+        &exchange,
+    );
+    let action_type = text(rule, "action_type");
+    GttOrder {
+        trigger_id: text(rule, "id"),
+        trigger_type: if action_type == ACTION_TYPE {
+            "single".into()
+        } else {
+            action_type
+        },
+        status,
+        symbol,
+        exchange,
+        trigger_prices: vec![num(order, "trigger_price")],
+        last_price: 0.0,
+        legs: vec![GttLeg {
+            action: text(order, "order_side").to_uppercase(),
+            quantity: int(order, "quantity"),
+            price: num(order, "price"),
+            pricetype: text(order, "order_type").to_uppercase(),
+            product: text_any(order, &["prod_type", "product"]),
+        }],
+        created_at: text(rule, "created_at"),
+        updated_at: match text(order, "updated_at") {
+            u if u.is_empty() => text(rule, "updated_at"),
+            u => u,
+        },
+        expires_at: text(rule, "expiry_time"),
+    }
+}
+
+/// Pocketful's rules as OpenAlgo's GTT book; finished rules only with
+/// `include_history`.
+fn map_gtt_book(rules: &[Value], symbols: &SymbolResolver, include_history: bool) -> Vec<GttOrder> {
+    rules
+        .iter()
+        .filter_map(|rule| {
+            let status = rule_status(rule);
+            (include_history || status == "active").then(|| book_row(rule, status, symbols))
+        })
+        .collect()
+}
+
+/// Create a SINGLE rule.
+pub(super) async fn place_gtt(
+    b: &PocketfulBroker,
+    auth: &AuthToken,
+    req: &GttRequest,
+) -> Result<GttResponse> {
+    place_gtt_on(b, auth, req, today_ist()).await
+}
+
+/// [`place_gtt`] on a given IST day (tests pin it).
+pub(super) async fn place_gtt_on(
+    b: &PocketfulBroker,
+    auth: &AuthToken,
+    req: &GttRequest,
+    today: NaiveDate,
+) -> Result<GttResponse> {
+    let account = account(b, auth)?;
+    let p = prepare(b, req, &account)?;
+    let expiry = expiry_date(req, &p.row, today)?;
+    tracing::info!(
+        "Pocketful GTT create: {}:{} {} {} trigger={} limit={} expiry={}",
+        req.key.exchange,
+        req.key.symbol,
+        req.action.as_str(),
+        req.quantity,
+        p.trigger,
+        p.limit,
+        expiry
+    );
+    let body = json!({"action_type": ACTION_TYPE, "expiry_time": expiry, "order": p.order});
+    let req = Request::new(Method::POST, GTT_PATH).json(body);
+    created(&send_write(b, auth, req, GttWrite::Place).await?)
+}
+
+/// Replace an active SINGLE rule. The rule is read first: its expiry is
+/// kept (OpenAlgo's modify carries none), and its instrument and side
+/// cannot change.
+pub(super) async fn modify_gtt(
+    b: &PocketfulBroker,
+    auth: &AuthToken,
+    trigger_id: &str,
+    req: &GttRequest,
+) -> Result<GttResponse> {
+    if !valid_trigger_id(trigger_id) {
+        return Err(AppError::Validation(BAD_ID.into()));
+    }
+    let account = account(b, auth)?;
+    let Prepared {
+        mut order,
+        row,
+        trigger,
+        limit,
+    } = prepare(b, req, &account)?;
+    let rules = read_rules(b, auth, &account).await?;
+    let current = held_rule(&rules, trigger_id, &row, req.action)?;
+    let expiry = text(current, "expiry_time");
+    if expiry.is_empty() {
+        return Err(refused(NO_EXPIRY));
+    }
+    // As modify-gtt-order.md's example sends it.
+    order.insert("device".into(), json!("web"));
+    tracing::info!(
+        "Pocketful GTT modify {}: trigger={} limit={} qty={}",
+        trigger_id,
+        trigger,
+        limit,
+        req.quantity
+    );
+    let body = json!({"expiry_time": expiry, "action_type": ACTION_TYPE, "id": trigger_id,
+        "order": order});
+    let req = Request::new(Method::PUT, GTT_PATH).json(body);
+    let a = send_write(b, auth, req, GttWrite::Change).await?;
+    settled(&a, GttWrite::Change, trigger_id)
+}
+
+/// Cancel a rule.
+pub(super) async fn cancel_gtt(
+    b: &PocketfulBroker,
+    auth: &AuthToken,
+    trigger_id: &str,
+) -> Result<GttResponse> {
+    if !valid_trigger_id(trigger_id) {
+        return Err(AppError::Validation(BAD_ID.into()));
+    }
+    let account = account(b, auth)?;
+    let path = format!(
+        "{}/{}/{}",
+        GTT_PATH,
+        urlencoding::encode(&account),
+        urlencoding::encode(trigger_id)
+    );
+    let a = send_write(
+        b,
+        auth,
+        Request::new(Method::DELETE, path),
+        GttWrite::Cancel,
+    )
+    .await?;
+    settled(&a, GttWrite::Cancel, trigger_id)
+}
+
+/// The GTT book.
+pub(super) async fn get_gtt_book(
+    b: &PocketfulBroker,
+    auth: &AuthToken,
+    include_history: bool,
+) -> Result<Vec<GttOrder>> {
+    let account = account(b, auth)?;
+    let rules = read_rules(b, auth, &account).await?;
+    Ok(map_gtt_book(&rules, b.resolver(), include_history))
+}
