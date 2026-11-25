@@ -866,6 +866,11 @@ pub struct GttRequest {
     pub target: f64,
     /// Fetched from the broker when absent.
     pub last_price: Option<f64>,
+    /// The request's `expires_at`, as sent (`placegttorder` only; a modify
+    /// carries none). Only a broker whose GTT needs an expiry reads it
+    /// (Pocketful, web openalgo#2467); every other broker ignores it, as on
+    /// the web.
+    pub expires_at: Option<String>,
 }
 
 /// GTT acknowledgement.

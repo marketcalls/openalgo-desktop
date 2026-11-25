@@ -865,6 +865,7 @@ fn gtt_req(trigger_type: GttTriggerType) -> GttRequest {
         triggerprice_tg: 860.0,
         target: 861.0,
         last_price: None,
+        expires_at: None,
     }
 }
 

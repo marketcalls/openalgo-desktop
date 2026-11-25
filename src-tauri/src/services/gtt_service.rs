@@ -71,10 +71,7 @@ pub fn sandbox_gtt(req: &Value) -> Result<crate::sandbox::GttRequest, Reply> {
             .get("strategy")
             .and_then(Value::as_str)
             .map(str::to_string),
-        expires_at: req
-            .get("expires_at")
-            .and_then(Value::as_str)
-            .map(str::to_string),
+        expires_at: expires_at(req),
     })
 }
 
@@ -105,7 +102,16 @@ pub fn broker_gtt(req: &Value) -> Result<GttRequest, AppError> {
         triggerprice_tg: f(req, "triggerprice_tg"),
         target: f(req, "target"),
         last_price: None,
+        expires_at: expires_at(req),
     })
+}
+
+/// The request's `expires_at` when it is a string (the schema's
+/// `Str(allow_none)`), for the sandbox and the broker alike.
+fn expires_at(req: &Value) -> Option<String> {
+    req.get("expires_at")
+        .and_then(Value::as_str)
+        .map(str::to_string)
 }
 
 fn not_supported(broker: &str) -> Reply {
@@ -497,6 +503,28 @@ mod tests {
         let b = broker_gtt(&req).unwrap();
         assert_eq!(b.trigger_type, GttTriggerType::Oco);
         assert_eq!(b.target, 1001.0);
+    }
+
+    /// The request's `expires_at` reaches the broker request as sent (web
+    /// openalgo#2467: Pocketful's GTT needs an expiry and reads it; every
+    /// other broker ignores it), and the sandbox request alike. A null or a
+    /// non-string, and a modify's body, which has none, carry none.
+    #[test]
+    fn the_expiry_reaches_the_broker_as_sent() {
+        let mut req = json!({"trigger_type": "SINGLE", "symbol": "NIFTY24NOV2624000CE",
+            "exchange": "NFO", "action": "BUY", "product": "NRML", "quantity": 75,
+            "pricetype": "LIMIT", "price": 11.3, "trigger_price": 13.6,
+            "expires_at": "2026-11-20T15:30:00+05:30"});
+        let sent = Some("2026-11-20T15:30:00+05:30");
+        assert_eq!(broker_gtt(&req).unwrap().expires_at.as_deref(), sent);
+        assert_eq!(sandbox_gtt(&req).unwrap().expires_at.as_deref(), sent);
+        for absent in [Value::Null, json!(20261120)] {
+            req["expires_at"] = absent;
+            assert_eq!(broker_gtt(&req).unwrap().expires_at, None);
+        }
+        req.as_object_mut().unwrap().remove("expires_at");
+        assert_eq!(broker_gtt(&req).unwrap().expires_at, None);
+        assert_eq!(sandbox_gtt(&req).unwrap().expires_at, None);
     }
 
     /// A fractional CRYPTO quantity is refused by both conversions, never
