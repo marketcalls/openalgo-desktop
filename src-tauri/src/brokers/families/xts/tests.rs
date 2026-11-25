@@ -127,7 +127,8 @@ fn member_deltas_match_the_audit_table() {
     let f = &fivepaisaxts::CONFIG;
     assert_eq!(f.base_url, "https://xtsmum.5paisa.com");
     assert_eq!(f.md_rest_path, "/apimarketdata");
-    assert_eq!(f.socket_login_path, "/apibinarymarketdata/auth/login");
+    // Its feed logs in, when it has to, where history does (web #2484).
+    assert_eq!(f.socket_login_path, "/apimarketdata/auth/login");
     assert_eq!(f.login, XtsLogin::Direct);
     assert_eq!(f.master_segments.len(), 4);
     assert_eq!(f.stream_mode_codes, [1512, 1501, 1502]);

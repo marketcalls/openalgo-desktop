@@ -1280,11 +1280,14 @@ fn manager() -> WebSocketManager {
     })
 }
 
+/// The template's feed, which logs in at every connect, on iifl: 5paisa
+/// XTS connects with the stored session since web #2484
+/// (`broker_fivepaisaxts_docs`).
 #[tokio::test]
 async fn feed_end_to_end_through_the_relay() {
     let ws_log = Arc::new(Mutex::new(Vec::new()));
     let sock = socket_server(ws_log.clone(), false).await;
-    let (b, fake, _) = broker(&fivepaisaxts::CONFIG).await;
+    let (b, fake, _) = broker(&iifl::CONFIG).await;
     b.authenticate(creds()).await.unwrap();
     let b = b.with_socket_base(&sock);
     let feed = b.create_feed(&token()).unwrap();

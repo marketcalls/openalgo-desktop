@@ -13,11 +13,13 @@ use openalgo_desktop_lib::brokers::common::symbols::{SymToken, SymbolResolver};
 use openalgo_desktop_lib::brokers::families::xts::XtsBroker;
 use openalgo_desktop_lib::brokers::fivepaisaxts::CONFIG;
 use openalgo_desktop_lib::brokers::types::*;
+use openalgo_desktop_lib::brokers::BrokerCredentials;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
@@ -237,8 +239,29 @@ pub(super) async fn broker() -> (XtsBroker, Arc<Fake>, String) {
     )
 }
 
+pub(super) fn creds() -> BrokerCredentials {
+    BrokerCredentials {
+        api_key: "ikey".into(),
+        api_secret: Some("isecret".into()),
+        api_key_market: Some("mkey".into()),
+        api_secret_market: Some("msecret".into()),
+        ..Default::default()
+    }
+}
+
 pub(super) fn token() -> AuthToken {
     AuthToken::new("itok").with_feed(Some(md_token(1)))
+}
+
+pub(super) async fn until(what: &str, done: impl Fn() -> bool) {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while !done() {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "timed out waiting for {what}"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
 }
 
 /// A history request for RELIANCE on NSE.

@@ -45,6 +45,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         price_protection: true,
         answers_as_documented: false,
         history_window_days: 6,
+        feed_on_stored_session: false,
     },
 };
 

@@ -7,7 +7,10 @@
 //!
 //! 1. market-data login `POST {base}{socket_login_path}` with the market
 //!    keys when this process knows them (web: on every connect), else the
-//!    stored feed token and user id from the broker login;
+//!    stored feed token and user id from the broker login. A member that
+//!    feeds on the stored session (5paisa XTS, web #2484) connects with the
+//!    session quotes and history use, read at every connect, and logs in
+//!    only when none is known (`Connector::known_session`);
 //! 2. `wss://host{socket_path}/?token&userID&publishFormat=JSON
 //!    &broadcastMode=FULL&EIO=4&transport=websocket` (no auth header).
 //!
@@ -43,6 +46,7 @@
 use super::auth::{market_login_with, MarketSession};
 use super::binary;
 use super::mapping;
+use super::session::{market_data_user_id, MarketSessions};
 use super::socketio::{self, EioPacket, SioPacket};
 use super::{BinaryDecoder, EventCode, MarketKeys, XtsConfig};
 use crate::brokers::common::mapping::Exchange;
@@ -55,6 +59,7 @@ use crate::security::Secret;
 use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -90,15 +95,18 @@ pub struct FeedSource {
     pub(crate) keys: Option<MarketKeys>,
     pub token: Option<Secret>,
     pub user_id: Option<String>,
+    /// The session quotes and history renew (`session`), read at every
+    /// connect by a member that feeds on the stored session.
+    pub(crate) shared: Option<Arc<MarketSessions>>,
 }
 
 impl FeedSource {
     /// A source from a stored feed token and user id (no re-login).
     pub fn stored(token: &str, user_id: &str) -> Self {
         Self {
-            keys: None,
             token: Some(Secret::new(token)),
             user_id: Some(user_id.to_string()),
+            ..Self::default()
         }
     }
 
@@ -109,8 +117,7 @@ impl FeedSource {
                 key: Secret::new(key),
                 secret: Secret::new(secret),
             }),
-            token: None,
-            user_id: None,
+            ..Self::default()
         }
     }
 }
@@ -152,7 +159,37 @@ pub fn socket_url(cfg: &XtsConfig, base: &str, token: &str, user_id: &str) -> St
 }
 
 impl Connector {
+    /// The session already known, for a member that feeds on it
+    /// (`XtsHooks::feed_on_stored_session`, web fivepaisaxts #2484): the one
+    /// quotes and history renewed, else the one stored at sign-in, read
+    /// afresh at every connect. The user id the address takes is read from
+    /// the token as the web reads it, else the one XTS gave with it. `None`
+    /// when neither is known: the feed then logs in itself, at the path
+    /// where several sessions coexist.
+    fn known_session(&self) -> Option<MarketSession> {
+        let renewed = self.source.shared.as_ref().and_then(|s| s.current());
+        let (token, given_user) = match renewed {
+            Some(s) => (s.token, Some(s.user_id)),
+            None => (self.source.token.clone()?, self.source.user_id.clone()),
+        };
+        if token.is_empty() {
+            return None;
+        }
+        let user_id = market_data_user_id(token.expose())
+            .or(given_user)
+            .filter(|u| !u.is_empty())?;
+        Some(MarketSession {
+            token: token.expose().to_string(),
+            user_id,
+        })
+    }
+
     async fn session_token(&self) -> std::result::Result<MarketSession, PrepareError> {
+        if self.cfg.hooks.feed_on_stored_session {
+            if let Some(known) = self.known_session() {
+                return Ok(known);
+            }
+        }
         if let Some(keys) = &self.source.keys {
             let url = format!("{}{}", self.base_url, self.cfg.socket_login_path);
             return match market_login_with(

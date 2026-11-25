@@ -14,7 +14,8 @@
 //! interactive token (web `get_api_response`). An HTTP 200 answer of
 //! `{"type":"error","description":"Invalid Token"}` triggers one market
 //! re-login and retry when the market keys are known in this process
-//! (web iifl `_market_data_request`, issue #1669).
+//! (web iifl `_market_data_request`, issue #1669); the renewed session is
+//! kept for the calls after it, and for 5paisa XTS's feed (`session`).
 
 mod auth;
 pub mod binary;
@@ -32,6 +33,9 @@ mod parity_tests;
 mod protection;
 #[cfg(test)]
 mod protection_tests;
+mod session;
+#[cfg(test)]
+mod session_tests;
 pub mod socketio;
 pub mod streaming;
 #[cfg(test)]
@@ -49,6 +53,7 @@ use crate::security::Secret;
 use async_trait::async_trait;
 use reqwest::Method;
 use serde_json::Value;
+use std::sync::Arc;
 
 /// How the interactive (trading) token is obtained.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,6 +143,14 @@ pub struct XtsHooks {
     /// from 00:00:00 to 23:59:59 IST: 365 for 5paisa XTS (web #2490), 6 for
     /// the others, as their web clients ask.
     pub history_window_days: i64,
+    /// The feed connects with the market-data session quotes and history
+    /// use (one renewed in this process, else the one stored at sign-in),
+    /// read again at every connect, and logs in itself only when none is
+    /// known (5paisa XTS, web #2484: its own login at
+    /// `/apibinarymarketdata` cancelled the `/apimarketdata` session history
+    /// used, and every reconnect cancelled it again). The others log in at
+    /// every connect, as their web clients do.
+    pub feed_on_stored_session: bool,
 }
 
 /// Which subscribe batches of several instruments a member's web client
@@ -281,8 +294,9 @@ pub struct XtsBroker {
     base_url: String,
     symbols: SymbolResolver,
     market_keys: parking_lot::Mutex<Option<MarketKeys>>,
-    /// A feed token issued by an "Invalid Token" refresh in this process.
-    feed_override: parking_lot::RwLock<Option<Secret>>,
+    /// The market-data session an "Invalid Token" refresh in this process
+    /// renewed, shared with the feed (`session`).
+    market_session: Arc<session::MarketSessions>,
     order_pacer: Pacer,
     socket_base: Option<String>,
 }
@@ -304,7 +318,7 @@ impl XtsBroker {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             symbols,
             market_keys: parking_lot::Mutex::new(None),
-            feed_override: parking_lot::RwLock::new(None),
+            market_session: Arc::default(),
             order_pacer: Pacer::per_second(10.0),
             socket_base: None,
         }
@@ -332,20 +346,24 @@ impl XtsBroker {
         format!("{}{}{}", self.base_url, self.cfg.md_rest_path, path)
     }
 
+    /// A sign-in, a resume or a sign-out: the keys of the session that
+    /// starts (none for a sign-out). A market-data session renewed under the
+    /// one that ended goes with it, cleared after the keys change so a
+    /// renewal in flight cannot keep it (`session`).
     pub(crate) fn remember_market_keys(&self, keys: Option<MarketKeys>) {
         *self.market_keys.lock() = keys;
-        *self.feed_override.write() = None;
+        self.market_session.clear();
     }
 
     pub(crate) fn market_keys(&self) -> Option<MarketKeys> {
         self.market_keys.lock().clone()
     }
 
-    /// Token for market-data REST: a refreshed one, else the stored feed
+    /// Token for market-data REST: a renewed one, else the stored feed
     /// token, else the interactive token (web behaviour).
     pub(crate) fn md_token(&self, auth: &AuthToken) -> String {
-        if let Some(t) = self.feed_override.read().as_ref() {
-            return t.expose().to_string();
+        if let Some(s) = self.market_session.current() {
+            return s.token.expose().to_string();
         }
         auth.feed()
             .filter(|f| !f.is_empty())
@@ -441,8 +459,14 @@ impl XtsBroker {
         query: Option<&[(&str, String)]>,
     ) -> Result<Value> {
         let mut retried = false;
+        // The session this call renewed: its own retry uses it even when a
+        // sign-out meanwhile kept it out of the shared slot.
+        let mut renewed: Option<Secret> = None;
         loop {
-            let token = self.md_token(auth);
+            let token = match &renewed {
+                Some(t) => t.expose().to_string(),
+                None => self.md_token(auth),
+            };
             let mut req = self
                 .http
                 .request(method.clone(), self.md_url(path))
@@ -459,12 +483,27 @@ impl XtsBroker {
             let invalid = v.get("type").and_then(Value::as_str) != Some("success")
                 && mapping::is_token_error(&mapping::error_text(&v));
             if invalid && !retried {
+                // Read before the keys and the login (TtlCache rule): a
+                // sign-in, resume or sign-out meanwhile clears the slot, and
+                // this renewal is then not kept for anyone else.
+                let generation = self.market_session.generation();
                 if let Some(keys) = self.market_keys() {
                     retried = true;
                     match auth::market_login(self, &keys, &self.md_url("/auth/login"), true).await {
                         Ok(s) => {
                             tracing::info!(broker = self.cfg.id, "Market data session renewed");
-                            *self.feed_override.write() = Some(Secret::new(s.token));
+                            let token = Secret::new(s.token.as_str());
+                            let shared = session::SharedSession {
+                                token: token.clone(),
+                                user_id: s.user_id.clone(),
+                            };
+                            if !self.market_session.renewed(shared, generation) {
+                                tracing::debug!(
+                                    broker = self.cfg.id,
+                                    "Renewed market data session not kept: the broker session changed meanwhile"
+                                );
+                            }
+                            renewed = Some(token);
                             continue;
                         }
                         Err(e) => {
@@ -487,8 +526,10 @@ impl XtsBroker {
         }
     }
 
-    /// The feed's credentials: market keys for a fresh socket login, or
-    /// the stored feed token and user id.
+    /// The feed's credentials: market keys for a fresh socket login, the
+    /// stored feed token and user id, and the session quotes and history
+    /// renew (which a member feeding on the stored session reads at every
+    /// connect).
     fn feed_source(&self, auth: &AuthToken) -> streaming::FeedSource {
         streaming::FeedSource {
             keys: self.market_keys(),
@@ -496,8 +537,9 @@ impl XtsBroker {
                 .feed()
                 .filter(|t| !t.is_empty())
                 .map(Secret::new)
-                .or_else(|| self.feed_override.read().clone()),
+                .or_else(|| self.market_session.current().map(|s| s.token)),
             user_id: auth.user_id().map(str::to_string),
+            shared: Some(self.market_session.clone()),
         }
     }
 }

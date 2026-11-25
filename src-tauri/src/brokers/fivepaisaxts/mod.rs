@@ -1,10 +1,12 @@
 //! 5paisa XTS (web `broker/fivepaisaxts`, the family template). Its base
 //! URL has no trailing slash, as the web's has had since #2504.
 //!
-//! Since web #2490 and #2504 it departs from the template where the other
-//! members' web code has not moved: it reads XTS answers as the XTS v2
-//! docs describe them, asks for history 365 days at a time and takes the
-//! consolidated `ALL|ALL|ALL` funds entry.
+//! Since web #2484, #2490 and #2504 it departs from the template where the
+//! other members' web code has not moved: it reads XTS answers as the XTS
+//! v2 docs describe them, asks for history 365 days at a time, takes the
+//! consolidated `ALL|ALL|ALL` funds entry, and its feed connects with the
+//! market-data session quotes and history use, logging in itself only at
+//! `/apimarketdata`, where several sessions coexist.
 
 use crate::brokers::common::mapping::Exchange;
 use crate::brokers::common::symbols::SymbolResolver;
@@ -17,7 +19,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
     interactive_path: "/interactive",
     md_rest_path: "/apimarketdata",
     socket_path: "/apimarketdata/socket.io",
-    socket_login_path: "/apibinarymarketdata/auth/login",
+    socket_login_path: "/apimarketdata/auth/login",
     socket_login_source: true,
     subscription_path: "/apimarketdata",
     broadcast_mode: "FULL",
@@ -48,6 +50,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         price_protection: false,
         answers_as_documented: true,
         history_window_days: 365,
+        feed_on_stored_session: true,
     },
 };
 
