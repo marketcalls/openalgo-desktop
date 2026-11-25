@@ -6,6 +6,7 @@ pub mod book_read;
 pub mod de;
 pub mod history;
 pub mod http;
+pub mod jwt;
 pub mod mapping;
 pub mod master_contract;
 pub mod mpp;

@@ -613,13 +613,16 @@ fn every_brokers_master_lists_the_same_calendars() {
             ("BFO", "SENSEX", "options", &["29-OCT-26"]),
         ],
     );
+    let fivepaisaxts = &brokers::fivepaisaxts::CONFIG.hooks;
     let mut xts = brokers::families::xts::master_contract::parse_segment(
         "NSEFO",
         fx!("fivepaisaxts/NSEFO.txt"),
+        fivepaisaxts,
     );
     xts.extend(brokers::families::xts::master_contract::parse_segment(
         "MCXFO",
         fx!("fivepaisaxts/MCXFO.txt"),
+        fivepaisaxts,
     ));
     assert_calendars(
         "fivepaisaxts",

@@ -51,13 +51,26 @@ fn master() -> SymbolResolver {
             include_str!("../../../../tests/fixtures/brokers/fivepaisaxts/BSECM.txt"),
         ),
     ] {
-        rows.extend(parse_segment(seg, body));
+        rows.extend(parse_segment(seg, body, &template()));
     }
     rows.extend(parse_index_list(1, &market()["indexlist_1"]["result"]));
     rows.extend(parse_index_list(11, &market()["indexlist_11"]["result"]));
     let r = SymbolResolver::new();
     r.load(rows);
     r
+}
+
+/// The template members' reading: every member switch off.
+fn template() -> XtsHooks {
+    XtsHooks::default()
+}
+
+/// The template with a funds `limitHeader` to look for.
+fn funds_header(header: Option<&'static str>) -> XtsHooks {
+    XtsHooks {
+        funds_balance_header: header,
+        ..XtsHooks::default()
+    }
 }
 
 fn sub(symbol: &str, exchange: &str, token: &str, mode: FeedMode) -> FeedSubscription {
@@ -101,7 +114,9 @@ fn every_member_config_is_well_formed() {
         let b = XtsBroker::new(c, SymbolResolver::new());
         assert_eq!(b.id(), c.id);
         assert_eq!(b.login_kind(), LoginKind::ApiKeySecret);
-        assert_eq!(b.timeframe_map().len(), 10);
+        // 5paisa XTS has no `1s` (smallest compression 60, web #2504).
+        let expected = if c.hooks.answers_as_documented { 9 } else { 10 };
+        assert_eq!(b.timeframe_map().len(), expected, "{}", c.id);
         assert_eq!(b.capabilities().margin, c.hooks.margin_details);
     }
 }
@@ -112,7 +127,8 @@ fn member_deltas_match_the_audit_table() {
     let f = &fivepaisaxts::CONFIG;
     assert_eq!(f.base_url, "https://xtsmum.5paisa.com");
     assert_eq!(f.md_rest_path, "/apimarketdata");
-    assert_eq!(f.socket_login_path, "/apibinarymarketdata/auth/login");
+    // Its feed logs in, when it has to, where history does (web #2484).
+    assert_eq!(f.socket_login_path, "/apimarketdata/auth/login");
     assert_eq!(f.login, XtsLogin::Direct);
     assert_eq!(f.master_segments.len(), 4);
     assert_eq!(f.stream_mode_codes, [1512, 1501, 1502]);
@@ -324,7 +340,7 @@ fn place_and_modify_payloads_are_typed() {
 #[test]
 fn order_book_uses_openalgo_symbols_and_statuses() {
     let m = master();
-    let o = orders(&books()["orders"]["result"], &m);
+    let o = orders(&books()["orders"]["result"], &m, &template());
     assert_eq!(o.len(), 6);
     assert_eq!(o[0].symbol, "RELIANCE");
     assert_eq!(o[0].exchange, "NSE");
@@ -361,7 +377,7 @@ fn order_book_uses_openalgo_symbols_and_statuses() {
 
 #[test]
 fn trade_book() {
-    let t = trades(&books()["trades"]["result"], &master());
+    let t = trades(&books()["trades"]["result"], &master(), &template());
     assert_eq!(t[0].symbol, "NIFTY25APR2422500CE");
     assert_eq!(t[0].trade_id, "T0001");
     assert_eq!(t[0].trade_value, 50.0 * 101.25);
@@ -419,16 +435,19 @@ fn holdings_by_isin() {
 #[test]
 fn funds_first_entry_or_named_header() {
     let r = &books()["balance"]["result"];
-    let first = funds(r, None).unwrap();
+    let first = funds(r, &funds_header(None)).unwrap();
     assert_eq!(first.available_cash, 0.0);
-    let all = funds(r, Some("ALL|ALL|ALL")).unwrap();
+    let all = funds(r, &funds_header(Some("ALL|ALL|ALL"))).unwrap();
     assert_eq!(all.available_cash, 85001.0);
     assert_eq!(all.collateral, 2500.46);
     assert_eq!(all.utilised_debits, 15000.1);
     assert_eq!(all.m2m_unrealized, -27.5);
     assert_eq!(all.m2m_realized, 0.0, "nan reads as 0");
-    assert_eq!(funds(r, Some("NOPE")).unwrap(), first);
-    assert!(funds(&json!({"BalanceList": []}), None).is_none());
+    assert_eq!(funds(r, &funds_header(Some("NOPE"))).unwrap(), first);
+    assert!(funds(&json!({"BalanceList": []}), &template()).is_none());
+    // The template reads a list only; one entry alone is no balance.
+    let one = json!({"BalanceList": r["BalanceList"][1].clone()});
+    assert!(funds(&one, &funds_header(Some("ALL|ALL|ALL"))).is_none());
 }
 
 #[test]
@@ -541,6 +560,7 @@ fn master_cash_segments() {
     let nse = parse_segment(
         "NSECM",
         include_str!("../../../../tests/fixtures/brokers/fivepaisaxts/NSECM.txt"),
+        &template(),
     );
     assert_eq!(nse.len(), 2, "only EQ series");
     assert_eq!(nse[0].symbol, "RELIANCE");
@@ -554,6 +574,7 @@ fn master_cash_segments() {
     let bse = parse_segment(
         "BSECM",
         include_str!("../../../../tests/fixtures/brokers/fivepaisaxts/BSECM.txt"),
+        &template(),
     );
     assert_eq!(bse.len(), 3);
     assert_eq!(bse[0].exchange, "BSE");
@@ -570,6 +591,7 @@ fn master_derivatives() {
     let fo = parse_segment(
         "NSEFO",
         include_str!("../../../../tests/fixtures/brokers/fivepaisaxts/NSEFO.txt"),
+        &template(),
     );
     assert_eq!(fo.len(), 3);
     assert_eq!(fo[0].symbol, "BANKNIFTY24APR24FUT");
@@ -587,6 +609,7 @@ fn master_derivatives() {
     let cd = parse_segment(
         "NSECD",
         include_str!("../../../../tests/fixtures/brokers/fivepaisaxts/NSECD.txt"),
+        &template(),
     );
     assert_eq!(cd[0].symbol, "USDINR29MAY24FUT");
     assert_eq!(cd[1].symbol, "USDINR24MAY2483.25CE");
@@ -595,11 +618,12 @@ fn master_derivatives() {
     let mcx = parse_segment(
         "MCXFO",
         include_str!("../../../../tests/fixtures/brokers/fivepaisaxts/MCXFO.txt"),
+        &template(),
     );
     assert_eq!(mcx.len(), 1, "ContractExpiration == 1 rows are dropped");
     assert_eq!(mcx[0].symbol, "CRUDEOIL20MAY24FUT");
     assert_eq!(mcx[0].lot_size, 100);
-    assert!(parse_segment("XYZ", "a|b").is_empty());
+    assert!(parse_segment("XYZ", "a|b", &template()).is_empty());
 }
 
 #[test]
@@ -1339,9 +1363,9 @@ mod subscription_batches {
         assert_eq!(sizes, vec![vec![50, 50, 20], vec![50, 5]]);
     }
 
-    /// Only rmoney (web #2176) and wisdom (web #2469) split a refused
-    /// batch; the other members keep their web behaviour: the refusal is
-    /// non-fatal and nothing is retried.
+    /// Only rmoney (web #2176), wisdom (web #2469) and 5paisa XTS (web
+    /// #2504) split a refused batch; the other members keep their web
+    /// behaviour: the refusal is non-fatal and nothing is retried.
     #[tokio::test]
     async fn other_members_do_not_split_a_refused_batch() {
         use crate::brokers::families::xts::SplitRefused;
@@ -1349,12 +1373,18 @@ mod subscription_batches {
             crate::brokers::rmoney::CONFIG.hooks.split_refused_batch,
             SplitRefused::AlreadySubscribed
         );
-        assert_eq!(
-            crate::brokers::wisdom::CONFIG.hooks.split_refused_batch,
-            SplitRefused::Any
-        );
         for cfg in [
+            &crate::brokers::wisdom::CONFIG,
             &crate::brokers::fivepaisaxts::CONFIG,
+        ] {
+            assert_eq!(
+                cfg.hooks.split_refused_batch,
+                SplitRefused::Any,
+                "{}",
+                cfg.id
+            );
+        }
+        for cfg in [
             &crate::brokers::compositedge::CONFIG,
             &crate::brokers::jainamxts::CONFIG,
             &crate::brokers::ibulls::CONFIG,

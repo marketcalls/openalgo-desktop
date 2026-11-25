@@ -10,10 +10,20 @@ use crate::security::Secret;
 use serde_json::{json, Value};
 
 /// A market-data session.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct MarketSession {
     pub token: String,
     pub user_id: String,
+}
+
+/// The token never prints (CLAUDE.md: secrets are never logged).
+impl std::fmt::Debug for MarketSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MarketSession")
+            .field("token", &"<redacted>")
+            .field("user_id", &self.user_id)
+            .finish()
+    }
 }
 
 /// `POST <url> {secretKey, appKey[, source]}` -> `result.{token,userID}`

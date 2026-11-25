@@ -10,8 +10,12 @@
 //! `StrikePrice`/`OptionType`), so pandas shifts `PriceNumerator` (1) into
 //! `OptionType` and a text field into `StrikePrice` (-> 1.0). The result is
 //! "FUT" with strike 1.0; this parser reaches the same rows explicitly.
+//! A member that reads answers as documented (5paisa XTS, web #2504) types
+//! each row by its `InstrumentType` instead: 1 a future at strike 0, 2 an
+//! option (`OptionType` 3 CE, 4 PE), anything else (4, a spread) is no
+//! contract.
 
-use super::XtsBroker;
+use super::{XtsBroker, XtsHooks};
 use crate::brokers::common::http;
 use crate::brokers::common::master_contract::{format_expiry, format_strike, parse_broker_expiry};
 use crate::brokers::common::symbols::SymToken;
@@ -212,8 +216,48 @@ fn parse_cm(segment: &str, body: &str) -> Vec<SymToken> {
     out
 }
 
-/// One derivatives segment (`process_*_nfo/bfo/cds/mcx_csv`, `mc:296-480`).
-fn parse_fo(segment: &str, body: &str) -> Vec<SymToken> {
+/// A contract's kind and strike as the template reads an F&O row: a row
+/// short of the options layout, or `OptionType` 1, is a future; 3 a call,
+/// anything else a put; the strike 1.0 where it cannot be read.
+fn template_kind(r: &[&str]) -> (&'static str, f64) {
+    let option_row = r.len() >= FO_COLUMNS.len();
+    let kind = match (option_row, field(r, FO_OPTION_TYPE)) {
+        (false, _) | (true, "1") => "FUT",
+        (true, "3") => "CE",
+        _ => "PE",
+    };
+    let strike = if option_row {
+        num(field(r, FO_STRIKE)).unwrap_or(1.0)
+    } else {
+        1.0
+    };
+    (kind, strike)
+}
+
+/// A contract's kind and strike as the XTS v2 docs lay a row out (web
+/// fivepaisaxts `_fo_contracts`, #2504): futures and spreads have 21
+/// fields, options 23 with `StrikePrice` and `OptionType`. `InstrumentType`
+/// 1 is a future at strike 0; 2 an option, a call for `OptionType` 3 and a
+/// put for 4, with a strike that reads as a number; anything else, a
+/// spread (4) among them, is no contract.
+fn documented_kind(r: &[&str]) -> Option<(&'static str, f64)> {
+    match num(field(r, 2))? as i64 {
+        1 => Some(("FUT", 0.0)),
+        2 if r.len() >= FO_COLUMNS.len() => {
+            let kind = match num(field(r, FO_OPTION_TYPE))? as i64 {
+                3 => "CE",
+                4 => "PE",
+                _ => return None,
+            };
+            Some((kind, num(field(r, FO_STRIKE))?))
+        }
+        _ => None,
+    }
+}
+
+/// One derivatives segment (`process_*_nfo/bfo/cds/mcx_csv`, `mc:296-480`),
+/// each row typed as the member reads it.
+fn parse_fo(segment: &str, body: &str, hooks: &XtsHooks) -> Vec<SymToken> {
     let exchange = match segment {
         "NSEFO" => "NFO",
         "BSEFO" => "BFO",
@@ -236,16 +280,13 @@ fn parse_fo(segment: &str, body: &str) -> Vec<SymToken> {
             continue;
         };
         let expiry = format_expiry(date);
-        let option_row = r.len() >= FO_COLUMNS.len();
-        let kind = match (option_row, field(&r, FO_OPTION_TYPE)) {
-            (false, _) | (true, "1") => "FUT",
-            (true, "3") => "CE",
-            _ => "PE",
-        };
-        let strike = if option_row {
-            num(field(&r, FO_STRIKE)).unwrap_or(1.0)
+        let typed = if hooks.answers_as_documented {
+            documented_kind(&r)
         } else {
-            1.0
+            Some(template_kind(&r))
+        };
+        let Some((kind, strike)) = typed else {
+            continue;
         };
         let name = field(&r, 3).to_string();
         let compact = expiry.replace('-', "");
@@ -271,11 +312,11 @@ fn parse_fo(segment: &str, body: &str) -> Vec<SymToken> {
     out
 }
 
-/// Parse one segment's `result` string.
-pub fn parse_segment(segment: &str, body: &str) -> Vec<SymToken> {
+/// Parse one segment's `result` string as the member reads it (`hooks`).
+pub fn parse_segment(segment: &str, body: &str, hooks: &XtsHooks) -> Vec<SymToken> {
     match segment {
         "NSECM" | "BSECM" => parse_cm(segment, body),
-        _ => parse_fo(segment, body),
+        _ => parse_fo(segment, body, hooks),
     }
 }
 
@@ -351,7 +392,7 @@ pub(crate) async fn download(b: &XtsBroker) -> Result<Vec<SymToken>> {
                 b.cfg.name
             )));
         };
-        let rows = parse_segment(seg, body);
+        let rows = parse_segment(seg, body, &b.cfg.hooks);
         tracing::info!(
             broker = b.cfg.id,
             "Master segment {}: {} instruments",

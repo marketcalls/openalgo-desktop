@@ -13,11 +13,7 @@ pub(crate) async fn get_funds(b: &XtsBroker, auth: &AuthToken) -> Result<Funds> 
     let v = b
         .interactive(Method::GET, "/user/balance", auth, None)
         .await?;
-    mapping::funds(
-        v.get("result").unwrap_or(&Value::Null),
-        b.cfg.hooks.funds_balance_header,
-    )
-    .ok_or_else(|| {
+    mapping::funds(v.get("result").unwrap_or(&Value::Null), &b.cfg.hooks).ok_or_else(|| {
         AppError::Broker(format!(
             "{} returned no fund details. Try again shortly.",
             b.cfg.name

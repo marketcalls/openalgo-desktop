@@ -15,10 +15,12 @@ use futures_util::{SinkExt, StreamExt};
 use openalgo_desktop_lib::brokers::common::mapping::{Action, PriceType, Product};
 use openalgo_desktop_lib::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription};
 use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
-use openalgo_desktop_lib::brokers::families::xts::{master_contract, XtsBroker, XtsConfig};
+use openalgo_desktop_lib::brokers::families::xts::{
+    master_contract, XtsBroker, XtsConfig, XtsHooks,
+};
 use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{
-    compositedge, fivepaisaxts, ibulls, jainamxts, rmoney, Broker, BrokerCredentials,
+    compositedge, fivepaisaxts, ibulls, iifl, jainamxts, rmoney, Broker, BrokerCredentials,
 };
 use openalgo_desktop_lib::websocket::handshake;
 use openalgo_desktop_lib::websocket::{FeedConfig, WebSocketManager};
@@ -63,7 +65,11 @@ fn segment_file(seg: &str) -> &'static str {
 fn master() -> SymbolResolver {
     let mut rows = Vec::new();
     for seg in ["NSECM", "BSECM", "NSEFO"] {
-        rows.extend(master_contract::parse_segment(seg, segment_file(seg)));
+        rows.extend(master_contract::parse_segment(
+            seg,
+            segment_file(seg),
+            &XtsHooks::default(),
+        ));
     }
     rows.extend(master_contract::parse_index_list(
         1,
@@ -595,9 +601,12 @@ async fn place_modify_cancel() {
     );
 }
 
+/// The template's cancel-all (what the book reads as open or trigger
+/// pending), on iifl: 5paisa XTS cancels by XTS's own statuses since web
+/// #2504 (`broker_fivepaisaxts_docs`).
 #[tokio::test]
 async fn cancel_all_and_close_all() {
-    let (b, fake, _) = broker(&fivepaisaxts::CONFIG).await;
+    let (b, fake, _) = broker(&iifl::CONFIG).await;
     let t = token();
     let r = b.cancel_all_orders(&t).await.unwrap();
     assert_eq!(r.cancelled, ["1200001", "1200003", "1200005"]);
@@ -942,9 +951,12 @@ async fn a_position_error_is_reported_not_read_as_an_empty_book() {
     assert!(b.get_positions(&token()).await.unwrap().is_empty());
 }
 
+/// The template's books and funds, on iifl: 5paisa XTS reads trade fills
+/// and the consolidated funds entry since web #2504
+/// (`broker_fivepaisaxts_docs`).
 #[tokio::test]
 async fn books_and_funds() {
-    let (b, _, _) = broker(&fivepaisaxts::CONFIG).await;
+    let (b, _, _) = broker(&iifl::CONFIG).await;
     let t = token();
     let o = b.get_order_book(&t).await.unwrap();
     assert_eq!(o.len(), 6);
@@ -957,7 +969,7 @@ async fn books_and_funds() {
     let h = b.get_holdings(&t).await.unwrap();
     assert!(h.iter().any(|x| x.symbol == "RELIANCE"));
     let f = b.get_funds(&t).await.unwrap();
-    assert_eq!(f.available_cash, 0.0, "fivepaisaxts reads BalanceList[0]");
+    assert_eq!(f.available_cash, 0.0, "the template reads BalanceList[0]");
     let e = b
         .get_order_book(&AuthToken::new("expired"))
         .await
@@ -1094,9 +1106,11 @@ async fn invalid_feed_token_is_renewed_once() {
     assert_eq!(e.code(), "AUTH_ERROR");
 }
 
+/// The template's six-day history windows, on iifl: 5paisa XTS asks 365
+/// days at a time since web #2490 (`broker_fivepaisaxts_docs`).
 #[tokio::test]
 async fn history_windows_and_today_candle() {
-    let (b, fake, _) = broker(&fivepaisaxts::CONFIG).await;
+    let (b, fake, _) = broker(&iifl::CONFIG).await;
     let t = token();
     let req = HistoryRequest {
         key: QuoteKey::new("NSE", "RELIANCE"),
@@ -1266,11 +1280,14 @@ fn manager() -> WebSocketManager {
     })
 }
 
+/// The template's feed, which logs in at every connect, on iifl: 5paisa
+/// XTS connects with the stored session since web #2484
+/// (`broker_fivepaisaxts_docs`).
 #[tokio::test]
 async fn feed_end_to_end_through_the_relay() {
     let ws_log = Arc::new(Mutex::new(Vec::new()));
     let sock = socket_server(ws_log.clone(), false).await;
-    let (b, fake, _) = broker(&fivepaisaxts::CONFIG).await;
+    let (b, fake, _) = broker(&iifl::CONFIG).await;
     b.authenticate(creds()).await.unwrap();
     let b = b.with_socket_base(&sock);
     let feed = b.create_feed(&token()).unwrap();

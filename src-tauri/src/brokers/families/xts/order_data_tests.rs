@@ -6,6 +6,7 @@
 //! `tests/it/brokers_xts.rs`.
 
 use super::mapping::{order_id, orders, position_list, positions, trades};
+use super::XtsHooks;
 use crate::brokers::common::symbols::SymbolResolver;
 use serde_json::{json, Value};
 
@@ -89,12 +90,12 @@ fn exact_order_id_edges() {
 fn the_order_and_trade_books_keep_each_orders_own_id() {
     let rows = Value::Array(ids(true).into_iter().map(book_row).collect());
     let symbols = SymbolResolver::new();
-    let book: Vec<String> = orders(&rows, &symbols)
+    let book: Vec<String> = orders(&rows, &symbols, &XtsHooks::default())
         .into_iter()
         .map(|o| o.order_id)
         .collect();
     assert_eq!(book, IDS);
-    let traded: Vec<String> = trades(&rows, &symbols)
+    let traded: Vec<String> = trades(&rows, &symbols, &XtsHooks::default())
         .into_iter()
         .map(|t| t.order_id)
         .collect();
