@@ -7,10 +7,17 @@
 //! other Noren members are held to the rules they had.
 
 use super::config;
-use crate::brokers::common::symbols::SymToken;
+use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::families::noren::master_contract::parse_file;
-use crate::brokers::shoonya;
+use crate::brokers::families::noren::{NorenBroker, NorenConfig, NorenEndpoints};
+use crate::brokers::types::{AuthToken, HistoryRequest, QuoteKey};
+use crate::brokers::{shoonya, zebu, Broker};
+use chrono::{NaiveDate, NaiveDateTime, TimeZone};
+use chrono_tz::Asia::Kolkata;
+use parking_lot::Mutex;
+use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 macro_rules! fixture {
     ($name:literal) => {
@@ -212,4 +219,223 @@ fn nse_and_bse_ticks_are_stored_in_rupees() {
     }
     let shoonya = parse_file(shoonya::config(), "NSE", fixture!("NSE_symbols.txt"));
     assert_eq!(row(&shoonya, "NSE", "MRF").tick_size, 0.05);
+}
+
+// ---------------------------------------------------------------------------
+// History, against a local fake TradeSmart on an ephemeral port
+// ---------------------------------------------------------------------------
+
+/// What the fake answers and what it was asked.
+#[derive(Default)]
+struct Fake {
+    /// Every request: the endpoint's last path segment and its `jData`.
+    calls: Mutex<Vec<(String, Value)>>,
+    /// TPSeries answers the rows inside the asked range.
+    tpseries: Mutex<Vec<Value>>,
+}
+
+impl Fake {
+    fn calls(&self, endpoint: &str) -> Vec<Value> {
+        self.calls
+            .lock()
+            .iter()
+            .filter(|(leaf, _)| leaf == endpoint)
+            .map(|(_, jdata)| jdata.clone())
+            .collect()
+    }
+
+    fn answer(&self, leaf: &str, jdata: &Value) -> Value {
+        let no_data = json!({"stat":"Not_Ok","emsg":"Error Occurred : 5 \"no data\""});
+        match leaf {
+            "TPSeries" => {
+                let at = |k: &str| jdata[k].as_str().and_then(|v| v.parse::<i64>().ok());
+                let (Some(st), Some(et)) = (at("st"), at("et")) else {
+                    return no_data;
+                };
+                let rows: Vec<Value> = self
+                    .tpseries
+                    .lock()
+                    .iter()
+                    .filter(|r| {
+                        r["ssboe"]
+                            .as_str()
+                            .and_then(|v| v.parse().ok())
+                            .is_some_and(|t: i64| (st..=et).contains(&t))
+                    })
+                    .cloned()
+                    .collect();
+                if rows.is_empty() {
+                    no_data
+                } else {
+                    Value::Array(rows)
+                }
+            }
+            _ => no_data,
+        }
+    }
+}
+
+/// The `jData` of a Noren body, in either dialect.
+fn jdata_of(body: &str) -> Value {
+    body.strip_prefix("jData=")
+        .map(|rest| rest.split_once("&jKey=").map_or(rest, |(j, _)| j))
+        .and_then(|j| serde_json::from_str(j).ok())
+        .unwrap_or(Value::Null)
+}
+
+async fn serve(fake: Arc<Fake>) -> String {
+    let app = axum::Router::new().fallback(move |uri: axum::http::Uri, body: String| {
+        let fake = fake.clone();
+        async move {
+            let leaf = uri
+                .path()
+                .rsplit('/')
+                .next()
+                .unwrap_or_default()
+                .to_string();
+            let jdata = jdata_of(&body);
+            fake.calls.lock().push((leaf.clone(), jdata.clone()));
+            axum::Json(fake.answer(&leaf, &jdata))
+        }
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let host = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+    host
+}
+
+/// A member's adapter on TradeSmart's master, talking to `fake`.
+async fn adapter(cfg: &'static NorenConfig, fake: &Arc<Fake>) -> NorenBroker {
+    let host = serve(fake.clone()).await;
+    let symbols = SymbolResolver::new();
+    symbols.load(tradesmart_master());
+    NorenBroker::with_endpoints(
+        cfg,
+        symbols,
+        NorenEndpoints::rebased(cfg, &host, "ws://127.0.0.1:1"),
+    )
+}
+
+fn auth() -> AuthToken {
+    AuthToken::new("<USER_ID>:::sess-tok")
+}
+
+/// `YYYY-MM-DD HH:MM` IST as epoch seconds.
+fn ist(text: &str) -> i64 {
+    let naive = NaiveDateTime::parse_from_str(text, "%Y-%m-%d %H:%M").unwrap();
+    Kolkata.from_local_datetime(&naive).unwrap().timestamp()
+}
+
+/// TPSeries rows as Noren sends them, from `(IST time, o, h, l, c, volume)`.
+fn tpseries(bars: &[(&str, f64, f64, f64, f64, i64)]) -> Vec<Value> {
+    bars.iter()
+        .map(|&(t, o, h, l, c, v)| {
+            json!({"stat":"Ok","ssboe": ist(t).to_string(), "into": o.to_string(),
+                   "inth": h.to_string(), "intl": l.to_string(), "intc": c.to_string(),
+                   "intv": v.to_string(), "oi": "0"})
+        })
+        .collect()
+}
+
+fn history(exchange: &str, symbol: &str, interval: &str) -> HistoryRequest {
+    HistoryRequest {
+        key: QuoteKey::new(exchange, symbol),
+        interval: interval.into(),
+        start: NaiveDate::from_ymd_opt(2026, 11, 18).unwrap(),
+        end: NaiveDate::from_ymd_opt(2026, 11, 19).unwrap(),
+    }
+}
+
+async fn bar_times(b: &NorenBroker, req: &HistoryRequest) -> Vec<i64> {
+    b.get_history(&auth(), req)
+        .await
+        .unwrap()
+        .iter()
+        .map(|c| c.timestamp)
+        .collect()
+}
+
+/// RELIANCE 18-11-2026 1m as TPSeries sends it: each date opens with the
+/// pre-open discovered price at 09:14, flat with no volume.
+fn reliance_1m() -> Vec<Value> {
+    tpseries(&[
+        ("2026-11-18 09:14", 1370.0, 1370.0, 1370.0, 1370.0, 0),
+        ("2026-11-18 09:15", 1367.0, 1371.0, 1366.2, 1369.5, 182_340),
+        ("2026-11-18 09:16", 1369.5, 1369.9, 1368.0, 1368.4, 96_210),
+        ("2026-11-19 09:14", 1374.0, 1374.0, 1374.0, 1374.0, 0),
+        ("2026-11-19 09:15", 1374.5, 1376.0, 1373.1, 1375.2, 150_002),
+    ])
+}
+
+/// QA HS-07: every TradeSmart session opened at 09:14 on the pre-open bar.
+/// Intraday history leaves it out on cash and index rows alike (an index
+/// bar has no volume, but its first trading bar is not flat), so each
+/// session opens at 09:15.
+#[tokio::test]
+async fn intraday_history_leaves_out_the_pre_open_bar_of_each_session() {
+    let fake = Arc::new(Fake::default());
+    let b = adapter(config(), &fake).await;
+    *fake.tpseries.lock() = reliance_1m();
+    let times = bar_times(&b, &history("NSE", "RELIANCE", "1m")).await;
+    assert_eq!(
+        times,
+        vec![
+            ist("2026-11-18 09:15"),
+            ist("2026-11-18 09:16"),
+            ist("2026-11-19 09:15")
+        ]
+    );
+    let asked = fake.calls("TPSeries");
+    assert_eq!(
+        (asked[0]["token"].as_str(), asked[0]["intrv"].as_str()),
+        (Some("2885"), Some("1"))
+    );
+    *fake.tpseries.lock() = tpseries(&[
+        (
+            "2026-11-18 09:14",
+            25_903.1,
+            25_903.1,
+            25_903.1,
+            25_903.1,
+            0,
+        ),
+        (
+            "2026-11-18 09:15",
+            25_910.4,
+            25_951.0,
+            25_900.2,
+            25_940.7,
+            0,
+        ),
+        (
+            "2026-11-18 09:16",
+            25_940.7,
+            25_948.3,
+            25_930.0,
+            25_935.1,
+            0,
+        ),
+    ]);
+    let times = bar_times(&b, &history("NSE_INDEX", "NIFTY", "1m")).await;
+    assert_eq!(
+        times,
+        vec![ist("2026-11-18 09:15"), ist("2026-11-18 09:16")]
+    );
+}
+
+/// Shoonya and Zebu keep every bar TPSeries sends: the web drops the
+/// pre-open bar by its shape for TradeSmart only (Flattrade drops it by
+/// the clock, `strict_candles`).
+#[tokio::test]
+async fn other_noren_members_keep_the_bars_tpseries_sends() {
+    for cfg in [shoonya::config(), zebu::config()] {
+        let fake = Arc::new(Fake::default());
+        let b = adapter(cfg, &fake).await;
+        *fake.tpseries.lock() = reliance_1m();
+        let times = bar_times(&b, &history("NSE", "RELIANCE", "1m")).await;
+        assert_eq!(times.len(), 5, "{}", cfg.id);
+        assert_eq!(times[0], ist("2026-11-18 09:14"), "{}", cfg.id);
+    }
 }

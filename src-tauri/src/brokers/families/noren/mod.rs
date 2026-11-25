@@ -304,6 +304,11 @@ pub struct NorenConfig {
     /// TPSeries reply spanning several days folds the next day's first 1m
     /// bar into it (shoonya, web #2343; `data::day_end`).
     pub day_end_repair: bool,
+    /// Drop the bar intraday TPSeries opens an IST date with when it holds
+    /// the pre-open discovered price: flat, no volume, and more bars that
+    /// date (tradesmart, web #2475, QA HS-07; `data::flat_open_bar`).
+    /// Recognised by its shape, not the clock, unlike `strict_candles`.
+    pub drop_flat_open_bar: bool,
     /// Widen the high/low of `EODChartData` rows to cover their open and
     /// close (flattrade: BSE index rows often carry a close outside the
     /// day's range, and a chart refuses the whole history on one such

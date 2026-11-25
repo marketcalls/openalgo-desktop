@@ -29,7 +29,7 @@ use chrono::{NaiveDate, TimeZone};
 use chrono_tz::Asia::Kolkata;
 
 /// The trading date (IST) of an epoch-second timestamp.
-fn ist_date(ts: i64) -> Option<NaiveDate> {
+pub(super) fn ist_date(ts: i64) -> Option<NaiveDate> {
     Kolkata
         .timestamp_opt(ts, 0)
         .single()

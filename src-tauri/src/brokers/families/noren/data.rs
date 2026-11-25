@@ -14,6 +14,7 @@ use chrono_tz::Asia::Kolkata;
 use serde_json::{json, Value};
 
 mod day_end;
+mod flat_open_bar;
 
 fn lookup(b: &NorenBroker, key: &QuoteKey) -> Result<SymToken> {
     b.resolver().by_symbol(&key.exchange, &key.symbol).ok_or_else(|| {
@@ -439,6 +440,9 @@ pub async fn get_history(
         }
     }
     let mut out = sort_dedupe_last(candles);
+    if b.cfg.drop_flat_open_bar && !daily {
+        out = flat_open_bar::without_flat_open_bars(b.cfg, out);
+    }
     if b.cfg.day_end_repair && !daily && req.interval != "1m" {
         day_end::repair(b, &s, &chart, &req.key, &mut out).await;
     }

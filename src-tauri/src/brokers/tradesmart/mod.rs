@@ -77,6 +77,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     eod_index_names: &[],
     history_repair: false,
     day_end_repair: false,
+    drop_flat_open_bar: true,
     eod_widen: false,
     strict_candles: false,
     today_bar_utc: true,
