@@ -284,6 +284,7 @@ The `stoploss` and `target` limit prices are not used: each Upstox rule fires at
 - In the desktop, if OpenAlgo cannot read whether the order mode is Semi-Auto, the GTT is refused (500) instead of being placed; the web places it.
 - In the desktop, a Pocketful GTT that Pocketful answers with a server error, with a success that carries no id, or with an answer that says neither success nor failure is reported as unknown (502, "Check the GTT list before placing it again"), and an Action Center approval of it stays unconfirmed instead of rejected; the web reports a server error as a refusal. A GTT that never reached Pocketful (the connection did not open) is refused with 400 and says it was not placed; the web cannot tell it from a lost answer.
 - In the desktop, Pocketful's own refusal answers 400 whatever HTTP status Pocketful gave it, like every broker's refusal here; the web passes Pocketful's status on (401, 500).
+- In the desktop, a session Pocketful refuses (401 or 403) on a GTT create, modify, cancel or book answers 400 `Pocketful did not accept your session for the GTT. Log in to Pocketful again from OpenAlgo, then try again.` (for the book, `... for the GTT list ...`), as Pocketful's orders and books do; the web answers Pocketful's status with `Pocketful refused to place the GTT: Request Unauthorised`.
 
 ---
 

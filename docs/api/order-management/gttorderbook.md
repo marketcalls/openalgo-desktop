@@ -226,6 +226,8 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 ## In the desktop
 
 - In the desktop, a Pocketful GTT book that Pocketful refuses, or that cannot be reached or read, answers 400 with the reason; the web answers with Pocketful's own status (for example 401), and 502 when Pocketful cannot be reached or read.
+- In the desktop, a Pocketful GTT book whose `data` is missing, or is neither a list nor a rule, answers 400 `Pocketful sent the GTT list in a form OpenAlgo could not read. Try again in a moment.`, never an empty book; the web reads it as no GTTs.
+- In the desktop, a session Pocketful refuses answers 400 `Pocketful did not accept your session for the GTT list. Log in to Pocketful again from OpenAlgo, then try again.`; the web answers 401 `Pocketful refused to list the GTT: Request Unauthorised`.
 
 ---
 

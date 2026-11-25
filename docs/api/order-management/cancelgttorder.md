@@ -123,6 +123,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 ## In the desktop
 
 - In the desktop, Pocketful's own refusal of a cancel ("Pocketful refused to cancel the GTT: Event id not found") answers 400 whatever HTTP status Pocketful gave it; the web answers with Pocketful's status (500).
+- In the desktop, a session Pocketful refuses (401 or 403) answers 400 `Pocketful did not accept your session for the GTT. Log in to Pocketful again from OpenAlgo, then try again.`; the web answers Pocketful's status with `Pocketful refused to cancel the GTT: Request Unauthorised`.
 - In the desktop, an analyzer-mode OCO that was modified to a higher target, with positions closed in between, cancels normally and releases its margin; the web can answer 500 `Could not release ... margin ... retry the cancel.` and leave the OCO active, because its sandbox had already dropped the margin of resting orders (a web defect).
 
 ---

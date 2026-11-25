@@ -211,6 +211,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 - In the desktop, a failed analyzer-mode modify (an unknown or no longer active `trigger_id`) answers 404 `No active GTT with trigger_id '...'` and is recorded in the sandbox log; the web answers 500 `An unexpected error occurred` and logs nothing (a web defect).
 - In the desktop, when the broker's last price cannot be read the answer is 400 with a message naming the broker; the web answers 502.
 - In the desktop, Pocketful's own refusal of a change answers 400 whatever HTTP status Pocketful gave it, and a Pocketful GTT book that cannot be read (or a rule whose expiry Pocketful did not report) answers 400 with the reason; the web answers with Pocketful's status, and 502 for those two.
+- In the desktop, a session Pocketful refuses (401 or 403) answers 400 `Pocketful did not accept your session for the GTT. Log in to Pocketful again from OpenAlgo, then try again.` (`... for the GTT list ...` when it refuses the GTT book read first); the web answers Pocketful's status with `Pocketful refused to change the GTT: Request Unauthorised`.
 
 ---
 
