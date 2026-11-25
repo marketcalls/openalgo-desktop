@@ -116,6 +116,8 @@ fn daily_csv(conn: &Connection, user: &str) -> Result<Option<String>, SandboxErr
             "Total Unrealized",
             "Total MTM",
             "Portfolio Value",
+            "Charges",
+            "Net MTM",
         ],
     );
     for r in rows {
@@ -129,6 +131,8 @@ fn daily_csv(conn: &Connection, user: &str) -> Result<Option<String>, SandboxErr
                 dec(r.positions_unrealized_pnl + r.holdings_unrealized_pnl),
                 dec(r.total_mtm),
                 dec(r.portfolio_value),
+                dec(r.charges),
+                dec(r.total_mtm - r.charges),
             ],
         );
     }
@@ -232,6 +236,52 @@ fn holdings_csv(conn: &Connection, user: &str) -> Result<Option<String>, Sandbox
     Ok(Some(out))
 }
 
+/// Column headings of the transaction cost report's CSV, with the report
+/// row keys they print (web `REPORT_CSV_COLUMNS`, openalgo#2496).
+const COST_REPORT_COLUMNS: [(&str, &str); 19] = [
+    ("Timestamp", "timestamp"),
+    ("Trade ID", "tradeid"),
+    ("Order ID", "orderid"),
+    ("Symbol", "symbol"),
+    ("Exchange", "exchange"),
+    ("Product", "product"),
+    ("Segment", "segment_label"),
+    ("Action", "action"),
+    ("Quantity", "quantity"),
+    ("Price", "price"),
+    ("Turnover", "turnover"),
+    ("Brokerage", "brokerage"),
+    ("STT/CTT", "stt"),
+    ("Exchange Charges", "exchange_charges"),
+    ("SEBI Charges", "sebi_charges"),
+    ("Stamp Duty", "stamp_duty"),
+    ("GST", "gst"),
+    ("Total Charges", "total_charges"),
+    ("Strategy", "strategy"),
+];
+
+/// The transaction cost report's trades as CSV, as Python's `csv` writes
+/// them: text through [`sanitize`], whole numbers as integers, floats as
+/// `repr`.
+pub fn cost_report_csv(rows: &[serde_json::Value]) -> String {
+    use serde_json::Value;
+    let mut out = String::new();
+    headers(&mut out, &COST_REPORT_COLUMNS.map(|(h, _)| h));
+    for row in rows {
+        let cells: Vec<String> = COST_REPORT_COLUMNS
+            .iter()
+            .map(|(_, key)| match row.get(*key) {
+                Some(Value::String(s)) => sanitize(s),
+                Some(Value::Number(n)) if n.is_i64() || n.is_u64() => n.to_string(),
+                Some(Value::Number(n)) => py_float(n.as_f64().unwrap_or(0.0)),
+                _ => String::new(),
+            })
+            .collect();
+        line(&mut out, &cells);
+    }
+    out
+}
+
 /// The trades, newest first.
 fn trades_csv(conn: &Connection, user: &str) -> Result<Option<String>, SandboxError> {
     let mut out = String::new();
@@ -258,6 +308,7 @@ fn trades_csv(conn: &Connection, user: &str) -> Result<Option<String>, SandboxEr
             "Product",
             "Strategy",
             "Timestamp",
+            "Charges",
         ],
     );
     for t in rows {
@@ -274,6 +325,7 @@ fn trades_csv(conn: &Connection, user: &str) -> Result<Option<String>, SandboxEr
                 sanitize(&t.product),
                 sanitize(t.strategy.as_deref().unwrap_or("")),
                 display_seconds(&t.trade_timestamp),
+                dec(t.charges.total()),
             ],
         );
     }

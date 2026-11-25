@@ -128,7 +128,7 @@ pub fn is_enabled(value: Option<&str>) -> bool {
 
 /// A submitted value as Python's `str(value)` reads it: text as is, a number
 /// in its JSON form, anything else unreadable.
-fn submitted(value: &Value) -> Option<String> {
+pub fn value_text(value: &Value) -> Option<String> {
     match value {
         Value::String(s) => Some(s.clone()),
         Value::Number(n) => Some(n.to_string()),
@@ -147,7 +147,7 @@ pub fn validate_brokerage(
         return Err("That segment is not on the rate card.".to_string());
     };
     let parse = |v: &Value, what: &str| {
-        submitted(v)
+        value_text(v)
             .as_deref()
             .and_then(parse_amount)
             .ok_or_else(|| format!("{}: enter a number for the {}.", s.label, what))

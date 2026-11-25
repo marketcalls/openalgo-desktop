@@ -48,8 +48,8 @@ pub use note::{
 pub use plan::{
     brokerage_flat_key, brokerage_percent_key, config_keys, default_config_rows,
     default_config_values, describe_brokerage, is_enabled, parse_amount, plain, to_decimal,
-    validate_brokerage, validate_config_value, Plan, CHARGES_ENABLED_KEY, MAX_BROKERAGE_FLAT,
-    MAX_BROKERAGE_PERCENT,
+    validate_brokerage, validate_config_value, value_text, Plan, CHARGES_ENABLED_KEY,
+    MAX_BROKERAGE_FLAT, MAX_BROKERAGE_PERCENT,
 };
 pub use rates::{
     classify_segment, market_for_broker_type, segment, segments_for, Market, Segment, SEGMENTS,

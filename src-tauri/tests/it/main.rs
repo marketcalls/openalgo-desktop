@@ -243,6 +243,7 @@ mod polled_reads;
 // Counts the process's threads, which only macOS and Linux report.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod pool_threads;
+mod sandbox_charges;
 mod sandbox_concurrency;
 mod sandbox_contract;
 mod sandbox_engine;

@@ -7,6 +7,8 @@
 //! that landed in between wins), the trade is written and the position and
 //! funds are netted. Events go out after the commit.
 
+use super::charge_manager;
+use super::charges::Charges;
 use super::config::SandboxConfig;
 use super::core::{blocking, Core};
 use super::db::{OrderRow, OrderTerms};
@@ -129,7 +131,8 @@ pub fn generate_trade_id(now: chrono::NaiveDateTime) -> String {
 /// Fresh trade ids tried when one collides with an existing trade.
 const TRADE_ID_ATTEMPTS: usize = 5;
 
-/// Write the order's one trade row and return its id. Only a duplicate
+/// Write the order's one trade row, with what the fill was charged, and
+/// return its id. Only a duplicate
 /// trade id (the `UNIQUE` constraint) is retried with a fresh id; any other
 /// failure, and a run of duplicates, is returned so the caller's
 /// transaction rolls the whole fill back: an order never completes without
@@ -138,16 +141,20 @@ fn insert_trade(
     tx: &Connection,
     order: &OrderRow,
     price: Decimal,
+    charges: &Charges,
     now: chrono::NaiveDateTime,
     now_s: &str,
 ) -> rusqlite::Result<String> {
     let mut last = None;
+    let c = charges.columns().map(dec_to_db);
     for _ in 0..TRADE_ID_ATTEMPTS {
         let tradeid = generate_trade_id(now);
         let r = tx.execute(
             "INSERT INTO sandbox_trades (tradeid, orderid, user_id, symbol, exchange, action,
-               quantity, price, product, strategy, trade_timestamp)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+               quantity, price, product, strategy, trade_timestamp, brokerage, stt,
+               exchange_charges, sebi_charges, stamp_duty, gst, total_charges)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+               ?17, ?18)",
             params![
                 tradeid,
                 order.orderid,
@@ -159,7 +166,14 @@ fn insert_trade(
                 dec_to_db(price),
                 order.product.as_str(),
                 order.strategy,
-                now_s
+                now_s,
+                c[0],
+                c[1],
+                c[2],
+                c[3],
+                c[4],
+                c[5],
+                c[6]
             ],
         );
         match r {
@@ -251,7 +265,8 @@ pub(crate) fn execute_in_tx(
             params![dec_to_db(order.margin_blocked), order.id],
         )?;
     }
-    let tradeid = insert_trade(tx, &order, price, now, &now_s)?;
+    let charges = charge_manager::charge_fill(tx, &cfg, &order, price, cv, &now_s)?;
+    let tradeid = insert_trade(tx, &order, price, &charges, now, &now_s)?;
     positions::apply_fill(tx, &cfg, &order, price, cv, &now_s)?;
     let discrepancy = funds::reconcile(tx, &order.user_id, true, &now_s)?;
     if discrepancy != Decimal::ZERO {
@@ -267,12 +282,14 @@ pub(crate) fn execute_in_tx(
         outbox.push(e);
     }
     tracing::info!(
-        "Sandbox order {} filled: {} {} {} @ {}",
+        "Sandbox order {} filled: {} {} {} @ {} (charges {}, brokerage {})",
         order.orderid,
         order.symbol,
         order.action.as_str(),
         order.quantity,
-        price
+        price,
+        charges.total(),
+        charges.brokerage
     );
     Ok(true)
 }

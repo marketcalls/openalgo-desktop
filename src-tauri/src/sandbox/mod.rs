@@ -29,6 +29,11 @@
 //!   one-minute backup; today's P&L reset at the 03:00 boundary; the 23:59
 //!   snapshot; the optional weekly reset; catch-up of anything missed while
 //!   the app was closed; GTT single and OCO.
+//! * Brokerage and statutory charges on every fill (web openalgo#2496): the
+//!   trader's plan per segment plus STT or CTT, exchange, SEBI, stamp duty
+//!   and GST ([`charges`], no I/O), taken from the balance in the fill's own
+//!   transaction and recorded on the trade; P&L stays gross
+//!   ([`charge_manager`]).
 //! * Events on the crate bus: `order.update`, `sandbox.order_filled`,
 //!   `sandbox.auto_squareoff`, `sandbox.t1_settlement`, `gtt.triggered`,
 //!   `gtt.expired`.
@@ -69,6 +74,7 @@
 //! | `/sandbox/squareoff-status` | [`Sandbox::squareoff_status`] | [`replies::SquareOffStatusReply`] |
 //! | `/sandbox/reload-squareoff` | [`Sandbox::reload_squareoff`] | [`replies::SquareOffStatusReply`] |
 //! | `/sandbox/mypnl/api/data` | [`Sandbox::mypnl`] | [`replies::MyPnlReply`] |
+//! | `/sandbox/commissions/api/*`, `/sandbox/calculator/api/estimate`, `charges` | `Sandbox::charge_settings` and the other calls in `charge_manager/api.rs` | `serde_json::Value` |
 //!
 //! Lifecycle: [`Sandbox::set_analyzer_mode`] starts the engine task (after a
 //! catch-up) when analyzer mode turns on and stops it when it turns off;
@@ -78,6 +84,7 @@
 //! [`Sandbox::square_off_now`], [`Sandbox::t1_settlement`].
 
 pub mod catch_up;
+pub mod charge_manager;
 pub mod charges;
 pub mod clock;
 pub mod config;
@@ -465,6 +472,8 @@ impl Sandbox {
                         m2mrealized: money(f.today_realized_pnl),
                         total_realized_pnl: money(f.realized_pnl),
                         today_realized_pnl: money(f.today_realized_pnl),
+                        today_charges: money(f.today_charges),
+                        total_charges: money(f.total_charges),
                         utiliseddebits: money(f.used_margin),
                         grossexposure: money(f.used_margin),
                         totalpnl: money(f.total_pnl),
@@ -588,12 +597,12 @@ impl Sandbox {
     /// `/sandbox/update`: validate, write, apply side effects (capital
     /// rebase, schedule reload).
     pub async fn update_config(&self, key: &str, value: &str) -> SbResult<SettingsMessage> {
-        if config::default_of(key).is_none() {
+        if !config::is_setting(key) {
             return Err(SandboxError::bad_request(format!(
                 "Unknown sandbox setting: {key}"
             )));
         }
-        if let Some(msg) = config::validate(key, value) {
+        if let Some(msg) = config::validate_setting(key, value) {
             return Err(SandboxError::bad_request(msg));
         }
         let (k, v) = (key.to_string(), value.to_string());
@@ -652,9 +661,7 @@ impl Sandbox {
         let r = blocking(&core, |c| {
             c.db.with_tx(|tx| {
                 let now = c.now_ts();
-                for k in config::RESET_KEYS {
-                    config::set_raw(tx, k, config::default_of(k).unwrap_or(""), &now)?;
-                }
+                config::reset_to_defaults(tx, &now)?;
                 let user = c.user();
                 for sql in [
                     "DELETE FROM sandbox_orders WHERE user_id = ?1",

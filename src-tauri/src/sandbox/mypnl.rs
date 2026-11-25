@@ -116,8 +116,11 @@ fn summary(
     pos_unrealized: Decimal,
     hold_unrealized: Decimal,
 ) -> MyPnlSummary {
-    let today = f.map(|f| f.today_realized_pnl).unwrap_or(Decimal::ZERO);
+    let read = |pick: fn(&FundsRow) -> Decimal| f.map(pick).unwrap_or(Decimal::ZERO);
+    let today = read(|f| f.today_realized_pnl);
     let total_unrealized = pos_unrealized + hold_unrealized;
+    let today_charges = read(|f| f.today_charges);
+    let total_charges = read(|f| f.total_charges);
     MyPnlSummary {
         today_realized_pnl: money(today),
         all_time_realized_pnl: f.map(|f| money(f.realized_pnl)).unwrap_or(0.0),
@@ -125,6 +128,10 @@ fn summary(
         holdings_unrealized_pnl: money(hold_unrealized),
         total_unrealized_pnl: money(total_unrealized),
         today_total_mtm: money(today + total_unrealized),
+        today_charges: money(today_charges),
+        total_charges: money(total_charges),
+        today_net_mtm: float(today + total_unrealized - today_charges),
+        all_time_net_realized_pnl: float(read(|f| f.realized_pnl) - total_charges),
         total_pnl: f.map(|f| money(f.total_pnl)).unwrap_or(0.0),
         available_balance: f.map(|f| money(f.available_balance)).unwrap_or(0.0),
         total_capital: f.map(|f| money(f.total_capital)).unwrap_or(0.0),
@@ -139,6 +146,8 @@ fn daily_row(d: &DailyPnlRow) -> MyPnlDaily {
         holdings_unrealized: money(d.holdings_unrealized_pnl),
         total_unrealized: money(d.positions_unrealized_pnl + d.holdings_unrealized_pnl),
         total_mtm: money(d.total_mtm),
+        charges: money(d.charges),
+        net_mtm: float(d.total_mtm - d.charges),
         portfolio_value: money(d.portfolio_value),
     }
 }
@@ -152,6 +161,7 @@ fn trade_row(t: &TradeRow) -> MyPnlTrade {
         quantity: t.quantity,
         price: float(t.price),
         product: t.product.clone(),
+        charges: money(t.charges.total()),
         timestamp: display_seconds(&t.trade_timestamp),
     }
 }

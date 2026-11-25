@@ -2,6 +2,7 @@
 //! defaults, descriptions and validation (`database/sandbox_db.py`,
 //! `blueprints/sandbox.py:888-972`), read into a typed struct.
 
+use super::charges;
 use super::clock::parse_hhmm;
 use super::types::dec_from_db;
 use chrono::{NaiveTime, Weekday};
@@ -327,6 +328,32 @@ pub fn set_raw(conn: &Connection, key: &str, value: &str, now: &str) -> rusqlite
     Ok(())
 }
 
+/// Whether `key` is a sandbox setting: one of [`DEFAULTS`] or the brokerage
+/// plan's (`/sandbox/commissions`, web openalgo#2496).
+pub fn is_setting(key: &str) -> bool {
+    default_of(key).is_some() || charges::config_keys().iter().any(|k| k == key)
+}
+
+/// Web `validate_config`, the brokerage plan's keys included: the plan's own
+/// check first, so the one-key update cannot store a value the charge
+/// calculation would have to guess at.
+pub fn validate_setting(key: &str, value: &str) -> Option<String> {
+    charges::validate_config_value(key, value).or_else(|| validate(key, value))
+}
+
+/// Put [`RESET_KEYS`] and the brokerage plan back to their defaults (web
+/// `_reset_config_locked`: the dialog promises every setting goes back to
+/// its default, and the plan is one of them).
+pub(crate) fn reset_to_defaults(conn: &Connection, now: &str) -> rusqlite::Result<()> {
+    for k in RESET_KEYS {
+        set_raw(conn, k, default_of(k).unwrap_or(""), now)?;
+    }
+    for (k, v) in charges::default_config_values() {
+        set_raw(conn, &k, &v, now)?;
+    }
+    Ok(())
+}
+
 /// Web `validate_config`: `None` when the value is acceptable, else the
 /// message the web returns.
 pub fn validate(key: &str, value: &str) -> Option<String> {
@@ -478,6 +505,22 @@ mod tests {
         assert_eq!(c.square_off_time("CRYPTO"), None);
         assert_eq!(c.reset_day, None);
         assert_eq!(c.gtt_oco_margin_mode, OcoMarginMode::Max);
+    }
+
+    /// Web test_charges.py::test_the_one_key_update_route_cannot_store_what_the_page_would_refuse,
+    /// through the sandbox's own setting check.
+    #[test]
+    fn the_brokerage_plan_is_a_setting_with_its_own_check() {
+        assert!(is_setting("charges_enabled"));
+        assert!(is_setting("brokerage_fno_options_flat"));
+        assert!(!is_setting("brokerage_penny_stocks_flat"));
+        assert!(validate_setting("charges_enabled", "maybe").is_some());
+        assert!(validate_setting("brokerage_fno_options_percent", "30").is_some());
+        assert!(validate_setting("brokerage_fno_options_percent", "0.03").is_none());
+        assert_eq!(
+            validate_setting("futures_leverage", "99").as_deref(),
+            Some("Leverage cannot exceed 50x")
+        );
     }
 
     #[test]

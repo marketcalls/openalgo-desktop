@@ -1208,8 +1208,9 @@ async fn sandbox_settings_reset_and_pnl() {
         .unwrap()
         .contains("sandbox_trades_"));
     let csv = String::from_utf8(b).unwrap();
+    // The web's trade export ends in the fill's charges (openalgo#2496).
     assert!(csv.starts_with(
-        "Trade ID,Order ID,Symbol,Exchange,Action,Quantity,Price,Product,Strategy,Timestamp\r\n"
+        "Trade ID,Order ID,Symbol,Exchange,Action,Quantity,Price,Product,Strategy,Timestamp,Charges\r\n"
     ));
     assert!(csv.contains(",SBIN,NSE,BUY,1,100.0,MIS,test,"), "{}", csv);
     let (s, _) = h.get("/sandbox/mypnl/export/positions").await;

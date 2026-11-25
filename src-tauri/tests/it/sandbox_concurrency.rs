@@ -346,6 +346,8 @@ fn gated_env() -> (Sandbox, Arc<GatedQuotes>, Arc<ManualClock>) {
         },
     )
     .unwrap();
+    // Balances to the paisa: charges off, as in the shared harness.
+    crate::sandbox_support::set_charges(&sb, false);
     (sb, q, clock)
 }
 
