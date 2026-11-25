@@ -514,15 +514,27 @@ async fn read_rules(b: &PocketfulBroker, auth: &AuthToken, account: &str) -> Res
         );
         return Err(AppError::Broker(refusal_text(&message, "list")));
     }
-    Ok(gtt_rows(a.payload()))
+    gtt_rows(a.payload()).ok_or_else(|| {
+        tracing::warn!("Pocketful sent the GTT list in an unknown shape");
+        AppError::Broker(LIST_UNREADABLE.into())
+    })
 }
 
-/// The rules in a fetch answer's `data` (web `gtt_rows`).
-pub(super) fn gtt_rows(payload: Option<&Value>) -> Vec<Value> {
-    match payload {
-        Some(Value::Array(rows)) => rows.iter().filter(|r| r.is_object()).cloned().collect(),
-        Some(rule @ Value::Object(_)) if !text(rule, "id").is_empty() => vec![rule.clone()],
-        _ => Vec::new(),
+/// The rules in a fetch answer's `data` (web `gtt_rows`): a list keeps its
+/// rules, one rule with an id is one, and `null`, `[]` and `{}` are none.
+/// `None` for a list that was not read: no `data` at all, or `data` that is
+/// neither (a string, a number, an object without an id). The web reads
+/// those as no rules; here they are an error, as for the books
+/// (`orders::rows_of`, BR-03), because an empty list misread there is a
+/// modify answering "no longer active" and, after a create with no
+/// definite answer, a trader told to check the list placing it again.
+pub(super) fn gtt_rows(payload: Option<&Value>) -> Option<Vec<Value>> {
+    match payload? {
+        Value::Null => Some(Vec::new()),
+        Value::Array(rows) => Some(rows.iter().filter(|r| r.is_object()).cloned().collect()),
+        Value::Object(rule) if rule.is_empty() => Some(Vec::new()),
+        rule @ Value::Object(_) if !text(rule, "id").is_empty() => Some(vec![rule.clone()]),
+        _ => None,
     }
 }
 

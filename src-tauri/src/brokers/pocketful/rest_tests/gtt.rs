@@ -848,16 +848,83 @@ async fn a_book_pocketful_refuses_is_an_error() {
 }
 
 /// Web gtt_data.gtt_rows: a list keeps its rules, a single rule with an id
-/// is one, anything else is none.
+/// is one, and null, an empty list or object none. Desktop (BR-03, as the
+/// books): any other shape is a list that was not read, where the web
+/// reads no rules.
 #[test]
 fn the_rules_are_read_from_a_list_or_one_rule() {
     let rule = doc("rule");
-    let one = std::slice::from_ref(&rule);
-    assert_eq!(gtt_rows(Some(&json!([rule.clone(), "x", 1]))), one);
-    assert_eq!(gtt_rows(Some(&rule)), one);
-    assert!(gtt_rows(Some(&json!({"id": ""}))).is_empty());
-    assert!(gtt_rows(Some(&json!("x"))).is_empty());
-    assert!(gtt_rows(None).is_empty());
+    let one = vec![rule.clone()];
+    assert_eq!(
+        gtt_rows(Some(&json!([rule.clone(), "x", 1]))),
+        Some(one.clone())
+    );
+    assert_eq!(gtt_rows(Some(&rule)), Some(one));
+    for empty in [json!(null), json!([]), json!({})] {
+        assert_eq!(gtt_rows(Some(&empty)), Some(Vec::new()), "{}", empty);
+    }
+    for unread in [
+        json!({"id": ""}),
+        json!({"rules": []}),
+        json!("x"),
+        json!(1),
+    ] {
+        assert_eq!(gtt_rows(Some(&unread)), None, "{}", unread);
+    }
+    assert_eq!(gtt_rows(None), None);
+}
+
+/// Desktop (BR-03, as the books; the web reads them as no rules): a
+/// success without `data`, or with `data` that is not a list or a rule, is
+/// a GTT list that was not read. The book is an error, never empty, and a
+/// modify writes nothing and never answers "no longer active", so a trader
+/// told to check the list after an unknown create does not place it again.
+/// Null, `[]` and `{}` stay an empty book. Review finding (gtt.rs:517).
+#[tokio::test]
+async fn a_gtt_list_that_was_not_read_is_never_empty() {
+    const UNREAD: &str =
+        "Pocketful sent the GTT list in a form OpenAlgo could not read. Try again in a moment.";
+    for body in [
+        json!({"status": "success", "message": ""}),
+        json!({"status": "success", "data": "x"}),
+        json!({"status": "success", "data": 7}),
+        json!({"status": "success", "data": {"rules": []}}),
+    ] {
+        let fake = Fake::start().await;
+        fake.on(&book_path(), vec![Reply::Json(200, body.clone())]);
+        let b = fake.broker(symbols());
+
+        let listed = gtt::get_gtt_book(&b, &session(), true).await;
+        let changed = gtt::modify_gtt(&b, &session(), HELD_ID, &modify()).await;
+
+        for e in [listed.map(|_| ()), changed.map(|_| ())] {
+            assert!(
+                matches!(&e, Err(AppError::Broker(m)) if m == UNREAD),
+                "{}: {:?}",
+                body,
+                e
+            );
+        }
+        let methods: Vec<String> = fake.seen().into_iter().map(|s| s.method).collect();
+        assert_eq!(methods, ["GET", "GET"], "{}", body);
+    }
+    for body in [json!(null), json!([]), json!({})] {
+        let fake = Fake::start().await;
+        fake.on(
+            &book_path(),
+            vec![Reply::Json(200, json!({"status": "success", "data": body}))],
+        );
+        let b = fake.broker(symbols());
+
+        let listed = gtt::get_gtt_book(&b, &session(), true).await;
+
+        assert!(
+            listed.as_ref().is_ok_and(Vec::is_empty),
+            "{}: {:?}",
+            body,
+            listed
+        );
+    }
 }
 
 /// Web gtt_data.broker_reason: Pocketful's backend code goes, and the
