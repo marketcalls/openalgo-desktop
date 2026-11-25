@@ -10,7 +10,7 @@
 use super::mapping::{self, is_index_exchange, s, series_type, to_ltp_exchange, to_rest_exchange};
 use super::streaming::{decode_frame, feed_request, subscribe_messages, RawTick};
 use super::{broker_error, message_of, HdfcSkyBroker, TIMEFRAME_MAP};
-use crate::brokers::common::history::{chunks, sort_dedupe};
+use crate::brokers::common::history::{chunks, merge_bars, sort_dedupe};
 use crate::brokers::common::streaming::round2;
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::types::*;
@@ -329,21 +329,7 @@ pub fn resample(candles: &[Candle], rule: Resample) -> Vec<Candle> {
     if rule == Resample::None {
         return candles.to_vec();
     }
-    let mut out: Vec<Candle> = Vec::new();
-    for c in candles {
-        let b = bucket(c.timestamp, rule);
-        match out.last_mut() {
-            Some(last) if last.timestamp == b => {
-                last.high = last.high.max(c.high);
-                last.low = last.low.min(c.low);
-                last.close = c.close;
-                last.volume += c.volume;
-                last.oi = c.oi;
-            }
-            _ => out.push(Candle { timestamp: b, ..*c }),
-        }
-    }
-    out
+    merge_bars(candles.iter().copied(), |t| Some(bucket(t, rule)))
 }
 
 fn ist_today() -> NaiveDate {

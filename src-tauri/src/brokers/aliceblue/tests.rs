@@ -3,13 +3,14 @@
 //! web code (`broker/aliceblue/**`) and AliceBlue's published V2 docs; no
 //! account data.
 
-use super::data::{self, candles_from, history_exchange, history_window, resample};
+use super::data::{self, candles_from, history_exchange, history_window};
 use super::mapping::{self, *};
 use super::master_contract::{self, index_symbol, parse_all, parse_exchange_csv, FILES};
 use super::order_feed::{order_heartbeat_frame, order_subscribe_frame, OrderSession};
 use super::orders::{means_empty, Book};
 use super::streaming::{self, *};
 use super::{auth, funds, WindowLimiter};
+use crate::brokers::common::history::resample;
 use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product, Validity};
 use crate::brokers::common::relay::{Session, READY};
 use crate::brokers::common::streaming::{
@@ -577,7 +578,7 @@ fn history_candles_and_resampling() {
     assert_eq!(c[0].timestamp, 1_790_826_300); // 09:15 IST
     assert_eq!(c[1].close, 802.0);
     assert!(c.iter().all(|x| x.oi == 0));
-    let r5 = resample(&c, 5);
+    let r5 = resample(c.clone(), 5, 0);
     assert_eq!(r5.len(), 2);
     assert_eq!(r5[0].timestamp, 1_790_826_300);
     assert_eq!(
@@ -586,7 +587,7 @@ fn history_candles_and_resampling() {
     );
     assert_eq!(r5[1].timestamp, 1_790_826_600); // 09:20
                                                 // 1h buckets start on the IST hour (09:00).
-    let h = resample(&c, 60);
+    let h = resample(c, 60, 0);
     assert_eq!(h.len(), 1);
     assert_eq!(h[0].timestamp, 1_790_825_400);
     let d = j(fixture!("history_day.json"));

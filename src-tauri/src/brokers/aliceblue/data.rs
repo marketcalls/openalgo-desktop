@@ -763,31 +763,6 @@ pub fn candles_from(rows: &[Value], daily: bool) -> Vec<Candle> {
     out
 }
 
-/// pandas `resample(f"{m}min", label="left", closed="left")` in IST:
-/// buckets aligned to IST midnight, first open, max high, min low, last
-/// close, summed volume, last OI; empty buckets dropped.
-pub fn resample(candles: &[Candle], minutes: i64) -> Vec<Candle> {
-    let width = minutes * 60;
-    let mut out: Vec<Candle> = Vec::new();
-    for c in candles {
-        let bucket = c.timestamp - (c.timestamp + crate::clock::IST_OFFSET_SECS).rem_euclid(width);
-        match out.last_mut() {
-            Some(last) if last.timestamp == bucket => {
-                last.high = last.high.max(c.high);
-                last.low = last.low.min(c.low);
-                last.close = c.close;
-                last.volume += c.volume;
-                last.oi = c.oi;
-            }
-            _ => out.push(Candle {
-                timestamp: bucket,
-                ..*c
-            }),
-        }
-    }
-    out
-}
-
 pub async fn get_history(
     b: &AliceBlueBroker,
     auth: &AuthToken,
@@ -852,8 +827,10 @@ pub async fn get_history(
         }
     };
     let candles = candles_from(rows, daily);
+    // pandas `resample(f"{m}min", label="left", closed="left")` in IST,
+    // bins from IST midnight (web aliceblue `get_history`).
     Ok(match resample_minutes(&req.interval) {
-        Some(m) => resample(&candles, m),
+        Some(m) => crate::brokers::common::history::resample(candles, m, 0),
         None => candles,
     })
 }
