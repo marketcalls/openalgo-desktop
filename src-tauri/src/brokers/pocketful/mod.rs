@@ -38,9 +38,6 @@ use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
-use client::{Lane, Request};
-use reqwest::Method;
-use serde_json::Value;
 use std::time::Duration;
 
 /// The REST and OAuth host (web `baseurl.BASE_URL`).
@@ -164,56 +161,10 @@ impl PocketfulBroker {
             }
         }
     }
-
-    /// One REST call on the data lane, answering the body when Pocketful
-    /// says success; anything else becomes a trader-facing error. Only the
-    /// funds read still goes this way.
-    pub(crate) async fn call(
-        &self,
-        method: Method,
-        path_and_query: &str,
-        auth: &AuthToken,
-        body: Option<&Value>,
-    ) -> Result<Value> {
-        let mut req = Request::new(method, path_and_query);
-        if let Some(b) = body {
-            req = req.json(b.clone());
-        }
-        let answer = self.send(Lane::Data, auth, req).await?;
-        if answer.session_refused() {
-            tracing::warn!(
-                status = answer.status.as_u16(),
-                "Pocketful refused the session"
-            );
-            return Err(session_expired());
-        }
-        if answer.ok() {
-            return Ok(answer.body.unwrap_or(Value::Null));
-        }
-        let path = path_and_query.split('?').next().unwrap_or("");
-        let message = answer.message();
-        tracing::warn!(
-            status = answer.status.as_u16(),
-            "Pocketful refused {}: {}",
-            path,
-            message
-        );
-        Err(broker_error(&message))
-    }
 }
 
 pub(crate) fn session_expired() -> AppError {
     AppError::Auth("Your Pocketful session has expired. Log in to Pocketful again.".into())
-}
-
-/// Pocketful's message -> trader-facing error.
-pub(crate) fn broker_error(message: &str) -> AppError {
-    let m = message.trim();
-    if m.is_empty() {
-        AppError::Broker("Pocketful refused the request.".into())
-    } else {
-        AppError::Broker(m.to_string())
-    }
 }
 
 #[async_trait]

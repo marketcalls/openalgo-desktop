@@ -2,10 +2,10 @@
 //! its funds and margin cases), against a local fake Pocketful answering
 //! the documentation's own examples.
 
-use super::{capture, Fake, Reply, CLIENT};
+use super::{capture, success, Fake, Reply, CLIENT};
 use crate::brokers::common::mapping::{Action, PriceType, Product};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
-use crate::brokers::types::{AuthToken, MarginLeg, MarginResult, QuoteKey};
+use crate::brokers::types::{AuthToken, Funds, MarginLeg, MarginResult, QuoteKey};
 use crate::brokers::Broker;
 use crate::error::AppError;
 use serde_json::{json, Value};
@@ -103,6 +103,259 @@ fn master() -> SymbolResolver {
         row("TCS", "NSE", "11536", "TCS-EQ", "TCS", "EQ"),
     ]);
     s
+}
+
+// --- Funds -----------------------------------------------------------------
+
+const FUNDS: &str = "/api/v2/funds/view";
+const POSITIONS: &str = "/api/v1/positions";
+
+/// The docs' funds answer with `amounts` in place of the documented ones.
+fn funds_answer(amounts: &[(&str, &str)]) -> Value {
+    let mut body = doc(fixture!("funds.json"));
+    for pair in body["data"]["values"].as_array_mut().unwrap() {
+        if let Some((_, amount)) = amounts.iter().find(|(label, _)| pair[0] == *label) {
+            pair[1] = json!(amount);
+        }
+    }
+    body
+}
+
+/// One net-wise position row (fetch-position-netwise.md), amounts in one
+/// unit (the web test's `netwise`).
+fn netwise(
+    symbol: &str,
+    bought: i64,
+    buy_amount: f64,
+    sold: i64,
+    sell_amount: f64,
+    ltp: f64,
+) -> Value {
+    json!({
+        "trading_symbol": symbol,
+        "buy_quantity": bought,
+        "buy_amount": buy_amount,
+        "sell_quantity": sold,
+        "sell_amount": sell_amount,
+        "net_quantity": bought - sold,
+        "net_amount": sell_amount - buy_amount,
+        "ltp": ltp,
+        "multiplier": 1,
+    })
+}
+
+/// A fake answering the docs' funds and this position book.
+async fn funds_fake(funds: Value, positions: Reply) -> Fake {
+    let fake = Fake::start().await;
+    fake.on(FUNDS, vec![Reply::Json(200, funds)]);
+    fake.on(POSITIONS, vec![positions]);
+    fake
+}
+
+/// What `/api/v1/funds` answers for these funds (web `get_margin_data`).
+fn wire(f: &Funds) -> Value {
+    crate::services::account_service::live_funds(f)
+}
+
+/// Web ::test_funds_read_the_documented_answer
+#[tokio::test]
+async fn funds_read_the_documented_answer() {
+    let fake = funds_fake(doc(fixture!("funds.json")), success(json!([]))).await;
+    let b = fake.broker(SymbolResolver::new());
+
+    let f = b.get_funds(&session()).await.unwrap();
+
+    assert_eq!(
+        wire(&f),
+        json!({
+            "availablecash": "39.99",
+            "collateral": "0.00",
+            "m2munrealized": "0.00",
+            "m2mrealized": "0.00",
+            "utiliseddebits": "0.00",
+        })
+    );
+    let calls = fake.to(FUNDS);
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].method, "GET");
+    assert_eq!(
+        calls[0].query_pairs(),
+        [("client_id", CLIENT), ("type", "all")]
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .to_vec()
+    );
+}
+
+/// Web ::test_funds_take_pledges_as_collateral_and_net_margin_as_used
+#[tokio::test]
+async fn funds_take_pledges_as_collateral_and_net_margin_as_used() {
+    let body = funds_answer(&[
+        ("Available", "1,250.50"),
+        ("DP Pledge Collateral", "100"),
+        ("Pool Pledge Collateral", "50.25"),
+        ("DP Collateral Benefit", "70"),
+        ("Net Margin", "25.5"),
+    ]);
+    let fake = funds_fake(body, success(json!([]))).await;
+    let b = fake.broker(SymbolResolver::new());
+
+    let funds = wire(&b.get_funds(&session()).await.unwrap());
+
+    assert_eq!(funds["availablecash"], "1250.50");
+    // The benefit row is the same pledge seen another way: not added again.
+    assert_eq!(funds["collateral"], "150.25");
+    assert_eq!(funds["utiliseddebits"], "25.50");
+}
+
+/// Web ::test_funds_m2m_comes_from_the_position_book
+#[tokio::test]
+async fn funds_m2m_comes_from_the_position_book() {
+    let book = success(json!([
+        // The docs' example: bought and sold one, closed for 18.
+        netwise("IDEA-EQ", 1, 40520.0, 1, 40538.0, 40520.0),
+        // Bought 100 at 100, sold 50 at 110, 50 still held at an LTP of
+        // 100: 500 booked on the 50 sold, nothing open.
+        netwise("TCS-EQ", 100, 10000.0, 50, 5500.0, 100.0),
+        // Sold 75 at 10, still short at an LTP of 6: 300 open, nothing booked.
+        netwise("NIFTY26N2424000CE", 0, 0.0, 75, 750.0, 6.0),
+    ]));
+    let fake = funds_fake(doc(fixture!("funds.json")), book).await;
+    let b = fake.broker(master());
+
+    let funds = wire(&b.get_funds(&session()).await.unwrap());
+
+    assert_eq!(funds["m2mrealized"], "518.00");
+    assert_eq!(funds["m2munrealized"], "300.00");
+    // The net-wise book, which carries today's and carried positions.
+    let read = fake.to(POSITIONS);
+    assert_eq!(read.len(), 1);
+    assert!(
+        read[0]
+            .query_pairs()
+            .contains(&("type".to_string(), "historical".to_string())),
+        "{}",
+        read[0].query
+    );
+}
+
+/// Web ::test_a_short_closed_in_part_books_its_matched_quantity
+#[test]
+fn a_short_closed_in_part_books_its_matched_quantity() {
+    use crate::brokers::pocketful::mapping::{position_pnl, position_pnl_split};
+    // Sold 100 at 100, bought 50 back at 90, short 50 at an LTP of 100.
+    let row = netwise("SBIN-EQ", 50, 4500.0, 100, 10000.0, 100.0);
+
+    let (realised, unrealised) = position_pnl_split(&row);
+
+    assert_eq!((realised, unrealised), (500.0, 0.0));
+    assert_eq!(realised + unrealised, position_pnl(&row));
+}
+
+/// Web ::test_funds_stand_when_the_position_book_cannot_be_read
+#[tokio::test]
+async fn funds_stand_when_the_position_book_cannot_be_read() {
+    for book in [
+        Reply::Json(200, json!({"status": "error", "message": "unreachable"})),
+        Reply::Text(502, "<html>502 Bad Gateway</html>"),
+        Reply::Cut,
+    ] {
+        let fake = funds_fake(doc(fixture!("funds.json")), book.clone()).await;
+        let b = fake.broker(SymbolResolver::new());
+
+        let funds = wire(&b.get_funds(&session()).await.unwrap());
+
+        assert_eq!(funds["availablecash"], "39.99", "{:?}", book);
+        assert_eq!(funds["m2mrealized"], "0.00", "{:?}", book);
+        assert_eq!(funds["m2munrealized"], "0.00", "{:?}", book);
+    }
+}
+
+/// Web ::test_funds_failures_read_as_no_session: funds that cannot be read
+/// are an error, never a zero balance, and no position book is read for
+/// them. The web answers `{}` for each; the desktop's error says why.
+#[tokio::test]
+async fn funds_failures_are_errors_never_a_zero_balance() {
+    let refused = doc(fixture!("funds_error.json"));
+    let mut refused_with_table = refused.clone();
+    refused_with_table["data"] = doc(fixture!("funds.json"))["data"].clone();
+    for (reply, says) in [
+        (Reply::Json(200, refused.clone()), "Request Unauthorised"),
+        (Reply::Json(401, refused), "Log in to Pocketful again"),
+        // A refusal is never read as funds, even when it carries a table.
+        (Reply::Json(200, refused_with_table), "Request Unauthorised"),
+        (
+            Reply::Json(500, doc(fixture!("funds.json"))),
+            "without giving a reason",
+        ),
+        (
+            Reply::Text(502, "<html>502 Bad Gateway</html>"),
+            "could not read",
+        ),
+        (
+            Reply::Json(200, json!({"status": "success", "data": {"values": "n/a"}})),
+            "could not read your funds",
+        ),
+        (Reply::Cut, "Could not reach the broker"),
+    ] {
+        let fake = Fake::start().await;
+        fake.on(FUNDS, vec![reply.clone()]);
+        fake.on(POSITIONS, vec![success(json!([]))]);
+        let b = fake.broker(SymbolResolver::new());
+
+        let e = match b.get_funds(&session()).await {
+            Ok(funds) => panic!("{:?} read as funds: {:?}", reply, funds),
+            Err(e) => e,
+        };
+
+        assert!(
+            e.client_message().contains(says),
+            "{:?}: {}",
+            reply,
+            e.client_message()
+        );
+        assert!(fake.to(POSITIONS).is_empty(), "{:?}", reply);
+    }
+}
+
+/// Web ::test_funds_without_a_client_id_send_nothing
+#[tokio::test]
+async fn funds_without_a_client_id_send_nothing() {
+    let fake = funds_fake(doc(fixture!("funds.json")), success(json!([]))).await;
+    let b = fake.broker(SymbolResolver::new());
+
+    let e = b
+        .get_funds(&AuthToken::new("jwt.abc.def"))
+        .await
+        .unwrap_err();
+
+    assert!(e.client_message().contains("Log in to Pocketful again"));
+    assert!(fake.seen().is_empty());
+}
+
+/// Web funds.py: rows Pocketful did not send are logged by label only,
+/// never with an amount, and nothing the session holds reaches the log.
+#[tokio::test]
+async fn missing_funds_rows_are_logged_by_label_never_amount() {
+    const TOKEN: &str = "ACCESS_SENTINEL_e9a3";
+    let body = json!({"status": "success", "message": "", "data": {
+        "values": [["Available", "987654.32"], ["Cash Deposit", "123456.78"]],
+    }});
+    let fake = funds_fake(body, success(json!([]))).await;
+    let b = fake.broker(SymbolResolver::new());
+
+    let (log, guard) = capture();
+    let f = b
+        .get_funds(&AuthToken::new(TOKEN).with_user_id(CLIENT))
+        .await
+        .unwrap();
+    drop(guard);
+
+    assert_eq!(wire(&f)["availablecash"], "987654.32");
+    let text = log.text();
+    assert!(text.contains("Net Margin"), "the missing label is named");
+    for secret in [TOKEN, "987654", "123456"] {
+        assert!(!text.contains(secret), "{}", secret);
+    }
 }
 
 // --- Margin calculator -----------------------------------------------------

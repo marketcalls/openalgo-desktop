@@ -251,17 +251,6 @@ fn status_map_follows_web_order() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn funds_read_label_value_pairs() {
-    let f = map_funds(&json(fixture!("funds.json")));
-    assert_eq!(f.available_cash, 85234.57);
-    assert_eq!(f.utilised_debits, 14765.43);
-    assert_eq!(f.collateral, 25000.0);
-    assert_eq!(f.m2m_unrealized, -120.5);
-    assert_eq!(f.m2m_realized, 340.25);
-    assert_eq!(map_funds(&json!({"data": {}})).available_cash, 0.0);
-}
-
-#[test]
 fn loose_readers() {
     let v = json!({"a": "1.5", "b": null, "c": 7});
     assert_eq!(num(&v, "a"), 1.5);
