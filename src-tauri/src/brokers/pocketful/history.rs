@@ -194,8 +194,15 @@ async fn fetch(
             ),
         }
     }
-    let minutes = chart_minutes(b, auth, row, req.start, req.end).await?;
-    Ok(finish(minutes, interval, &req.key.exchange, true))
+    let exchange = req.key.exchange.as_str();
+    if interval == "1day" {
+        // One bar a day is kept as each chunk arrives, not its minutes:
+        // ten years of an equity's minutes are about a million candles.
+        let build = |minutes| finish(minutes, interval, exchange, true);
+        return chart_minutes(b, auth, row, req.start, req.end, build).await;
+    }
+    let minutes = chart_minutes(b, auth, row, req.start, req.end, |m| m).await?;
+    Ok(finish(minutes, interval, exchange, true))
 }
 
 /// The `/api/data/v1/historical` body fields of an OpenAlgo NFO symbol
@@ -299,14 +306,18 @@ async fn historical_bars(
     Ok((!bars.is_empty()).then_some(bars))
 }
 
-/// One-minute candles from `/api/v1/charts` for `start..=end`, chunked; a
-/// chunk Pocketful refuses fails the whole request.
+/// One-minute candles from `/api/v1/charts` for `start..=end`, chunked,
+/// oldest first; a chunk Pocketful refuses fails the whole request. Each
+/// chunk's candles inside its own dates go through `reduce` as they
+/// arrive. Chunks cover whole IST dates and never overlap, so this keeps
+/// what the web's one pass over all the candles keeps (`_within`).
 async fn chart_minutes(
     b: &PocketfulBroker,
     auth: &AuthToken,
     row: &SymToken,
     start: NaiveDate,
     end: NaiveDate,
+    reduce: impl Fn(Vec<Candle>) -> Vec<Candle>,
 ) -> Result<Vec<Candle>> {
     let (exchange, _segment) = market::route(&row.exchange).ok_or_else(|| {
         AppError::Validation(format!(
@@ -316,7 +327,7 @@ async fn chart_minutes(
     })?;
     // chart-data.md lists a clientid header beside the session's own.
     let client_id = b.client_id(auth)?;
-    let mut minutes = Vec::new();
+    let mut out = Vec::new();
     for (first, last) in chunks(start, end, CHART_CHUNK_DAYS) {
         let request = Request::get(CHARTS)
             .query("exchange", exchange)
@@ -336,9 +347,9 @@ async fn chart_minutes(
                 ),
             ));
         };
-        minutes.extend(chunk);
+        out.extend(reduce(within(chunk, first, last)));
     }
-    Ok(within(minutes, start, end))
+    Ok(out)
 }
 
 /// Epoch seconds of a candle time: ISO with an offset (fractional seconds

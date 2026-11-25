@@ -274,6 +274,51 @@ async fn daily_bars_are_built_per_ist_date_at_utc_midnight() {
     );
 }
 
+/// A daily history over several chunks (no web test: the web builds the
+/// bars once all chunks are in; the desktop builds each chunk's as it
+/// arrives): one bar a day, oldest first, across the chunk boundary.
+#[tokio::test]
+async fn daily_bars_span_chunks_in_date_order() {
+    let fake = Fake::start().await;
+    fake.on(
+        CHARTS,
+        vec![
+            candles(vec![
+                candle("2025-01-07T09:15:00+0530", 107.0, 7),
+                candle("2025-01-01T09:15:00+0530", 101.0, 1),
+                candle("2025-01-07T09:16:00+0530", 108.0, 8),
+            ]),
+            candles(vec![candle("2025-01-08T09:15:00+0530", 110.0, 10)]),
+        ],
+    );
+    let b = fake.broker(master());
+
+    let bars = b
+        .get_history(&session(), &req("IDEA", "NSE", "D", jan(1), jan(8)))
+        .await
+        .unwrap();
+
+    assert_eq!(fake.seen().len(), 2, "two chunks");
+    assert_eq!(
+        bars,
+        [
+            bar(JAN1_UTC_MIDNIGHT, [101.0, 102.0, 100.0, 101.5], 1, 0),
+            bar(
+                JAN1_UTC_MIDNIGHT + 6 * 86_400,
+                [107.0, 109.0, 106.0, 108.5],
+                15,
+                0
+            ),
+            bar(
+                JAN1_UTC_MIDNIGHT + 7 * 86_400,
+                [110.0, 111.0, 109.0, 110.5],
+                10,
+                0
+            ),
+        ]
+    );
+}
+
 /// Web test_pocketful_data.py::test_candles_outside_the_requested_dates_are_dropped
 #[tokio::test]
 async fn candles_outside_the_requested_dates_are_dropped() {
