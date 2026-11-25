@@ -48,7 +48,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     nse_index_brexchange: "NSE_INDEX",
     index_instrument_type: "EQ",
     bse_drop_without_exchange: true,
-    bfo_from_tsym: false,
+    bfo_naming: BfoNaming::Columns,
     timeframes: TIMEFRAMES_NO_4H,
     history_window_secs: None,
     eod_index_names: &[],

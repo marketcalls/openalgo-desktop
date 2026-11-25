@@ -113,6 +113,18 @@ pub enum BseIndices {
     Absent,
 }
 
+/// Where a BFO row's underlying and option type come from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BfoNaming {
+    /// The `Symbol` and `OptionType` columns, as on every other segment
+    /// (flattrade, tradesmart).
+    Columns,
+    /// The leading letters of the trading symbol, the type from its
+    /// suffix (shoonya, zebu: web `re.match("[A-Za-z]+")`, so SENSEX50
+    /// reads SENSEX and M&M reads M).
+    LeadingLetters,
+}
+
 /// Market Price Protection: Noren OMS rejects MKT / SL-MKT for API orders.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MppScope {
@@ -261,9 +273,7 @@ pub struct NorenConfig {
     /// web #2198, QA MC-14): stale scrips the broker refuses, with no name,
     /// some repeating a live scrip under an old token.
     pub bse_drop_without_exchange: bool,
-    /// BFO rows take the underlying from the leading letters of the
-    /// trading symbol and the type from its suffix (shoonya, zebu).
-    pub bfo_from_tsym: bool,
+    pub bfo_naming: BfoNaming,
     /// OpenAlgo interval -> Noren `intrv` (`D` is the EOD endpoint).
     pub timeframes: &'static [(&'static str, &'static str)],
     /// Per-request history window in seconds; `None` sends one request.
