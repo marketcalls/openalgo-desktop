@@ -180,18 +180,24 @@ pub fn candle_json(c: &Candle) -> Value {
     })
 }
 
-/// The broker's candles for `req`, on the session grid where the broker's
-/// are not (`session_grid`), without the bars a broker appends after
-/// the session close (web dhan `_drop_bars_after_close`, openalgo#2308):
-/// the close comes from the market calendar, which only a service reads.
-/// Every history read (`/api/v1/history`, the ticker, the charts,
-/// Historify) comes through here.
+/// The broker's candles for `req`, each session opening at the pre-open
+/// discovered price where the broker's bars include the pre-open
+/// (`pre_open`, web flattrade openalgo#2482), on the session grid where
+/// the broker's are not (`session_grid`), without the bars a broker
+/// appends after the session close (web dhan `_drop_bars_after_close`,
+/// openalgo#2308): session opens and closes come from the market
+/// calendar, which only a service reads. Every history read
+/// (`/api/v1/history`, the ticker, the charts, Historify) comes through
+/// here.
 pub async fn broker_candles(
     ctx: &AppState,
     h: &BrokerHandle,
     req: &HistoryRequest,
 ) -> crate::error::Result<Vec<Candle>> {
     let mut candles = h.broker.get_history(&h.auth, req).await?;
+    if let Some(bar_minutes) = h.broker.history_pre_open_minutes(req) {
+        candles = super::pre_open::open_sessions(ctx, req, bar_minutes, candles).await;
+    }
     if h.broker.history_on_session_grid(req) {
         candles = super::session_grid::align(ctx, h, req, candles).await?;
     }

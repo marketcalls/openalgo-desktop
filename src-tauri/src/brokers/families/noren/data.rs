@@ -304,34 +304,31 @@ fn candle_from(el: &Value, strict: bool) -> Option<Candle> {
     })
 }
 
-/// Exchanges whose TPSeries adds a pre-open bar before the 09:15 open
-/// (web flattrade `get_history`, #2198; indices query on NSE / BSE).
-const PRE_OPEN_EXCHANGES: &[&str] = &["NSE", "BSE", "NFO", "BFO"];
-
-/// Is this bar stamped before 09:15 IST?
-pub fn before_session_open(ts: i64) -> bool {
-    use chrono::Timelike;
-    Kolkata
-        .timestamp_opt(ts, 0)
-        .single()
-        .is_some_and(|t| t.hour() * 60 + t.minute() < 9 * 60 + 15)
-}
-
 /// Intraday clean-up for members with `strict_candles` (web flattrade
-/// `get_history`, #2198). On NSE/BSE/NFO/BFO (`exch` is the Noren
-/// exchange) TPSeries adds a 09:14 bar holding the pre-open discovered
-/// price, flat with no bar volume; the session opens at 09:15, so bars
-/// before it are dropped (QA HS-07). Volume is floored at 0: during the
-/// closing session the cumulative volume switches counters and back, so
-/// the bar-to-bar difference goes negative and a chart refuses the whole
-/// history on one such bar.
-pub fn clean_intraday(candles: &mut Vec<Candle>, exch: &str) {
-    if PRE_OPEN_EXCHANGES.contains(&exch) {
-        candles.retain(|c| !before_session_open(c.timestamp));
-    }
+/// `get_history`, #2198): volume is floored at 0. During the closing
+/// session the cumulative volume switches counters and back, so the
+/// bar-to-bar difference goes negative and a chart refuses the whole
+/// history on one such bar. The pre-open bars stay: the history service
+/// folds them into the session's opening price from the market calendar
+/// (`pre_open_minutes`, web #2482, which replaced the fixed 09:15 drop).
+pub fn clean_intraday(candles: &mut [Candle]) {
     for c in candles.iter_mut() {
         c.volume = c.volume.max(0);
     }
+}
+
+/// The bar length of `interval` in minutes (the member's `intrv`) when its
+/// TPSeries bars include the pre-open (`NorenConfig::pre_open_from_calendar`,
+/// web flattrade `int(self.timeframe_map[interval])`); `None` for daily
+/// bars and for every other member.
+pub(crate) fn pre_open_minutes(cfg: &NorenConfig, interval: &str) -> Option<i64> {
+    if !cfg.pre_open_from_calendar {
+        return None;
+    }
+    cfg.timeframes
+        .iter()
+        .find(|(k, _)| *k == interval)
+        .and_then(|(_, intrv)| intrv.parse().ok())
 }
 
 /// Are open, high, low and close all real numbers (no NaN or infinity)?
@@ -419,7 +416,7 @@ pub async fn get_history(
     let raw = fetch_chart(b, &s, &chart, &req.interval, (start_ts, end_ts))
         .await?
         .rows;
-    let mut candles = parse_history(b.cfg, &raw, daily, &exch);
+    let mut candles = parse_history(b.cfg, &raw, daily);
     if daily {
         let today_ts = today_bar_ts(b.cfg);
         let max = candles.iter().map(|c| c.timestamp).max();
@@ -534,7 +531,7 @@ async fn fetch_chart(
 /// can lack a price (the skipped ones logged, and intraday bars cleaned),
 /// and daily bars widened to their open and close where the broker needs
 /// it.
-fn parse_history(cfg: &NorenConfig, raw: &[Value], daily: bool, exch: &str) -> Vec<Candle> {
+fn parse_history(cfg: &NorenConfig, raw: &[Value], daily: bool) -> Vec<Candle> {
     let parse = if cfg.strict_candles {
         parse_candle_strict
     } else {
@@ -551,7 +548,7 @@ fn parse_history(cfg: &NorenConfig, raw: &[Value], daily: bool, exch: &str) -> V
             );
         }
         if !daily {
-            clean_intraday(&mut candles, exch);
+            clean_intraday(&mut candles);
         }
     }
     if daily && cfg.eod_widen {

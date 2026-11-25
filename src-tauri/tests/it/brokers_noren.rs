@@ -1255,9 +1255,11 @@ async fn flattrade_master_is_all_or_nothing() {
     assert!(msg.contains("symbol files for NFO."), "{}", msg);
 }
 
-/// Web #2198: Flattrade drops TPSeries' 09:14 pre-open bar on an NSE index
-/// (queried on NSE), skips rows with a missing or NaN price, and floors the
-/// negative closing-session volume; Zebu passes the same rows through.
+/// Web #2198: Flattrade queries an NSE index on NSE, skips rows with a
+/// missing or NaN price, and floors the negative closing-session volume;
+/// Zebu passes the same rows through. The 09:14 pre-open bar stays in
+/// both: web #2482 replaced Flattrade's fixed 09:15 drop with the history
+/// service's fold from the market calendar, which needs the bar's price.
 #[tokio::test]
 async fn flattrade_intraday_candles_are_hardened() {
     let req = HistoryRequest {
@@ -1274,11 +1276,11 @@ async fn flattrade_intraday_candles_are_hardened() {
         (Some("NSE"), Some("26000"))
     );
     let ts: Vec<i64> = c.iter().map(|x| x.timestamp).collect();
-    assert_eq!(ts, [1790826300, 1790826540, 1790848200]);
+    assert_eq!(ts, [1790826240, 1790826300, 1790826540, 1790848200]);
     assert!(c
         .iter()
         .all(|x| x.volume >= 0 && x.low > 0.0 && x.close.is_finite()));
-    assert_eq!(c[0].volume, 120000);
+    assert_eq!(c[1].volume, 120000);
 
     let (b, _fake, auth) = noren(zebu::config()).await;
     let c = b.get_history(&auth, &req).await.unwrap();

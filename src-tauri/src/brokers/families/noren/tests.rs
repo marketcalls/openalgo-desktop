@@ -4,8 +4,8 @@
 
 use super::auth::{exchange_request, sha256_hex, split_api_key};
 use super::data::{
-    before_session_open, candle_number, clean_intraday, has_finite_prices, parse_candle,
-    parse_candle_strict, quote_matches, repair, sort_dedupe_last, to_depth, to_quote,
+    candle_number, clean_intraday, has_finite_prices, parse_candle, parse_candle_strict,
+    pre_open_minutes, quote_matches, repair, sort_dedupe_last, to_depth, to_quote,
 };
 use super::funds::{basket_body, funds_from, limits_margin_used, own_basket_margin};
 use super::mapping::*;
@@ -1062,7 +1062,8 @@ fn strict_candles_skip_missing_prices() {
     let strict: Vec<Candle> = raw.iter().filter_map(parse_candle_strict).collect();
     let ts: Vec<i64> = strict.iter().map(|c| c.timestamp).collect();
     // 09:16 (null high), 09:17 (no low), 09:18 (NaN close) and the all-zero
-    // 15:21 row are gone; the 09:14 bar is removed later, intraday only.
+    // 15:21 row are gone; the 09:14 pre-open bar stays for the history
+    // service (web #2482).
     assert_eq!(
         ts,
         [1790826240, 1790826300, 1790826540, 1790848200],
@@ -1089,28 +1090,52 @@ fn strict_candles_skip_missing_prices() {
     );
 }
 
-/// Web #2198 (QA HS-07): the 09:14 pre-open bar is dropped on
-/// NSE/BSE/NFO/BFO only, and intraday volume is floored at 0.
+/// Web #2198: intraday volume is floored at 0. The 09:14 pre-open bar
+/// stays on every exchange: web #2482 replaced the fixed 09:15 drop with
+/// the history service's fold from the market calendar.
 #[test]
-fn intraday_clean_up_drops_the_pre_open_bar_and_negative_volume() {
-    assert!(before_session_open(1790826240));
-    assert!(!before_session_open(1790826300));
+fn intraday_clean_up_floors_negative_volume_and_keeps_the_pre_open_bar() {
     let raw = rows(fixture!("flattrade", "tpseries.json"));
     let parsed: Vec<Candle> = raw.iter().filter_map(parse_candle_strict).collect();
-    for exch in ["NSE", "BSE", "NFO", "BFO"] {
-        let mut c = parsed.clone();
-        clean_intraday(&mut c, exch);
-        let ts: Vec<i64> = c.iter().map(|c| c.timestamp).collect();
-        assert_eq!(ts, [1790826300, 1790826540, 1790848200], "{}", exch);
-        assert!(c.iter().all(|c| c.volume >= 0));
-        assert_eq!(c[0].volume, 120000);
+    let mut c = parsed.clone();
+    clean_intraday(&mut c);
+    let ts: Vec<i64> = c.iter().map(|c| c.timestamp).collect();
+    assert_eq!(ts, [1790826240, 1790826300, 1790826540, 1790848200]);
+    assert!(c.iter().all(|c| c.volume >= 0));
+    assert_eq!((c[1].volume, c[3].volume), (120000, 0));
+}
+
+/// Web #2482: Flattrade's intraday bars include the pre-open, so the
+/// history service is told each interval's bar length (its `intrv`, as the
+/// web reads `int(self.timeframe_map[interval])`); daily bars and the
+/// other members' bars are left alone.
+#[test]
+fn only_flattrade_intraday_history_carries_the_pre_open() {
+    let f = flattrade::config();
+    for (interval, minutes) in [
+        ("1m", 1),
+        ("3m", 3),
+        ("5m", 5),
+        ("10m", 10),
+        ("15m", 15),
+        ("30m", 30),
+        ("1h", 60),
+        ("2h", 120),
+    ] {
+        assert_eq!(pre_open_minutes(f, interval), Some(minutes), "{}", interval);
     }
-    // MCX and CDS trade from 09:00: an early bar there is real.
-    for exch in ["MCX", "CDS"] {
-        let mut c = parsed.clone();
-        clean_intraday(&mut c, exch);
-        assert_eq!(c.len(), 4, "{}", exch);
-        assert_eq!(c[3].volume, 0);
+    assert_eq!(pre_open_minutes(f, "D"), None);
+    assert_eq!(pre_open_minutes(f, "4h"), None, "not a Flattrade interval");
+    for cfg in [shoonya::config(), zebu::config(), tradesmart::config()] {
+        for (interval, _) in cfg.timeframes {
+            assert_eq!(
+                pre_open_minutes(cfg, interval),
+                None,
+                "{} {}",
+                cfg.id,
+                interval
+            );
+        }
     }
 }
 
