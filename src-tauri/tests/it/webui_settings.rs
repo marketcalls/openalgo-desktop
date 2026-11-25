@@ -294,3 +294,32 @@ async fn playground_key_and_endpoints() {
     );
     assert!(!text.contains("/api/v1/python"));
 }
+
+/// Web test_charges_api.py::test_the_playground_lists_charges_with_a_request_that_validates:
+/// each market's playground lists `/api/v1/charges` with a sample request
+/// the endpoint's own schema accepts once a key is filled in.
+#[test]
+fn the_playground_lists_charges_with_a_request_that_validates() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/playground");
+    for (file, symbol) in [
+        ("endpoints_IN_stock.json", "RELIANCE"),
+        ("endpoints_crypto.json", "BTCUSDFUT"),
+    ] {
+        let doc: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.join(file)).unwrap()).unwrap();
+        let entry = doc["account"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["path"] == "/api/v1/charges")
+            .unwrap_or_else(|| panic!("{file} lists no charges entry"));
+        assert_eq!(entry["method"], "POST");
+        let mut body = entry["body"].as_object().unwrap().clone();
+        assert_eq!(body["symbol"], symbol);
+        body.insert("apikey".into(), json!("a-valid-openalgo-key"));
+        let loaded = openalgo_desktop_lib::services::schemas::charges()
+            .load(&body)
+            .unwrap();
+        assert!(loaded["price"].as_f64().unwrap() > 0.0, "{file}");
+    }
+}

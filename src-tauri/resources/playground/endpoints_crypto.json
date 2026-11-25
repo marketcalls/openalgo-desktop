@@ -1,6 +1,20 @@
 {
   "account": [
     {
+      "name": "charges",
+      "method": "POST",
+      "path": "/api/v1/charges",
+      "body": {
+        "apikey": "",
+        "symbol": "BTCUSDFUT",
+        "exchange": "CRYPTO",
+        "action": "BUY",
+        "product": "NRML",
+        "quantity": 1,
+        "price": 62000
+      }
+    },
+    {
       "name": "funds",
       "method": "POST",
       "path": "/api/v1/funds",

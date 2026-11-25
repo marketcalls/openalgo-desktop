@@ -498,6 +498,36 @@ schema!(
     ])
 );
 
+// The charges of one order, as it would be placed (web `ChargesSchema`,
+// openalgo#2496): a price is required and above zero, since charges are a
+// share of the trade value and a MARKET order is priced where it is
+// expected to trade.
+schema!(
+    charges,
+    Schema::new(vec![
+        Field::str("apikey").required().validate(Validator::Length {
+            min: Some(1),
+            max: Some(256),
+            error: Some("API key must be between 1 and 256 characters."),
+        }),
+        Field::str("symbol").required().validate(Validator::Length {
+            min: Some(1),
+            max: Some(50),
+            error: Some("Symbol must be between 1 and 50 characters."),
+        }),
+        exchange(),
+        action(),
+        Field::str("product")
+            .required()
+            .validate(Validator::one_of(PRODUCTS)),
+        positive_quantity("Quantity must be a positive number."),
+        Field::float("price")
+            .required()
+            .validate(Validator::gt(0.0, Some("Price must be a positive number."))),
+    ])
+    .post_load(coerce_quantity)
+);
+
 // ------------------------------------------------------------------ GTT
 
 fn is_zero_or_none(v: Option<&Value>) -> bool {

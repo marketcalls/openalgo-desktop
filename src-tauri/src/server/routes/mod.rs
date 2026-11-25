@@ -48,6 +48,7 @@ pub mod options_tools;
 pub mod orders;
 pub mod playground;
 pub mod sandbox;
+pub mod sandbox_charges;
 pub mod scalping;
 pub mod search;
 pub mod security;
@@ -99,6 +100,7 @@ pub fn table() -> Vec<RouteSpec> {
         health_playground_leverage(),
         search_and_orders(),
         sandbox_and_charts(),
+        sandbox_charges::table(),
         watchlists(),
         oi_and_iv_tools(),
         straddle_and_builder_tools(),

@@ -18,6 +18,20 @@
       }
     },
     {
+      "name": "Charges",
+      "method": "POST",
+      "path": "/api/v1/charges",
+      "body": {
+        "apikey": "",
+        "symbol": "RELIANCE",
+        "exchange": "NSE",
+        "action": "BUY",
+        "product": "CNC",
+        "quantity": 50,
+        "price": 1350
+      }
+    },
+    {
       "name": "funds",
       "method": "POST",
       "path": "/api/v1/funds",
@@ -593,6 +607,16 @@
       }
     },
     {
+      "name": "Discord Notify",
+      "method": "POST",
+      "path": "/api/v1/discord/notify",
+      "body": {
+        "apikey": "",
+        "message": "Test alert from OpenAlgo API",
+        "wait_for_delivery": false
+      }
+    },
+    {
       "name": "Market Holidays",
       "method": "POST",
       "path": "/api/v1/market/holidays",
@@ -616,6 +640,16 @@
       "path": "/api/v1/ping",
       "body": {
         "apikey": ""
+      }
+    },
+    {
+      "name": "Slack Notify",
+      "method": "POST",
+      "path": "/api/v1/slack/notify",
+      "body": {
+        "apikey": "",
+        "message": "Test alert from OpenAlgo API",
+        "wait_for_delivery": false
       }
     },
     {

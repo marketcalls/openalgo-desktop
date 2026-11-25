@@ -39,6 +39,7 @@ pub mod broker_runtime;
 pub mod broker_settings_service;
 pub mod broker_switch;
 pub mod chain_tools_service;
+pub mod charges_service;
 pub mod chart_prefs_service;
 pub mod chart_test_service;
 pub mod core;
