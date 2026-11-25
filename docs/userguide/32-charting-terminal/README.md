@@ -115,6 +115,54 @@ order stream and are checked against the order book shortly after.
 The dock's cancel, modify and close are the app acting for you, so Semi-Auto
 does not hold them.
 
+## Watchlist
+
+**Watchlist** on the right rail opens your lists of instruments with their
+prices. Click a row to chart that instrument in the selected chart; the
+charted row is marked. Then **Up** and **Down** move to the row above or
+below and chart it, so you can walk a list without the mouse. Holding the key
+moves through the rows and charts the one you let go on.
+
+| Column | Shows |
+| --- | --- |
+| Symbol | The instrument, with a letter and its exchange |
+| Last | The last traded price |
+| Chg | The move from the previous close, in price |
+| Chg% | The same move, in percent |
+
+Those four are shown to begin with. **Customise columns** (the three dots at
+the top of the panel) adds Volume, High, Low and Open, removes any column, and
+hides the letter or the exchange. Your choice is remembered in this window. If
+the panel still showed the earlier default of Last and Chg% only, Chg is added
+once; a choice you made yourself is left as it is, and turning Chg off again
+is remembered.
+
+A gain is printed with a plus sign in green and a loss with a minus sign in
+red. An instrument sitting exactly on its previous close reads `0.00` and
+`0.00%` with no sign and no colour. A dash means the figure is not known yet:
+no price has arrived, or there is no previous close to measure from.
+
+Prices and moves are shown to the paisa, and currency contracts on CDS and BCD
+to four decimals. An instrument quoted finer than that elsewhere (some crypto
+contracts) is still shown to two decimals here, so its Chg can read `0.00`
+while its Chg% shows the move.
+
+The panel opens 392 pixels wide until you drag its left edge. When it is too
+narrow for a name and its exchange, the exchange gives way first and the name
+is shortened last; hold the pointer over a row to read both in full. Each
+column you add makes the panel's narrowest width a little larger (342 pixels
+with the four columns above), and a narrower width you dragged it to earlier
+grows to that.
+
+The name at the top of the panel opens the list menu: create, copy, rename,
+import, export, clear or delete a list, and switch between your lists. **+**
+adds an instrument. Drag a row to reorder the list. Hover a row and use the
+bin to remove it, or select the row and press `Delete`.
+
+While the market is open the prices come from the live feed. When the feed is
+unavailable or the market is closed, the panel says so at the bottom and shows
+the last traded prices.
+
 ## Drawing tools
 
 All 90 drawing tools are on the left rail: lines and rays, channels and
@@ -319,12 +367,12 @@ It needs a model set up first, in **Admin**, **Agent Config**.
 
 ## What is remembered
 
-The grid layout, chart sync, the open right panel and its width, the dock's
-tab and height, One-Click, and per chart the symbol, interval, chart type,
-product, studies, comparisons, drawings and settings are kept in the app
-window's storage on this computer. A browser pointed at the same address keeps
-its own copy. Watchlists, OpenScript files, alert logs and deployments are
-kept by OpenAlgo itself.
+The grid layout, chart sync, the open right panel and its width, the
+watchlist's columns, the dock's tab and height, One-Click, and per chart the
+symbol, interval, chart type, product, studies, comparisons, drawings and
+settings are kept in the app window's storage on this computer. A browser
+pointed at the same address keeps its own copy. Watchlists, OpenScript files,
+alert logs and deployments are kept by OpenAlgo itself.
 
 ## Related
 

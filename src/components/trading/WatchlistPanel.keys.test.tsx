@@ -129,6 +129,31 @@ describe('watchlist arrow keys', () => {
     expect(onPick.mock.calls.map((c) => c[0].symbol)).toEqual(['HDFCBANK', 'ICICIBANK'])
   })
 
+  it('brings a row reached with Up out from under the column labels', async () => {
+    await renderPanel()
+    // jsdom lays nothing out, so the browser's layout is stated here: the
+    // labels stick to the top of the list (web #2276) and end 24px below it,
+    // HDFCBANK's row starts 10px below it, under them, and SBIN's 30px below
+    // it, clear of them.
+    const labels = screen.getByTestId('watchlist-columns')
+    const list = labels.parentElement as HTMLElement
+    labels.style.position = 'sticky'
+    const box = (top: number) => ({ top, bottom: top + 28 }) as DOMRect
+    vi.spyOn(labels, 'getBoundingClientRect').mockReturnValue({ top: 100, bottom: 124 } as DOMRect)
+    vi.spyOn(row('HDFCBANK'), 'getBoundingClientRect').mockReturnValue(box(110))
+    vi.spyOn(row('SBIN'), 'getBoundingClientRect').mockReturnValue(box(130))
+    list.scrollTop = 200
+
+    row('ICICIBANK').focus()
+    fireEvent.keyDown(row('ICICIBANK'), { key: 'ArrowUp' })
+    expect(row('HDFCBANK')).toHaveFocus()
+    expect(list.scrollTop).toBe(186)
+
+    fireEvent.keyDown(row('HDFCBANK'), { key: 'ArrowUp' })
+    expect(row('SBIN')).toHaveFocus()
+    expect(list.scrollTop).toBe(186)
+  })
+
   it('tells a screen reader which keys the rows take', async () => {
     await renderPanel()
     expect(row('SBIN')).toHaveAttribute('aria-keyshortcuts', 'ArrowUp ArrowDown')

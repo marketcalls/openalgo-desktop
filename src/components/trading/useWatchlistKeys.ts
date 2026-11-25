@@ -25,6 +25,20 @@ function rowOf(target: EventTarget): HTMLElement | null {
   return (target as Element).closest?.<HTMLElement>(`[${WATCHLIST_ROW}]`) ?? null
 }
 
+/**
+ * Scrolls a row into view clear of what sticks to the top of the list. Since
+ * web #2276 the column labels scroll with the rows and stick to the top, and
+ * `scrollIntoView` does not know about them: a row reached with Up was charted
+ * while the labels covered it.
+ */
+function reveal(list: HTMLElement, row: HTMLElement): void {
+  row.scrollIntoView?.({ block: 'nearest' })
+  const top = list.firstElementChild
+  if (!(top instanceof HTMLElement) || getComputedStyle(top).position !== 'sticky') return
+  const covered = top.getBoundingClientRect().bottom - row.getBoundingClientRect().top
+  if (covered > 0) list.scrollTop -= covered
+}
+
 function step(key: string): number {
   if (key === 'ArrowDown') return 1
   if (key === 'ArrowUp') return -1
@@ -48,7 +62,7 @@ export function useWatchlistKeys<T>(items: readonly T[], pick: (item: T) => void
       const nextRow = e.currentTarget.querySelector<HTMLElement>(`[${WATCHLIST_ROW}="${next}"]`)
       if (!nextRow) return
       nextRow.focus()
-      nextRow.scrollIntoView?.({ block: 'nearest' })
+      reveal(e.currentTarget, nextRow)
       if (e.repeat) {
         held.current = true
         return
