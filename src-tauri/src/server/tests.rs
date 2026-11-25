@@ -325,6 +325,27 @@ fn same_shape(a: &Value, b: &Value) -> bool {
     }
 }
 
+/// `got` without the fields the web added to `rel`'s answer after it was
+/// recorded, from the table the integration tests read too
+/// (`tests/fixtures/web/added_after_recording.json`). Each must be there.
+fn without_later_fields(rel: &str, want: &Value, got: &mut Value) {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../tests/fixtures/web/added_after_recording.json");
+    let table: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    for f in table["fields"].as_array().unwrap() {
+        let pointer = f["pointer"].as_str().unwrap();
+        if !rel.starts_with(f["fixture"].as_str().unwrap()) || want.pointer(pointer).is_some() {
+            continue;
+        }
+        let (parent, key) = pointer.rsplit_once('/').unwrap();
+        let removed = got
+            .pointer_mut(parent)
+            .and_then(Value::as_object_mut)
+            .and_then(|m| m.remove(key));
+        assert!(removed.is_some(), "{rel}: {pointer} is missing");
+    }
+}
+
 /// Error bodies must match exactly; success bodies by shape.
 async fn check_fixture(h: &H, rel: &str, key: &str) {
     let f = fixture(rel);
@@ -341,7 +362,7 @@ async fn check_fixture(h: &H, rel: &str, key: &str) {
         assert!(raw.as_str().unwrap().starts_with("<!doctype html>"));
         return;
     }
-    let got: Value = serde_json::from_slice(&body).unwrap_or_else(|_| {
+    let mut got: Value = serde_json::from_slice(&body).unwrap_or_else(|_| {
         panic!(
             "{}: body is not JSON: {:?}",
             rel,
@@ -351,6 +372,7 @@ async fn check_fixture(h: &H, rel: &str, key: &str) {
     if want_status >= 400 {
         assert_eq!(&got, want, "{}: body", rel);
     } else {
+        without_later_fields(rel, want, &mut got);
         assert!(
             same_shape(want, &got),
             "{}: shape\nwant {}\ngot  {}",

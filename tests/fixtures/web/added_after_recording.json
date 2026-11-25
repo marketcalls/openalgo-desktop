@@ -1,0 +1,17 @@
+{
+  "about": "Fields OpenAlgo web added to an answer after the golden fixtures were recorded. The desktop sends each one; a test that compares a reply with a recording that predates the field takes it out of the reply first, and fails when the reply lacks it. Every entry names the web change that added the field. Remove an entry once its fixtures are recorded again.",
+  "fields": [
+    {
+      "fixture": "funds/",
+      "pointer": "/data/today_charges",
+      "web": "4bce67c35 (marketcalls/openalgo#2496)",
+      "why": "The sandbox funds carry the day's brokerage and statutory charges."
+    },
+    {
+      "fixture": "funds/",
+      "pointer": "/data/total_charges",
+      "web": "4bce67c35 (marketcalls/openalgo#2496)",
+      "why": "And the charges paid since the last funds reset."
+    }
+  ]
+}

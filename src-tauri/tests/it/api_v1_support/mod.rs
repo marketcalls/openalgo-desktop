@@ -617,6 +617,30 @@ thread_local! {
     pub static STRICT_ARRAYS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+/// `got` without the fields the web added to fixture `rel`'s answer after
+/// it was recorded (`tests/fixtures/web/added_after_recording.json`). Each
+/// must be in `got`; one the recording `want` already carries stays.
+pub fn without_later_fields(rel: &str, want: &Value, got: &mut Value) -> Result<(), String> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../tests/fixtures/web/added_after_recording.json");
+    let table: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    for f in table["fields"].as_array().unwrap() {
+        let pointer = f["pointer"].as_str().unwrap();
+        if !rel.starts_with(f["fixture"].as_str().unwrap()) || want.pointer(pointer).is_some() {
+            continue;
+        }
+        let (parent, key) = pointer.rsplit_once('/').unwrap();
+        let removed = got
+            .pointer_mut(parent)
+            .and_then(Value::as_object_mut)
+            .and_then(|m| m.remove(key));
+        if removed.is_none() {
+            return Err(format!("{rel}: {pointer} is missing (web {})", f["web"]));
+        }
+    }
+    Ok(())
+}
+
 /// Same JSON shape: same object keys and value types, recursively, for
 /// every element of a list (TOOLS-16: it used to look at the first only).
 /// Fixture bookkeeping keys (`_total_rows`, `_truncated`) and the

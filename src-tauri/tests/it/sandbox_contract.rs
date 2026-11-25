@@ -83,7 +83,8 @@ fn to_value<T: Serialize>(t: &T) -> Value {
 fn check_ok<T: Serialize>(rel: &str, ours: &T) {
     let (status, fx) = fixture(rel);
     assert_eq!(status, 200, "{rel}");
-    let v = to_value(ours);
+    let mut v = to_value(ours);
+    crate::api_v1_support::without_later_fields(rel, &fx, &mut v).unwrap();
     assert_shape(rel, &fx, &v);
     assert_eq!(v["status"], fx["status"], "{rel}: status string");
     assert_eq!(v.get("mode"), fx.get("mode"), "{rel}: mode");

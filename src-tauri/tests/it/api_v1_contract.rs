@@ -508,7 +508,7 @@ async fn replay(h: &H, rel: &str, ids: &mut Ids) -> Result<(), String> {
             | "gttorderbook/final.json"
             | "intervals/default.json"
     );
-    without_later_fields(rel, &mut got)?;
+    api_v1_support::without_later_fields(rel, want, &mut got)?;
     api_v1_support::STRICT_ARRAYS.with(|c| c.set(!lenient));
     let r = same_shape(want, &got);
     api_v1_support::STRICT_ARRAYS.with(|c| c.set(false));
@@ -545,41 +545,6 @@ const WEB_DEFECT_2_LOGS: &str = "web defect 2: the failed GTT modifies were not 
 /// excess-only order margin by the excess share again): 127.21. The desktop
 /// keeps both (`sandbox::funds::reconcile`, `sandbox::positions::apply_fill`).
 const WEB_MARGIN: &str = "web defects 4 and 5: resting-order and reversal margin dropped";
-
-/// Fields the web added after the recording, by fixture, each with the web
-/// change that added it. The desktop must send them; they are taken out of
-/// the reply before it is compared with a recording that predates them.
-const ADDED_AFTER_RECORDING: &[(&str, &str, &str)] = &[
-    (
-        "funds/",
-        "/data/today_charges",
-        "web 4bce67c35 (openalgo#2496): the sandbox funds carry the day's charges",
-    ),
-    (
-        "funds/",
-        "/data/total_charges",
-        "web 4bce67c35 (openalgo#2496): and the charges since the last funds reset",
-    ),
-];
-
-/// `got` without the [`ADDED_AFTER_RECORDING`] fields of fixture `rel`, each
-/// of which must be there.
-fn without_later_fields(rel: &str, got: &mut Value) -> Result<(), String> {
-    for (_, pointer, why) in ADDED_AFTER_RECORDING
-        .iter()
-        .filter(|(fx, _, _)| rel.starts_with(fx))
-    {
-        let (parent, key) = pointer.rsplit_once('/').unwrap();
-        let removed = got
-            .pointer_mut(parent)
-            .and_then(Value::as_object_mut)
-            .and_then(|m| m.remove(key));
-        if removed.is_none() {
-            return Err(format!("{pointer} is missing ({why})"));
-        }
-    }
-    Ok(())
-}
 
 /// Fields of successful replies that are not compared by value (TOOLS-16).
 /// Everything else in a success must equal the recording: identities, list
