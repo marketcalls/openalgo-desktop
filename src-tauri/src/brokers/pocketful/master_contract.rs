@@ -53,6 +53,7 @@ use crate::brokers::common::redact;
 use crate::brokers::common::symbols::SymToken;
 use crate::error::{AppError, Result};
 use chrono::{Datelike, NaiveDate};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// The exchanges of the archive, one file each (web `CONTRACT_EXCHANGES`).
@@ -113,21 +114,24 @@ fn incomplete(exchange: &str) -> AppError {
 }
 
 /// One exchange's file, its columns by lowercased header name (web
-/// `_read_contract_csv`).
-struct ContractFile {
+/// `_read_contract_csv`). Rows are split as they are read: the contract has
+/// about 180,000 of them, and only the cash rows the series rule compares
+/// are ever held together.
+struct ContractFile<'f> {
     cols: HashMap<String, usize>,
-    rows: Vec<Vec<String>>,
+    text: Cow<'f, str>,
+    /// Where the rows start, after the header.
+    body: usize,
 }
 
 /// One row of a [`ContractFile`].
-#[derive(Clone, Copy)]
-struct Line<'a> {
-    fields: &'a [String],
-    cols: &'a HashMap<String, usize>,
+struct Line<'c> {
+    fields: Vec<String>,
+    cols: &'c HashMap<String, usize>,
 }
 
-impl<'a> Line<'a> {
-    fn get(&self, name: &str) -> &'a str {
+impl Line<'_> {
+    fn get(&self, name: &str) -> &str {
         self.cols
             .get(name)
             .and_then(|&i| self.fields.get(i))
@@ -136,11 +140,11 @@ impl<'a> Line<'a> {
     }
 }
 
-impl ContractFile {
+impl<'f> ContractFile<'f> {
     /// Read `exchange`'s file, refused when a required column is missing.
-    fn read(text: &str, exchange: &str) -> Result<Self> {
-        let mut lines = text.lines();
-        let cols: HashMap<String, usize> = split_csv_line(lines.next().unwrap_or(""))
+    fn read(text: Cow<'f, str>, exchange: &str) -> Result<Self> {
+        let body = text.find('\n').map_or(text.len(), |i| i + 1);
+        let cols: HashMap<String, usize> = split_csv_line(&text[..body])
             .into_iter()
             .enumerate()
             .map(|(i, n)| {
@@ -159,18 +163,19 @@ impl ContractFile {
                 missing.join(", ")
             )));
         }
-        let rows = lines
-            .filter(|l| !l.trim().is_empty())
-            .map(split_csv_line)
-            .collect();
-        Ok(Self { cols, rows })
+        Ok(Self { cols, text, body })
     }
 
-    fn lines(&self) -> impl Iterator<Item = Line<'_>> {
-        self.rows.iter().map(|fields| Line {
-            fields,
-            cols: &self.cols,
-        })
+    /// The rows, each split when the iterator reaches it.
+    fn lines(&self) -> impl Iterator<Item = Line<'_>> + '_ {
+        let cols = &self.cols;
+        self.text[self.body..]
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .map(move |l| Line {
+                fields: split_csv_line(l),
+                cols,
+            })
     }
 }
 
@@ -183,7 +188,7 @@ fn number(s: &str) -> f64 {
 }
 
 /// A symtoken row with the columns every segment shares (web `_rows`).
-fn base_row(line: Line<'_>, symbol: String, name: String, exchange: &str, file: &str) -> SymToken {
+fn base_row(line: &Line<'_>, symbol: String, name: String, exchange: &str, file: &str) -> SymToken {
     let brexchange = match line.get("exchange") {
         "" => file,
         e => e,
@@ -204,7 +209,7 @@ fn base_row(line: Line<'_>, symbol: String, name: String, exchange: &str, file: 
 }
 
 /// Cash rows' name: the company, else the trading symbol.
-fn company(line: Line<'_>) -> String {
+fn company(line: &Line<'_>) -> String {
     match line.get("company_name") {
         "" => line.get("trading_symbol").to_string(),
         n => n.to_string(),
@@ -270,7 +275,7 @@ fn strip_series(lines: &[Line<'_>], tier: impl Fn(&str) -> Option<usize>) -> (Ve
 /// web `process_pocketful_nse_csv`: NSE cash rows of every series, EQ
 /// first, so a stock listed in EQ and another series keeps the bare symbol
 /// on its EQ row.
-fn nse_cash(file: &ContractFile) -> Vec<SymToken> {
+fn nse_cash(file: &ContractFile<'_>) -> Vec<SymToken> {
     let lines: Vec<Line<'_>> = file
         .lines()
         .filter(|l| l.get("segment") != NSE_INDEX_SEGMENT)
@@ -292,12 +297,12 @@ fn nse_cash(file: &ContractFile) -> Vec<SymToken> {
     lines
         .iter()
         .zip(symbols)
-        .map(|(&l, symbol)| base_row(l, symbol, company(l), "NSE", "NSE"))
+        .map(|(l, symbol)| base_row(l, symbol, company(l), "NSE", "NSE"))
         .collect()
 }
 
 /// web `process_pocketful_bse_csv`: BSE cash rows without the group suffix.
-fn bse_cash(file: &ContractFile) -> Vec<SymToken> {
+fn bse_cash(file: &ContractFile<'_>) -> Vec<SymToken> {
     let lines: Vec<Line<'_>> = file
         .lines()
         .filter(|l| l.get("segment") != BSE_INDEX_SEGMENT)
@@ -312,7 +317,7 @@ fn bse_cash(file: &ContractFile) -> Vec<SymToken> {
     lines
         .iter()
         .zip(symbols)
-        .map(|(&l, symbol)| base_row(l, symbol, company(l), "BSE", "BSE"))
+        .map(|(l, symbol)| base_row(l, symbol, company(l), "BSE", "BSE"))
         .collect()
 }
 
@@ -358,7 +363,7 @@ fn bse_index_symbol(code: &str) -> String {
 
 /// web `process_pocketful_indices_csv`: NSE and BSE index rows, as
 /// NSE_INDEX and BSE_INDEX, named by the broker's index name.
-fn indices(nse: &ContractFile, bse: &ContractFile) -> Vec<SymToken> {
+fn indices(nse: &ContractFile<'_>, bse: &ContractFile<'_>) -> Vec<SymToken> {
     let nse_rows = nse
         .lines()
         .filter(|l| l.get("segment") == NSE_INDEX_SEGMENT)
@@ -367,37 +372,19 @@ fn indices(nse: &ContractFile, bse: &ContractFile) -> Vec<SymToken> {
                 .to_uppercase()
                 .contains(NSE_TEST_INDEX)
         })
-        .map(|l| {
-            (
-                l,
-                nse_index_symbol(l.get("trading_symbol")),
-                "NSE_INDEX",
-                "NSE",
-            )
-        });
+        .map(|l| index_row(&l, nse_index_symbol, "NSE_INDEX", "NSE"));
     let bse_rows = bse
         .lines()
         .filter(|l| l.get("segment") == BSE_INDEX_SEGMENT)
-        .map(|l| {
-            (
-                l,
-                bse_index_symbol(l.get("trading_symbol")),
-                "BSE_INDEX",
-                "BSE",
-            )
-        });
-    nse_rows
-        .chain(bse_rows)
-        .map(|(l, symbol, exchange, file)| {
-            base_row(
-                l,
-                symbol,
-                l.get("trading_symbol").to_string(),
-                exchange,
-                file,
-            )
-        })
-        .collect()
+        .map(|l| index_row(&l, bse_index_symbol, "BSE_INDEX", "BSE"));
+    nse_rows.chain(bse_rows).collect()
+}
+
+/// One index row: `symbol` builds its OpenAlgo symbol from the broker's
+/// index name, which is also its name.
+fn index_row(line: &Line<'_>, symbol: fn(&str) -> String, exchange: &str, file: &str) -> SymToken {
+    let name = line.get("trading_symbol");
+    base_row(line, symbol(name), name.to_string(), exchange, file)
 }
 
 /// web `pd.to_datetime(expiry, format="%d-%b-%Y", errors="coerce")`, with
@@ -437,7 +424,7 @@ enum NotLoaded {
 }
 
 /// One F&O row in the OpenAlgo format.
-fn contract(line: Line<'_>, exchange: &str) -> std::result::Result<SymToken, NotLoaded> {
+fn contract(line: &Line<'_>, exchange: &str) -> std::result::Result<SymToken, NotLoaded> {
     let option_type = line.get("option_type").to_uppercase();
     let is_option = matches!(option_type.as_str(), "CE" | "PE");
     if !is_option && option_type != "XX" {
@@ -480,11 +467,11 @@ fn contract(line: Line<'_>, exchange: &str) -> std::result::Result<SymToken, Not
 
 /// web `_derivatives`: futures and options of one F&O file. Futures:
 /// `[underlying][DDMMMYY]FUT`; options: `[underlying][DDMMMYY][strike][CE|PE]`.
-fn derivatives(file: &ContractFile, exchange: &str) -> Vec<SymToken> {
+fn derivatives(file: &ContractFile<'_>, exchange: &str) -> Vec<SymToken> {
     let (mut unreadable, mut unnamed) = (0usize, 0usize);
-    let mut out = Vec::with_capacity(file.rows.len());
+    let mut out = Vec::new();
     for line in file.lines() {
-        match contract(line, exchange) {
+        match contract(&line, exchange) {
             Ok(row) => out.push(row),
             Err(NotLoaded::NotAContract) => {}
             Err(NotLoaded::NoExpiry) => unreadable += 1,
@@ -571,27 +558,30 @@ fn one_row_each(rows: Vec<SymToken>) -> Vec<SymToken> {
     out
 }
 
+/// `exchange`'s file of the archive, its header read; refused when the file
+/// is missing or blank (MC-02) or lacks a required column.
+fn contract_file<'f>(files: &'f [(String, Vec<u8>)], exchange: &str) -> Result<ContractFile<'f>> {
+    let name = file_name(exchange);
+    let text = files
+        .iter()
+        .find(|(n, _)| {
+            n.rsplit('/')
+                .next()
+                .unwrap_or(n)
+                .eq_ignore_ascii_case(&name)
+        })
+        .map(|(_, b)| String::from_utf8_lossy(b))
+        .filter(|t| !t.trim().is_empty())
+        .ok_or_else(|| incomplete(exchange))?;
+    ContractFile::read(text, exchange)
+}
+
 /// Every symtoken row from the archive's five files, in the web's order
 /// (NSE, BSE, indices, NFO, BFO, MCX). Each file is required and must yield
 /// instruments, so the stored master is kept rather than replaced by a
 /// partial one (MC-02).
 pub fn parse_archive(files: &[(String, Vec<u8>)]) -> Result<Vec<SymToken>> {
-    let read = |exchange: &str| -> Result<ContractFile> {
-        let name = file_name(exchange);
-        let text = files
-            .iter()
-            .find(|(n, _)| {
-                n.rsplit('/')
-                    .next()
-                    .unwrap_or(n)
-                    .eq_ignore_ascii_case(&name)
-            })
-            .map(|(_, b)| String::from_utf8_lossy(b))
-            .filter(|t| !t.trim().is_empty())
-            .ok_or_else(|| incomplete(exchange))?;
-        ContractFile::read(&text, exchange)
-    };
-    let [nse, bse, nfo, bfo, mcx] = EXCHANGES.map(read);
+    let [nse, bse, nfo, bfo, mcx] = EXCHANGES.map(|exchange| contract_file(files, exchange));
     let (nse, bse, nfo, bfo, mcx) = (nse?, bse?, nfo?, bfo?, mcx?);
     let mut all = required(nse_cash(&nse), "NSE")?;
     all.extend(required(bse_cash(&bse), "BSE")?);
