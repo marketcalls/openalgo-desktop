@@ -145,6 +145,18 @@ fn gtt_event(
     }
 }
 
+/// The brokers whose web GTT plugin answers a GTT call it could not
+/// confirm with 502 and its own "check the GTT list" sentence (web
+/// pocketful gtt_api, openalgo#2467), which their adapters write too.
+/// Another GTT broker's unknown answer (Zerodha's or Upstox's 2xx with
+/// neither its success nor its failure marker, `outcome::not_accepted`)
+/// reaches the web's GTT services as a failure and keeps the desktop's 500
+/// internal-error answer: its text is the broker's refusal wording, which
+/// a 502 would contradict. Either way the placement's uncertain outcome
+/// travels beside the answer (`live_place_reply`), as an order's does
+/// (`docs/port/order-outcomes.md`).
+const UNKNOWN_GTT_ANSWERED_502: &[&str] = &["pocketful"];
+
 fn live_error(e: &AppError, internal: &str, broker: &str) -> Reply {
     match e {
         AppError::Unsupported(_) => not_supported(broker),
@@ -158,7 +170,7 @@ fn live_error(e: &AppError, internal: &str, broker: &str) -> Reply {
         // may exist, so the trader reads the adapter's "check the GTT list"
         // sentence with the web's 502 (web pocketful gtt_api, openalgo#2467),
         // never a failure that invites placing it again.
-        AppError::Uncertain(u) if !u.internal => {
+        AppError::Uncertain(u) if !u.internal && UNKNOWN_GTT_ANSWERED_502.contains(&broker) => {
             tracing::warn!("GTT call has no definite answer: {}", u.message);
             Reply::error(502, u.message.clone())
         }
@@ -171,9 +183,10 @@ fn live_error(e: &AppError, internal: &str, broker: &str) -> Reply {
 
 /// A live placement's reply: the web's wire answer, and beside it, when the
 /// adapter could not tell whether the GTT was created, that it may exist
-/// (CLAUDE.md, three outcomes). The Action Center then keeps its claim, so
-/// an approved GTT is never sent again, and MCP reports the outcome as
-/// unknown; both read any other failure as "not placed".
+/// (CLAUDE.md, three outcomes), on every GTT broker whatever its wire
+/// answer ([`UNKNOWN_GTT_ANSWERED_502`]). The Action Center then keeps its
+/// claim, so an approved GTT is never sent again, and MCP reports the
+/// outcome as unknown; both read any other failure as "not placed".
 fn live_place_reply(result: Result<GttResponse, AppError>, broker: &str) -> Reply {
     let e = match result {
         Ok(r) => return Reply::ok(json!({"status": "success", "trigger_id": r.trigger_id})),
@@ -591,6 +604,46 @@ Check the GTT list before placing it again.";
             json!({"status": "success", "trigger_id": "t1"})
         );
         assert!(!placed.is_uncertain());
+    }
+
+    /// Only Pocketful's GTT answers an unknown outcome with 502: Zerodha's
+    /// and Upstox's adapters return the error `outcome::not_accepted` builds
+    /// for a 2xx with neither marker (zerodha/mod.rs `call_raw`, upstox
+    /// `envelope_data`), whose text is their refusal wording. Their place,
+    /// modify, cancel and book keep the 500 internal-error answer they had
+    /// (the web's GTT services answer such a reply with 500), and a
+    /// placement still carries its uncertain outcome beside it (CLAUDE.md,
+    /// three outcomes). Review finding (gtt_service.rs:161): this answered
+    /// 502 "Zerodha refused the request.".
+    #[test]
+    fn another_brokers_unknown_gtt_keeps_its_500() {
+        use crate::brokers::common::outcome::not_accepted;
+        for (broker, text) in [
+            ("zerodha", "Zerodha refused the request."),
+            ("upstox", "Upstox refused the request."),
+        ] {
+            for internal in [
+                "Failed to modify GTT due to internal error",
+                "Failed to cancel GTT due to internal error",
+                "Failed to fetch GTT orderbook",
+            ] {
+                let reply = live_error(&not_accepted(200, false, text), internal, broker);
+                assert_eq!(
+                    (reply.status, reply.message()),
+                    (500, internal.to_string()),
+                    "{}",
+                    broker
+                );
+            }
+            let placed = live_place_reply(Err(not_accepted(200, false, text)), broker);
+            assert_eq!(
+                (placed.status, placed.message()),
+                (500, "Failed to place GTT due to internal error".to_string()),
+                "{}",
+                broker
+            );
+            assert!(placed.is_uncertain(), "{}", broker);
+        }
     }
 
     /// The request's `expires_at` reaches the broker request as sent (web
