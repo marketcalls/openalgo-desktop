@@ -246,6 +246,7 @@ mod pool_threads;
 mod sandbox_concurrency;
 mod sandbox_contract;
 mod sandbox_engine;
+mod sandbox_feed_queue;
 mod sandbox_fills;
 mod sandbox_gtt;
 mod sandbox_place_atomic;
