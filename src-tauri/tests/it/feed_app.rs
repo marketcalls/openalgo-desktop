@@ -41,6 +41,35 @@ fn set_ws_port(ctx: &AppState, port: u16) {
     c.ws_port = port;
 }
 
+/// The trader's account and the API key it was given.
+fn trader_with_key(ctx: &AppState) -> Secret {
+    {
+        let conn = ctx.sqlite.conn().unwrap();
+        user::insert(
+            &conn,
+            &ctx.security,
+            "alice",
+            "alice@example.com",
+            "not-a-real-hash",
+            "JBSWY3DPEHPK3PXP",
+        )
+        .unwrap();
+    }
+    ApiKeyService::regenerate(ctx, "alice").unwrap()
+}
+
+/// A broker session signed in with `token`.
+fn broker_session(broker: &str, token: &str) -> BrokerSession {
+    BrokerSession {
+        broker_id: broker.into(),
+        auth_token: Secret::new(token),
+        feed_token: None,
+        user_id: "AB1234".into(),
+        user_name: None,
+        authenticated_at: chrono::Utc::now(),
+    }
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn app_auth_uses_the_stored_api_key_and_broker_session() {
     let dir = tempfile::tempdir().unwrap();
@@ -237,6 +266,189 @@ async fn authenticated_clients_are_closed_when_their_authentication_ends() {
 
     drop((idle, again));
     feed.stop().await;
+    ctx.shutdown().await;
+}
+
+/// Web test/test_websocket_cache_invalidation.py::test_cache_invalidation_closes_only_affected_clients
+/// (marketcalls/openalgo#2277, 9512aa5fe): new broker credentials close
+/// every client that authenticated under the old ones and no other, and a
+/// client authenticating afterwards is answered for the new session. One
+/// trader here, so the web's other user's socket is a client that has not
+/// authenticated. The web closes with 1012 "Broker credentials changed" and
+/// no error frame; the desktop sends the error frame and closes with 4401,
+/// as for every change of what the key reaches (CLAUDE.md, Security work).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn new_broker_credentials_close_only_the_clients_authenticated_before() {
+    use openalgo_desktop_lib::feed::server::CREDENTIALS_CHANGED_MSG;
+    use openalgo_desktop_lib::services::broker_auth_service::BrokerAuthService;
+
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = open_ctx(&dir);
+    let key = trader_with_key(&ctx);
+    // Pinned, not just set: a broker sign-in reloads the settings.
+    ctx.pin_listener_ports(free_port().await, free_port().await);
+    BrokerAuthService::persist(&ctx, &broker_session("zerodha", "token-1")).unwrap();
+    let feed = FeedService::new(ctx.clone());
+    assert!(matches!(feed.start().await, ServerStatus::Running { .. }));
+    let url = format!("ws://{}", feed.local_addr().await.unwrap());
+    let authenticate = json!({"action": "authenticate", "api_key": key.expose()});
+
+    let mut streaming = Vec::new();
+    for _ in 0..2 {
+        let mut c = Client::connect(&url).await;
+        let v = c.request(authenticate.clone()).await;
+        assert_eq!(
+            (&v["status"], &v["broker"]),
+            (&json!("success"), &json!("zerodha")),
+            "{}",
+            v
+        );
+        streaming.push(c);
+    }
+    let mut not_yet = Client::connect(&url).await;
+
+    // A switch: the new broker's session replaces the one they
+    // authenticated under.
+    BrokerAuthService::persist(&ctx, &broker_session("angel", "token-2")).unwrap();
+    let closed = json!({"status": "error", "code": "AUTHENTICATION_ERROR",
+                        "message": CREDENTIALS_CHANGED_MSG});
+    for c in &mut streaming {
+        assert_eq!(c.recv().await, closed);
+        assert_eq!(
+            c.expect_close(Duration::from_secs(5)).await.map(|c| c.0),
+            Some(4401)
+        );
+    }
+    let v = not_yet.request(json!({"action": "ping"})).await;
+    assert_eq!(v["type"], "pong", "left open: {}", v);
+    let v = not_yet.request(authenticate.clone()).await;
+    assert_eq!(v["broker"], "angel", "{}", v);
+    // A closed client that connects again is answered for the new session.
+    let mut again = Client::connect(&url).await;
+    let v = again.request(authenticate).await;
+    assert_eq!(
+        (&v["status"], &v["broker"]),
+        (&json!("success"), &json!("angel")),
+        "{}",
+        v
+    );
+
+    drop((streaming, not_yet, again));
+    feed.stop().await;
+    ctx.shutdown().await;
+}
+
+/// Web test/test_websocket_cache_invalidation.py::test_invalidated_client_does_not_disconnect_replacement_adapter
+/// (marketcalls/openalgo#2277, 9512aa5fe): a client closed for new broker
+/// credentials takes only its own subscriptions with it. On the web the
+/// old socket's cleanup released its symbols on the adapter already built
+/// for the new credentials. Here no socket addresses the broker side: a
+/// client that authenticated under the new session and holds the same
+/// instrument keeps it at the source, and keeps streaming, because a
+/// closed client's holds go one by one and the source lets an instrument
+/// go only with its last holder (`Registry::remove_client`).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_client_closed_for_new_credentials_leaves_what_a_new_client_holds() {
+    use openalgo_desktop_lib::feed::auth::AppAuth;
+    use openalgo_desktop_lib::feed::server::CREDENTIALS_CHANGED_MSG;
+    use openalgo_desktop_lib::feed::source::SourceCall;
+    use openalgo_desktop_lib::feed::{
+        start, FakeSource, FeedConfig, FeedDeps, InstrumentKey, MarketUpdate, Mode,
+    };
+    use openalgo_desktop_lib::services::broker_auth_service::BrokerAuthService;
+
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = open_ctx(&dir);
+    let key = trader_with_key(&ctx);
+    BrokerAuthService::persist(&ctx, &broker_session("zerodha", "token-1")).unwrap();
+    let source = FakeSource::new(feed_support::known());
+    let handle = start(
+        FeedConfig {
+            port: 0,
+            ..FeedConfig::default()
+        },
+        FeedDeps {
+            source: source.clone(),
+            auth: Arc::new(AppAuth::new(ctx.clone())),
+            orders: None,
+            supported_brokers: feed_support::brokers(),
+        },
+    )
+    .await
+    .expect("feed server starts on an ephemeral port");
+    let url = format!("ws://{}", handle.local_addr());
+    let authenticate = json!({"action": "authenticate", "api_key": key.expose()});
+    let subscribe = |symbol: &str| {
+        json!({"action": "subscribe", "mode": "LTP",
+               "symbols": [{"symbol": symbol, "exchange": "NSE"}]})
+    };
+    let reliance = InstrumentKey::new("RELIANCE", "NSE");
+    let sbin = InstrumentKey::new("SBIN", "NSE");
+
+    let mut old = Client::connect(&url).await;
+    assert_eq!(old.request(authenticate.clone()).await["status"], "success");
+    assert_eq!(
+        old.request(subscribe("RELIANCE")).await["status"],
+        "success"
+    );
+    // The old socket waits for a subscribe the broker has not answered, so
+    // it is still open, holding RELIANCE, when the new socket subscribes:
+    // the web's order, a replacement in place before the old cleanup.
+    source.hold_subscribe(sbin.clone());
+    old.send(&subscribe("SBIN")).await;
+    let asked = SourceCall::Subscribe(sbin.clone(), Mode::Ltp, 5);
+    assert!(
+        feed_support::eventually(Duration::from_secs(5), || source.calls().contains(&asked)).await
+    );
+
+    BrokerAuthService::persist(&ctx, &broker_session("zerodha", "token-2")).unwrap();
+    let mut new = Client::connect(&url).await;
+    assert_eq!(new.request(authenticate).await["status"], "success");
+    assert_eq!(
+        new.request(subscribe("RELIANCE")).await["status"],
+        "success"
+    );
+    assert_eq!(handle.stats().clients, 2, "the old socket is still open");
+
+    source.answer_subscribe(&sbin);
+    assert_eq!(old.recv().await["type"], "subscribe");
+    assert_eq!(
+        old.recv().await,
+        json!({"status": "error", "code": "AUTHENTICATION_ERROR",
+               "message": CREDENTIALS_CHANGED_MSG})
+    );
+    assert_eq!(
+        old.expect_close(Duration::from_secs(5)).await.map(|c| c.0),
+        Some(4401)
+    );
+    assert!(
+        feed_support::eventually(Duration::from_secs(5), || handle.stats().clients == 1).await,
+        "the old socket's cleanup ran"
+    );
+
+    // Its own SBIN went with it; RELIANCE, which the new client holds, was
+    // never let go.
+    assert_eq!(
+        source.calls(),
+        vec![
+            SourceCall::Subscribe(reliance.clone(), Mode::Ltp, 5),
+            asked,
+            SourceCall::Unsubscribe(sbin, Mode::Ltp, 5),
+        ]
+    );
+    assert_eq!(source.active(), vec![(reliance.clone(), Mode::Ltp, 5)]);
+    source.publish(MarketUpdate::ltp(reliance, 1424.0, 1_791_000_000_000));
+    let tick = loop {
+        let v = new.recv().await;
+        if v["type"] == "market_data" {
+            break v;
+        }
+    };
+    assert_eq!(tick["symbol"], "RELIANCE");
+    assert!(source.violations().is_empty(), "{:?}", source.violations());
+
+    drop((old, new));
+    handle.stop().await;
     ctx.shutdown().await;
 }
 
