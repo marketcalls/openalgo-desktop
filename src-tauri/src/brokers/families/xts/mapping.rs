@@ -158,8 +158,9 @@ pub(crate) fn s(v: &Value, k: &str) -> String {
     }
 }
 
-/// Instrument id as JSON: an integer when numeric (XTS API types), else
-/// the string.
+/// Instrument or order id as JSON: an integer when it fits an `i64` (XTS
+/// API types), else the string. An order id past an `i64` (they run to 20
+/// digits) goes out as its text, as the web sends every order id.
 pub fn instrument_id(token: &str) -> Value {
     token
         .trim()
@@ -168,19 +169,80 @@ pub fn instrument_id(token: &str) -> Value {
         .unwrap_or_else(|_| Value::from(token))
 }
 
-/// Order id `float -> int -> str` (`order_data.py:158`).
+/// An id written as a whole number (`42`, ` 0042 `, `1234.0`, `-5`) in its
+/// plain digits, as the web's `str(int(Decimal(text)))`; anything else
+/// as it is.
+fn whole_number_text(text: &str) -> Option<String> {
+    let (sign, body) = match text.strip_prefix('-') {
+        Some(rest) => ("-", rest),
+        None => ("", text.strip_prefix('+').unwrap_or(text)),
+    };
+    let (int, frac) = body.split_once('.').unwrap_or((body, ""));
+    let all_digits = |s: &str| s.bytes().all(|b| b.is_ascii_digit());
+    if int.is_empty() || !all_digits(int) || !frac.bytes().all(|b| b == b'0') {
+        return None;
+    }
+    let digits = int.trim_start_matches('0');
+    Some(if digits.is_empty() {
+        "0".into()
+    } else {
+        format!("{}{}", sign, digits)
+    })
+}
+
+/// An XTS order id as text, digit for digit (web `utils/xts_order_data.py`
+/// `exact_order_id`, marketcalls/openalgo#2468). XTS ids run to 20 digits,
+/// past what a float holds: read through one, 11001263160000030116, ...0117
+/// and ...0118 became one id, so a day's orders shared it in the order and
+/// trade books. A JSON integer is kept as it is; a JSON number above
+/// `u64::MAX` has already lost digits in the JSON reader (no
+/// `arbitrary_precision`). A missing id is empty, not the web's "0":
+/// `place_raw` reads an empty id as an order accepted without one (an
+/// uncertain placement), and no cancel or modify could use "0".
 pub fn order_id(v: Option<&Value>) -> String {
     match v {
-        Some(Value::String(s)) => match s.trim().parse::<f64>() {
-            Ok(x) => format!("{}", x as i64),
-            Err(_) => s.trim().to_string(),
-        },
-        Some(Value::Number(n)) => n
-            .as_i64()
-            .map(|x| x.to_string())
-            .unwrap_or_else(|| format!("{}", n.as_f64().unwrap_or(0.0) as i64)),
+        Some(Value::String(s)) => {
+            let t = s.trim();
+            whole_number_text(t).unwrap_or_else(|| t.to_string())
+        }
+        Some(Value::Number(n)) => {
+            if let Some(u) = n.as_u64() {
+                u.to_string()
+            } else if let Some(i) = n.as_i64() {
+                i.to_string()
+            } else {
+                let x = n.as_f64().unwrap_or(0.0);
+                if x.is_finite() && x.fract() == 0.0 {
+                    format!("{:.0}", x)
+                } else {
+                    n.to_string()
+                }
+            }
+        }
         _ => String::new(),
     }
+}
+
+/// The average a trader paid (long) or received (short) for a position
+/// (web `traded_average_price`, #2468, issue #2462). For a position
+/// carried overnight XTS fills `BuyAveragePrice` / `SellAveragePrice` with
+/// the previous close it marked the position to, and keeps the traded
+/// average in `ActualBuyAveragePrice` / `ActualSellAveragePrice`; the docs
+/// list only the first pair, so a missing or zero Actual field falls back
+/// to it. A flat position has no average.
+fn traded_average_price(p: &Value, net_qty: f64) -> f64 {
+    let fields: [&str; 2] = if net_qty > 0.0 {
+        ["ActualBuyAveragePrice", "BuyAveragePrice"]
+    } else if net_qty < 0.0 {
+        ["ActualSellAveragePrice", "SellAveragePrice"]
+    } else {
+        return 0.0;
+    };
+    fields
+        .iter()
+        .map(|k| f(p, k))
+        .find(|x| x.is_finite() && *x > 0.0)
+        .unwrap_or(0.0)
 }
 
 /// Place payload (`transform_data.py:18-30`), with the type and limit the
@@ -419,13 +481,7 @@ pub fn positions(rows: &[Value], symbols: &SymbolResolver) -> Vec<Position> {
             let exchange = oa_exchange(&s(p, "ExchangeSegment"));
             let token = value_text(position_instrument(p));
             let qty = f(p, "Quantity");
-            let average_price = if qty > 0.0 {
-                f(p, "BuyAveragePrice")
-            } else if qty < 0.0 {
-                f(p, "SellAveragePrice")
-            } else {
-                0.0
-            };
+            let average_price = traded_average_price(p, qty);
             let pnl = p
                 .get("pnl")
                 .map(|_| f(p, "pnl"))

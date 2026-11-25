@@ -915,6 +915,33 @@ async fn rmoney_finds_the_open_position_by_its_instrument() {
     }
 }
 
+/// Web test/test_xts_order_data.py
+/// `test_a_position_error_is_reported_not_read_as_an_empty_book` and
+/// `test_an_empty_book_is_still_empty` (marketcalls/openalgo#2468, issue
+/// #633): an XTS error answer to the position read is an error the trader
+/// reads, never an empty book. The desktop already answered so (the
+/// envelope check in `XtsBroker::check`, BR-03); its words are its own:
+/// "Invalid Token" is the session-expired sentence every XTS read gives,
+/// and any other error is XTS's own reason, where the web wraps both in
+/// "<broker> did not return your positions".
+#[tokio::test]
+async fn a_position_error_is_reported_not_read_as_an_empty_book() {
+    let (b, fake, _) = broker(&rmoney::CONFIG).await;
+    *fake.positions.lock() = Some(json!({"type": "error", "code": "e-session-0007",
+        "description": "Invalid Token", "result": {}}));
+    let e = b.get_positions(&token()).await.unwrap_err();
+    assert_eq!(e.code(), "AUTH_ERROR");
+    assert!(e.client_message().contains("session has expired"));
+
+    *fake.positions.lock() = Some(json!({"type": "error", "code": "e-portfolio-0001",
+        "description": "Positions are not available right now", "result": []}));
+    let e = b.get_positions(&token()).await.unwrap_err();
+    assert_eq!(e.client_message(), "Positions are not available right now");
+
+    *fake.positions.lock() = Some(json!({"type": "success", "result": {"positionList": []}}));
+    assert!(b.get_positions(&token()).await.unwrap().is_empty());
+}
+
 #[tokio::test]
 async fn books_and_funds() {
     let (b, _, _) = broker(&fivepaisaxts::CONFIG).await;

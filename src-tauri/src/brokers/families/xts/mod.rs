@@ -22,6 +22,8 @@ mod data;
 mod funds;
 pub mod mapping;
 pub mod master_contract;
+#[cfg(test)]
+mod order_data_tests;
 mod orders;
 #[cfg(test)]
 mod parity_tests;
