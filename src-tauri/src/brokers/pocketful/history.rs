@@ -319,12 +319,8 @@ async fn chart_minutes(
     end: NaiveDate,
     reduce: impl Fn(Vec<Candle>) -> Vec<Candle>,
 ) -> Result<Vec<Candle>> {
-    let (exchange, _segment) = market::route(&row.exchange).ok_or_else(|| {
-        AppError::Validation(format!(
-            "Pocketful market data does not cover the {} exchange.",
-            row.exchange
-        ))
-    })?;
+    let (exchange, _segment) =
+        market::route(&row.exchange).ok_or_else(|| data::not_covered(&row.exchange))?;
     // chart-data.md lists a clientid header beside the session's own.
     let client_id = b.client_id(auth)?;
     let mut out = Vec::new();

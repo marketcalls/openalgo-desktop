@@ -65,7 +65,8 @@ pub(super) fn instrument(b: &PocketfulBroker, key: &QuoteKey) -> Result<SymToken
         })
 }
 
-fn not_covered(exchange: &str) -> AppError {
+/// The refusal for an exchange Pocketful's market data does not cover.
+pub(super) fn not_covered(exchange: &str) -> AppError {
     AppError::Validation(format!(
         "Pocketful market data does not cover the {} exchange.",
         exchange
