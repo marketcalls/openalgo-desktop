@@ -163,8 +163,10 @@ async fn app_auth_uses_the_stored_api_key_and_broker_session() {
 /// regenerated, when the broker session ends (logout, a switch) and when a
 /// new one starts, so a client keyed before the change cannot keep
 /// streaming market data or order updates. A client that has not
-/// authenticated is left alone. The web keeps such clients connected; this
-/// is a deliberate difference.
+/// authenticated is left alone. The web (openalgo#2277) closes such
+/// clients only when the broker token changes, with 1012 and no error
+/// frame, and keeps them through a regenerated key; this is a deliberate
+/// difference.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn authenticated_clients_are_closed_when_their_authentication_ends() {
     use openalgo_desktop_lib::events::SessionEndReason;

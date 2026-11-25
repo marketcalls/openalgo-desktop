@@ -1496,11 +1496,19 @@ differences with their reasons):
   all pass the check.
 - An authenticated market data feed client (8765) is closed, with the
   web's `AUTHENTICATION_ERROR` frame and then 4401, whenever the API-key
-  cache is cleared (`ApiKeyCache::clear`: a regenerated key, a broker
-  session that ended or started), so a client keyed before a sign-out or
-  key change cannot keep streaming. The web keeps such clients connected;
-  this is a deliberate difference. Anything new that changes what the key
-  reaches clears that cache.
+  cache is cleared (`ApiKeyCache::clear`: a regenerated key, a password
+  change, a broker session that ended or started), so a client keyed
+  before a sign-out or key change cannot keep streaming. The web
+  (openalgo#2277) closes only when the broker token changes (a sign-in
+  with a new token, a logout, the session's end), with 1012 "Broker
+  credentials changed" and no error frame, and keeps clients through a
+  regenerated key or a password change. The wider close, its frame and
+  4401 are a deliberate difference: the SDK and the /trading terminal
+  (openalgo-charts' `OpenAlgoWsFeed`) reconnect and replay their
+  subscriptions after any close, and `MarketDataManager` and the
+  WebSocket test pages, as the web's, reconnect after neither (a clean
+  close). Anything new that changes what the key reaches clears that
+  cache.
 - A request without a signed-in session acts only on its own browser
   session. An anonymous `/auth/logout` once cleared every session, so
   anything that could reach the port, a tunnel included, kept the trader

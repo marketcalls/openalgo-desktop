@@ -134,7 +134,10 @@ switching brokers) or a new one starts, and when the API key is regenerated:
 ```
 
 Connect again and authenticate. The Python SDK does this by itself
-(`auto_reconnect=True`, the default). The web keeps such connections open.
+(`auto_reconnect=True`, the default), and so does the `/trading` terminal.
+The web closes such connections only when the broker session changes, with
+code `1012` and no error frame, and keeps them open after a regenerated API
+key.
 
 ### Data modes
 
@@ -823,7 +826,10 @@ Everything not listed here behaves as on OpenAlgo web.
   `authenticate` answers with the "OpenAlgo is locked" error until you sign
   in.
 - A client that authenticated before a sign-out, a broker session change or a
-  regenerated API key is closed with `4401`; the web keeps it connected.
+  regenerated API key is sent the error frame and closed with `4401`. The web
+  closes it after a sign-out or a broker session change with `1012` ("Broker
+  credentials changed") and no error frame, and keeps it connected after a
+  regenerated API key.
 - Wrong keys count against the caller's failure budget, shared with
   `/api/v1` and MCP; once it is spent, a wrong key closes the connection.
 - A `depth` that is not a positive whole number is refused; any other depth is

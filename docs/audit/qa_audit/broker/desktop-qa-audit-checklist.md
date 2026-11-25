@@ -908,7 +908,7 @@ checklist is shared with the web.
 | DK-10 | SANDBOX | Analyzer-mode validation error | An invalid order in analyzer mode answers `{"mode":"analyze","status":"error","message"}` |
 | DK-11 | SANDBOX | Sandbox order ids | 14 digits, and every one of this run's ids is in `sandbox.db` `sandbox_orders` |
 | DK-12 | MANUAL | Sign-in lock | Log out of the app, call `/api/v1/funds`: **503** "Sign in to OpenAlgo to use the API". Sign in: 200. The script asserts only that the app is unlocked now |
-| DK-13 | MANUAL | Feed clients closed on key-cache reset | With a feed client authenticated, regenerate the API key (or end the broker session): the client receives `AUTHENTICATION_ERROR` then close **4401**, and the old key no longer authenticates. A deliberate difference from the web, which keeps such clients connected |
+| DK-13 | MANUAL | Feed clients closed on key-cache reset | With a feed client authenticated, regenerate the API key (or end the broker session): the client receives `AUTHENTICATION_ERROR` then close **4401**, and the old key no longer authenticates. A deliberate difference from the web, which closes such clients with 1012 and no error frame only when the broker token changes, and keeps them through a new API key |
 | DK-14 | SANDBOX | No credential in `logs.db` | The API key appears verbatim in no row of `error_logs`, `traffic_logs` or `analyzer_logs` |
 | DK-L1 | LIVE | Live orders never reach the sandbox book | None of the live run's order ids is in `sandbox.db` `sandbox_orders` |
 

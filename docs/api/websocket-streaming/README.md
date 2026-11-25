@@ -285,8 +285,12 @@ working.
 | 1001 | `server shutting down` | OpenAlgo is quitting, or the Market data port or address changed. |
 
 In the desktop, a connection that authenticated before you signed out,
-switched brokers or regenerated the key is closed (4401). OpenAlgo web keeps
-it open. The message budget (1008) is also a desktop addition.
+switched brokers or regenerated the key is closed (4401). OpenAlgo web closes
+it when the broker session changes (a broker login with a new token, a
+logout, the session's end), with code 1012 (`Broker credentials changed`) and
+no error frame, and keeps it open after a new API key. The Python SDK
+connects, authenticates and subscribes again by itself after either. The
+message budget (1008) is also a desktop addition.
 
 ## Python SDK
 
