@@ -183,3 +183,33 @@ fn other_noren_members_keep_their_master_rules() {
         .count();
     assert_eq!(sensex_futures, 2, "SENSEX50 reads SENSEX on Shoonya");
 }
+
+/// QA TS-01/04/05/06, MC-11: TradeSmart's NSE and BSE files give the tick
+/// size in rupees (RELIANCE 0.1, BAJAJ-AUTO 1, MRF 5), and dividing it as
+/// paise stored RELIANCE at 0.001 and MRF at 0.05. Every file is stored as
+/// sent, derivatives as before; Shoonya's paise rule is unchanged.
+#[test]
+fn nse_and_bse_ticks_are_stored_in_rupees() {
+    let rows = tradesmart_master();
+    for (exchange, symbol, tick) in [
+        ("NSE", "IDEA", 0.01),
+        ("NSE", "RELIANCE", 0.1),
+        ("NSE", "BAJAJ-AUTO", 1.0),
+        ("NSE", "MRF", 5.0),
+        ("NSE_INDEX", "NIFTY", 0.05),
+        ("BSE", "RELIANCE", 0.05),
+        ("BSE", "BAJAJ-AUTO", 1.0),
+        ("BSE", "MRF", 5.0),
+        ("BSE_INDEX", "SENSEX", 0.05),
+        ("BFO", "M&M26NOV26FUT", 0.1),
+        ("BFO", "SENSEX26NOV2685000CE", 0.05),
+    ] {
+        assert_eq!(
+            row(&rows, exchange, symbol).tick_size,
+            tick,
+            "{exchange}:{symbol}"
+        );
+    }
+    let shoonya = parse_file(shoonya::config(), "NSE", fixture!("NSE_symbols.txt"));
+    assert_eq!(row(&shoonya, "NSE", "MRF").tick_size, 0.05);
+}

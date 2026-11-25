@@ -84,9 +84,11 @@ pub struct MasterFile {
 /// Tick-size column handling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickRule {
-    /// NSE/BSE tick sizes are paise (divide by 100); derivatives are rupees.
+    /// NSE/BSE tick sizes are paise (divide by 100); derivatives are rupees
+    /// (shoonya).
     CashInPaise,
-    /// Stored as published.
+    /// Stored as published (zebu; tradesmart, whose NSE and BSE files give
+    /// rupees: RELIANCE 0.1, MRF 5, web #2475).
     Raw,
     /// Not published: 0.05 everywhere, 0.0025 on CDS (flattrade).
     Fixed,
