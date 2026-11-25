@@ -8,6 +8,7 @@
 
 use super::{capture, Fake, Reply};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
+use crate::brokers::pocketful::market::{number, number_text};
 use crate::brokers::pocketful::master_contract::{contract_request, parse_archive};
 use crate::brokers::pocketful::{zip, PocketfulBroker, BASE_URL, MASTER_URL};
 use crate::brokers::types::AuthToken;
@@ -447,6 +448,26 @@ fn mcx_spot_definitions_are_not_loaded() {
 }
 
 // --- lot and tick sizes -------------------------------------------------
+
+/// A contract column (web `pd.to_numeric(errors="coerce").fillna(0)`) and
+/// a quote field (web `_num`) read numeric text by one rule,
+/// `market::number_text`: a finite number, anything else 0.
+#[test]
+fn contract_columns_read_numbers_as_quote_fields_do() {
+    for (text, want) in [
+        ("65", 65.0),
+        (" 0.0500 ", 0.05),
+        ("-0.0100", -0.01),
+        ("", 0.0),
+        ("n/a", 0.0),
+        ("inf", 0.0),
+        ("NaN", 0.0),
+        ("1e400", 0.0),
+    ] {
+        assert_eq!(number_text(text), want, "{:?}", text);
+        assert_eq!(number(&Value::String(text.into())), want, "{:?}", text);
+    }
+}
 
 /// Web test_pocketful_master_contract.py::test_lot_and_tick_sizes_are_kept_as_given
 #[test]

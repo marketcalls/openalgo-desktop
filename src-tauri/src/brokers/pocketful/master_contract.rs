@@ -42,6 +42,7 @@
 //! the symbol resolver does with what it loads; a blank `exchange` column
 //! falls back to the file's exchange.
 
+use super::market::number_text;
 use super::{zip, PocketfulBroker};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
@@ -176,14 +177,6 @@ impl<'f> ContractFile<'f> {
     }
 }
 
-/// web `pd.to_numeric(..., errors="coerce").fillna(0)`.
-fn number(s: &str) -> f64 {
-    s.parse::<f64>()
-        .ok()
-        .filter(|v| v.is_finite())
-        .unwrap_or(0.0)
-}
-
 /// A symtoken row with the columns every segment shares (web `_rows`).
 fn base_row(line: &Line<'_>, symbol: String, name: String, exchange: &str, file: &str) -> SymToken {
     let brexchange = match line.get("exchange") {
@@ -199,9 +192,9 @@ fn base_row(line: &Line<'_>, symbol: String, name: String, exchange: &str, file:
         token: line.get("exchange_token").to_string(),
         expiry: String::new(),
         strike: 0.0,
-        lot_size: number(line.get("lot_size")) as i32,
+        lot_size: number_text(line.get("lot_size")) as i32,
         instrument_type: "EQ".into(),
-        tick_size: number(line.get("tick_size")),
+        tick_size: number_text(line.get("tick_size")),
     }
 }
 
@@ -412,7 +405,7 @@ fn contract(line: &Line<'_>, exchange: &str) -> std::result::Result<SymToken, No
     let expiry = contract_expiry(line.get("expiry")).ok_or(NotLoaded::NoExpiry)?;
     // Futures carry the placeholder strike -0.01.
     let strike = if is_option {
-        number(line.get("strike"))
+        number_text(line.get("strike"))
     } else {
         0.0
     };
