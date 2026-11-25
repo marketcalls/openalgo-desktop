@@ -261,6 +261,19 @@ IST session boundary; GTT; catch-up after the app was closed. Use exact decimal
 arithmetic for money. Time comes from an injected clock so tests are
 deterministic.
 
+Every fill pays brokerage (the trader's plan per segment) and statutory
+charges (web openalgo#2496). The rate card and the arithmetic are
+`sandbox::charges`, which performs no I/O and is held to a published
+calculator's figures (`tests/fixtures/sandbox/charges_reference.json`); a
+rate change edits it, with no migration. The charge is taken inside the
+fill's own transaction, after the claim and with the trade
+(`charge_manager::charge_fill`), out of the available balance into its own
+totals: realized P&L and used margin never move with it, so P&L stays gross
+and margin reconciliation holds. A new money column on `sandbox_funds` goes
+into `FundsRow::money`, which every balance write compares. The sandbox
+test harnesses run with charges off (balances to the paisa); a test that
+wants them switches them on.
+
 ### Risk rules live in one place
 
 When the strategy module and RMS land, stop, target, trailing and aggregate
