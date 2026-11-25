@@ -4,8 +4,9 @@
 //! Every book answers `{"appID", "config", "msgID", "srvTm", "data": {..}}`
 //! with its rows under `data.ord`, `data.trade`, `data.pos` or
 //! `data.rmsHdg`. An empty book is HTTP 222 with an `error` object
-//! (`ETRD0002`, `ETRD0004`). Each row's `sym` is the master contract token,
-//! so rows map back to OpenAlgo symbols through it.
+//! (`ETRD0007` orders, `ETRD0002` trades, `ETRD0004` positions). Each
+//! row's `sym` is the master contract token, so rows map back to OpenAlgo
+//! symbols through it.
 
 use super::client::Answer;
 use super::mapping::{
