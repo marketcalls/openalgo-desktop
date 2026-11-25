@@ -1,6 +1,7 @@
 //! Pocketful against a local fake: OAuth2 code exchange with Basic client
 //! auth and the trading_info lookup, an expired or account-less session,
-//! quotes, depth and multiquotes over REST, and the master-contract ZIP. Orders, books and close-all are ported from the
+//! quotes, depth, multiquotes and history over REST, and the
+//! master-contract ZIP. Orders, books and close-all are ported from the
 //! web's tests in `brokers/pocketful/rest_tests/orders.rs`; the market data
 //! cases in `rest_tests/data.rs`.
 
@@ -96,8 +97,9 @@ fn route(method: &Method, path: &str, body: &str, auth: &str) -> Response {
             ok(json!({"status": "success", "data": {"client_id": "DEMO1"}}))
         }
         ("GET", "/api/v2/funds/view") => ok(fixture!("funds.json")),
-        // get-market-data.md, verbatim.
+        // get-market-data.md and chart-data.md, verbatim.
         ("GET", "/api/v1/marketdata/NSE/Capital") => ok(fixture!("market_data.json")),
+        ("GET", "/api/v1/charts") => ok(fixture!("chart_data.json")),
         ("GET", "/contract") => {
             let files: Vec<(&str, &[u8])> = FILES.iter().map(|(n, t)| (*n, t.as_bytes())).collect();
             (StatusCode::OK, zip::build(&files)).into_response()
@@ -209,6 +211,9 @@ async fn pocketful_a_session_without_its_account_is_expired() {
     assert!(e.client_message().contains("Log in to Pocketful again"));
     let e = b.get_holdings(&bare).await.unwrap_err();
     assert!(e.client_message().contains("Log in to Pocketful again"));
+    // History sends the account as `clientid` (chart-data.md).
+    let e = b.get_history(&bare, &sbin_daily()).await.unwrap_err();
+    assert!(e.client_message().contains("Log in to Pocketful again"));
     assert!(fake.seen.lock().is_empty(), "nothing was sent");
     assert!(b.create_feed(&bare).is_err());
 
@@ -217,11 +222,8 @@ async fn pocketful_a_session_without_its_account_is_expired() {
     assert!(e.client_message().contains("Log in to Pocketful again"));
     let e = b.get_funds(&expired).await.unwrap_err();
     assert!(e.client_message().contains("Log in to Pocketful again"));
-    assert!(b
-        .get_history(&expired, &sbin_daily())
-        .await
-        .unwrap()
-        .is_empty());
+    let e = b.get_history(&expired, &sbin_daily()).await.unwrap_err();
+    assert!(e.client_message().contains("Log in to Pocketful again"));
     let e = b
         .get_quote(&expired, &QuoteKey::new("NSE", "SBIN"))
         .await
@@ -239,9 +241,10 @@ fn sbin_daily() -> HistoryRequest {
 }
 
 /// Market data over REST through the crate's API (web openalgo#2467):
-/// the documented answers, one request per symbol in the order asked.
+/// the documented answers, one request per symbol in the order asked, and
+/// one-minute chart candles built into a daily bar.
 #[tokio::test]
-async fn pocketful_quotes_depth_and_multiquotes_over_rest() {
+async fn pocketful_quotes_depth_and_history_over_rest() {
     let (b, fake, auth) = setup().await;
     let sbin = QuoteKey::new("NSE", "SBIN");
 
@@ -274,12 +277,23 @@ async fn pocketful_quotes_depth_and_multiquotes_over_rest() {
     assert!(res[1].error.as_deref().unwrap().contains("NOPE on NSE"));
     assert_eq!(res[2].data.as_ref().unwrap().ltp, 12.9);
 
+    let bars = b.get_history(&auth, &sbin_daily()).await.unwrap();
+    // chart-data.md's two candles, one IST date: one bar at 00:00 UTC.
+    assert_eq!(bars.len(), 1);
+    assert_eq!(bars[0].timestamp, 1_735_689_600);
+    assert_eq!(
+        (bars[0].open, bars[0].high, bars[0].low, bars[0].close),
+        (138.35, 138.35, 137.4, 137.7)
+    );
+    assert_eq!(bars[0].volume, 16699 + 19642);
+
     let seen = fake.seen.lock().clone();
     let quotes = seen
         .iter()
         .filter(|s| s.method == "GET" && s.path == "/api/v1/marketdata/NSE/Capital")
         .count();
     assert_eq!(quotes, 4, "a quote, a depth, two of the three symbols");
+    assert_eq!(fake.calls("GET", "/api/v1/charts").len(), 1);
     assert!(seen.iter().all(|s| s.authorization == "Bearer acc-pf-1"));
 }
 

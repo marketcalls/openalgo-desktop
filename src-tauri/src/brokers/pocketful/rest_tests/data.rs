@@ -2,10 +2,11 @@
 //! `test/test_pocketful_data.py`, marketcalls/openalgo#2467, a1d539764),
 //! against the answers printed on Pocketful's pages (fixtures under
 //! `tests/fixtures/brokers/pocketful/`). The master is the web test's token
-//! table. The last price is `client.rs`'s. What needs a short deadline is
-//! in `data/clocked.rs`.
+//! table. The last price is `client.rs`'s. History is in `data/history.rs`;
+//! what needs a fixed IST date or a short deadline is in `data/clocked.rs`.
 
 mod clocked;
+mod history;
 
 use super::{capture, success, Fake, Reply, CLIENT};
 use crate::brokers::common::ratelimit::crowd;
@@ -44,6 +45,20 @@ pub(super) fn market_data() -> Value {
 pub(super) fn error_answer() -> Value {
     parse(include_str!(
         "../../../../tests/fixtures/brokers/pocketful/market_data_error.json"
+    ))
+}
+
+/// chart-data.md, verbatim.
+pub(super) fn chart_answer() -> Value {
+    parse(include_str!(
+        "../../../../tests/fixtures/brokers/pocketful/chart_data.json"
+    ))
+}
+
+/// getting-started.md, "Historical Data NFO", verbatim.
+pub(super) fn historical_answer() -> Value {
+    parse(include_str!(
+        "../../../../tests/fixtures/brokers/pocketful/historical_data.json"
     ))
 }
 
@@ -560,11 +575,17 @@ async fn a_chain_leg_without_open_interest_is_reported_not_zero() {
 
 /// Nothing the session carries reaches a log, an error or a trader on the
 /// data paths: a refused session, a refusal, an answer that is not JSON
-/// and a lost answer, for a quote and a depth.
+/// and a lost answer, for a quote, a depth and a history.
 #[tokio::test]
 async fn data_failures_log_no_secret() {
     const TOKEN: &str = "ACCESS_SENTINEL_d4t4";
     let auth = AuthToken::new(TOKEN).with_user_id(CLIENT);
+    let history = HistoryRequest {
+        key: idea(),
+        interval: "1m".into(),
+        start: chrono::NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+        end: chrono::NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+    };
     let (log, guard) = capture();
     for reply in [
         unauthorised(),
@@ -574,10 +595,12 @@ async fn data_failures_log_no_secret() {
     ] {
         let fake = Fake::start().await;
         fake.on(NSE, vec![reply.clone()]);
+        fake.on("/api/v1/charts", vec![reply.clone()]);
         let b = fake.broker(master());
         let quote = b.get_quote(&auth, &idea()).await.unwrap_err();
         let depth = b.get_market_depth(&auth, &idea()).await.unwrap_err();
-        for e in [quote, depth] {
+        let bars = b.get_history(&auth, &history).await.unwrap_err();
+        for e in [quote, depth, bars] {
             let shown = format!("{} {:?} {}", e, e, e.client_message());
             assert!(!shown.contains(TOKEN), "{:?}: {}", reply, shown);
             plain_sentence(&e.client_message());

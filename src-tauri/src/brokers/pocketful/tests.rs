@@ -582,9 +582,8 @@ fn order_and_trade_updates() {
 fn broker_identity_and_capabilities() {
     let b = PocketfulBroker::new(master());
     assert_eq!(b.id(), "pocketful");
-    assert!(b.timeframe_map().is_empty());
     let c = b.capabilities();
-    assert!(!c.history && !c.margin && !c.gtt);
+    assert!(!c.margin && !c.gtt);
     assert!(c.streaming && c.order_feed);
     assert_eq!(b.login_kind(), LoginKind::Redirect { param: "code" });
     assert_eq!(b.supported_exchanges().len(), 7);

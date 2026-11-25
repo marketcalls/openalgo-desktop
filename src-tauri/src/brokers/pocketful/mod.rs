@@ -14,6 +14,7 @@ pub mod auth;
 pub mod client;
 mod data;
 mod funds;
+mod history;
 pub mod mapping;
 pub mod market;
 pub mod master_contract;
@@ -239,7 +240,7 @@ impl Broker for PocketfulBroker {
 
     fn capabilities(&self) -> Capabilities {
         Capabilities {
-            history: false,
+            history: true,
             // One REST request per symbol: no route takes several.
             multiquotes_batch: false,
             margin: false,
@@ -251,7 +252,7 @@ impl Broker for PocketfulBroker {
     }
 
     fn timeframe_map(&self) -> &'static [(&'static str, &'static str)] {
-        &[]
+        history::TIMEFRAME_MAP
     }
 
     fn symbols(&self) -> Option<&SymbolResolver> {
@@ -342,8 +343,8 @@ impl Broker for PocketfulBroker {
         data::get_market_depth(self, auth, key).await
     }
 
-    async fn get_history(&self, _auth: &AuthToken, _req: &HistoryRequest) -> Result<Vec<Candle>> {
-        Ok(Vec::new())
+    async fn get_history(&self, auth: &AuthToken, req: &HistoryRequest) -> Result<Vec<Candle>> {
+        history::get_history(self, auth, req).await
     }
 
     async fn download_master_contract(&self, _auth: &AuthToken) -> Result<Vec<SymbolData>> {
