@@ -53,6 +53,17 @@ pub const HEARTBEAT: Duration = Duration::from_secs(30);
 /// 3000 instruments is well under 1 MB).
 const MAX_INFLATED: u64 = 8 * 1024 * 1024;
 
+/// The stream's address for a session: `base` (`STREAM_URL`; tests pass a
+/// local one) with the API key and access token that authenticate the
+/// socket, as `NxtradStream` builds it. It carries the token, so it is a
+/// `Secret` and never logged.
+pub(crate) fn stream_url(base: &str, api_key: &str, access_token: &str) -> Secret {
+    Secret::new(format!(
+        "{}?token={}:{}&version={}",
+        base, api_key, access_token, STREAM_VERSION
+    ))
+}
+
 /// `SEG_INFO`: segment id -> (exchange, divisor).
 pub fn segment(id: u8) -> Option<(&'static str, f64)> {
     Some(match id {
@@ -425,10 +436,7 @@ impl TradejiniFeed {
     /// `base` is the stream endpoint (`STREAM_URL`; tests pass a local one).
     pub fn new(base: &str, api_key: &str, access_token: &str) -> Self {
         Self {
-            url: Secret::new(format!(
-                "{}?token={}:{}&version={}",
-                base, api_key, access_token, STREAM_VERSION
-            )),
+            url: stream_url(base, api_key, access_token),
             subs: BTreeMap::new(),
             l1: HashMap::new(),
             books: HashMap::new(),

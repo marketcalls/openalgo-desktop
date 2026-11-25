@@ -99,13 +99,7 @@ async fn open(b: &TradejiniBroker, auth: &AuthToken) -> Result<Ws> {
     let (key, token) = TradejiniBroker::pair(auth)?;
     // The URL carries the access token: it is never logged, and a connect
     // error is logged by kind only (its text can echo the request).
-    let url = crate::security::secret::Secret::new(format!(
-        "{}?token={}:{}&version={}",
-        b.stream_url,
-        key,
-        token,
-        streaming::STREAM_VERSION
-    ));
+    let url = streaming::stream_url(&b.stream_url, key, token);
     let connect = tokio_tungstenite::connect_async(url.expose());
     match tokio::time::timeout(b.timings.connect, connect).await {
         Ok(Ok((ws, _))) => Ok(ws),
