@@ -147,7 +147,7 @@ endpoint the desktop serves:
 |------|-------------|---------|
 | Orders | `placeorder`, `placesmartorder`, `optionsorder`, `optionsmultiorder`, `basketorder`, `splitorder`, `modifyorder`, `cancelorder`, `cancelallorder`, `closeposition` | Same |
 | Order information | `orderstatus`, `openposition`, `orderbook`, `tradebook`, `positionbook`, `holdings`, `funds`, `margin` | Same |
-| GTT | `placegttorder`, `modifygttorder`, `cancelgttorder`, `gttorderbook` | Same. Live GTT on Zerodha, Upstox, Fyers, Dhan, Angel and Rupeezy, as on the web; every broker in analyzer mode |
+| GTT | `placegttorder`, `modifygttorder`, `cancelgttorder`, `gttorderbook` | Same. Live GTT on Zerodha, Upstox, Fyers, Dhan, Angel, Pocketful and Rupeezy, as on the web; every broker in analyzer mode |
 | Market data | `quotes`, `multiquotes`, `depth`, `history`, `intervals` (and the legacy `interval`) | Same. `history(source="db")` reads Historify |
 | Symbols | `symbol`, `search`, `expiry`, `instruments` | Same |
 | Options | `optionsymbol`, `optionchain`, `syntheticfuture`, `optiongreeks` | Same |
@@ -588,8 +588,8 @@ For an **OCO**, all four fields are required: `triggerprice_sl` with its
 GTT accepts `CNC` and `NRML` only. `MIS` is refused: a GTT can sit for days and
 MIS is squared off the same session.
 
-Live GTT works with Zerodha, Upstox, Fyers, Dhan, Angel and Rupeezy, as on the
-web; other brokers answer HTTP 501 "GTT orders are not supported for broker
+Live GTT works with Zerodha, Upstox, Fyers, Dhan, Angel, Pocketful and Rupeezy,
+as on the web; other brokers answer HTTP 501 "GTT orders are not supported for broker
 '...' yet". In analyzer mode GTT works with every broker.
 
 ```python
