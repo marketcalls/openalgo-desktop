@@ -90,6 +90,14 @@ with the reason shown on that broker's card.
   same window, within three minutes.
 - Zerodha needs an active Kite Connect subscription, and Dhan an active Data
   API subscription, for market data.
+- Pocketful signs in on its API host, `algo.pocketful.in`. When you create
+  the app on the Pocketful API portal, choose **Enter Custom URL** and
+  register the redirect URL shown on Broker Configuration: Pocketful's
+  default redirect does not send the login back to OpenAlgo. The keys are
+  that app's **App ID** and **App Secret**. Pocketful takes only priced
+  orders from its API, so OpenAlgo sends a MARKET order as a LIMIT a little
+  past the last price and an SL-M as an SL a little past its trigger, and
+  refuses one it cannot price.
 
 ## Brokers bound to your client ID
 
