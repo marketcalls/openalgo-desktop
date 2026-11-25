@@ -34,7 +34,7 @@ use super::client::{Answer, Request, HISTORY_TIMEOUT};
 use super::data::{self, ends_the_batch, refusal};
 use super::market::{self, number};
 use super::PocketfulBroker;
-use crate::brokers::common::history::{chunks, ist_day, parse_iso_epoch};
+use crate::brokers::common::history::{chunks, ist_day, merge_bars, parse_iso_epoch, resample};
 use crate::brokers::common::ratelimit::today_ist;
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::common::underlying::extract_underlying;
@@ -421,47 +421,16 @@ fn utc_midnight(day: NaiveDate) -> i64 {
     day.and_time(NaiveTime::MIN).and_utc().timestamp()
 }
 
-/// Merge time-ordered candles that share a key (web pandas `agg`: open
-/// first, high max, low min, close last, volume summed, OI last), each
-/// bar stamped with its key.
-fn fold(candles: Vec<Candle>, key: impl Fn(i64) -> Option<i64>) -> Vec<Candle> {
-    let mut out: Vec<Candle> = Vec::new();
-    for c in candles {
-        let Some(at) = key(c.timestamp) else { continue };
-        match out.last_mut() {
-            Some(bar) if bar.timestamp == at => {
-                bar.high = bar.high.max(c.high);
-                bar.low = bar.low.min(c.low);
-                bar.close = c.close;
-                bar.volume = bar.volume.saturating_add(c.volume);
-                bar.oi = c.oi;
-            }
-            _ => out.push(Candle { timestamp: at, ..c }),
-        }
-    }
-    out
-}
-
 /// OpenAlgo's bars from time-ordered candles inside the requested dates
 /// (web `_finish`): daily bars per IST date; intraday bars as they are, or
 /// with `build`, built from one-minute candles in bins counted from the
-/// exchange's session open (pandas `resample(origin="start_day", offset=..,
-/// closed="left", label="left")`; empty bins dropped).
+/// exchange's session open (the shared pandas `resample`).
 fn finish(candles: Vec<Candle>, interval: &str, exchange: &str, build: bool) -> Vec<Candle> {
-    let Some(minutes) = bar_minutes(interval) else {
-        return fold(candles, |t| ist_day(t).map(utc_midnight));
-    };
-    if !build || minutes <= 1 {
-        return candles;
+    match bar_minutes(interval) {
+        None => merge_bars(candles, |t| ist_day(t).map(utc_midnight)),
+        Some(minutes) if build => resample(candles, minutes, session_offset_minutes(exchange)),
+        Some(_) => candles,
     }
-    let Some(first_day) = candles.first().and_then(|c| ist_day(c.timestamp)) else {
-        return candles;
-    };
-    let origin = utc_midnight(first_day) - IST_OFFSET_SECS + session_offset_minutes(exchange) * 60;
-    let span = minutes * 60;
-    fold(candles, |t| {
-        Some(origin + (t - origin).div_euclid(span) * span)
-    })
 }
 
 /// Today's daily bar from a quote, when the daily series stops before
