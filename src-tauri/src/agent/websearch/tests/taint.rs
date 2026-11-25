@@ -2,7 +2,8 @@
 //! `constrain_query`, case by case).
 
 use crate::agent::websearch::taint::{
-    constrain, constrain_with_history, is_high_entropy, redact, Decision, MAX_QUERY_CHARS,
+    constrain, constrain_with_history, is_high_entropy, redact, Decision, HISTORY_WORDS,
+    MAX_QUERY_CHARS,
 };
 
 #[test]
@@ -245,4 +246,50 @@ fn a_credential_in_an_earlier_message_is_not_a_word_the_model_may_use() {
     let earlier = format!("my key is api_key={} and the company is reliance", key);
     let q = constrain_with_history(&format!("reliance {}", key), FOLLOW_UP, &earlier);
     assert!(!q.text.contains("sk-live"), "{}", q.text);
+}
+
+/// Desktop (security review, 2026-11-25): the earlier messages lend one
+/// query at most [`HISTORY_WORDS`] words beyond the turn's own, so a long
+/// conversation does not widen what a query can carry. The web counted
+/// every earlier word as the turn's.
+#[test]
+fn a_long_history_does_not_widen_what_one_query_carries() {
+    let earlier: Vec<String> = (0..40).map(|i| format!("word{}", i)).collect();
+    let earlier = earlier.join(" ");
+    let turn = "and its market cap";
+    let requested = format!("{} {}", earlier, turn);
+    let q = constrain_with_history(&requested, turn, &earlier);
+    let words: Vec<&str> = q.text.split_whitespace().collect();
+    assert_eq!(words.len(), split_len(turn) + HISTORY_WORDS, "{}", q.text);
+    assert_eq!(
+        &words[..HISTORY_WORDS],
+        ["word0", "word1", "word2", "word3"]
+    );
+    assert!(q.text.ends_with(turn), "{}", q.text);
+    assert_eq!(q.dropped, 0);
+}
+
+/// Desktop: a word only an earlier message holds goes out once, however
+/// often the trader wrote it there.
+#[test]
+fn a_word_only_an_earlier_message_holds_goes_out_once() {
+    let q = constrain_with_history(
+        "reliance reliance reliance",
+        FOLLOW_UP,
+        "reliance reliance reliance quotes",
+    );
+    assert_eq!(q.text, "reliance");
+}
+
+/// Desktop: the allowance still carries a company of several words that a
+/// follow-up names only earlier (the web's follow-up case, widened).
+#[test]
+fn a_company_of_several_words_named_earlier_still_goes_out() {
+    let q = constrain_with_history(
+        "Tata Consultancy Services PE ratio",
+        "and its pe ratio",
+        "show me the tata consultancy services quote",
+    );
+    assert_eq!(q.text, "tata consultancy services pe ratio");
+    assert_eq!(q.decision, Decision::Verbatim);
 }

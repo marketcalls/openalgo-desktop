@@ -1,9 +1,9 @@
-# The Agent's web fetch boundary, a fix to carry to OpenAlgo web (2026-11-26)
+# The Agent's web fetch and search boundaries, two fixes to carry to OpenAlgo web (2026-11-26)
 
 The desktop's 1.0.10 ports the web's `web_fetch` (46af9591f, a2ae9f1fa) and
-the follow-up words of 5e19ce407. A security review of the port found a
-place where the web's boundary lets the model reach further than the
-trader's own words; the desktop does not copy it. Line numbers are from
+the follow-up words of 5e19ce407. A security review of the port found two
+places where the web's boundary lets the model reach further than the
+trader's own words; the desktop does not copy them. Line numbers are from
 the web at 3f4c71e0f, `services/agent/tools/websearch.py`.
 
 ## 1. A typed address is found anywhere in the message
@@ -58,3 +58,18 @@ def _typed(form: str, message: str) -> str | None:
     return None
 ```
 
+## 2. Earlier messages widen how many words one query carries
+
+`constrain_query` (line 499) builds the haystack from this turn's message
+and the redacted earlier messages, and keeps every model token found in
+it. A follow-up such as "get the marketcap of it" needs one or two words
+from an earlier message (the company); a long conversation instead lets
+one query carry dozens of words the model picks from the history, each a
+choice the model makes.
+
+The desktop (`src-tauri/src/agent/websearch/taint.rs`,
+`constrain_with_history`) keeps the follow-up feature: a word only the
+earlier messages hold goes out at most once, and at most four such words
+in one query, so a query holds at most this turn's words plus four. The
+web's own follow-up cases (`test_a_follow_up_takes_its_company_from_an_earlier_message`
+and its neighbours in `test/test_agent_webfetch.py`) pass unchanged.

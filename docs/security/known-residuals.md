@@ -286,3 +286,10 @@ default, at most 50) and the daily cap bound the number of calls. A host
 name is not resolved here, since the app never connects to it: a public
 name that resolves to a private address reaches the provider's own
 network, not the trader's.
+
+The search query (`agent/websearch/taint.rs`) is built the same way from
+the trader's words. A word only their earlier messages hold goes out at
+most once, and at most four such words in one query, so a long
+conversation does not widen what one query can carry
+(`agent::websearch::tests::taint`); the web counts every earlier word as
+the turn's.
