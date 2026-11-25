@@ -1,8 +1,11 @@
 //! The sandbox's feed subscribe and release calls (web
 //! `sandbox/websocket_execution_engine.py` `_feed_calls`,
-//! marketcalls/openalgo#2192 5cf708a8a): the order path never waits for
-//! the broker to answer one, the calls are made in the order they were
-//! decided, and a failed one does not stop the next.
+//! marketcalls/openalgo#2192 5cf708a8a and 398f614cc): the order path never
+//! waits for the broker to answer one, the calls are made in the order they
+//! were decided, a failed one does not stop the next, and while the broker
+//! does not answer, a call that has become unnecessary is cancelled before
+//! it starts, so the backlog stays bounded and a subscribe turned away is
+//! asked for again.
 //!
 //! The broker side is the real `WebSocketManager` with no socket: its
 //! subscribe step records every subscribe and can hold it (a broker that
@@ -31,8 +34,20 @@ use tokio::sync::{watch, Notify};
 /// bound; a waited subscribe takes up to 55 s here).
 const PROMPT: Duration = Duration::from_millis(1500);
 
+/// The symbol whose subscribe keeps the worker busy, as a broker that does
+/// not answer would.
+const HOLD: &str = "HOLD";
+
 fn nse(symbol: &str) -> SymbolKey {
     SymbolKey::new(symbol, "NSE")
+}
+
+/// What the broker heard, in order, as `(call, symbol)`.
+fn log(calls: &[(&'static str, &str)]) -> Vec<(&'static str, String)> {
+    calls
+        .iter()
+        .map(|(kind, symbol)| (*kind, symbol.to_string()))
+        .collect()
 }
 
 /// The broker side of the feed: what it was asked, in order, and whether it
@@ -134,6 +149,11 @@ impl Broker {
             .expect("the broker was asked to subscribe");
     }
 
+    /// Everything the broker heard, in order.
+    fn calls(&self) -> Vec<(&'static str, String)> {
+        self.calls.lock().clone()
+    }
+
     /// What the broker heard for one symbol, in order.
     fn calls_for(&self, symbol: &str) -> Vec<&'static str> {
         self.calls
@@ -173,7 +193,8 @@ struct Rig {
 }
 
 impl Rig {
-    /// `symbols` listed on NSE in the symbol master, with `SETTLED`.
+    /// `symbols` listed on NSE in the symbol master, with [`HOLD`] and
+    /// `SETTLED`.
     fn new(symbols: &[String]) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let ctx = AppState::open(
@@ -185,7 +206,7 @@ impl Rig {
             },
         )
         .expect("open app state");
-        let helpers = ["SETTLED"].map(String::from);
+        let helpers = [HOLD, "SETTLED"].map(String::from);
         ctx.symbols.load(
             symbols
                 .iter()
@@ -230,6 +251,14 @@ impl Rig {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         panic!("{symbol} was never subscribed");
+    }
+
+    /// Keep the worker busy on a subscribe the broker does not answer
+    /// until [`Broker::answer`].
+    async fn hold_worker(&self) {
+        self.broker.hold(&[HOLD]);
+        self.watch(HOLD);
+        self.broker.until_asked().await;
     }
 
     /// Wait until every call decided so far has been made: the worker makes
@@ -350,5 +379,115 @@ async fn a_failed_subscribe_does_not_stop_the_next_one() {
     assert_eq!(rig.broker.calls_for("ZEEL"), ["subscribe"]);
     assert!(!rig.subscribed("RELIANCE"));
     assert!(rig.subscribed("ZEEL"));
+    rig.close().await;
+}
+
+/// Web test/test_gthread_sandbox_lifecycle.py::test_a_subscribe_still_waiting_is_cancelled_by_its_unsubscribe
+/// (398f614cc): neither call reaches the broker, and the symbol ends
+/// unstreamed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_subscribe_still_waiting_is_cancelled_by_its_release() {
+    let rig = Rig::of(&["RELIANCE", "ZEEL"]);
+    rig.hold_worker().await;
+    rig.watch("RELIANCE");
+    rig.unwatch("RELIANCE");
+    rig.watch("ZEEL");
+    rig.broker.answer();
+    rig.until_subscribed("ZEEL").await;
+
+    assert_eq!(
+        rig.broker.calls(),
+        log(&[("subscribe", HOLD), ("subscribe", "ZEEL")])
+    );
+    assert!(!rig.subscribed("RELIANCE"));
+    rig.close().await;
+}
+
+/// Web test/test_gthread_sandbox_lifecycle.py::test_an_unsubscribe_then_a_subscribe_are_both_kept
+/// (398f614cc): the release lets go of what is held, and the subscribe
+/// after it is the one that streams the symbol.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_release_then_a_subscribe_are_both_kept() {
+    let rig = Rig::of(&["RELIANCE", "ZEEL"]);
+    rig.watch("RELIANCE");
+    rig.until_subscribed("RELIANCE").await;
+    rig.hold_worker().await;
+    rig.unwatch("RELIANCE");
+    rig.watch("RELIANCE");
+    rig.watch("ZEEL");
+    rig.broker.answer();
+    rig.until_subscribed("ZEEL").await;
+
+    assert_eq!(
+        rig.broker.calls(),
+        log(&[
+            ("subscribe", "RELIANCE"),
+            ("subscribe", HOLD),
+            ("release", "RELIANCE"),
+            ("subscribe", "RELIANCE"),
+            ("subscribe", "ZEEL"),
+        ])
+    );
+    assert!(rig.subscribed("RELIANCE"));
+    rig.close().await;
+}
+
+/// Web test/test_gthread_sandbox_lifecycle.py::test_the_queue_stays_bounded_while_the_feed_does_not_answer
+/// (398f614cc): orders keep coming on one symbol while the broker does not
+/// answer, and the calls do not pile up with them. The symbol ends where
+/// the engine left it, released once, and a symbol asked for after them
+/// is subscribed next, not behind 500 subscribes and releases.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_queue_stays_bounded_while_the_feed_does_not_answer() {
+    let rig = Rig::of(&["RELIANCE", "ZEEL"]);
+    rig.watch("RELIANCE");
+    rig.until_subscribed("RELIANCE").await;
+    rig.hold_worker().await;
+    rig.unwatch("RELIANCE");
+    for _ in 0..500 {
+        rig.watch("RELIANCE");
+        rig.unwatch("RELIANCE");
+    }
+    rig.watch("ZEEL");
+    rig.broker.answer();
+    rig.until_subscribed("ZEEL").await;
+
+    assert_eq!(
+        rig.broker.calls(),
+        log(&[
+            ("subscribe", "RELIANCE"),
+            ("subscribe", HOLD),
+            ("release", "RELIANCE"),
+            ("subscribe", "ZEEL"),
+        ])
+    );
+    assert!(!rig.subscribed("RELIANCE"));
+    rig.close().await;
+}
+
+/// What a full queue turns away is asked for again (desktop; the web's
+/// queue is unbounded apart from the cancellation above). While the broker
+/// does not answer, subscribes for more symbols than the queue's 1024
+/// calls are turned away; each stays watched, so the engine's quiet-feed
+/// backoff (its `resubscribe`, SB-01) asks for it again. A turned-away
+/// watch used to leave the watch list, and the backoff then never asked.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_watch_a_full_queue_turned_away_is_asked_for_again() {
+    let names: Vec<String> = (0..1100).map(|n| format!("S{n:04}")).collect();
+    let rig = Rig::new(&names);
+    rig.hold_worker().await;
+    for name in &names {
+        rig.watch(name);
+    }
+    rig.broker.answer();
+    // The last subscribe the queue took is made once the worker reaches it.
+    rig.until_subscribed("S1023").await;
+    assert!(
+        !rig.subscribed("S1099"),
+        "a subscribe beyond the queue's room was made"
+    );
+
+    rig.ticks.resubscribe(&nse("S1099"));
+    rig.until_subscribed("S1099").await;
     rig.close().await;
 }
