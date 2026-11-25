@@ -8,6 +8,7 @@ use super::data::{
 };
 use super::mapping::*;
 use super::master_contract::{bse_index_symbol, parse_index_list, parse_segment};
+use super::protection::Priced;
 use super::socketio::{self, EioPacket, SioPacket};
 use super::streaming::{
     normalise_message, socket_url, stall_reference, token_transport_allowed, ws_base, xts_time_ms,
@@ -258,13 +259,17 @@ fn resolved(symbols: &SymbolResolver, symbol: &str, ex: &str, pt: &str) -> Resol
     .unwrap()
 }
 
+fn as_set(o: &ResolvedOrder) -> Priced {
+    Priced::as_set(o.pricetype, o.price)
+}
+
 #[test]
 fn place_and_modify_payloads_are_typed() {
     let m = master();
     let o = resolved(&m, "NIFTY25APR2422500CE", "NFO", "SL");
     assert_eq!(o.validity, Validity::Day);
     assert_eq!(
-        place_payload(&o).unwrap(),
+        place_payload(&o, as_set(&o)).unwrap(),
         json!({
             "exchangeSegment": "NSEFO",
             "exchangeInstrumentID": 43210,
@@ -281,7 +286,7 @@ fn place_and_modify_payloads_are_typed() {
     );
     let mut idx = o.clone();
     idx.exchange = Exchange::NseIndex;
-    assert!(place_payload(&idx).is_none());
+    assert!(place_payload(&idx, as_set(&idx)).is_none());
     let md = ResolvedModify::resolve(
         "1200001",
         &ModifyOrderRequest {
@@ -298,14 +303,18 @@ fn place_and_modify_payloads_are_typed() {
         &m,
     )
     .unwrap();
-    let p = modify_payload(&md);
+    let p = modify_payload(&md, Priced::as_set(md.pricetype, md.price));
     assert_eq!(p["appOrderID"], 1200001);
     assert_eq!(p["modifiedOrderType"], "LIMIT");
     assert_eq!(p["modifiedProductType"], "MIS");
     assert_eq!(p["modifiedOrderQuantity"], 5);
     assert_eq!(p["modifiedLimitPrice"], 781.0);
     assert_eq!(p["modifiedTimeInForce"], "DAY");
-    let x = exit_payload("NSECM", &json!("2885"), "MIS", -7);
+    let market = Priced {
+        order_type: "MARKET",
+        limit: 0.0,
+    };
+    let x = exit_payload("NSECM", &json!("2885"), "MIS", -7, market);
     assert_eq!(x["orderSide"], "BUY");
     assert_eq!(x["orderQuantity"], 7);
     assert_eq!(x["orderType"], "MARKET");

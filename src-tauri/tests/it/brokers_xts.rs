@@ -18,7 +18,7 @@ use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::families::xts::{master_contract, XtsBroker, XtsConfig};
 use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{
-    compositedge, fivepaisaxts, jainamxts, rmoney, Broker, BrokerCredentials,
+    compositedge, fivepaisaxts, ibulls, jainamxts, rmoney, Broker, BrokerCredentials,
 };
 use openalgo_desktop_lib::websocket::handshake;
 use openalgo_desktop_lib::websocket::{FeedConfig, WebSocketManager};
@@ -81,6 +81,10 @@ struct Fake {
     expired_feed: Mutex<Option<String>>,
     /// The position book's answer, when not the fixture's.
     positions: Mutex<Option<Value>>,
+    /// The touchline LTP every quote carries, when not the fixture's.
+    ltp: Mutex<Option<f64>>,
+    /// A quote call for this instrument id answers an XTS error.
+    quote_fails_for: Mutex<Option<i64>>,
 }
 
 type S = State<Arc<Fake>>;
@@ -105,7 +109,7 @@ fn auth(h: &HeaderMap) -> String {
         .unwrap_or_default()
 }
 
-fn quote_for(code: u64, inst: &Value) -> String {
+fn quote_for(code: u64, inst: &Value, ltp: Option<f64>) -> String {
     let seg = inst["exchangeSegment"].clone();
     let id = inst["exchangeInstrumentID"].clone();
     if code == 1510 {
@@ -114,6 +118,9 @@ fn quote_for(code: u64, inst: &Value) -> String {
     let mut q = market()["quote_payload"].clone();
     q["ExchangeSegment"] = seg;
     q["ExchangeInstrumentID"] = id;
+    if let Some(ltp) = ltp {
+        q["Touchline"]["LastTradedPrice"] = json!(ltp);
+    }
     q.to_string()
 }
 
@@ -147,13 +154,25 @@ fn md_routes(prefix: &str) -> Router<Arc<Fake>> {
                     if s.expired_feed.lock().as_deref() == Some(token.as_str()) {
                         return Json(books()["invalid_token"].clone());
                     }
+                    let failing = *s.quote_fails_for.lock();
+                    if b["instruments"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|i| failing.is_some_and(|f| i["exchangeInstrumentID"] == f))
+                    {
+                        return Json(
+                            json!({"type": "error", "description": "Instrument not available"}),
+                        );
+                    }
+                    let ltp = *s.ltp.lock();
                     let list: Vec<Value> = b["instruments"]
                         .as_array()
                         .unwrap()
                         .iter()
                         // Unknown instrument 999: XTS just leaves it out.
                         .filter(|i| i["exchangeInstrumentID"] != 999)
-                        .map(|i| Value::String(quote_for(code, i)))
+                        .map(|i| Value::String(quote_for(code, i, ltp)))
                         .collect();
                     Json(json!({"type": "success", "result": {"listQuotes": list}}))
                 },
@@ -603,6 +622,211 @@ async fn cancel_all_and_close_all() {
         .await
         .unwrap();
     assert_eq!(q, -50);
+}
+
+// ---------------------------------------------------------------------------
+// iBulls price protection (web test/test_ibulls_market_protection.py,
+// marketcalls/openalgo#2466): MARKET as a LIMIT off the LTP, SL-M as a
+// STOPLIMIT off its trigger, on every order path.
+// ---------------------------------------------------------------------------
+
+fn ibulls_order(side: &str, pt: &str, trigger: Option<f64>) -> ResolvedOrder {
+    ResolvedOrder::resolve(
+        &OrderRequest {
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            side: side.into(),
+            quantity: 1,
+            price: 0.0,
+            order_type: pt.into(),
+            product: "MIS".into(),
+            validity: "DAY".into(),
+            trigger_price: trigger,
+            disclosed_quantity: None,
+            amo: false,
+        },
+        &master(),
+    )
+    .unwrap()
+}
+
+/// The JSON body of a `place|<auth>|<body>` or `modify|...` line.
+fn sent_body(line: &str) -> Value {
+    serde_json::from_str(line.splitn(3, '|').nth(2).unwrap()).unwrap()
+}
+
+fn type_and_limit(body: &Value, prefix: &str) -> (String, f64) {
+    let (t, p) = if prefix == "modify" {
+        ("modifiedOrderType", "modifiedLimitPrice")
+    } else {
+        ("orderType", "limitPrice")
+    };
+    (
+        body[t].as_str().unwrap().to_string(),
+        body[p].as_f64().unwrap(),
+    )
+}
+
+/// Web `test_place_order_sends_a_market_order_as_a_protected_limit` and
+/// `test_the_ltp_comes_from_the_stored_ibulls_session`: the LTP is one
+/// touchline read (1502, no open-interest call) with the session's
+/// market-data token, whoever places the order.
+#[tokio::test]
+async fn ibulls_sends_a_market_order_as_a_protected_limit() {
+    let (b, fake, _) = broker(&ibulls::CONFIG).await;
+    *fake.ltp.lock() = Some(800.5);
+    let r = b
+        .place_order(&token(), &ibulls_order("BUY", "MARKET", None))
+        .await
+        .unwrap();
+    assert_eq!(r.order_id, "1200010");
+    let body = sent_body(&fake.lines("place|")[0]);
+    assert_eq!(
+        type_and_limit(&body, "place"),
+        ("LIMIT".to_string(), 804.55)
+    );
+    assert_eq!(fake.lines("quotes|"), [format!("quotes|{}|1502|1", MARKET)]);
+}
+
+/// Web `test_a_market_order_without_a_tick_size_goes_out_as_market_without_a_quote`
+/// and `test_a_market_order_without_an_ltp_goes_out_as_market` (here the
+/// quote fails, which the desktop reads before sending and never counts
+/// against the order).
+#[tokio::test]
+async fn ibulls_sends_market_unpriced_without_a_tick_size_or_an_ltp() {
+    let (b, fake, _) = broker(&ibulls::CONFIG).await;
+    let mut no_tick = ibulls_order("BUY", "MARKET", None);
+    no_tick.instrument.tick_size = 0.0;
+    b.place_order(&token(), &no_tick).await.unwrap();
+    assert!(fake.lines("quotes|").is_empty(), "no quote without a tick");
+    *fake.quote_fails_for.lock() = Some(3045);
+    b.place_order(&token(), &ibulls_order("BUY", "MARKET", None))
+        .await
+        .unwrap();
+    let places = fake.lines("place|");
+    assert_eq!(places.len(), 2);
+    for line in places {
+        assert_eq!(
+            type_and_limit(&sent_body(&line), "place"),
+            ("MARKET".to_string(), 0.0)
+        );
+    }
+}
+
+/// Web `test_an_sl_m_order_goes_out_as_a_stop_limit_beyond_its_trigger`
+/// (no quote is read) and
+/// `test_place_order_refuses_an_sl_m_it_cannot_price_before_sending`.
+#[tokio::test]
+async fn ibulls_prices_an_sl_m_off_its_trigger_and_refuses_one_it_cannot_price() {
+    let (b, fake, _) = broker(&ibulls::CONFIG).await;
+    *fake.ltp.lock() = Some(1.0);
+    b.place_order(&token(), &ibulls_order("SELL", "SL-M", Some(800.0)))
+        .await
+        .unwrap();
+    let body = sent_body(&fake.lines("place|")[0]);
+    assert_eq!(
+        type_and_limit(&body, "place"),
+        ("STOPLIMIT".to_string(), 796.0)
+    );
+    assert_eq!(body["stopPrice"], 800.0);
+    assert!(fake.lines("quotes|").is_empty());
+
+    let mut no_tick = ibulls_order("SELL", "SL-M", Some(100.0));
+    no_tick.instrument.tick_size = 0.0;
+    let e = b.place_order(&token(), &no_tick).await.unwrap_err();
+    assert_eq!(e.code(), "VALIDATION_ERROR");
+    assert!(e.client_message().contains("tick size"));
+    assert_eq!(fake.lines("place|").len(), 1, "nothing sent");
+}
+
+fn ibulls_modify(pricetype: &str, trigger: f64) -> ResolvedModify {
+    ResolvedModify::resolve(
+        "1200001",
+        &ModifyOrderRequest {
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            action: "BUY".into(),
+            product: "MIS".into(),
+            pricetype: pricetype.into(),
+            quantity: 1,
+            price: 0.0,
+            trigger_price: trigger,
+            disclosed_quantity: 0,
+        },
+        &master(),
+    )
+    .unwrap()
+}
+
+/// Web `test_a_modify_to_market_is_priced_by_the_openalgo_symbol` and
+/// `test_a_modify_to_an_sl_m_it_cannot_price_is_refused`.
+#[tokio::test]
+async fn ibulls_prices_a_modify_like_a_new_order() {
+    let (b, fake, _) = broker(&ibulls::CONFIG).await;
+    *fake.ltp.lock() = Some(800.5);
+    b.modify_order(&token(), &ibulls_modify("MARKET", 0.0))
+        .await
+        .unwrap();
+    let body = sent_body(&fake.lines("modify|")[0]);
+    assert_eq!(
+        type_and_limit(&body, "modify"),
+        ("LIMIT".to_string(), 804.55)
+    );
+
+    let mut no_tick = ibulls_modify("SL-M", 100.0);
+    no_tick.instrument.tick_size = 0.0;
+    let e = b.modify_order(&token(), &no_tick).await.unwrap_err();
+    assert!(e.client_message().contains("tick size"));
+    assert_eq!(fake.lines("modify|").len(), 1, "nothing sent");
+}
+
+/// Web `test_close_all_squares_off_with_protected_limits` and
+/// `test_a_square_off_that_cannot_be_priced_still_goes_out_and_the_rest_follow`.
+#[tokio::test]
+async fn ibulls_squares_off_with_protected_limits() {
+    let position = |id: i64, qty: &str| {
+        json!({"TradingSymbol": "X", "ExchangeSegment": "NSECM",
+               "ExchangeInstrumentId": id, "ProductType": "MIS", "Quantity": qty})
+    };
+    let squared = |fake: &Fake| -> Vec<(String, String, f64)> {
+        fake.lines("place|")
+            .iter()
+            .map(|l| {
+                let b = sent_body(l);
+                let (t, p) = type_and_limit(&b, "place");
+                (b["orderSide"].as_str().unwrap().to_string(), t, p)
+            })
+            .collect()
+    };
+    let (b, fake, _) = broker(&ibulls::CONFIG).await;
+    *fake.ltp.lock() = Some(800.5);
+    *fake.positions.lock() = Some(json!({"type": "success", "result": {"positionList": [
+        position(3045, "10"), position(9999, "-5"), position(3045, "0")]}}));
+    let r = b.close_all_positions(&token()).await.unwrap();
+    assert_eq!(r.placed.len(), 2);
+    // A position whose instrument is not in the master still goes out, as
+    // MARKET.
+    assert_eq!(
+        squared(&fake),
+        [
+            ("SELL".to_string(), "LIMIT".to_string(), 796.45),
+            ("BUY".to_string(), "MARKET".to_string(), 0.0)
+        ]
+    );
+
+    let (b, fake, _) = broker(&ibulls::CONFIG).await;
+    *fake.ltp.lock() = Some(800.5);
+    *fake.quote_fails_for.lock() = Some(2885);
+    *fake.positions.lock() = Some(json!({"type": "success", "result": {"positionList": [
+        position(2885, "10"), position(3045, "10")]}}));
+    b.close_all_positions(&token()).await.unwrap();
+    assert_eq!(
+        squared(&fake),
+        [
+            ("SELL".to_string(), "MARKET".to_string(), 0.0),
+            ("SELL".to_string(), "LIMIT".to_string(), 796.45)
+        ]
+    );
 }
 
 /// Web test/test_rmoney_open_position.py (openalgo#2292): XTS names a

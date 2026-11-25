@@ -25,6 +25,9 @@ pub mod master_contract;
 mod orders;
 #[cfg(test)]
 mod parity_tests;
+mod protection;
+#[cfg(test)]
+mod protection_tests;
 pub mod socketio;
 pub mod streaming;
 #[cfg(test)]
@@ -116,6 +119,10 @@ pub struct XtsHooks {
     /// `_process_json_data` publishes 1505 and 1510 to every subscribed
     /// mode; a 1505 candle carries no trade and is not read).
     pub oi_events: bool,
+    /// MARKET goes out as a LIMIT off the LTP and SL-M as a STOPLIMIT off
+    /// its trigger, priced with the MPP slabs (ibulls, web #2466; its RMS
+    /// may refuse a native MARKET or SL-M from an API session).
+    pub price_protection: bool,
 }
 
 /// Where a member's web client takes a payload's `MessageCode` from.

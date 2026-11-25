@@ -2,8 +2,9 @@
 //! `mapping/order_data.py`, `api/funds.py`). Pure functions; the symbol
 //! master is passed in.
 
+use super::protection::Priced;
 use crate::brokers::common::book_read;
-use crate::brokers::common::mapping::{Exchange, PriceType, Product};
+use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use serde_json::{json, Value};
@@ -182,51 +183,68 @@ pub fn order_id(v: Option<&Value>) -> String {
     }
 }
 
-/// Place payload (`transform_data.py:18-30`). Numbers are typed, as in the
+/// Place payload (`transform_data.py:18-30`), with the type and limit the
+/// order goes out with (`protection::price`). Numbers are typed, as in the
 /// rmoney variant and the XTS API docs (audit D-xts C recommendation).
-pub fn place_payload(o: &ResolvedOrder) -> Option<Value> {
+pub(crate) fn place_payload(o: &ResolvedOrder, priced: Priced) -> Option<Value> {
     Some(json!({
         "exchangeSegment": segment(o.exchange)?,
         "exchangeInstrumentID": instrument_id(o.token()),
         "productType": product(o.product),
-        "orderType": order_type(o.pricetype),
+        "orderType": priced.order_type,
         "orderSide": o.action.as_str(),
         "timeInForce": "DAY",
         "disclosedQuantity": o.disclosed_quantity,
         "orderQuantity": o.quantity,
-        "limitPrice": o.price,
+        "limitPrice": priced.limit,
         "stopPrice": o.trigger_price,
         "orderUniqueIdentifier": "openalgo",
     }))
 }
 
-/// Modify payload (`transform_data.py:36-46`).
-pub fn modify_payload(m: &ResolvedModify) -> Value {
+/// Modify payload (`transform_data.py:36-46`), priced like a new order.
+pub(crate) fn modify_payload(m: &ResolvedModify, priced: Priced) -> Value {
     json!({
         "appOrderID": instrument_id(&m.order_id),
         "modifiedProductType": product(m.product),
-        "modifiedOrderType": order_type(m.pricetype),
+        "modifiedOrderType": priced.order_type,
         "modifiedOrderQuantity": m.quantity,
         "modifiedDisclosedQuantity": m.disclosed_quantity,
-        "modifiedLimitPrice": m.price,
+        "modifiedLimitPrice": priced.limit,
         "modifiedStopPrice": m.trigger_price,
         "modifiedTimeInForce": "DAY",
         "orderUniqueIdentifier": "openalgo",
     })
 }
 
-/// Square-off payload built from a position row (`order_api.py:306-325`).
-pub fn exit_payload(segment: &str, instrument: &Value, product: &str, net_qty: i64) -> Value {
+/// The side that squares off a net quantity.
+pub(crate) fn exit_action(net_qty: i64) -> Action {
+    if net_qty > 0 {
+        Action::Sell
+    } else {
+        Action::Buy
+    }
+}
+
+/// Square-off payload built from a position row (`order_api.py:306-325`):
+/// a MARKET order, or the protected LIMIT a member prices it as.
+pub(crate) fn exit_payload(
+    segment: &str,
+    instrument: &Value,
+    product: &str,
+    net_qty: i64,
+    priced: Priced,
+) -> Value {
     json!({
         "exchangeSegment": segment,
         "exchangeInstrumentID": instrument,
         "productType": product,
-        "orderType": "MARKET",
-        "orderSide": if net_qty > 0 { "SELL" } else { "BUY" },
+        "orderType": priced.order_type,
+        "orderSide": exit_action(net_qty).as_str(),
         "timeInForce": "DAY",
         "disclosedQuantity": 0,
         "orderQuantity": net_qty.abs(),
-        "limitPrice": 0,
+        "limitPrice": priced.limit,
         "stopPrice": 0,
         "orderUniqueIdentifier": "openalgo",
     })

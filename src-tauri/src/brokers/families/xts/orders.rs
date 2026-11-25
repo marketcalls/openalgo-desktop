@@ -6,6 +6,7 @@
 //! the trait default over the normalised position book).
 
 use super::mapping;
+use super::protection::{self, Pricing};
 use super::XtsBroker;
 use crate::brokers::common::book_read::{self, Book};
 use crate::brokers::common::position_read::unread;
@@ -23,12 +24,17 @@ pub(crate) async fn place_order(
     auth: &AuthToken,
     order: &ResolvedOrder,
 ) -> Result<OrderResponse> {
-    let payload = mapping::place_payload(order).ok_or_else(|| {
+    let not_tradable = || {
         AppError::Validation(format!(
             "{} orders cannot be placed on {} with {}.",
             order.symbol, order.exchange, b.cfg.name
         ))
-    })?;
+    };
+    if mapping::segment(order.exchange).is_none() {
+        return Err(not_tradable());
+    }
+    let priced = protection::price(b, auth, &Pricing::of_order(order)).await?;
+    let payload = mapping::place_payload(order, priced).ok_or_else(not_tradable)?;
     place_raw(b, auth, &payload).await
 }
 
@@ -59,12 +65,13 @@ pub(crate) async fn modify_order(
     auth: &AuthToken,
     m: &ResolvedModify,
 ) -> Result<OrderResponse> {
+    let priced = protection::price(b, auth, &Pricing::of_modify(m)).await?;
     let v = b
         .interactive(
             Method::PUT,
             "/orders",
             auth,
-            Some(&mapping::modify_payload(m)),
+            Some(&mapping::modify_payload(m, priced)),
         )
         .await?;
     let id = mapping::order_id(result(&v).get("AppOrderID"));
@@ -99,7 +106,8 @@ pub(crate) async fn cancel_order(
 }
 
 /// web `close_all_positions`: one MARKET order per open position, using the
-/// position's own segment, instrument id and product (no symbol lookup).
+/// position's own segment, instrument id and product, priced on a member
+/// with price protection (`protection::square_off`).
 pub(crate) async fn close_all_positions(b: &XtsBroker, auth: &AuthToken) -> Result<CloseAllResult> {
     let v = b
         .interactive(
@@ -123,12 +131,14 @@ pub(crate) async fn close_all_positions(b: &XtsBroker, auth: &AuthToken) -> Resu
             continue;
         };
         let product = mapping::s(p, "ProductType");
-        let payload = mapping::exit_payload(&segment, &instrument, &product, qty);
+        let token = match &instrument {
+            Value::String(s) => s.clone(),
+            other => other.to_string(),
+        };
+        let priced =
+            protection::square_off(b, auth, &segment, &token, mapping::exit_action(qty)).await;
+        let payload = mapping::exit_payload(&segment, &instrument, &product, qty, priced);
         let label = {
-            let token = match &instrument {
-                Value::String(s) => s.clone(),
-                other => other.to_string(),
-            };
             let ex = mapping::oa_exchange(&segment);
             let sym = b
                 .resolver()

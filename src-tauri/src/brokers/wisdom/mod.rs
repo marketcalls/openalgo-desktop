@@ -42,6 +42,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         touchline_by_holding: false,
         payload_variants: false,
         oi_events: false,
+        price_protection: false,
     },
 };
 
