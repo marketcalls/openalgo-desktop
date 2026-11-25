@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, type Page, test } from '@playwright/test'
+import { chargeSettings, costReport, estimateFor } from '../src/test/sandboxChargesFixture'
 
 /**
  * Axe scans that fail on what they find.
@@ -388,6 +389,34 @@ async function stubAlertChannels(page: Page) {
   )
 }
 
+/**
+ * The sandbox charges pages with a plan, a priced trade and a report, as the
+ * server answers an Indian broker (the fixture the page tests use).
+ */
+async function stubSandboxCharges(page: Page) {
+  const success = (data: unknown) => ({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ status: 'success', data }),
+  })
+  await page.route('**/auth/csrf-token', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ csrf_token: 'e2e' }),
+    })
+  )
+  await page.route('**/sandbox/commissions/api/settings', (route) =>
+    route.fulfill(success(chargeSettings()))
+  )
+  await page.route('**/sandbox/commissions/api/report**', (route) =>
+    route.fulfill(success(costReport()))
+  )
+  await page.route('**/sandbox/calculator/api/estimate', (route) =>
+    route.fulfill(success(estimateFor(route.request().postDataJSON())))
+  )
+}
+
 test.describe('Accessibility - signed in', () => {
   for (const theme of ['light', 'dark'] as const) {
     for (const path of SIGNED_IN_PAGES) {
@@ -470,6 +499,33 @@ test.describe('Accessibility - signed in', () => {
         await page.goto(path)
         await page.waitForLoadState('networkidle')
         await expect(page.getByText(path === '/alerts' ? 'Ready' : 'On', { exact: true })).toBeVisible()
+
+        expect(await scan(page, wcag)).toEqual([])
+      })
+    }
+  }
+
+  // The sandbox charges pages (marketcalls/openalgo#2496) with what they show
+  // once the server has answered: the brokerage plan and statutory schedule,
+  // the transaction cost report, and calculator cards priced at a profit.
+  const chargesViews = [
+    { path: '/sandbox/commissions', ready: 'Statutory charges' },
+    { path: '/sandbox/commissions?tab=report', ready: 'By segment' },
+    { path: '/sandbox/calculator', ready: 'Points to breakeven' },
+  ] as const
+  for (const theme of ['light', 'dark'] as const) {
+    for (const { path, ready } of chargesViews) {
+      test(`${path} with a plan and charges${theme === 'dark' ? ' (dark)' : ''}`, async ({
+        page,
+      }) => {
+        await signedIn(page, theme)
+        await stubSandboxCharges(page)
+        await page.goto(path)
+        await page.waitForLoadState('networkidle')
+        await expect(page.getByText(ready, { exact: true }).first()).toBeVisible()
+        if (path === '/sandbox/calculator') {
+          await expect(page.getByTestId('calc-equity_intraday-net')).not.toHaveText('-')
+        }
 
         expect(await scan(page, wcag)).toEqual([])
       })

@@ -67,7 +67,8 @@ describe('SandboxCalculator', () => {
     expect(intraday.getByText('Stamp duty').nextSibling).toHaveTextContent('12.00')
     expect(intraday.getByText('Points to breakeven').nextSibling).toHaveTextContent('0.5')
     expect(screen.getByTestId('calc-equity_intraday-net')).toHaveTextContent('39,799.38')
-    expect(screen.getByTestId('calc-equity_intraday-net')).toHaveClass('text-green-500')
+    // Desktop: green-700 in the light theme (docs/web-sync/a11y-2026-11-25.md).
+    expect(screen.getByTestId('calc-equity_intraday-net')).toHaveClass('text-green-700')
   })
 
   it('prices under the saved plan and says which plan that is', async () => {

@@ -90,7 +90,10 @@ export function describePlan(
 
 /** The text colour for a profit, a loss, or neither. */
 export function pnlColor(value: number): string {
-  if (value > 0) return 'text-green-500'
+  // Desktop: green-700 in the light theme. The net P&L is 20 px bold, and
+  // green-500 on the white card measures 2.3:1, below the 3:1 large text
+  // needs (docs/web-sync/a11y-2026-11-25.md).
+  if (value > 0) return 'text-green-700 dark:text-green-500'
   if (value < 0) return 'text-red-500'
   return ''
 }
