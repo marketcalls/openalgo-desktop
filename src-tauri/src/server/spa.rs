@@ -96,6 +96,8 @@ pub const SPA_ROUTES: &[&str] = &[
     "/rate-limited",
     "/reset-password",
     "/sandbox",
+    "/sandbox/calculator",
+    "/sandbox/commissions",
     "/sandbox/mypnl",
     "/scalping",
     "/search",
@@ -246,6 +248,20 @@ mod tests {
         // Other parameters still take any segment.
         assert!(is_spa_route("/chartink/abc/configure"));
         assert!(!is_spa_route("/broker/angel/totp/x"));
+    }
+
+    /// The sandbox charges pages are pages, as on the web
+    /// (`blueprints/react_app.py`, marketcalls/openalgo#2496): a reload or a
+    /// link to the brokerage plan, its report tab or the calculator gets the
+    /// app with 200, not the 404 page. Their API paths stay the server's.
+    #[test]
+    fn sandbox_charges_pages_are_served() {
+        assert!(is_spa_route("/sandbox/commissions"));
+        assert!(is_spa_route("/sandbox/commissions/"));
+        assert!(is_spa_route("/sandbox/calculator"));
+        assert!(!is_spa_route("/sandbox/commissions/api/settings"));
+        assert!(!is_spa_route("/sandbox/commissions/export"));
+        assert!(!is_spa_route("/sandbox/calculator/api/estimate"));
     }
 
     /// Every page the frontend router knows is served here, and nothing

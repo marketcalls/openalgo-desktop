@@ -11,7 +11,8 @@ describe('SandboxModelNote', () => {
       expect(text).toContain(point)
     }
     expect(text).toMatch(/in full or not at all/)
-    expect(text).toMatch(/before costs/)
+    expect(text).toMatch(/pays brokerage under your plan and the statutory charges/)
+    expect(text).toMatch(/P&L is shown before charges, with the charges beside it/)
     expect(text).toMatch(/contract value/)
     expect(text).toMatch(/rupees.*US dollars/)
     expect(text).toMatch(/next calendar day/)

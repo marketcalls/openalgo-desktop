@@ -34,6 +34,6 @@ describe('Sandbox model note on the sandbox pages', () => {
       </MemoryRouter>
     )
     expect(await screen.findByText('Sandbox model')).toBeInTheDocument()
-    expect(screen.getByText(/before costs/)).toBeInTheDocument()
+    expect(screen.getByText(/P&L is shown before charges/)).toBeInTheDocument()
   })
 })
