@@ -214,6 +214,29 @@ pub const BSE_INDEX_RENAMES: &[(&str, &str)] = &[
     ("TELCOM", "BSETELECOM"),
 ];
 
+/// BSE index codes beyond [`BSE_INDEX_RENAMES`] -> OpenAlgo `BSE_INDEX`
+/// symbols (web `broker/dhan`, openalgo#2306, QA MC-08; the codes Fyers
+/// maps the same names from). Like that table, only for `BSE_INDEX` rows.
+pub const BSE_INDEX_CODE_RENAMES: &[(&str, &str)] = &[
+    ("ALLCAP", "BSEALLCAP"),
+    ("BHRT22", "BSEBHARAT22INDEX"),
+    ("BSEDSI", "BSEDIVIDENDSTABILITY"),
+    ("BSEEVI", "BSEENHANCEDVALUE"),
+    ("BSELVI", "BSELOWVOLATILITY"),
+    ("BSEMOI", "BSEMOMENTUM"),
+    ("BSEPBI", "BSEPRIVATEBANKS"),
+    ("BSEQUI", "BSEQUALITY"),
+    ("COMDTY", "BSEBASICMATERIALS"),
+    ("CONDIS", "BSECONSUMERDISCRETIONARYGOODS&SERVICES"),
+    ("DFRGRI", "BSEDIVERSIFIEDFINANCIALSREVENUEGROWTHINDEX"),
+    ("ESG100", "BSE100ESG"),
+    ("FOCIT", "BSEFOCUSEDIT"),
+    ("LCTMCI", "BSE100LARGECAPTMCINDEX"),
+    ("MFG", "BSEINDIAMANUFACTURING"),
+    ("SML250", "BSE250SMALLCAPINDEX"),
+    ("UTILS", "BSEUTILITIES"),
+];
+
 /// Split one CSV record (RFC 4180 quoting: `"a, b"` and `""` escapes), so a
 /// quoted instrument name containing a comma does not shift the columns.
 pub fn split_csv_line(line: &str) -> Vec<String> {

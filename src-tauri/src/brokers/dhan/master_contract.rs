@@ -18,7 +18,8 @@
 use super::{DhanBroker, Variant};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
-    format_expiry, parse_broker_expiry, rename, split_csv_line, CsvHeader, BSE_INDEX_RENAMES,
+    format_expiry, parse_broker_expiry, rename, split_csv_line, CsvHeader, BSE_INDEX_CODE_RENAMES,
+    BSE_INDEX_RENAMES,
 };
 use crate::brokers::common::symbols::SymToken;
 use crate::error::{AppError, Result};
@@ -199,34 +200,12 @@ fn nse_index_symbol(raw: &str) -> String {
         .unwrap_or(compact)
 }
 
-/// BSE indices that Dhan lists under its own codes, matched by
-/// `SEM_CUSTOM_SYMBOL` ("BSE Momentum Index") or, where Dhan gives only the
-/// code, by BSE's index code (DSI, LVI, QUI). Fyers maps the same names
-/// from its codes (web openalgo#2306, QA MC-08). Dhan's own codes, so they
-/// stay out of the shared [`BSE_INDEX_RENAMES`].
-const DHAN_BSE_INDEX_RENAMES: &[(&str, &str)] = &[
-    ("ALLCAP", "BSEALLCAP"),
-    ("BHRT22", "BSEBHARAT22INDEX"),
-    ("BSEDSI", "BSEDIVIDENDSTABILITY"),
-    ("BSEEVI", "BSEENHANCEDVALUE"),
-    ("BSELVI", "BSELOWVOLATILITY"),
-    ("BSEMOI", "BSEMOMENTUM"),
-    ("BSEPBI", "BSEPRIVATEBANKS"),
-    ("BSEQUI", "BSEQUALITY"),
-    ("COMDTY", "BSEBASICMATERIALS"),
-    ("CONDIS", "BSECONSUMERDISCRETIONARYGOODS&SERVICES"),
-    ("DFRGRI", "BSEDIVERSIFIEDFINANCIALSREVENUEGROWTHINDEX"),
-    ("ESG100", "BSE100ESG"),
-    ("FOCIT", "BSEFOCUSEDIT"),
-    ("LCTMCI", "BSE100LARGECAPTMCINDEX"),
-    ("MFG", "BSEINDIAMANUFACTURING"),
-    ("SML250", "BSE250SMALLCAPINDEX"),
-    ("UTILS", "BSEUTILITIES"),
-];
-
+/// BSE indices Dhan lists under the shared names, or under BSE's own index
+/// codes (DSI, LVI, QUI; `SEM_CUSTOM_SYMBOL` "BSE Momentum Index"), which
+/// [`BSE_INDEX_CODE_RENAMES`] maps (web openalgo#2306, QA MC-08).
 fn bse_index_symbol(raw: &str) -> String {
     rename(BSE_INDEX_RENAMES, raw)
-        .or_else(|| rename(DHAN_BSE_INDEX_RENAMES, raw))
+        .or_else(|| rename(BSE_INDEX_CODE_RENAMES, raw))
         .map(str::to_string)
         .unwrap_or_else(|| raw.to_string())
 }
