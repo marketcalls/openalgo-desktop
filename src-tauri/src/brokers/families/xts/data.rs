@@ -19,8 +19,6 @@ use std::time::Duration;
 pub const QUOTE_BATCH: usize = 50;
 /// Gap between multiquote batches (`data.py:292`).
 pub const QUOTE_BATCH_GAP: Duration = Duration::from_millis(100);
-/// History window per `/instruments/ohlc` call, in days (`data.py:571`).
-pub const HISTORY_CHUNK_DAYS: i64 = 6;
 /// The ohlc call's `startTime`/`endTime` format, IST wall clock.
 pub const OHLC_TIME_FORMAT: &str = "%b %d %Y";
 
@@ -355,10 +353,12 @@ pub(crate) async fn get_history(
     let segment = mapping::history_segment(ex)
         .ok_or_else(|| AppError::Validation(format!("Unsupported exchange: {}", ex)))?;
     let mut all = Vec::new();
-    // Inclusive six-day windows, each 00:00:00 to 23:59:59. The web's loop
-    // ends a window at 00:00:00 of its sixth day and starts the next one a
-    // day later, losing that day; full days avoid the gap.
-    for (s, e) in chunks(req.start, req.end, HISTORY_CHUNK_DAYS) {
+    // Inclusive windows of the member's whole days, each 00:00:00 to
+    // 23:59:59, the next starting one second later. The template web loop
+    // ends a six-day window at 00:00:00 of its sixth day and starts the next
+    // a day later, losing that day; full days avoid the gap. 5paisa XTS's
+    // asks 365 days at a time to the second (web #2490), which these are.
+    for (s, e) in chunks(req.start, req.end, b.cfg.hooks.history_window_days) {
         let (from, to) = ohlc_window(s, e);
         let query = [
             ("exchangeSegment", segment.to_string()),

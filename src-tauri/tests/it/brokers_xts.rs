@@ -18,7 +18,7 @@ use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::families::xts::{master_contract, XtsBroker, XtsConfig};
 use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{
-    compositedge, fivepaisaxts, ibulls, jainamxts, rmoney, Broker, BrokerCredentials,
+    compositedge, fivepaisaxts, ibulls, iifl, jainamxts, rmoney, Broker, BrokerCredentials,
 };
 use openalgo_desktop_lib::websocket::handshake;
 use openalgo_desktop_lib::websocket::{FeedConfig, WebSocketManager};
@@ -1094,9 +1094,11 @@ async fn invalid_feed_token_is_renewed_once() {
     assert_eq!(e.code(), "AUTH_ERROR");
 }
 
+/// The template's six-day history windows, on iifl: 5paisa XTS asks 365
+/// days at a time since web #2490 (`broker_fivepaisaxts_docs`).
 #[tokio::test]
 async fn history_windows_and_today_candle() {
-    let (b, fake, _) = broker(&fivepaisaxts::CONFIG).await;
+    let (b, fake, _) = broker(&iifl::CONFIG).await;
     let t = token();
     let req = HistoryRequest {
         key: QuoteKey::new("NSE", "RELIANCE"),

@@ -184,6 +184,7 @@ mod broker_contract;
 mod broker_deltaexchange;
 mod broker_dhan_adapter;
 mod broker_dhan_feed;
+mod broker_fivepaisaxts_docs;
 mod broker_fyers_adapter;
 mod broker_fyers_streaming;
 mod broker_groww_feed;

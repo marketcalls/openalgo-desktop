@@ -46,6 +46,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         payload_variants: true,
         oi_events: false,
         price_protection: false,
+        history_window_days: 6,
     },
 };
 

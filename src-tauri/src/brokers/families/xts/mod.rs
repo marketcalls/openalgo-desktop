@@ -122,6 +122,10 @@ pub struct XtsHooks {
     /// its trigger, priced with the MPP slabs (ibulls, web #2466; its RMS
     /// may refuse a native MARKET or SL-M from an API session).
     pub price_protection: bool,
+    /// Days one `/instruments/ohlc` call asks for, each window whole days
+    /// from 00:00:00 to 23:59:59 IST: 365 for 5paisa XTS (web #2490), 6 for
+    /// the others, as their web clients ask.
+    pub history_window_days: i64,
 }
 
 /// Which subscribe batches of several instruments a member's web client
