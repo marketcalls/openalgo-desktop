@@ -615,6 +615,32 @@ Check the GTT list before placing it again.";
         assert_eq!(sandbox_gtt(&req).unwrap().expires_at, None);
     }
 
+    /// Web test_pending_order_execution_service.py::test_only_pilot_brokers_ship_gtt_modules:
+    /// the set is exhaustive on purpose, so a broker that gains GTT by
+    /// accident fails here instead of silently routing live GTTs. Pocketful
+    /// joined with its single-trigger GTT (web openalgo#2467).
+    #[test]
+    fn only_the_webs_gtt_brokers_route_live_gtts() {
+        let reg = crate::brokers::BrokerRegistry::new();
+        let gtt: Vec<String> = reg
+            .ids()
+            .into_iter()
+            .filter(|id| reg.get(id).is_some_and(|b| b.capabilities().gtt))
+            .collect();
+        assert_eq!(
+            gtt,
+            [
+                "angel",
+                "dhan",
+                "fyers",
+                "pocketful",
+                "rupeezy",
+                "upstox",
+                "zerodha"
+            ]
+        );
+    }
+
     /// A fractional CRYPTO quantity is refused by both conversions, never
     /// truncated to a GTT for 0.
     #[test]
