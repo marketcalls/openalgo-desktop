@@ -32,12 +32,19 @@
 //!   the same checks as the one asked for;
 //! - a company page is built only from a symbol that is one of the
 //!   trader's words, whole, as the search boundary takes words
-//!   (`websearch::taint`); the web took any part of a word.
+//!   (`websearch::taint`); the web took any part of a word;
+//! - an address the trader typed counts only where one of their links
+//!   starts (the start of a word, after an opening bracket or quote, or
+//!   right after `scheme://`) and ends there or at a path, query or
+//!   fragment boundary, so a host inside a longer one (`evil.com` in
+//!   `notevil.com`) is not the trader's; the web searches for the text
+//!   anywhere in the message (security review, 2026-11-25);
+//! - an address with white space or a control character in it is refused.
 
 use crate::agent::words::{split, strip_edges};
 use crate::flow::nodes::http::guard::{is_refused, same_host};
 use crate::flow::nodes::http::url::{urlsplit, Split};
-use regex::{Regex, RegexBuilder};
+use regex::Regex;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::LazyLock;
@@ -210,19 +217,71 @@ fn without_fragment(parts: &Split) -> String {
     format!("{}://{}{}{}", parts.scheme, parts.netloc, parts.path, query)
 }
 
+/// What can stand right before a link in the trader's text: white space,
+/// or an opening bracket or quote. Anything else (a letter, a dot) means
+/// the address is only the tail of a longer host or word.
+fn opens_link(c: char) -> bool {
+    c.is_whitespace() || matches!(c, '(' | '<' | '"' | '\'' | '[' | '`')
+}
+
+/// What a sentence can put right after a link without it being part of it.
+fn closes_link(c: char) -> bool {
+    matches!(
+        c,
+        '.' | ',' | ';' | ':' | '!' | '?' | ')' | ']' | '}' | '>' | '"' | '\'' | '`'
+    )
+}
+
+/// Where a link can start in the trader's text: at its start, after an
+/// opener, or right after `scheme://`.
+fn link_starts(text: &str) -> impl Iterator<Item = usize> + '_ {
+    text.char_indices().map(|(i, _)| i).filter(|&i| {
+        let before = &text[..i];
+        before.chars().next_back().is_none_or(opens_link) || before.ends_with("://")
+    })
+}
+
+/// Whether the trader's link ends where the address asked for does: at its
+/// end or closing punctuation only, or, the address being a prefix of the
+/// link, where a further path segment, query or fragment begins (a query
+/// parameter only once the address has a query).
+fn ends_at_boundary(form: &str, after: &str) -> bool {
+    match after.chars().next() {
+        None | Some('/' | '?' | '#') => true,
+        Some('&') => form.contains('?'),
+        Some(_) => after.chars().all(closes_link),
+    }
+}
+
 /// The trader's own text of the address, found however they cased it:
-/// the address as written, or with `www.` added or taken off.
+/// the address as written, or with `www.` added or taken off. Desktop
+/// (security review, 2026-11-25): it counts only where one of the trader's
+/// links starts and ends there or at a segment boundary, so `evil.com/x`
+/// is not found inside `notevil.com/x`, `x.evil.com/x` or `evil.com/xyz`.
+/// The web searches for the text anywhere in the message.
 fn typed_by_operator(bare: &str, operator: &str) -> Option<String> {
-    let other = match bare.strip_prefix("www.") {
+    let www = bare.get(..4).filter(|p| p.eq_ignore_ascii_case("www."));
+    let other = match www.and(bare.get(4..)) {
         Some(rest) => rest.to_string(),
         None => format!("www.{}", bare),
     };
-    [bare.to_string(), other].iter().find_map(|form| {
-        let re = RegexBuilder::new(&regex::escape(form))
-            .case_insensitive(true)
-            .build()
-            .ok()?;
-        re.find(operator).map(|m| format!("https://{}", m.as_str()))
+    for form in [bare, other.as_str()] {
+        if let Some(typed) = typed_link(form, operator) {
+            return Some(format!("https://{}", typed));
+        }
+    }
+    None
+}
+
+/// The trader's text of the first of their links that is `form`, or
+/// starts with it and goes on at a boundary.
+fn typed_link<'a>(form: &str, operator: &'a str) -> Option<&'a str> {
+    link_starts(operator).find_map(|i| {
+        let link = &operator[i..];
+        let link = &link[..link.find(char::is_whitespace).unwrap_or(link.len())];
+        let typed = link.get(..form.len())?;
+        (typed.eq_ignore_ascii_case(form) && ends_at_boundary(form, &link[form.len()..]))
+            .then_some(typed)
     })
 }
 
@@ -281,6 +340,9 @@ pub fn check(
     if text.chars().count() > MAX_URL_CHARS {
         return Check::Refused("That URL is too long to be a page address.".into());
     }
+    if text.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Check::Refused(INVALID.into());
+    }
     let text = if text.contains("://") {
         text.to_string()
     } else {
@@ -295,8 +357,7 @@ pub fn check(
         .split_once("://")
         .map(|(_, rest)| rest)
         .unwrap_or(&clean)
-        .to_lowercase();
-    let bare = bare.trim_end_matches('/');
+        .trim_end_matches('/');
     let chosen = typed_by_operator(bare, operator)
         .map(|url| (url, Source::Operator))
         .or_else(|| {

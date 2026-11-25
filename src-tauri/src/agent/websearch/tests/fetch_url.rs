@@ -324,3 +324,127 @@ fn two_spellings_of_one_page_share_a_key() {
     );
     assert_eq!(url_key("http://[::1/"), None);
 }
+
+/// Desktop (security review, 2026-11-25; the web searches for the text
+/// anywhere in the message): an address the trader typed counts only where
+/// one of their links starts, so a host that is the tail of a longer one,
+/// or a path that is the start of a longer segment, is not the trader's.
+#[test]
+fn a_host_or_path_inside_a_longer_one_is_not_one_the_trader_typed() {
+    for (requested, message) in [
+        ("https://evil.com/x", "read notevil.com/x please"),
+        ("https://evil.com/x", "read https://notevil.com/x please"),
+        ("https://evil.com/x", "read x.evil.com/x please"),
+        ("https://evil.com", "read evil.com.example please"),
+        ("https://www.evil.com/x", "read notevil.com/x please"),
+        ("https://evil.com/x", "read evil.com/xyz please"),
+        ("https://evil.com/x", "read evil.com/x.html please"),
+        ("https://evil.com/x", "read evil.com:8443/x please"),
+        ("https://evil.com/x?a=1", "read evil.com/x?a=12 please"),
+    ] {
+        let c = checked(requested, message, &[]);
+        assert_eq!(
+            c,
+            Check::Refused(NOT_GIVEN.into()),
+            "{} in {:?}",
+            requested,
+            message
+        );
+    }
+}
+
+/// Desktop: the trader's link is found at its own start, in any case and
+/// with `www.` added or taken off, after an opening bracket or quote or
+/// right after `scheme://`, and what is sent is their text.
+#[test]
+fn a_typed_link_is_found_at_its_start_in_any_case_and_www_form() {
+    for (requested, message, sent) in [
+        (
+            "https://www.evil.com/x",
+            "fetch Evil.COM/x now",
+            "https://Evil.COM/x",
+        ),
+        (
+            "https://evil.com/x",
+            "see (https://www.evil.com/x)",
+            "https://www.evil.com/x",
+        ),
+        (
+            "https://evil.com/x",
+            "see <HTTP://evil.com/x>",
+            "https://evil.com/x",
+        ),
+        (
+            "https://evil.com/x",
+            "the page \"evil.com/x\"",
+            "https://evil.com/x",
+        ),
+        (
+            "https://evil.com/x",
+            "evil.com/x is the page",
+            "https://evil.com/x",
+        ),
+        (
+            "https://evil.com/x",
+            "earlier\nevil.com/x",
+            "https://evil.com/x",
+        ),
+    ] {
+        let c = checked(requested, message, &[]);
+        assert_eq!(
+            allowed(&c),
+            Some((sent, Source::Operator)),
+            "{} in {:?}",
+            requested,
+            message
+        );
+    }
+}
+
+/// Desktop: closing punctuation after a link is not part of it, and an
+/// address that stops where the link goes on to a further path segment,
+/// query or fragment is a prefix of it.
+#[test]
+fn trailing_punctuation_and_a_segment_boundary_end_a_typed_link() {
+    for (requested, message) in [
+        ("https://evil.com/x", "is it on evil.com/x?"),
+        ("https://evil.com/x", "read evil.com/x."),
+        ("https://evil.com/x", "read evil.com/x), then"),
+        ("https://evil.com/x", "read evil.com/x/y please"),
+        ("https://evil.com/x", "read evil.com/x?y=1 please"),
+        ("https://evil.com/x", "read evil.com/x#top please"),
+        ("https://evil.com", "read evil.com/x please"),
+        ("https://evil.com/x?a=1", "read evil.com/x?a=1&b=2 please"),
+    ] {
+        let c = checked(requested, message, &[]);
+        assert_eq!(
+            allowed(&c),
+            Some((requested, Source::Operator)),
+            "{} in {:?}",
+            requested,
+            message
+        );
+    }
+}
+
+/// Desktop (security review, 2026-11-25): an address with white space or a
+/// control character in it is refused, even where the trader's text holds
+/// the same characters.
+#[test]
+fn an_address_with_white_space_or_a_control_character_is_refused() {
+    for requested in [
+        "https://evil.com/x y",
+        "https://evil.com/x\ty",
+        "https://evil.com/x\u{0}y",
+        "https://evil.com/x\u{a0}y",
+    ] {
+        let message = format!("read {} please", requested);
+        let c = checked(requested, &message, &[requested]);
+        assert_eq!(
+            c,
+            Check::Refused("That is not a valid web address.".into()),
+            "{:?}",
+            requested
+        );
+    }
+}
