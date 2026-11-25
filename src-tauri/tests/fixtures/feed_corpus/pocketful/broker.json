@@ -6,17 +6,19 @@
     "depth": [
       5
     ],
-    "orders": false
+    "orders": "a dedicated socket on the feed's address subscribed to the updates channel (pocketful_order_adapter.py)"
   },
   "sources": [
     "broker/pocketful/streaming/pocketful_adapter.py",
     "broker/pocketful/streaming/pocketful_mapping.py",
     "broker/pocketful/api/packet_decoder.py",
-    "services/order_update_service.py:36"
+    "broker/pocketful/streaming/pocketful_order_adapter.py",
+    "services/order_update_service.py::_BROKER_FACTORIES"
   ],
   "notes": [
-    "OpenAlgo LTP streams Pocketful's compact market data, Quote its detailed market data, Depth its snapquote (pocketful_adapter.py:242-246). The desktop's Depth also streams the detailed market data, whose packets carry the trade price a snapquote lacks, and sends a snapquote's average trade price as average_price, never as ltp (lead decision 2026-11-09, R107-07; the web streams the snapquote alone and publishes its average as ltp): cases depth_snapquote, snapquote_average_beside_a_trade_price.",
-    "The web adapter refuses a Depth subscribe at any level but 5 (INVALID_DEPTH, pocketful_adapter.py:256-259); the desktop acknowledges it at 5 (feed::dialect, Fallback): case depth_20_refused_on_the_web.",
-    "The web has no Pocketful order feed (no factory in services/order_update_service.py) and its market adapter ignores the order and trade packets (modes 50 and 51) the socket carries; the desktop relays them: case order_packets."
+    "Rebuilt on Pocketful's new API at a1d539764 (marketcalls/openalgo#2467). OpenAlgo LTP streams Pocketful's compact market data, Quote its detailed market data, Depth its snapquote with a price channel beside it (pocketful_adapter.py MODE_CHANNELS). The web's Depth price channel is the compact one; the desktop's is the detailed one, which carries the same price and the quote its other holders need, since the desktop keeps one stream per instrument at the highest mode held (R107-07): cases depth_snapquote, snapquote_average_beside_a_trade_price.",
+    "The web's frames carry no symbol, exchange, mode or trade time; LTP is {ltp, timestamp}. The desktop keeps the trade time the packets carry (ltt, epoch ms) and the detailed packet's book totals in Quote: market data the web drops.",
+    "The web adapter refuses a Depth subscribe at any level but 5 (INVALID_DEPTH); the desktop refuses it with the same words: case depth_20_refused_on_the_web.",
+    "Order updates come on their own socket (mode 50 frames, every order of the result list; mode 51 trade updates are not published), on the SDKs' address and subscribe: case order_stream."
   ]
 }

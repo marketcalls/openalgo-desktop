@@ -1,0 +1,39 @@
+{
+  "broker": "pocketful",
+  "summary": "Order updates on their own socket: the SDKs' subscribe, every order of an order update relayed with OpenAlgo's words (open, a partial fill, complete, rejected with its reason, cancelled), a trade update and a market packet ignored, a header byte that is not UTF-8 read past, and the subscribe sent again after a reconnect.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled",
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "PNB",
+      "exchange": "NSE",
+      "token": "10666",
+      "brsymbol": "PNB-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\",\"v\":[],\"m\":\"\"}"
+  ],
+  "provenance": {
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/streaming/pocketful_order_adapter.py::PocketfulOrderUpdateAdapter._handle_message",
+      "broker/pocketful/streaming/pocketful_order_adapter.py::PocketfulOrderUpdateAdapter.normalize",
+      "broker/pocketful/streaming/pocketful_order_adapter.py::decode_frame",
+      "broker/pocketful/streaming/pocketful_order_adapter.py::order_records",
+      "test/test_pocketful_order_updates.py"
+    ],
+    "notes": [
+      "The first order and the trade update are the examples of Pocketful's Order Updates and Trade Updates pages, as test/test_pocketful_order_updates.py takes them (the order example's trailing comma dropped); the live header bytes are unverified."
+    ]
+  },
+  "deviations": []
+}

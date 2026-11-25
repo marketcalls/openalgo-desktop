@@ -1,32 +1,41 @@
-//! Pocketful market-data socket (web `api/pocketfulwebsocket.py`,
-//! `api/packet_decoder.py`, `streaming/pocketful_adapter.py`).
+//! Pocketful market-data socket (web `streaming/pocketful_adapter.py`,
+//! `streaming/pocketful_mapping.py`, `api/packet_decoder.py`, all taken from
+//! Pocketful's Python SDK 0.1.2).
 //!
-//! * URL `wss://trade.pocketful.in/ws/v1/feeds?login_id=<client_id>&access_token=<token>`.
-//! * Subscribe `{"a":"subscribe","v":[[exchange_code, token], ...],"m":<type>}`,
-//!   batched per (type, exchange code) like the web (#2176); unsubscribe
-//!   one instrument per frame with `"a":"unsubscribe"`. Types: `marketdata` (detailed, mode 1),
-//!   `compact_marketdata` (mode 2), `full_snapquote` (mode 4). OpenAlgo
-//!   LTP -> compact, QUOTE -> detailed (`pocketful_adapter.py`
-//!   `pocketful_mode_map`), DEPTH -> snapquote with the detailed stream
-//!   beside it: a snapquote has no trade price, and the detailed packet
-//!   brings it (lead decision 2026-11-09, R107-07; the web streams the
-//!   snapquote alone and passes its average off as `ltp`).
-//! * Heartbeat: text `{"a":"h"}` every 15 s. The server answers it, so a
-//!   socket can stay "alive" with no market data: once data has been seen
-//!   in three 30 s buckets within 5 minutes, 90 s without market data
-//!   closes the socket and reconnects (web data-silence watchdog, #2176).
+//! * URL `<host>/ws/v1/feeds?login_id=<client_id>&access_token=<token>`
+//!   (`packet_decoder.feed_url`); the token rides in the query, so the URL
+//!   is never logged and errors are reported by kind only.
+//! * Subscribe `{"a":"subscribe","v":[[exchange_code, token], ...],"m":<channel>}`,
+//!   batched per (channel, exchange code) like the web; unsubscribe one
+//!   instrument per frame with `"a":"unsubscribe"`. Channels: `marketdata`
+//!   (detailed, mode 1), `compact_marketdata` (mode 2), `full_snapquote`
+//!   (mode 4). OpenAlgo LTP -> compact, Quote -> detailed (web
+//!   `MODE_CHANNELS`). Depth -> snapquote with a price stream beside it: a
+//!   snapquote has no trade price (the web takes it from the compact
+//!   channel; the desktop from the detailed one, R107-07, because it keeps
+//!   one stream per instrument at the highest mode held, so a Depth stream
+//!   must also serve the Quote and LTP holders of the instrument).
+//! * Heartbeat: text `{"a":"h","v":[],"m":""}` every 8 s (the SDK's). The
+//!   server answers it, so a socket can stay "alive" with no market data:
+//!   once data has been seen in three 30 s buckets within 5 minutes, 90 s
+//!   without market data closes the socket and reconnects (web
+//!   data-silence watchdog).
 //! * Binary frames are big-endian; byte 0 is the mode. Prices are integer
 //!   paise (/100); quantities raw. Offsets below cite `packet_decoder.py`.
-//! * Modes 50 and 51 are order and trade updates: UTF-8 JSON after a 5-byte
-//!   prefix (`decodeOrderUpdate`, `packet_decoder.py:279-302`).
+//!   A text frame carries no packet (web `packet_mode` is None for one).
+//! * Order updates come on a socket of their own (`order_feed`): the market
+//!   socket publishes market packets only, as the web's adapter does.
 //! * A packet is matched to its subscription by token and exchange code
-//!   (`_find_subscription`); the tick is reported under the subscription's
+//!   (web `_routes`); the tick is reported under the subscription's
 //!   OpenAlgo symbol and exchange.
 
-use super::mapping::{self, exchange_code, map_status, oa_pricetype, oa_product, text, text_any};
+pub mod order_feed;
+#[cfg(test)]
+mod tests;
+
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, QuoteField, WsRequest,
+    NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -37,15 +46,33 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
-/// web `heartbeat_thread`: `{"a":"h"}` every 15 s.
-pub const HEARTBEAT_SECS: u64 = 15;
+/// web `HEARTBEAT_SECONDS` (the SDK's `heartbeat_thread`).
+pub const HEARTBEAT_SECS: u64 = 8;
+
+/// web `HEARTBEAT_MESSAGE`, `json.dumps({"a": "h", "v": [], "m": ""})`
+/// without its spaces, in the SDK's key order.
+const HEARTBEAT_TEXT: &str = r#"{"a":"h","v":[],"m":""}"#;
 
 /// Pocketful packet modes (byte 0).
 pub const MODE_DETAILED: u8 = 1;
 pub const MODE_COMPACT: u8 = 2;
 pub const MODE_SNAPQUOTE: u8 = 4;
-pub const MODE_ORDER: u8 = 50;
-pub const MODE_TRADE: u8 = 51;
+
+/// The feed's exchange code for an OpenAlgo exchange (web
+/// `PocketfulExchangeMapper.EXCHANGE_TYPES`), or none: a token sent on the
+/// wrong segment names another instrument, so an exchange the feed does
+/// not have is never sent as NSE.
+pub(crate) fn feed_exchange_code(exchange: &str) -> Option<u8> {
+    Some(match exchange.trim().to_ascii_uppercase().as_str() {
+        "NSE" | "NSE_INDEX" => 1,
+        "NFO" => 2,
+        "CDS" => 3,
+        "MCX" => 4,
+        "BSE" | "BSE_INDEX" => 6,
+        "BFO" => 7,
+        _ => return None,
+    })
+}
 
 /// Subscription type (`"m"`) for a Pocketful mode.
 pub fn market_type(pocketful_mode: u8) -> &'static str {
@@ -66,8 +93,11 @@ pub fn pocketful_mode(mode: FeedMode) -> u8 {
 }
 
 /// The Pocketful streams an OpenAlgo mode runs: its own, and for Depth the
-/// detailed stream first, whose packets carry the trade price, last
-/// quantity, trade time and OI the snapquote lacks (R107-07).
+/// detailed stream first, whose packets carry the trade price the snapquote
+/// lacks (R107-07). The web's Depth takes that price from the compact
+/// channel instead (`MODE_CHANNELS[3]`); the detailed channel carries the
+/// same price and the quote a Quote holder of the instrument needs, which
+/// the desktop's one stream per instrument must serve too.
 fn streams(mode: FeedMode) -> &'static [u8] {
     match pocketful_mode(mode) {
         MODE_SNAPQUOTE => &[MODE_DETAILED, MODE_SNAPQUOTE],
@@ -159,7 +189,7 @@ impl DataWatchdog {
 }
 
 pub fn heartbeat_frame() -> Message {
-    Message::Text(json!({"a": "h"}).to_string())
+    Message::Text(HEARTBEAT_TEXT.into())
 }
 
 // ---------------------------------------------------------------------------
@@ -280,10 +310,9 @@ pub fn decode_compact(b: &[u8]) -> Option<Compact> {
     })
 }
 
-/// Snapquote (mode 4, at least 166 bytes; `decodeSnapquoteData`,
-/// `packet_decoder.py:83-137`). No trade price: `average_price` is the
-/// day's average trade price, which the web passes off as `ltp`
-/// (`pocketful_adapter.py:676`, a web defect the feed does not copy).
+/// Snapquote (mode 4, at least 166 bytes; `decodeSnapquoteData`). No trade
+/// price: `average_price` is the day's average trade price, never a last
+/// traded price (R107-07; the web too since a1d539764).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Snapquote {
     pub exchange_code: u8,
@@ -331,135 +360,30 @@ pub fn decode_snapquote(b: &[u8]) -> Option<Snapquote> {
     })
 }
 
-/// Order or trade update JSON after the 5-byte prefix.
-pub fn decode_update(b: &[u8]) -> Option<Value> {
-    let text = std::str::from_utf8(b.get(5..)?).ok()?;
-    serde_json::from_str::<Value>(text)
-        .ok()
-        .filter(Value::is_object)
-}
-
 /// A decoded market packet.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Packet {
     Detailed(Detailed),
     Compact(Compact),
     Snapquote(Snapquote),
-    Order(Value),
-    Trade(Value),
 }
 
 impl Packet {
     pub fn token(&self) -> Option<(u8, u32)> {
-        match self {
-            Packet::Detailed(d) => Some((d.exchange_code, d.token)),
-            Packet::Compact(c) => Some((c.exchange_code, c.token)),
-            Packet::Snapquote(s) => Some((s.exchange_code, s.token)),
-            _ => None,
-        }
+        Some(match self {
+            Packet::Detailed(d) => (d.exchange_code, d.token),
+            Packet::Compact(c) => (c.exchange_code, c.token),
+            Packet::Snapquote(s) => (s.exchange_code, s.token),
+        })
     }
 }
 
-fn jnum(v: &Value, keys: &[&str]) -> f64 {
-    mapping::num_any(v, keys).unwrap_or(0.0)
-}
-
-fn jint(v: &Value, keys: &[&str]) -> i64 {
-    jnum(v, keys) as i64
-}
-
-/// JSON market frames (the web's decoders accept them too): the decoded
-/// key names, with prices in paise.
-fn decode_json(v: &Value) -> Option<Packet> {
-    let v = if v.get("instrument_token").is_some() || v.get("instrumentToken").is_some() {
-        v
-    } else if v.get("d").map(Value::is_object) == Some(true) {
-        &v["d"]
-    } else if v.get("data").map(Value::is_object) == Some(true) {
-        &v["data"]
-    } else {
-        return None;
-    };
-    let mode = jint(v, &["mode"]);
-    let code = jint(v, &["exchange_code", "exchangeCode"]) as u8;
-    let token = jint(v, &["instrument_token", "instrumentToken"]) as u32;
-    let p = |keys: &[&str]| jnum(v, keys) / 100.0;
-    match mode as u8 {
-        MODE_COMPACT => Some(Packet::Compact(Compact {
-            exchange_code: code,
-            token,
-            ltp: p(&["last_traded_price"]),
-            change: p(&["change"]),
-            ltt: jint(v, &["last_traded_time"]) as u32,
-            oi: jint(v, &["currentOpenInterest"]),
-            bid: p(&["bidPrice"]),
-            ask: p(&["askPrice"]),
-        })),
-        MODE_DETAILED => Some(Packet::Detailed(Detailed {
-            exchange_code: code,
-            token,
-            ltp: p(&["last_traded_price"]),
-            ltt: jint(v, &["last_traded_time"]) as u32,
-            ltq: jint(v, &["last_traded_quantity"]),
-            volume: jint(v, &["trade_volume"]),
-            bid: p(&["best_bid_price"]),
-            bid_qty: jint(v, &["best_bid_quantity"]),
-            ask: p(&["best_ask_price"]),
-            ask_qty: jint(v, &["best_ask_quantity"]),
-            total_buy_qty: jint(v, &["total_buy_quantity"]),
-            total_sell_qty: jint(v, &["total_sell_quantity"]),
-            average_price: p(&["average_trade_price"]),
-            open: p(&["open_price"]),
-            high: p(&["high_price"]),
-            low: p(&["low_price"]),
-            close: p(&["close_price"]),
-            oi: jint(v, &["currentOpenInterest"]),
-            ..Default::default()
-        })),
-        MODE_SNAPQUOTE => {
-            let arr = |k: &str| -> Vec<f64> {
-                v[k].as_array()
-                    .map(|a| a.iter().map(|x| x.as_f64().unwrap_or(0.0)).collect())
-                    .unwrap_or_default()
-            };
-            let side = |orders: &str, prices: &str, qtys: &str| -> Vec<DepthLevel> {
-                let (o, pr, q) = (arr(orders), arr(prices), arr(qtys));
-                (0..5)
-                    .map(|i| DepthLevel {
-                        price: pr.get(i).copied().unwrap_or(0.0) / 100.0,
-                        quantity: q.get(i).copied().unwrap_or(0.0) as i64,
-                        orders: o.get(i).copied().unwrap_or(0.0) as i64,
-                    })
-                    .collect()
-            };
-            Some(Packet::Snapquote(Snapquote {
-                exchange_code: code,
-                token,
-                bids: side("buyers", "bidPrices", "bidQtys"),
-                asks: side("sellers", "askPrices", "askQtys"),
-                average_price: p(&["averageTradePrice"]),
-                open: p(&["open"]),
-                high: p(&["high"]),
-                low: p(&["low"]),
-                close: p(&["close"]),
-                total_buy_qty: jint(v, &["totalBuyQty"]),
-                total_sell_qty: jint(v, &["totalSellQty"]),
-                volume: jint(v, &["volume"]),
-            }))
-        }
-        _ => None,
-    }
-}
-
-/// Decode one socket frame (web `on_message`: JSON with a `mode` first,
-/// else binary by byte 0).
+/// Decode one socket frame (web `_on_message`): a binary packet by its
+/// mode byte. A text frame has no mode byte and carries no market data
+/// (web `packet_mode` returns None for one).
 pub fn decode_frame(msg: &Message) -> Option<Packet> {
     match msg {
         Message::Binary(b) => decode_binary(b),
-        Message::Text(t) => {
-            let v: Value = serde_json::from_str(t).ok()?;
-            decode_json(&v)
-        }
         _ => None,
     }
 }
@@ -469,23 +393,18 @@ pub fn decode_binary(b: &[u8]) -> Option<Packet> {
         MODE_DETAILED => decode_detailed(b).map(Packet::Detailed),
         MODE_COMPACT => decode_compact(b).map(Packet::Compact),
         MODE_SNAPQUOTE => decode_snapquote(b).map(Packet::Snapquote),
-        MODE_ORDER => decode_update(b).map(Packet::Order),
-        MODE_TRADE => decode_update(b).map(Packet::Trade),
         _ => None,
     }
 }
 
-/// What a compact (LTP) packet carries beyond its mode, as the web's LTP
-/// frame publishes it (`pocketful_adapter.py:629-637`): the change, the
-/// OI (not for an index, whose packet fills it with 0) and the best bid
-/// and ask prices.
-fn compact_extras(t: &mut NormalizedTick, c: &Compact, index: bool) {
-    t.mark_carried(QuoteField::Change);
-    if !index {
-        t.mark_carried(QuoteField::OpenInterest);
+/// web `_price`: a price of 0 is one the feed does not have yet (no trade
+/// today), left out rather than sent as a price.
+fn mark_unpriced(t: &mut NormalizedTick, prices: &[(QuoteField, f64)]) {
+    for &(field, value) in prices {
+        if value <= 0.0 {
+            t.mark_absent(field);
+        }
     }
-    t.extras.bid_price = Some(c.bid);
-    t.extras.ask_price = Some(c.ask);
 }
 
 /// Exchange last-trade time to epoch ms, when it looks like epoch seconds.
@@ -522,40 +441,49 @@ pub struct PocketfulFeed {
     url: String,
     /// (exchange code, token) -> subscription.
     subs: HashMap<(u8, u32), SubInfo>,
-    symbols: SymbolResolver,
     watchdog: DataWatchdog,
 }
 
 impl PocketfulFeed {
+    /// The session's feed. Packets name their instrument by exchange code
+    /// and token, matched to the subscriptions themselves, so the symbol
+    /// master (taken for the order feed's sake by the same call in the
+    /// session code) is not read here.
     pub fn new(
         ws_base: &str,
         client_id: &str,
         access_token: &str,
-        symbols: SymbolResolver,
+        _symbols: SymbolResolver,
     ) -> Self {
         Self {
             url: feed_url(ws_base, client_id, access_token),
             subs: HashMap::new(),
-            symbols,
             watchdog: DataWatchdog::new(Instant::now()),
         }
     }
 
+    /// The (exchange code, token) a subscription streams on: the web's
+    /// `subscribe` refuses a token that is not a number and an exchange the
+    /// feed does not have, and sends neither.
     fn key(s: &FeedSubscription) -> Option<(u8, u32)> {
         let token = s.token.trim().parse::<u32>().ok();
-        if token.is_none() {
+        let code = feed_exchange_code(&s.exchange);
+        if token.is_none() || code.is_none() {
             tracing::warn!(
-                "No Pocketful instrument token for {}:{}",
+                "Pocketful streams no live prices for {}:{}",
                 s.exchange,
                 s.symbol
             );
         }
-        Some((exchange_code(s.br_exchange()), token?))
+        Some((code?, token?))
     }
 
+    /// One packet of a subscribed instrument -> events, as the web's
+    /// packet handlers publish it (`_handle_compact_data`,
+    /// `_handle_detailed_data`, `_handle_snapquote_data`).
     fn tick_from(&self, sub: &SubInfo, p: &Packet) -> Vec<FeedEvent> {
         let now = now_ms();
-        let mut t = NormalizedTick {
+        let t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
             timestamp_ms: now,
@@ -563,126 +491,95 @@ impl PocketfulFeed {
         };
         let index = sub.exchange.ends_with("_INDEX");
         match p {
-            Packet::Compact(c) => {
-                t.mode = FeedMode::Ltp.code();
-                t.ltp = c.ltp;
-                t.oi = c.oi;
-                set_trade_time(&mut t, c.ltt);
-                t.change = mapping_round2(c.change);
-                let prev = c.ltp - c.change;
-                if prev > 0.0 && c.ltp > 0.0 {
-                    t.change_percent = mapping_round2(c.change / prev * 100.0);
-                }
-                compact_extras(&mut t, c, index);
-                vec![FeedEvent::Tick(t)]
-            }
-            Packet::Detailed(d) => {
-                t.mode = FeedMode::Quote.code();
-                t.ltp = d.ltp;
-                t.open = d.open;
-                t.high = d.high;
-                t.low = d.low;
-                t.close = d.close;
-                t.volume = d.volume;
-                t.last_quantity = d.ltq;
-                t.average_price = d.average_price;
-                t.total_buy_quantity = d.total_buy_qty;
-                t.total_sell_quantity = d.total_sell_qty;
-                t.oi = d.oi;
-                set_trade_time(&mut t, d.ltt);
-                // The web's Quote frame carries the packet's OI
-                // (`pocketful_adapter.py:592`), an index's zero excepted.
-                if index {
-                    t.mark_absent(QuoteField::OpenInterest);
-                } else {
-                    t.mark_carried(QuoteField::OpenInterest);
-                }
-                t.derive_change();
-                vec![FeedEvent::Tick(t)]
-            }
+            Packet::Compact(c) => vec![FeedEvent::Tick(compact_tick(t, c))],
+            Packet::Detailed(d) => vec![FeedEvent::Tick(detailed_tick(t, d, index))],
             Packet::Snapquote(s) => vec![
                 FeedEvent::Tick(snapquote_tick(t, s)),
                 FeedEvent::Depth(snapquote_book(sub, s, now)),
             ],
-            _ => Vec::new(),
         }
-    }
-
-    /// Order (mode 50) or trade (mode 51) update -> normalised order update.
-    /// Field names follow the order book (`oms_order_id`, `order_status`,
-    /// `trading_symbol`, ...).
-    pub fn order_update(&self, d: &Value, trade: bool) -> Option<OrderUpdate> {
-        let orderid = text_any(d, &["oms_order_id", "order_id", "orderId", "id"]);
-        if orderid.is_empty() {
-            return None;
-        }
-        let exchange = text(d, "exchange");
-        let br = text_any(d, &["trading_symbol", "tradingsymbol", "symbol"]);
-        let raw_status = text_any(d, &["order_status", "status"]);
-        let status = if raw_status.is_empty() && trade {
-            // A trade update is a fill; it carries no order status.
-            "complete".to_string()
-        } else {
-            map_status(&raw_status, &text(d, "mode"))
-        };
-        let quantity = jint(d, &["quantity", "order_quantity"]);
-        let filled = jint(d, &["filled_quantity", "fill_quantity", "trade_quantity"]);
-        Some(OrderUpdate {
-            orderid,
-            symbol: if br.is_empty() || exchange.is_empty() {
-                br.clone()
-            } else {
-                self.symbols.oa_symbol_or_raw(&br, &exchange)
-            },
-            exchange,
-            action: text_any(d, &["order_side", "transaction_type"]).to_ascii_uppercase(),
-            quantity,
-            price: jnum(d, &["price", "trade_price"]),
-            trigger_price: jnum(d, &["trigger_price"]),
-            pricetype: oa_pricetype(&text(d, "order_type")),
-            product: oa_product(&text(d, "product")),
-            filled_quantity: filled,
-            pending_quantity: mapping::num_any(d, &["remaining_quantity", "pending_quantity"])
-                .map(|v| v as i64)
-                .unwrap_or_else(|| (quantity - filled).max(0)),
-            average_price: jnum(d, &["average_price", "average_trade_price", "avg_price"]),
-            rejection_reason: if status == "rejected" {
-                text_any(d, &["rejection_reason", "reject_reason", "reason"])
-            } else {
-                String::new()
-            },
-            order_status: status,
-        })
     }
 
     pub fn handle(&self, p: Packet) -> Vec<FeedEvent> {
-        match &p {
-            Packet::Order(v) => self
-                .order_update(v, false)
-                .map(|u| vec![FeedEvent::OrderUpdate(u)])
-                .unwrap_or_default(),
-            Packet::Trade(v) => self
-                .order_update(v, true)
-                .map(|u| vec![FeedEvent::OrderUpdate(u)])
-                .unwrap_or_default(),
-            _ => {
-                let Some(key) = p.token() else {
-                    return Vec::new();
-                };
-                match self.subs.get(&key) {
-                    Some(sub) => self.tick_from(sub, &p),
-                    None => Vec::new(),
-                }
-            }
+        let Some(key) = p.token() else {
+            return Vec::new();
+        };
+        match self.subs.get(&key) {
+            Some(sub) => self.tick_from(sub, &p),
+            None => Vec::new(),
         }
     }
 }
 
-/// A snapquote's quote: its OHLC, volume, book totals and average trade
-/// price, with no trade price, trade time, last quantity or OI (it carries
-/// none; R107-07). Knowing no price, it only updates the instrument's
-/// snapshot, and its book reaches Depth holders alone with the last trade
-/// price the detailed stream brought (`feed::bridge::pairing`).
+/// A compact packet: the LTP frame's price (web `{ltp, timestamp}`, only
+/// for a price above 0) and its trade time. The packet's change, OI and
+/// best prices are not in the web's LTP frame any more, and the docs' LTP
+/// frame has none of them.
+fn compact_tick(mut t: NormalizedTick, c: &Compact) -> NormalizedTick {
+    t.mode = FeedMode::Ltp.code();
+    t.ltp = c.ltp;
+    set_trade_time(&mut t, c.ltt);
+    mark_unpriced(&mut t, &[(QuoteField::Ltp, c.ltp)]);
+    t
+}
+
+/// A detailed packet: the Quote frame (web `_handle_detailed_data`), every
+/// price above 0, the best bid and ask with their sizes, the OI, and the
+/// change against the previous close when both prices are known. An index
+/// carries no OI, book or order flow; its zeros are left out.
+fn detailed_tick(mut t: NormalizedTick, d: &Detailed, index: bool) -> NormalizedTick {
+    t.mode = FeedMode::Quote.code();
+    t.ltp = d.ltp;
+    t.open = d.open;
+    t.high = d.high;
+    t.low = d.low;
+    t.close = d.close;
+    t.volume = d.volume;
+    t.last_quantity = d.ltq;
+    t.average_price = d.average_price;
+    t.total_buy_quantity = d.total_buy_qty;
+    t.total_sell_quantity = d.total_sell_qty;
+    t.oi = d.oi;
+    set_trade_time(&mut t, d.ltt);
+    mark_unpriced(
+        &mut t,
+        &[
+            (QuoteField::Ltp, d.ltp),
+            (QuoteField::Open, d.open),
+            (QuoteField::High, d.high),
+            (QuoteField::Low, d.low),
+            (QuoteField::Close, d.close),
+            (QuoteField::AveragePrice, d.average_price),
+        ],
+    );
+    if index {
+        for f in [
+            QuoteField::OpenInterest,
+            QuoteField::LastQuantity,
+            QuoteField::TotalBuyQuantity,
+            QuoteField::TotalSellQuantity,
+        ] {
+            t.mark_absent(f);
+        }
+    } else {
+        t.mark_carried(QuoteField::OpenInterest);
+        t.extras.bid_price = Some(d.bid);
+        t.extras.bid_quantity = Some(d.bid_qty);
+        t.extras.ask_price = Some(d.ask);
+        t.extras.ask_quantity = Some(d.ask_qty);
+    }
+    t.derive_change();
+    if d.ltp <= 0.0 || d.close <= 0.0 {
+        t.mark_absent(QuoteField::Change);
+    }
+    t
+}
+
+/// A snapquote's quote: its OHLC and average trade price above 0, volume
+/// and book totals, with no trade price, trade time, last quantity or OI
+/// (it carries none; R107-07). Knowing no price, it only updates the
+/// instrument's snapshot, and its book reaches Depth holders alone with
+/// the last trade price the detailed stream brought (`feed::bridge::pairing`).
 fn snapquote_tick(mut t: NormalizedTick, s: &Snapquote) -> NormalizedTick {
     t.mode = FeedMode::Depth.code();
     for f in [
@@ -701,10 +598,21 @@ fn snapquote_tick(mut t: NormalizedTick, s: &Snapquote) -> NormalizedTick {
     t.volume = s.volume;
     t.total_buy_quantity = s.total_buy_qty;
     t.total_sell_quantity = s.total_sell_qty;
+    mark_unpriced(
+        &mut t,
+        &[
+            (QuoteField::Open, s.open),
+            (QuoteField::High, s.high),
+            (QuoteField::Low, s.low),
+            (QuoteField::Close, s.close),
+            (QuoteField::AveragePrice, s.average_price),
+        ],
+    );
     t
 }
 
-/// A snapquote's book, without a price of its own.
+/// A snapquote's book, all five levels each side as the packet holds them
+/// (web `_levels`), without a price of its own.
 fn snapquote_book(sub: &SubInfo, s: &Snapquote, now: i64) -> NormalizedDepth {
     let mut d = NormalizedDepth {
         symbol: sub.symbol.clone(),
@@ -720,11 +628,9 @@ fn snapquote_book(sub: &SubInfo, s: &Snapquote, now: i64) -> NormalizedDepth {
     d
 }
 
-fn mapping_round2(v: f64) -> f64 {
-    crate::brokers::common::streaming::round2(v)
-}
-
-/// `.../ws/v1/feeds?login_id=..&access_token=..`.
+/// `<host>/ws/v1/feeds?login_id=..&access_token=..` (web
+/// `packet_decoder.feed_url`, the SDKs' address). It carries the access
+/// token: never log it.
 pub fn feed_url(ws_base: &str, client_id: &str, access_token: &str) -> String {
     format!(
         "{}/ws/v1/feeds?login_id={}&access_token={}",
@@ -819,12 +725,7 @@ impl BrokerFeed for PocketfulFeed {
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
         match decode_frame(msg) {
             Some(p) => {
-                if matches!(
-                    p,
-                    Packet::Compact(_) | Packet::Detailed(_) | Packet::Snapquote(_)
-                ) {
-                    self.watchdog.record(Instant::now());
-                }
+                self.watchdog.record(Instant::now());
                 self.handle(p)
             }
             None => Vec::new(),
@@ -845,22 +746,6 @@ impl BrokerFeed for PocketfulFeed {
 
     fn heartbeat(&self) -> Option<(Duration, Message)> {
         Some((Duration::from_secs(HEARTBEAT_SECS), heartbeat_frame()))
-    }
-}
-
-trait BrExchange {
-    fn br_exchange(&self) -> &str;
-}
-
-impl BrExchange for FeedSubscription {
-    /// web adapter: exchange code from the master `brexchange` (NSE/BSE for
-    /// indices), falling back to the OpenAlgo exchange.
-    fn br_exchange(&self) -> &str {
-        if self.brexchange.is_empty() {
-            &self.exchange
-        } else {
-            &self.brexchange
-        }
     }
 }
 

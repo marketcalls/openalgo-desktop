@@ -145,15 +145,15 @@ as the web's `server.py` sends them):
 
 - `data.mode`: `"ltp"` / `"quote"` / `"full"` (Zerodha, Sahi, IIFL Capital,
   Nubra), 1 / 2 / 3 (most), or no key (AliceBlue, Arrow, both HDFC, Kotak,
-  Rupeezy, Upstox, Fyers). The app's own pages read the envelope's `mode`,
+  Rupeezy, Upstox, Fyers, Pocketful). The app's own pages read the envelope's `mode`,
   not this one. In a lower holder's frame from a one-dict broker it is the
   dict's own mode where the web adapter writes the packet's (Paytm, Dhan,
   IndMoney, the XTS adapters but Jainam), and the holder's where it writes
   the subscription's (`mode_of_holder`: mStock and Delta Exchange publish
   once per subscription; Jainam publishes each subscription its own mode's
-  dict, so its frames are per mode; Angel and Pocketful write the mode of the
-  one subscription they keep per token, which on the web is the latest or
-  first subscribed when a token is held in several modes).
+  dict, so its frames are per mode; Angel writes the mode of the one
+  subscription it keeps per token, which on the web is the latest
+  subscribed when a token is held in several modes).
 - An index's order-flow fields (`last_quantity`, `average_price`, the book
   totals) go out only where the broker's keys put them on an index
   (mStock's fixed packet, `index_key(.., QUOTE_UP)`), under the canonical
@@ -216,7 +216,7 @@ Deliberate differences, each a web defect or a desktop rule:
     `LastTradedTime`, Paytm's and IIFL Capital's seconds, Tradejini's text
     `ltt`) are not copied.
 - A web key that holds a wrong value is not copied with that value: Pocketful
-  publishes the average price as Depth's `ltp`, Zerodha web reads OI from the
+  published the average price as Depth's `ltp` (until a1d539764), Zerodha web reads OI from the
   wrong offset; the desktop decoders keep the right values.
 - `token` (Arrow, both HDFC, Rupeezy, Upstox) is the instrument's broker
   token from the symbol master, as text. Fyers names its frames as its web
@@ -264,7 +264,7 @@ the tick (`carried`, `absent`), a `QuoteExtras` field or a `BrokerField`.
 | nubra | Q `prev_close`; Quote only `bid`, `ask`; the book's totals (the sums of its levels) in Depth only; no change keys on an index; Depth refused on an index | label | best bid and ask, cleared when a book empties that side (R107-06), the message time |
 | nuvama | L `last_price`, `close`, `prev_close`, `change`, `change_percent` (the last four when the packet carries a close); D circuits; no canonical change on an index; Depth only once the depth stream sent a book (`depth_needs_book`) | number | `carried(Close)` from the LTP frame up; `absent` for each quote field and the trade time a packet leaves out (the web sends 0 and the receipt time); `carried(OpenInterest)` when a quote packet has `oI`; circuits in Depth; book sides as sent, never padded |
 | paytm | L `close`, `change_absolute`, `change_percent`; Q `last_trade_quantity` (Quote only; Depth sends canonical `last_quantity`); Q `52_week_high`, `52_week_low`; D `oi_change`; no canonical change on an index | number | 52-week range, OI change, `carried(Change)` |
-| pocketful | L only (`nt`, the compact packet) `change`, `bid_price`, `ask_price`; L `oi`; Q `last_trade_quantity` (no canonical `last_quantity`); no canonical change on an index | number | `carried(Change, OpenInterest)` on compact packets, best bid and ask; a snapquote marks `ltp` absent and carries its average as `average_price` (no trade price in it; Depth also streams the detailed packets for the price, R107-07) |
+| pocketful | Q only `last_trade_quantity`, `change`, `change_percent`, `bid_price`, `bid_size`, `ask_price`, `ask_size`, the canonical `oi` and the book totals; Q `avg_trade_price` (no canonical `last_quantity` or `average_price`); D only `totalbuyqty`, `totalsellqty`; no `symbol` or `exchange`; `ltt` in LTP and Quote, which the web drops (lost data); no canonical change on an index (web a1d539764) | none | compact: price and trade time only; detailed: every price above 0, best bid and ask with sizes and `carried(OpenInterest)` (none on an index); a snapquote marks `ltp` absent and carries its average (no trade price in it; Depth streams the detailed packets for the price, R107-07) |
 | rupeezy | L `token`, `last_price`, `close`, `prev_close`, `change`, `change_percent`; D circuits; no canonical change on an index (`no_index_change`) | none | circuits from full packets; `absent` last quantity, average and totals on ohlcv packets, trade time when 0 |
 | sahi | L `last_trade_time`; Q `oi`, circuits | label | circuits from the price band (none when a tick has none), `carried(OpenInterest)` on Quote ticks with OI, `absent(OpenInterest)` on ticks without; book sides as streamed, no padding; no book event for an index |
 | samco | L `last_trade_time`; Q `change`, `change_percentage`; Q only `last_trade_quantity`, `best_bid_price`, `best_bid_quantity`, `best_ask_price`, `best_ask_quantity` | number | best bid and ask; an index's `last_quantity` from Q (no canonical change) |

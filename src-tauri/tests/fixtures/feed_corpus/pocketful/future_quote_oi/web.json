@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "pocketful",
   "inputs_sha256": "7c09a6cc8e3672c0d7bfd3fa4cfaf28fb727640f73ec5a5488cdc9d470b35341",
   "instruments": [
@@ -73,22 +73,22 @@
           "symbol": "NIFTY25NOV25FUT",
           "mode": 2,
           "data": {
-            "ltp": 24680.5,
-            "ltt": 1762656910,
             "volume": 4567800,
+            "last_trade_quantity": 75,
+            "bid_price": 24680.0,
+            "bid_size": 1500,
+            "ask_price": 24681.0,
+            "ask_size": 2250,
+            "oi": 12345675,
+            "timestamp": "<receipt_ms>",
+            "ltp": 24680.5,
             "open": 24550.0,
             "high": 24750.0,
             "low": 24500.0,
             "close": 24490.0,
-            "last_trade_quantity": 75,
-            "average_price": 24655.25,
-            "total_buy_quantity": 912000,
-            "total_sell_quantity": 845000,
-            "oi": 12345675,
-            "symbol": "NIFTY25NOV25FUT",
-            "exchange": "NFO",
-            "mode": 2,
-            "timestamp": "<receipt_ms>"
+            "avg_trade_price": 24655.25,
+            "change": 190.5,
+            "change_percent": 0.78
           }
         }
       ],

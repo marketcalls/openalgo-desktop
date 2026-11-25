@@ -16,50 +16,37 @@
     }
   ],
   "upstream_ignore": [
-    "{\"a\":\"h\"}"
+    "{\"a\":\"h\",\"v\":[],\"m\":\"\"}"
   ],
   "provenance": {
-    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
     "method": "web-script",
     "sources": [
       "broker/pocketful/api/packet_decoder.py::decodeCompactMarketData",
       "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter.subscribe",
       "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._on_message",
       "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_compact_data",
-      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._find_subscription"
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._publish_routes_locked"
     ],
     "notes": [
-      "Frames hand-built from the decoder's offsets (packet_decoder.py:252-265); the web publishes the compact packet on the subscription's LTP topic (pocketful_adapter.py:631-642)."
+      "Frames hand-built at the decoder's offsets (packet_decoder.py _COMPACT); the web publishes the compact packet on the LTP topic as {ltp, timestamp} (pocketful_adapter.py _handle_compact_data)."
     ]
   },
   "deviations": [
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
-      "ref": "pocketful_adapter.py:583, 631",
-      "approval": "alias-unit",
+      "approval": "lost-data-kept",
+      "reason": "Pocketful's compact and detailed packets carry the last trade time (last_traded_time, epoch seconds, packet_decoder.py); the web's frames leave it out since a1d539764 (pocketful_adapter.py _handle_compact_data, _handle_detailed_data): market data the broker sent, lost. The desktop sends it as ltt in epoch milliseconds, the unit the docs give every WebSocket time.",
+      "ref": "pocketful_adapter.py _handle_compact_data, _handle_detailed_data",
       "allows": [
         [
-          1762656900,
+          "<absent>",
           1762656900000
         ],
         [
-          1762656960,
+          "<absent>",
           1762656960000
-        ]
-      ]
-    },
-    {
-      "key": "change",
-      "kind": "web-defect",
-      "reason": "The compact packet's change is a signed number; the web unpacks it unsigned (packet_decoder.py:257, '>I'), so a fall of 10.50 becomes 42949662.46. The desktop reads it signed (audit RB-14; lead ruling 2026-11-09: keep the desktop's).",
-      "ref": "packet_decoder.py:252-265; pocketful/streaming.rs decode_compact",
-      "approval": "never-copy-web-defect",
-      "allows": [
-        [
-          42949662.46,
-          -10.5
         ]
       ]
     }

@@ -1,0 +1,262 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+  "adapter": "pocketful",
+  "inputs_sha256": "e0bcffbcccd017a6df998b42bd32d10fe86fb3dc6c222e1e5f284817881998ae",
+  "instruments": [
+    {
+      "symbol": "PNB",
+      "exchange": "NSE",
+      "token": "10666",
+      "brsymbol": "PNB-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 4,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "pocketful",
+            "orderid": "20220103-1157",
+            "symbol": "PNB",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 1,
+            "price": 36.95,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "MIS",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 1,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "pocketful",
+            "orderid": "20220103-1158",
+            "symbol": "PNB",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 37.1,
+            "trigger_price": 37.0,
+            "pricetype": "SL",
+            "product": "MIS",
+            "order_status": "open",
+            "filled_quantity": 4,
+            "pending_quantity": 6,
+            "average_price": 37.05,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "pocketful",
+            "orderid": "20220103-1158",
+            "symbol": "PNB",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 37.1,
+            "trigger_price": 37.0,
+            "pricetype": "SL",
+            "product": "MIS",
+            "order_status": "complete",
+            "filled_quantity": 10,
+            "pending_quantity": 0,
+            "average_price": 37.08,
+            "rejection_reason": ""
+          }
+        },
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "pocketful",
+            "orderid": "20220103-1159",
+            "symbol": "PNB",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 5,
+            "price": 0.0,
+            "trigger_price": 36.5,
+            "pricetype": "SL-M",
+            "product": "CNC",
+            "order_status": "rejected",
+            "filled_quantity": 0,
+            "pending_quantity": 5,
+            "average_price": 0.0,
+            "rejection_reason": "RMS: margin shortfall"
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "pocketful",
+            "orderid": "20220103-1157",
+            "symbol": "PNB",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 1,
+            "price": 36.95,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "MIS",
+            "order_status": "cancelled",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "line": 15,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 20,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "pocketful",
+            "orderid": "20220103-1160",
+            "symbol": "PNB",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 2,
+            "price": 36.8,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 2,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    }
+  ]
+}

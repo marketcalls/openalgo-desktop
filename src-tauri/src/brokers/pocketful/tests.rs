@@ -642,20 +642,6 @@ fn quote_from_detailed_packet() {
     );
 }
 
-#[test]
-fn json_market_frames_are_accepted() {
-    let p = decode_frame(&Message::Text(
-        json!({"mode": 1, "exchangeCode": 1, "instrumentToken": 3045, "last_traded_price": 81225, "close_price": 80500})
-            .to_string(),
-    ))
-    .unwrap();
-    match p {
-        Packet::Detailed(d) => assert_eq!((d.token, d.ltp, d.close), (3045, 812.25, 805.0)),
-        other => panic!("{:?}", other),
-    }
-    assert!(decode_frame(&Message::Text("{\"a\":\"h\"}".into())).is_none());
-}
-
 fn sub(symbol: &str, exchange: &str, token: &str, brex: &str, mode: FeedMode) -> FeedSubscription {
     FeedSubscription {
         symbol: symbol.into(),
@@ -737,8 +723,8 @@ fn feed_frames_and_heartbeat() {
         )]
     );
     let (every, hb) = f.heartbeat().unwrap();
-    assert_eq!(every, Duration::from_secs(15));
-    assert_eq!(hb, Message::Text("{\"a\":\"h\"}".into()));
+    assert_eq!(every, Duration::from_secs(8));
+    assert_eq!(hb, Message::Text(r#"{"a":"h","v":[],"m":""}"#.into()));
 }
 
 #[test]
@@ -778,55 +764,6 @@ fn feed_ticks_and_depth_use_subscription_names() {
         .parse(&Message::Binary(detailed_packet(6, 3045, 100)))
         .is_empty());
     assert!(f.parse(&Message::Binary(vec![9, 9, 9])).is_empty());
-}
-
-fn update_frame(mode: u8, body: &str) -> Message {
-    let mut b = vec![mode, 0, 0, 0, 0];
-    b.extend_from_slice(body.as_bytes());
-    Message::Binary(b)
-}
-
-#[test]
-fn order_and_trade_updates() {
-    let mut f = PocketfulFeed::new("wss://x", "c", "t", master());
-    let ev = f.parse(&update_frame(50, fixture!("order_update.json")));
-    match &ev[..] {
-        [FeedEvent::OrderUpdate(u)] => {
-            assert_eq!(u.orderid, "260930000000104");
-            assert_eq!(u.symbol, "SBIN");
-            assert_eq!(u.action, "SELL");
-            assert_eq!(u.pricetype, "SL-M");
-            assert_eq!(u.order_status, "open");
-            assert_eq!(
-                (u.quantity, u.filled_quantity, u.pending_quantity),
-                (10, 4, 6)
-            );
-            assert_eq!(u.average_price, 804.9);
-        }
-        other => panic!("{:?}", other),
-    }
-    let ev = f.parse(&update_frame(
-        51,
-        r#"{"order_id":"9","trading_symbol":"NIFTY26OCTFUT","exchange":"NFO","transaction_type":"BUY","trade_quantity":75,"trade_price":25100}"#,
-    ));
-    match &ev[..] {
-        [FeedEvent::OrderUpdate(u)] => {
-            assert_eq!(u.symbol, "NIFTY27OCT26FUT");
-            assert_eq!(u.order_status, "complete");
-            assert_eq!(u.filled_quantity, 75);
-        }
-        other => panic!("{:?}", other),
-    }
-    let rejected = f.parse(&update_frame(
-        50,
-        r#"{"oms_order_id":"5","order_status":"REJECTED","rejection_reason":"No margin"}"#,
-    ));
-    match &rejected[..] {
-        [FeedEvent::OrderUpdate(u)] => assert_eq!(u.rejection_reason, "No margin"),
-        other => panic!("{:?}", other),
-    }
-    // Garbage after the prefix is ignored.
-    assert!(f.parse(&update_frame(50, "not json")).is_empty());
 }
 
 #[test]

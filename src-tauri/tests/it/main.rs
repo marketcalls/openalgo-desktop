@@ -193,6 +193,7 @@ mod broker_kotak_feed;
 mod broker_malformed_replies;
 mod broker_nuvama;
 mod broker_order_outcomes;
+mod broker_pocketful_feed;
 mod broker_rupeezy;
 mod broker_session_e2e;
 mod broker_unread_routes;

@@ -1,0 +1,90 @@
+{
+  "broker": "pocketful",
+  "summary": "A Quote subscription: a detailed packet with no trade price, open or close (0) gives no Quote frame, and the next packet with a price gives the whole quote.",
+  "scenarios": [
+    "absent-field",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\",\"v\":[],\"m\":\"\"}"
+  ],
+  "provenance": {
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/api/packet_decoder.py::decodeDetailedMarketData",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter.subscribe",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_detailed_data"
+    ],
+    "notes": [
+      "Web test/test_pocketful_streaming.py::test_a_price_the_feed_does_not_have_is_left_out_not_sent_as_zero: a price of 0 is one the feed does not have; the web leaves the prices out of its Quote frame, the desktop sends no frame without a trade price."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "missing-frame",
+      "kind": "desktop-decision",
+      "approval": "no-price-packet",
+      "reason": "A detailed packet without a trade price (0): the web publishes a Quote frame without ltp, open, close or the change (pocketful_adapter.py _handle_detailed_data, _price); the desktop publishes no LTP or Quote frame for a packet without a trade price (the 1.0.6 rule), and the next packet with a price brings the quote.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
+      "allows": [
+        [
+          {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2
+          },
+          "<absent>"
+        ]
+      ]
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "approval": "lost-data-kept",
+      "reason": "Pocketful's compact and detailed packets carry the last trade time (last_traded_time, epoch seconds, packet_decoder.py); the web's frames leave it out since a1d539764 (pocketful_adapter.py _handle_compact_data, _handle_detailed_data): market data the broker sent, lost. The desktop sends it as ltt in epoch milliseconds, the unit the docs give every WebSocket time.",
+      "ref": "pocketful_adapter.py _handle_compact_data, _handle_detailed_data",
+      "allows": [
+        [
+          "<absent>",
+          1762656900000
+        ]
+      ]
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "approval": "lost-data-kept",
+      "reason": "The detailed packet carries the book's totals (total_buy_quantity and total_sell_quantity, packet_decoder.py _DETAILED at bytes 38 and 46); the web's Quote frame leaves them out (pocketful_adapter.py _handle_detailed_data; its Depth frame names the snapquote's as totalbuyqty and totalsellqty): market data the broker sent, lost. The desktop's Quote frame keeps them.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
+      "allows": [
+        [
+          "<absent>",
+          500000
+        ]
+      ]
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "approval": "lost-data-kept",
+      "reason": "The detailed packet carries the book's totals (total_buy_quantity and total_sell_quantity, packet_decoder.py _DETAILED at bytes 38 and 46); the web's Quote frame leaves them out (pocketful_adapter.py _handle_detailed_data; its Depth frame names the snapquote's as totalbuyqty and totalsellqty): market data the broker sent, lost. The desktop's Quote frame keeps them.",
+      "ref": "pocketful_adapter.py _handle_detailed_data",
+      "allows": [
+        [
+          "<absent>",
+          600000
+        ]
+      ]
+    }
+  ]
+}

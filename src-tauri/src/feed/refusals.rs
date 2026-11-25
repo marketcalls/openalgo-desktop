@@ -19,11 +19,15 @@ fn depths_accepted(broker: &str) -> Option<(&'static [i64], &'static str)> {
     const FIVE_OR_TWENTY: &[i64] = &[5, 20];
     Some(match broker {
         // angel_adapter.py:360, definedge_adapter.py:401,
-        // pocketful_adapter.py:256, samco_adapter.py:234,
-        // tradejini_adapter.py:462.
-        "angel" | "definedge" | "pocketful" | "samco" | "tradejini" => {
+        // samco_adapter.py:234, tradejini_adapter.py:462.
+        "angel" | "definedge" | "samco" | "tradejini" => {
             (FIVE, "Invalid depth level {}. Must be 5")
         }
+        // pocketful_adapter.py `subscribe` (a1d539764): INVALID_DEPTH.
+        "pocketful" => (
+            FIVE,
+            "Pocketful streams 5 levels of market depth; {} levels are not available.",
+        ),
         // fivepaisa_adapter.py:411.
         "fivepaisa" => (
             FIVE,
@@ -102,6 +106,8 @@ pub(crate) fn not_found(broker: &str, key: &InstrumentKey) -> String {
         }
         // delta_adapter.py:203.
         "deltaexchange" => format!("{s} not found for exchange {e}"),
+        // pocketful_adapter.py `subscribe` (a1d539764): SYMBOL_NOT_FOUND.
+        "pocketful" => format!("{s} was not found on {e}."),
         // iiflcapital_adapter.py:249.
         "iiflcapital" => format!("Token / brexchange not found for {e}:{s}"),
         // kotak_adapter.py:1190: a missing token is logged, and the
@@ -114,7 +120,7 @@ pub(crate) fn not_found(broker: &str, key: &InstrumentKey) -> String {
         "aliceblue" | "nubra" | "sahi" | "zerodha" => format!("Token not found for {s} on {e}"),
         // The SymbolMapper adapters' SYMBOL_NOT_FOUND (angel_adapter.py:369
         // and the XTS, Definedge, Dhan, Firstock, 5paisa, Groww, IndMoney,
-        // Motilal, mstock, Paytm, Pocketful, Samco, Tradejini and Upstox
+        // Motilal, mstock, Paytm, Samco, Tradejini and Upstox
         // adapters). Fyers and the Dhan sandbox look nothing up in their
         // `subscribe` and acknowledge an unknown symbol on the web, which
         // then never streams: refused here in these words.
@@ -165,6 +171,12 @@ mod tests {
                 Some("Invalid depth level 50. Must be 5 or 20"),
             ),
             ("zerodha", 50, None),
+            (
+                "pocketful",
+                20,
+                Some("Pocketful streams 5 levels of market depth; 20 levels are not available."),
+            ),
+            ("pocketful", 5, None),
         ];
         for (broker, depth, want) in cases {
             assert_eq!(
@@ -209,6 +221,7 @@ mod tests {
             ("zerodha", "Token not found for GOLDX on MCX"),
             ("sahi", "Token not found for GOLDX on MCX"),
             ("nubra", "Token not found for GOLDX on MCX"),
+            ("pocketful", "GOLDX was not found on MCX."),
         ];
         for (broker, words) in cases {
             assert_eq!(not_found(broker, &mcx), words, "{broker}");

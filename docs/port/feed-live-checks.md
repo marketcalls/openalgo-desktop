@@ -85,7 +85,12 @@ broker, symbol, time and the frame text.
   `last_traded_time` epoch and its signed compact change; Paytm's
   concatenated packets; IIFL Capital's OI after a reconnect.
 - **Pocketful:** a Depth subscription runs `marketdata` and `full_snapquote`
-  on one token: both streams arrive, and Depth keeps the real last price.
+  on one token (the web's runs `compact_marketdata` beside the snapquote):
+  both streams arrive, and Depth keeps the real last price. The order
+  socket on the SDKs' address (`/ws/v1/feeds`, `updates` channel): the
+  four header bytes before an update's JSON, whether a trade update ever
+  comes without its order update, and whether the server answers the
+  heartbeat there.
 - **Shoonya, Flattrade, Zebu, TradeSmart:** the silence watchdog on a real
   quiet session (no false reconnect after hours); whether frames always
   carry the exchange; real `toi` and `oi` values on an NFO contract; on a
