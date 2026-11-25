@@ -46,8 +46,8 @@ use super::{zip, PocketfulBroker};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
     format_expiry, format_strike, future_symbol, option_symbol, part_missing, rename,
-    split_csv_line, BSE_INDEX_CODE_RENAMES, BSE_INDEX_RENAMES, NSE_INDEX_RENAMES,
-    NSE_SERIES_SUFFIXES,
+    split_csv_line, underlying_before_expiry, BSE_INDEX_CODE_RENAMES, BSE_INDEX_RENAMES,
+    NSE_INDEX_RENAMES, NSE_SERIES_SUFFIXES,
 };
 use crate::brokers::common::redact;
 use crate::brokers::common::symbols::SymToken;
@@ -87,9 +87,6 @@ const NSE_INDEX_EXTRA: &[(&str, &str)] = &[("NIFTYFPI150", "NIFTYFPI")];
 
 /// BSE index codes beyond the shared tables (web, from `broker/sahi`).
 const BSE_INDEX_EXTRA: &[(&str, &str)] = &[("BSHOSP", "BSEHOSPITALS")];
-
-/// Weekly derivative symbols carry the month as one character.
-const WEEKLY_MONTH_CODES: [char; 12] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'O', 'N', 'D'];
 
 /// web `FAILED_MESSAGE`: what the trader reads when a download fails.
 const FAILED_MESSAGE: &str = "Could not refresh the Pocketful symbol list. Symbols from the last successful download are still in use. Try again in a few minutes.";
@@ -395,24 +392,6 @@ fn contract_expiry(s: &str) -> Option<NaiveDate> {
         .filter(|d| d.year() > 1900)
 }
 
-/// web `_underlying_from_symbol`: the trading symbol without its expiry and
-/// strike suffix, rebuilt from the row's own expiry in the monthly form
-/// (26NOV + tail) and the weekly form (26N19 + tail), so a digit inside an
-/// underlying (SILVER100, SENSEX50) is never taken for part of the date.
-/// Empty where neither form matches.
-fn underlying_from_symbol(symbol: &str, expiry: NaiveDate, tail: &str) -> String {
-    let year = expiry.year() % 100;
-    let month = expiry.format("%b").to_string().to_uppercase();
-    let weekly_month = WEEKLY_MONTH_CODES[expiry.month0() as usize];
-    let monthly = format!("{:02}{}{}", year, month, tail);
-    let weekly = format!("{:02}{}{:02}{}", year, weekly_month, expiry.day(), tail);
-    [monthly, weekly]
-        .iter()
-        .find(|suffix| symbol.len() > suffix.len() && symbol.ends_with(suffix.as_str()))
-        .map(|suffix| symbol[..symbol.len() - suffix.len()].to_string())
-        .unwrap_or_default()
-}
-
 /// Why an F&O file's row is not loaded.
 enum NotLoaded {
     /// No option type CE, PE or XX: MCX spot definitions.
@@ -438,19 +417,20 @@ fn contract(line: &Line<'_>, exchange: &str) -> std::result::Result<SymToken, No
         0.0
     };
     let underlying = match line.get("company_name") {
+        // web `_underlying_from_symbol`, for a row with no company name
+        // (every MCX row).
         "" => {
             let tail = if is_option {
                 format!("{}{}", format_strike(strike), option_type)
             } else {
                 "FUT".to_string()
             };
-            underlying_from_symbol(line.get("trading_symbol"), expiry, &tail)
+            underlying_before_expiry(line.get("trading_symbol"), expiry, &tail)
+                .ok_or(NotLoaded::NoUnderlying)?
+                .to_string()
         }
         name => name.to_string(),
     };
-    if underlying.is_empty() {
-        return Err(NotLoaded::NoUnderlying);
-    }
     let expiry = format_expiry(expiry);
     let (symbol, kind) = if is_option {
         let symbol = option_symbol(&underlying, &expiry, strike, &option_type);

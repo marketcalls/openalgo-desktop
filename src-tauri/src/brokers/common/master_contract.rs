@@ -112,6 +112,38 @@ pub fn option_symbol(base: &str, expiry: &str, strike: f64, option_type: &str) -
     )
 }
 
+/// The month as weekly derivative symbols carry it: 1 to 9, then O, N and D
+/// for October to December (`NIFTY26O0625000PE`).
+const WEEKLY_MONTH_CODES: [char; 12] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'O', 'N', 'D'];
+
+/// The underlying a broker's derivative symbol names before its expiry:
+/// the symbol without `<YY><MON><tail>` (monthly, `NIFTY26NOVFUT`) or
+/// `<YY><M><DD><tail>` (weekly, `NIFTY26N1925850PE`), both rebuilt from the
+/// contract's own expiry, so a digit inside an underlying (SILVER100,
+/// SENSEX50) is never read as part of the date. `None` when neither form
+/// ends the symbol, or nothing is left before it.
+pub(crate) fn underlying_before_expiry<'s>(
+    symbol: &'s str,
+    expiry: NaiveDate,
+    tail: &str,
+) -> Option<&'s str> {
+    use chrono::Datelike;
+    let year = expiry.year() % 100;
+    let month = expiry.month0() as usize;
+    let monthly = format!("{:02}{}{}", year, MONTHS[month], tail);
+    let weekly = format!(
+        "{:02}{}{:02}{}",
+        year,
+        WEEKLY_MONTH_CODES[month],
+        expiry.day(),
+        tail
+    );
+    [monthly, weekly]
+        .iter()
+        .find_map(|suffix| symbol.strip_suffix(suffix.as_str()))
+        .filter(|underlying| !underlying.is_empty())
+}
+
 /// NSE index names as brokers ship them -> OpenAlgo `NSE_INDEX` symbols
 /// (web `broker/zerodha/database/master_contract_db.py`).
 pub const NSE_INDEX_RENAMES: &[(&str, &str)] = &[
@@ -368,6 +400,46 @@ mod tests {
             option_symbol("726GS2032", "25-APR-24", 97.0, "PE"),
             "726GS203225APR2497PE"
         );
+    }
+
+    #[test]
+    fn underlying_before_a_contracts_expiry() {
+        let under = |symbol: &'static str, (y, m, d): (i32, u32, u32), tail: &str| {
+            let expiry = NaiveDate::from_ymd_opt(y, m, d).unwrap();
+            underlying_before_expiry(symbol, expiry, tail)
+        };
+        // Monthly, with a digit inside the underlying.
+        assert_eq!(under("NIFTY26NOVFUT", (2026, 11, 24), "FUT"), Some("NIFTY"));
+        assert_eq!(
+            under("SILVER10026NOVFUT", (2026, 11, 30), "FUT"),
+            Some("SILVER100")
+        );
+        assert_eq!(
+            under("NIFTY26NOV25000CE", (2026, 11, 24), "25000CE"),
+            Some("NIFTY")
+        );
+        // Weekly, the month as a digit and as O, N or D.
+        assert_eq!(
+            under("SENSEX2681369500CE", (2026, 8, 13), "69500CE"),
+            Some("SENSEX")
+        );
+        assert_eq!(
+            under("NIFTY26O0625000PE", (2026, 10, 6), "25000PE"),
+            Some("NIFTY")
+        );
+        assert_eq!(
+            under("SENSEX26N1975000CE", (2026, 11, 19), "75000CE"),
+            Some("SENSEX")
+        );
+        assert_eq!(
+            under("NIFTY26D0125850PE", (2026, 12, 1), "25850PE"),
+            Some("NIFTY")
+        );
+        // Another expiry's form, another tail, nothing before the date.
+        assert_eq!(under("NIFTY26DECFUT", (2026, 11, 24), "FUT"), None);
+        assert_eq!(under("NIFTY26NOVFUT", (2026, 11, 24), "25000CE"), None);
+        assert_eq!(under("26NOVFUT", (2026, 11, 24), "FUT"), None);
+        assert_eq!(under("26N19FUT", (2026, 11, 19), "FUT"), None);
     }
 
     #[test]
