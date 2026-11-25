@@ -11,11 +11,17 @@
 //! - [`untrusted`]: wrapping text that entered as data.
 //! - [`build_system_prompt`]: one run's prompt: base sections, the surface's
 //!   sections, the skills and external data sections a caller adds
-//!   ([`SystemPrompt::extra_sections`]), the trader's override, and the
-//!   session section (IST time, trading on or off, analyzer mode, the
-//!   chart's context).
+//!   ([`SystemPrompt::extra_sections`]), the trader's override, the session
+//!   section (trading on or off, analyzer mode) and, last, the RIGHT NOW
+//!   section (IST time, the chart's context).
+//!
+//! The prompt is the same text from one message to the next up to that
+//! last section (web d941bb3b1): a provider's prompt cache matches a prefix,
+//! so the clock early in the prompt used to throw away everything after it.
 
 mod openui;
+#[cfg(test)]
+mod stable_prefix_tests;
 pub mod untrusted;
 
 use chrono::DateTime;
@@ -247,34 +253,21 @@ pub fn sections_for(
     merged
 }
 
-/// The session section (the web's `runtime_section`).
-pub fn runtime_section(
-    trading_enabled: bool,
-    analyzer_mode: bool,
-    now: Option<DateTime<Tz>>,
-    extra_lines: &[String],
-) -> PromptSection {
-    let mut lines: Vec<String> = Vec::new();
-    if let Some(now) = now {
-        let stamp = now.format("%A, %Y-%m-%d %H:%M %Z").to_string();
-        lines.push(format!("- Current date and time: {}.", stamp.trim()));
-    }
-    lines.push(if trading_enabled {
-        "- Trading is enabled for this session. Order tools are available, every one of them pauses for the operator's approval, and a risk check runs inside the tool after that approval.".into()
-    } else {
-        "- Trading is disabled for this session, so you have no order tools at all. You can research, analyse and explain, and you must say plainly that placing the order is not something you can do here rather than pretending to have done it.".into()
-    });
-    lines.push(if analyzer_mode {
-        "- Analyzer mode is on. Any order goes to the sandbox, not to the broker. Say so whenever you report an order as placed.".into()
-    } else {
-        "- Analyzer mode is off. An order that is approved reaches the real broker account and real money.".into()
-    });
-    lines.extend(
-        extra_lines
-            .iter()
-            .filter(|l| !l.trim().is_empty())
-            .map(|l| format!("- {}", l)),
-    );
+/// The session section (the web's `runtime_section`): only what changes
+/// rarely, so the prompt stays the same text from one message to the next.
+pub fn runtime_section(trading_enabled: bool, analyzer_mode: bool) -> PromptSection {
+    let lines = [
+        if trading_enabled {
+            "- Trading is enabled for this session. Order tools are available, every one of them pauses for the operator's approval, and a risk check runs inside the tool after that approval."
+        } else {
+            "- Trading is disabled for this session, so you have no order tools at all. You can research, analyse and explain, and you must say plainly that placing the order is not something you can do here rather than pretending to have done it."
+        },
+        if analyzer_mode {
+            "- Analyzer mode is on. Any order goes to the sandbox, not to the broker. Say so whenever you report an order as placed."
+        } else {
+            "- Analyzer mode is off. An order that is approved reaches the real broker account and real money."
+        },
+    ];
     PromptSection {
         // Pinned on the desktop (D-013): this is the section that says
         // whether an approved order reaches the real account, and the web's
@@ -282,6 +275,41 @@ pub fn runtime_section(
         pinned: true,
         ..PromptSection::new("runtime", "THIS SESSION", &lines.join("\n"), 15)
     }
+}
+
+/// After every other section, so nothing that changes per message sits
+/// ahead of text that does not (the web's `_VOLATILE_ORDER`).
+const VOLATILE_ORDER: i64 = 99;
+
+/// The section for what changes with every message (the web's
+/// `volatile_section`): the clock and the chart's current symbol. It is the
+/// last section because a prompt cache matches a prefix; pinned, as on the
+/// web, so a prompt trimmed to its budget keeps the clock. `None` when there
+/// is nothing to say.
+pub(crate) fn volatile_section(
+    now: Option<DateTime<Tz>>,
+    extra_lines: &[String],
+) -> Option<PromptSection> {
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(now) = now {
+        // The weekday is stated because "last Friday" or "this week" is
+        // otherwise a calculation the model can get wrong.
+        let stamp = now.format("%A, %Y-%m-%d %H:%M %Z").to_string();
+        lines.push(format!("- Current date and time: {}.", stamp.trim()));
+    }
+    lines.extend(
+        extra_lines
+            .iter()
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| format!("- {}", l)),
+    );
+    if lines.is_empty() {
+        return None;
+    }
+    Some(PromptSection {
+        pinned: true,
+        ..PromptSection::new("now", "RIGHT NOW", &lines.join("\n"), VOLATILE_ORDER)
+    })
 }
 
 /// Render sections, dropping whole unpinned sections from the end to fit
@@ -355,7 +383,7 @@ pub struct SystemPrompt<'a> {
     /// Sections a caller adds or replaces: the skills section, the external
     /// data (MCP) section, a surface's own.
     pub extra_sections: Vec<PromptSection>,
-    /// Extra bullets for the session section (the chart's context).
+    /// Extra bullets for the RIGHT NOW section (the chart's context).
     pub extra_runtime_lines: Vec<String>,
     /// The spoken surface's configured agent name.
     pub voice_agent_name: Option<&'a str>,
@@ -374,12 +402,8 @@ pub fn build_system_prompt(p: &SystemPrompt<'_>) -> String {
         p.override_text,
         p.voice_agent_name,
     );
-    sections.push(runtime_section(
-        p.trading_enabled,
-        p.analyzer_mode,
-        p.now,
-        &p.extra_runtime_lines,
-    ));
+    sections.push(runtime_section(p.trading_enabled, p.analyzer_mode));
+    sections.extend(volatile_section(p.now, &p.extra_runtime_lines));
     sections.sort_by_key(|s| s.order);
     if let Some((http, ws)) = &p.addresses {
         for s in sections.iter_mut().filter(|s| s.key == "openalgo_sdk") {
@@ -469,6 +493,10 @@ mod tests {
                 // keeps it (D-013) and drops the same sections otherwise.
                 assert!(prompt.contains("\n\nTHIS SESSION\n- "), "{}", run);
                 assert!(prompt.starts_with(web.split("\n\n").next().unwrap()));
+                // Both keep the clock, as the last section.
+                if let Some(at) = web.rfind("\n\nRIGHT NOW\n") {
+                    assert!(prompt.ends_with(&web[at..]), "{}", run);
+                }
             }
         }
     }
