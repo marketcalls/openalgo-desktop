@@ -273,8 +273,31 @@ async fn tradejini_never_leaks_credentials() {
         // The live feed's request carries the token (it must), but nothing
         // that prints the feed does.
         let _ = b.create_feed(&AuthToken::new(format!("{S}:{S}")));
+        tradejini_order_feed_refusals(&b);
     }
     logs_clean("tradejini logs", &log);
+}
+
+/// The order-update socket's address carries the token too (web
+/// openalgo#2477); what prints the feed, and its refusals (an auth packet
+/// other than 1, a close with 4001 and a reason), do not.
+fn tradejini_order_feed_refusals(b: &TradejiniBroker) {
+    use openalgo_desktop_lib::brokers::common::streaming::{Ended, Message, OrderFeed};
+    use openalgo_desktop_lib::brokers::tradejini::streaming::build;
+    let feed = b.create_order_feed(&AuthToken::new(format!("{S}:{S}")));
+    clean("tradejini order feed", &format!("{:?}", feed));
+    let Ok(OrderFeed::Socket(mut feed)) = feed else {
+        panic!("Tradejini's order updates come on a socket of their own");
+    };
+    let refused = build::frame(&[build::auth(0)], false);
+    for event in feed.parse(&Message::Binary(refused)) {
+        clean("tradejini order feed refusal", &format!("{:?}", event));
+    }
+    let ended = feed.on_ended(Ended::Closed {
+        code: Some(4001),
+        reason: S,
+    });
+    clean("tradejini order feed close", &format!("{:?}", ended));
 }
 
 #[tokio::test]

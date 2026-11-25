@@ -1,0 +1,17 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"json": {"type": "event", "action": "sub", "events": ["orders"]}}], "note": "NxtradStream.subscribeEvents([\"orders\"]) as the socket opens (tradejini_order_adapter.py on_open_extra); no login frame, the token is in the URL."}
+{"step": "push", "socket": "orders", "frame": "frames/auth_ok.hex"}
+{"step": "silence", "client": "a", "note": "An accepted session is quiet."}
+{"step": "push", "socket": "orders", "frame": "frames/order_open.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_partial_then_complete.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_partial.json", "note": "fillQty, pendingQty and avgPrice are read under the order book's names when the event carries them."}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_trigger_pending.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_trigger_pending.json", "note": "No scrip id and a trading symbol the master does not hold (its brsymbol is the scrip id): the broker's own symbol, as the web reports it."}
+{"step": "push", "socket": "orders", "frame": "frames/order_rejected.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
+{"step": "push", "socket": "orders", "frame": "frames/order_cancelled.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_cancelled.json"}
+{"step": "push", "socket": "orders", "frame": "frames/not_orders_then_an_order.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_after_skips.json", "note": "Only the last event of the frame is an order update that reads; the malformed one costs only itself."}

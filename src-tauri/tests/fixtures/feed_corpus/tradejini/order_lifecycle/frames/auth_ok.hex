@@ -1,0 +1,5 @@
+# Tradejini accepts the token in the URL
+0b0000000100  # frame length 11, version 1, compression 0 (none)
+# auth status 1 (accepted)
+05000d  # packet length 5, type 13 (auth)
+1901  # 25 auth_status = 1

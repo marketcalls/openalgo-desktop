@@ -74,7 +74,11 @@ broker, symbol, time and the frame text.
   order updates (needs an order).
 - **Samco:** the index listing-id lookup at a cold index subscribe; MCX
   order symbols (needs an order).
-- **Tradejini:** a live compressed frame; the CDS divisor.
+- **Tradejini:** a live compressed frame; the CDS divisor; the order
+  socket's events (needs an order): whether they carry `symId` (without it
+  the update names Tradejini's trading symbol, as on the web), fill fields
+  (`fillQty`, `avgPrice`) and which status words, and that the market feed
+  keeps streaming beside it.
 - **mStock:** whether full packets carry the trade time in seconds; CDS
   prices; MCX exchange type 5.
 - **Motilal:** what the broadcast server does with the logout text frame at

@@ -35,15 +35,17 @@
         5
       ]
     },
-    "orders": false
+    "orders": "a dedicated order-update socket (the CubePlus stream's orders events)"
   },
   "sources": [
     "broker/tradejini/streaming/tradejini_mapping.py::TradejiniCapabilityRegistry",
     "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter.subscribe",
-    "services/order_update_service.py:36-98 (no Tradejini order-update adapter, not a polling broker)"
+    "broker/tradejini/streaming/tradejini_order_adapter.py (marketcalls/openalgo#2477)",
+    "services/order_update_service.py:83-86"
   ],
   "notes": [
     "Depth 5 only: the web adapter refuses any other depth in Depth mode (\"Invalid depth level\"), before its capability registry's fallback is reached.",
-    "L1 carries the quote and L5 the book; a Depth subscription rides both."
+    "L1 carries the quote and L5 the book; a Depth subscription rides both.",
+    "Order updates come on a second stream socket with the same token: on open it asks for the orders events, which arrive as packet 15 (EVENTS) in the market feed's frame layout; Tradejini allows five sockets a login."
   ]
 }

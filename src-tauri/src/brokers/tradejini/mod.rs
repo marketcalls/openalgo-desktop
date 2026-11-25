@@ -6,13 +6,15 @@
 //! session token stored by OpenAlgo Desktop is `api_key:access_token`.
 //! OMS bodies are form-encoded. Quotes, multiquotes and depth have no REST
 //! endpoint: they open a short-lived NxtradStream socket, read what they
-//! need, and close it on every path.
+//! need, and close it on every path. Order updates come on a stream socket
+//! of their own (`order_feed`).
 
 mod auth;
 pub mod data;
 mod funds;
 pub mod mapping;
 pub mod master_contract;
+pub mod order_feed;
 mod orders;
 pub mod streaming;
 #[cfg(test)]
@@ -21,7 +23,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -245,7 +247,7 @@ impl Broker for TradejiniBroker {
             margin: false,
             gtt: false,
             streaming: true,
-            order_feed: false,
+            order_feed: true,
             depth_levels: &[5],
         }
     }
@@ -352,6 +354,20 @@ impl Broker for TradejiniBroker {
             &self.stream_url,
             api_key,
             access_token,
+        )))
+    }
+
+    /// The `orders` events of the CubePlus stream, on a socket of their own
+    /// beside the market feed (web openalgo#2477).
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        let (api_key, access_token) = Self::pair(auth)?;
+        Ok(OrderFeed::Socket(Box::new(
+            order_feed::TradejiniOrderFeed::new(
+                &self.stream_url,
+                api_key,
+                access_token,
+                self.symbols.clone(),
+            ),
         )))
     }
 }

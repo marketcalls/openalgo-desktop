@@ -12,6 +12,15 @@ symbol master in place of the database.
 NxtradStream formats the trade time with the server's local time zone
 (`datefmt`: `str(datetime.fromtimestamp(ltt))`); the glue fixes that zone
 at IST, so web.json does not depend on the machine that runs it.
+
+Order updates (web openalgo#2477) come on a socket of their own: the order
+adapter's own frame handling (`_handle_message`, `normalize_frame`,
+`normalize_event`, `decode_stream_frame`) reads each frame pushed on the
+`orders` socket, with Tradejini's `transform_data` maps and the case's
+symbol master for `to_openalgo_symbol`, and what it publishes is relayed as
+the web relays it (`webkit.Glue.order`). The adapter keeps nothing from one
+socket to the next, so a dropped order socket changes nothing here; a
+refused session (an auth packet other than 1) publishes nothing.
 """
 
 import datetime as _dt
@@ -19,6 +28,7 @@ import threading
 
 from webkit import Glue, Source
 
+ORDERS = "broker/tradejini/streaming/tradejini_order_adapter.py"
 _IST = _dt.timezone(_dt.timedelta(hours=5, minutes=30))
 
 
@@ -78,6 +88,25 @@ class Tradejini(Glue):
                 "_add_reference_keys", "_extract_depth_data",
             ],
         ),
+        Source(
+            "broker/tradejini/mapping/transform_data.py",
+            None,
+            ["reverse_map_order_type", "reverse_map_product_type"],
+        ),
+        Source(
+            ORDERS,
+            None,
+            [
+                "_FRAME_VERSION", "_ZLIB_FLAG", "_PKT_AUTH", "_PKT_EVENTS", "_KEY_AUTH_STATUS",
+                "_KEY_MSG_LEN", "_KEY_MESSAGE", "_DEFAULT_MESSAGE_LEN", "_STATUS_MAP",
+                "_ACTION_MAP", "_present", "decode_stream_frame",
+            ],
+        ),
+        Source(
+            ORDERS,
+            "TradejiniOrderUpdateAdapter",
+            ["_stand_down_after_auth_failure", "normalize_frame", "_handle_message", "normalize_event"],
+        ),
     ]
 
     def stubs(self):
@@ -89,7 +118,11 @@ class Tradejini(Glue):
                 row = master.by_symbol(symbol, exchange)
                 return {"token": str(row["token"]), "brexchange": row["brexchange"]} if row else None
 
-        return {"SymbolMapper": SymbolMapper, "datetime": _ServerClock}
+        return {
+            "SymbolMapper": SymbolMapper,
+            "datetime": _ServerClock,
+            "to_openalgo_symbol": self.to_openalgo_symbol,
+        }
 
     def start(self):
         self.stream = self.new(
@@ -116,6 +149,14 @@ class Tradejini(Glue):
             feed, cancel_when_empty
         )
         self.stream.stream_cb = self.ad._on_data
+        # The order adapter as the web's own test builds it, its socket
+        # already gone (nothing to close on a refusal), publishing through
+        # the web's relay.
+        self.orders = self.new(
+            "TradejiniOrderUpdateAdapter",
+            broker_name="tradejini", user_id="<USER_ID>", _ws=None, _auth_rejected=False,
+        )
+        self.orders._publish_event_fields = self.order
 
     def subscribe(self, row, mode, depth):
         # A refusal (a depth other than 5) stores nothing and sends nothing
@@ -129,11 +170,16 @@ class Tradejini(Glue):
         self.ad.unsubscribe(row["symbol"], row["exchange"], mode)
 
     def reconnect(self, socket):
+        # The order adapter keeps nothing from one socket to the next.
+        if socket != "main":
+            return
         # The socket closed (its halves go with the session) and opened
         # again (both feeds replayed); `running` is off, so no retry thread.
         self.ad._on_connection_event(None, {"s": "closed", "reason": "dropped"})
         self.ad._on_connection_event(None, {"s": "connected"})
 
     def push(self, socket, frame):
-        if isinstance(frame, bytes):
+        if socket == "orders":
+            self.orders._handle_message(frame)
+        elif isinstance(frame, bytes):
             self.stream._NxtradStream__on_message(None, frame)

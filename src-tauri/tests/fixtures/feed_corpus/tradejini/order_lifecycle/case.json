@@ -1,0 +1,54 @@
+{
+  "broker": "tradejini",
+  "summary": "The order-update socket asks for Tradejini's order events as soon as it opens; an order open, partly filled and complete (two events in one compressed frame), a stop-loss order trigger pending, one rejected with its reason and a future cancelled each reach the client as an order_update in OpenAlgo's constants; positions and trades events, text that is not JSON and an order event with an unreadable quantity in one frame send nothing, and the frame's good order event still goes out.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "EQT_RELIANCE_EQ_NSE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "EQT_SBIN_EQ_NSE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52168",
+      "brsymbol": "FUTIDX_NIFTY_NFO_2026-11-24",
+      "brexchange": "NFO",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX",
+      "expiry": "24-NOV-26"
+    }
+  ],
+  "provenance": {
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradejini/streaming/tradejini_order_adapter.py::decode_stream_frame",
+      "broker/tradejini/streaming/tradejini_order_adapter.py::TradejiniOrderUpdateAdapter.normalize_frame",
+      "broker/tradejini/streaming/tradejini_order_adapter.py::TradejiniOrderUpdateAdapter.normalize_event",
+      "broker/tradejini/mapping/transform_data.py::reverse_map_order_type",
+      "broker/tradejini/mapping/transform_data.py::reverse_map_product_type",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Tradejini's documented order event (12-websocket-sdks.md, as the web adapter's docstring lists it) carries no fill quantity, average price or trigger price; the partial and complete events here add fillQty, pendingQty and avgPrice under the order book's names, which the web adapter reads when present.",
+      "The frames are built with the SDK's layout as the web's test_tradejini_order_adapter.py builds them: a 6-byte header, then packets of length, type and key/value fields."
+    ]
+  },
+  "deviations": []
+}

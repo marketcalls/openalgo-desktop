@@ -242,7 +242,7 @@
       "depth": [
         5
       ],
-      "orders": false,
+      "orders": true,
       "source": "by-hand"
     },
     "tradesmart": {

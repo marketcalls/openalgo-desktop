@@ -1,0 +1,91 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+  "adapter": "tradejini",
+  "inputs_sha256": "dd51bc1b9cecdd5fd9c6880fad6fba9b92e71bde92a3d41e8000880e24c7d306",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "EQT_RELIANCE_EQ_NSE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "EQT_SBIN_EQ_NSE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52168",
+      "brsymbol": "FUTIDX_NIFTY_NFO_2026-11-24",
+      "brexchange": "NFO",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX",
+      "expiry": "24-NOV-26"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "tradejini",
+            "orderid": "25112500000301",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 1,
+            "price": 2440.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "CNC",
+            "order_status": "open",
+            "filled_quantity": 0,
+            "pending_quantity": 0,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "published": [],
+      "deliveries": []
+    }
+  ]
+}
