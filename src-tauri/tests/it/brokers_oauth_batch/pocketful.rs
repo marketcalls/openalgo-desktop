@@ -1,15 +1,14 @@
 //! Pocketful against a local fake: OAuth2 code exchange with Basic client
-//! auth and the trading_info lookup, orders (MARKET sent as a protected
-//! LIMIT priced from the REST last price), cancel-all, close-all, open
-//! position, books normalised to OpenAlgo symbols, funds, quotes and depth
-//! over a fake market-data socket, and the master-contract ZIP.
+//! auth and the trading_info lookup, an expired or account-less session,
+//! quotes and depth over a fake market-data socket, and the master-contract
+//! ZIP. Orders, books and close-all are ported from the web's tests in
+//! `brokers/pocketful/rest_tests/orders.rs`.
 
 use axum::body::Bytes;
 use axum::http::{HeaderMap, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::Router;
 use futures_util::{SinkExt, StreamExt};
-use openalgo_desktop_lib::brokers::common::mapping::{Exchange, Product};
 use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::pocketful::master_contract::parse_archive;
 use openalgo_desktop_lib::brokers::pocketful::{auth, zip, PocketfulBroker};
@@ -50,7 +49,6 @@ fn master() -> SymbolResolver {
 struct Seen {
     method: String,
     path: String,
-    query: String,
     authorization: String,
     access_header: String,
     body: String,
@@ -84,7 +82,7 @@ fn ok(v: impl ToString) -> Response {
         .into_response()
 }
 
-fn route(method: &Method, path: &str, query: &str, body: &str, auth: &str) -> Response {
+fn route(method: &Method, path: &str, body: &str, auth: &str) -> Response {
     if path == "/oauth2/token" {
         if body.contains("code=bad") {
             return (
@@ -104,38 +102,7 @@ fn route(method: &Method, path: &str, query: &str, body: &str, auth: &str) -> Re
         ("GET", "/api/v1/user/trading_info") => {
             ok(json!({"status": "success", "data": {"client_id": "<USER_ID>"}}))
         }
-        ("POST", "/api/v1/orders") => {
-            ok(json!({"status": "success", "data": {"oms_order_id": "OMS1"}}))
-        }
-        ("PUT", "/api/v1/orders") => {
-            ok(json!({"status": "success", "data": {"oms_order_id": "OMS2"}}))
-        }
-        ("DELETE", p) if p.starts_with("/api/v1/orders/") => {
-            let id = p.rsplit('/').next().unwrap_or("");
-            if id == "260930000000105" {
-                ok(json!({"status": "error", "message": "Order already traded"}))
-            } else {
-                ok(json!({"status": "success", "data": {"oms_order_id": id}}))
-            }
-        }
-        ("GET", "/api/v1/orders") if query.contains("type=completed") => {
-            ok(fixture!("orders_completed.json"))
-        }
-        ("GET", "/api/v1/orders") => ok(fixture!("orders_pending.json")),
-        ("GET", "/api/v1/trades") => ok(fixture!("trades.json")),
-        ("GET", "/api/v1/positions") => ok(fixture!("positions.json")),
-        ("GET", "/api/v1/holdings") => ok(fixture!("holdings.json")),
         ("GET", "/api/v2/funds/view") => ok(fixture!("funds.json")),
-        ("GET", p)
-            if p.starts_with("/api/v1/marketdata/") && query.contains("key=last_trade_price") =>
-        {
-            let token = query
-                .split('&')
-                .find_map(|kv| kv.strip_prefix("token="))
-                .and_then(|t| t.parse::<u32>().ok())
-                .unwrap_or(0);
-            ok(json!({"status": "success", "message": "", "data": ltp_for(token) as f64 / 100.0}))
-        }
         ("GET", "/contract") => {
             let files: Vec<(&str, &[u8])> = FILES.iter().map(|(n, t)| (*n, t.as_bytes())).collect();
             (StatusCode::OK, zip::build(&files)).into_response()
@@ -160,16 +127,14 @@ async fn serve_rest(fake: Arc<Fake>) -> String {
                 let auth = header("authorization");
                 let access_header = header("x-authorization-token");
                 let path = uri.path().to_string();
-                let query = uri.query().unwrap_or("").to_string();
                 fake.seen.lock().push(Seen {
                     method: method.to_string(),
                     path: path.clone(),
-                    query: query.clone(),
                     authorization: auth.clone(),
                     access_header,
                     body: body.clone(),
                 });
-                route(&method, &path, &query, &body, &auth)
+                route(&method, &path, &body, &auth)
             }
         },
     );
@@ -300,23 +265,6 @@ async fn setup() -> (PocketfulBroker, Arc<Fake>, AuthToken) {
     )
 }
 
-fn order(symbol: &str, exchange: &str, pricetype: &str, price: f64) -> ResolvedOrder {
-    let req = OrderRequest {
-        symbol: symbol.into(),
-        exchange: exchange.into(),
-        side: "BUY".into(),
-        quantity: 10,
-        price,
-        order_type: pricetype.into(),
-        product: "MIS".into(),
-        validity: "DAY".into(),
-        trigger_price: None,
-        disclosed_quantity: None,
-        amo: false,
-    };
-    ResolvedOrder::resolve(&req, &master()).unwrap()
-}
-
 #[tokio::test]
 async fn pocketful_login_exchanges_the_code_with_basic_auth() {
     let (b, fake, _) = setup().await;
@@ -355,134 +303,6 @@ async fn pocketful_login_exchanges_the_code_with_basic_auth() {
         ..creds
     };
     assert!(b.authenticate(missing).await.is_err());
-}
-
-#[tokio::test]
-async fn pocketful_orders_and_market_protection() {
-    let (b, fake, auth) = setup().await;
-    let r = b
-        .place_order(&auth, &order("SBIN", "NSE", "LIMIT", 811.5))
-        .await
-        .unwrap();
-    assert_eq!(r.order_id, "OMS1");
-    let sent: Value = serde_json::from_str(&fake.calls("POST", "/api/v1/orders")[0].body).unwrap();
-    assert_eq!(sent["order_type"], "LIMIT");
-    assert_eq!(sent["price"], 811.5);
-    assert_eq!(sent["instrument_token"], 3045);
-    assert_eq!(sent["client_id"], "<USER_ID>");
-    assert_eq!(sent["order_side"], "BUY");
-    assert_eq!(sent["device"], "WEB");
-    assert_eq!(
-        fake.calls("POST", "/api/v1/orders")[0].authorization,
-        "Bearer acc-pf-1"
-    );
-
-    // MARKET: LTP 812.25 from one REST read, EQ above 500 -> 0.5%, tick 0.05.
-    b.place_order(&auth, &order("SBIN", "NSE", "MARKET", 0.0))
-        .await
-        .unwrap();
-    let sent: Value = serde_json::from_str(&fake.calls("POST", "/api/v1/orders")[1].body).unwrap();
-    assert_eq!(sent["order_type"], "LIMIT");
-    assert_eq!(sent["price"], 816.3);
-    let ltp = fake.calls("GET", "/api/v1/marketdata/NSE/Capital");
-    assert_eq!(ltp.len(), 1);
-    assert_eq!(ltp[0].query, "token=3045&key=last_trade_price");
-    assert!(fake.ws_uris.lock().is_empty(), "no socket for a price");
-
-    let m = ModifyOrderRequest {
-        symbol: "SBIN".into(),
-        exchange: "NSE".into(),
-        action: "SELL".into(),
-        product: "MIS".into(),
-        pricetype: "SL-M".into(),
-        quantity: 10,
-        price: 0.0,
-        trigger_price: 800.0,
-        disclosed_quantity: 0,
-    };
-    let rm = ResolvedModify::resolve("260930000000104", &m, &master()).unwrap();
-    assert_eq!(b.modify_order(&auth, &rm).await.unwrap().order_id, "OMS2");
-    let sent: Value = serde_json::from_str(&fake.calls("PUT", "/api/v1/orders")[0].body).unwrap();
-    assert_eq!(sent["oms_order_id"], "260930000000104");
-    assert_eq!(sent["order_type"], "SLM");
-    assert_eq!(sent["trigger_price"], 800.0);
-
-    let c = b.cancel_order(&auth, "260930000000104").await.unwrap();
-    assert_eq!(c.order_id, "260930000000104");
-    let del = fake.calls("DELETE", "/api/v1/orders/260930000000104");
-    assert_eq!(del[0].query, "client_id=%3CUSER_ID%3E");
-
-    // Cancel-all reads the pending book; one cancel is refused.
-    let all = b.cancel_all_orders(&auth).await.unwrap();
-    assert_eq!(all.cancelled, ["260930000000104", "260930000000106"]);
-    assert_eq!(all.failed, ["260930000000105"]);
-    assert!(fake
-        .seen
-        .lock()
-        .iter()
-        .any(|s| s.path == "/api/v1/orders" && s.query.contains("type=pending")));
-}
-
-#[tokio::test]
-async fn pocketful_books_funds_and_positions() {
-    let (b, fake, auth) = setup().await;
-    let orders = b.get_order_book(&auth).await.unwrap();
-    assert_eq!(orders.len(), 6);
-    assert_eq!(orders[0].symbol, "SBIN");
-    assert_eq!(orders[3].status, "trigger pending");
-    assert!(orders.iter().all(|o| o.status == o.status.to_lowercase()));
-    let trades = b.get_trade_book(&auth).await.unwrap();
-    assert_eq!(trades[1].symbol, "NIFTY27OCT26FUT");
-    let positions = b.get_positions(&auth).await.unwrap();
-    assert_eq!(positions.len(), 3);
-    assert_eq!(positions[1].symbol, "NIFTY27OCT26FUT");
-    let pos_call = &fake.calls("GET", "/api/v1/positions")[0];
-    assert_eq!(pos_call.query, "client_id=%3CUSER_ID%3E&type=live");
-    let holdings = b.get_holdings(&auth).await.unwrap();
-    assert_eq!(holdings[0].symbol, "SBIN");
-    let funds = b.get_funds(&auth).await.unwrap();
-    assert_eq!(funds.available_cash, 85234.57);
-    assert_eq!(funds.collateral, 25000.0);
-    assert_eq!(
-        fake.calls("GET", "/api/v2/funds/view")[0].query,
-        "client_id=%3CUSER_ID%3E&type=all"
-    );
-
-    // Open position matches the broker symbol, exchange and product.
-    let q = b
-        .get_open_position(&auth, "SBIN", Exchange::Nse, Product::Mis)
-        .await
-        .unwrap();
-    assert_eq!(q, 10);
-    let q = b
-        .get_open_position(&auth, "SBIN", Exchange::Nse, Product::Cnc)
-        .await
-        .unwrap();
-    assert_eq!(q, 0);
-
-    // Close-all: SBIN SELL 10 MIS and NIFTY future BUY 75 NRML, both as
-    // protected limits priced from the feed; the flat row is skipped.
-    let before = fake.calls("POST", "/api/v1/orders").len();
-    let r = b.close_all_positions(&auth).await.unwrap();
-    assert_eq!(r.placed.len(), 2);
-    assert!(r.failed.is_empty());
-    let posts = fake.calls("POST", "/api/v1/orders");
-    assert_eq!(posts.len() - before, 2);
-    let a: Value = serde_json::from_str(&posts[before].body).unwrap();
-    assert_eq!(
-        (a["order_side"].as_str(), a["quantity"].as_i64()),
-        (Some("SELL"), Some(10))
-    );
-    assert_eq!(a["product"], "MIS");
-    assert_eq!(a["price"], 808.2);
-    let n: Value = serde_json::from_str(&posts[before + 1].body).unwrap();
-    assert_eq!(
-        (n["order_side"].as_str(), n["quantity"].as_i64()),
-        (Some("BUY"), Some(75))
-    );
-    assert_eq!(n["instrument_token"], 35003);
-    assert_eq!(n["exchange"], "NFO");
-    assert_eq!(n["price"], 25125.0);
 }
 
 /// A session without its trading account (an older build's row, a

@@ -5,6 +5,7 @@
 
 mod auth;
 mod client;
+mod orders;
 
 use super::PocketfulBroker;
 use crate::brokers::common::symbols::SymbolResolver;
@@ -60,7 +61,9 @@ pub(super) enum Reply {
     Cut,
 }
 
-type Routes = Arc<Mutex<Vec<(String, Vec<Reply>)>>>;
+/// A path, what its query must contain (empty for anything), and the
+/// replies left.
+type Routes = Arc<Mutex<Vec<(String, String, Vec<Reply>)>>>;
 
 /// A local fake Pocketful. Each path answers its scripted replies in order,
 /// the last one repeating; an unscripted path answers 404.
@@ -108,10 +111,11 @@ impl Fake {
                 let (s, r) = (s.clone(), r.clone());
                 async move {
                     let path = uri.path().to_string();
+                    let query = uri.query().unwrap_or("").to_string();
                     s.lock().push(Seen {
                         method: method.to_string(),
                         path: path.clone(),
-                        query: uri.query().unwrap_or("").to_string(),
+                        query: query.clone(),
                         headers: headers
                             .iter()
                             .map(|(k, v)| {
@@ -124,8 +128,8 @@ impl Fake {
                         let mut routes = r.lock();
                         routes
                             .iter_mut()
-                            .find(|(p, _)| *p == path)
-                            .map(|(_, replies)| {
+                            .find(|(p, q, _)| *p == path && query.contains(q.as_str()))
+                            .map(|(_, _, replies)| {
                                 if replies.len() > 1 {
                                     replies.remove(0)
                                 } else {
@@ -155,10 +159,18 @@ impl Fake {
 
     /// Answer `path` with `replies`, in order, the last one repeating.
     pub fn on(&self, path: &str, replies: Vec<Reply>) {
+        self.on_query(path, "", replies);
+    }
+
+    /// [`Self::on`] for the requests to `path` whose query contains
+    /// `query`; a route with a query is tried before one without.
+    pub fn on_query(&self, path: &str, query: &str, replies: Vec<Reply>) {
         assert!(!replies.is_empty());
         let mut routes = self.routes.lock();
-        routes.retain(|(p, _)| p != path);
-        routes.push((path.to_string(), replies));
+        routes.retain(|(p, q, _)| !(p == path && q == query));
+        routes.push((path.to_string(), query.to_string(), replies));
+        // The most specific route first.
+        routes.sort_by_key(|(_, q, _)| std::cmp::Reverse(q.len()));
     }
 
     /// Every request so far.

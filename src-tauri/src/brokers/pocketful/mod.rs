@@ -18,6 +18,7 @@ pub mod mapping;
 pub mod market;
 pub mod master_contract;
 mod orders;
+mod pricing;
 #[cfg(test)]
 mod rest_tests;
 pub mod streaming;
@@ -164,33 +165,10 @@ impl PocketfulBroker {
     }
 
     /// One REST call on the data lane, answering the body when Pocketful
-    /// says success; anything else becomes a trader-facing error.
+    /// says success; anything else becomes a trader-facing error. Only the
+    /// funds read still goes this way.
     pub(crate) async fn call(
         &self,
-        method: Method,
-        path_and_query: &str,
-        auth: &AuthToken,
-        body: Option<&Value>,
-    ) -> Result<Value> {
-        self.call_on(Lane::Data, method, path_and_query, auth, body)
-            .await
-    }
-
-    /// [`Self::call`] for a place, modify or cancel, on the order lane.
-    pub(crate) async fn call_order(
-        &self,
-        method: Method,
-        path_and_query: &str,
-        auth: &AuthToken,
-        body: Option<&Value>,
-    ) -> Result<Value> {
-        self.call_on(Lane::Orders, method, path_and_query, auth, body)
-            .await
-    }
-
-    async fn call_on(
-        &self,
-        lane: Lane,
         method: Method,
         path_and_query: &str,
         auth: &AuthToken,
@@ -200,7 +178,7 @@ impl PocketfulBroker {
         if let Some(b) = body {
             req = req.json(b.clone());
         }
-        let answer = self.send(lane, auth, req).await?;
+        let answer = self.send(Lane::Data, auth, req).await?;
         if answer.session_refused() {
             tracing::warn!(
                 status = answer.status.as_u16(),
@@ -219,13 +197,7 @@ impl PocketfulBroker {
             path,
             message
         );
-        // Only Pocketful's explicit failure is a refusal inside a placement
-        // (LOG-08); a 2xx without it (`{}`) and a 5xx leave the order unknown.
-        Err(crate::brokers::common::outcome::not_accepted_err(
-            answer.status.as_u16(),
-            answer.failed(),
-            broker_error(&message),
-        ))
+        Err(broker_error(&message))
     }
 }
 
