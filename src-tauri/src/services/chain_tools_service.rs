@@ -606,10 +606,11 @@ pub struct PreviousOi {
 
 /// Previous-day OI per option (web `_fetch_daily_oi_changes`): the
 /// second-last daily candle's OI over the last 14 days, fetched through the
-/// shared gate. A failed or too-short history is counted as failed, never
-/// read as a previous OI of zero (TOOLS-14: the web does, and the whole
-/// current OI then shows as one day's build-up); symbols not reached
-/// within `budget` are counted as omitted.
+/// shared gate. A failed or too-short history, or one with no open
+/// interest in it ([`carries_oi`]), is counted as failed, never read as a
+/// previous OI of zero (TOOLS-14: the web does, and the whole current OI
+/// then shows as one day's build-up); symbols not reached within `budget`
+/// are counted as omitted.
 pub async fn previous_day_oi(
     ctx: &AppState,
     symbols: Vec<String>,
@@ -624,7 +625,9 @@ pub async fn previous_day_oi(
             return (sym, None);
         }
         let prev = match history_rows(ctx, &sym, options_exchange, "D", start, today).await {
-            Ok(rows) if rows.len() >= 2 => rows[rows.len() - 2].get("oi").and_then(Value::as_f64),
+            Ok(rows) if rows.len() >= 2 && carries_oi(&rows) => {
+                rows[rows.len() - 2].get("oi").and_then(Value::as_f64)
+            }
             Ok(_) => None,
             Err(r) => {
                 tracing::debug!("Previous-day OI for {} not read: {}", sym, r.message());
@@ -645,6 +648,21 @@ pub async fn previous_day_oi(
         }
     }
     out
+}
+
+/// Whether a contract's daily history has open interest in it. A candle
+/// has no way to leave OI out, so a broker whose history carries none
+/// (Pocketful's chart candles, for BFO and MCX options and whenever its
+/// NFO endpoint falls back) sends 0 on every bar. Only contracts with open
+/// interest now are asked about, so a history that does carry OI shows
+/// some on a bar: one that is zero on every bar is no reading, and a
+/// zero beside other readings is one (a contract that had none yesterday).
+fn carries_oi(rows: &[Value]) -> bool {
+    rows.iter().any(|r| {
+        r.get("oi")
+            .and_then(Value::as_f64)
+            .is_some_and(|oi| oi != 0.0)
+    })
 }
 
 /// `POST /oiprofile/api/profile-data`.

@@ -18,7 +18,9 @@
 //! Candles are `[time, open, high, low, close, volume(, oi)]` with ISO times
 //! at `+0530`. Timestamps come back in epoch seconds: an intraday bar's
 //! start, a daily bar's IST date at 00:00 UTC. A chart candle carries no
-//! OI, which reads 0 as on the web (history has no way to leave it out).
+//! OI, which reads 0 as on the web (a candle has no way to leave it out);
+//! the OI tools take a series that is 0 on every bar as no OI, never as a
+//! previous day's OI of zero (`chain_tools_service::carries_oi`).
 //! Requests go in chunks (7 days of minute candles, a year of daily ones);
 //! a chunk that fails fails the history instead of leaving a gap, and the
 //! whole request has one deadline ([`deadline_for`]).
