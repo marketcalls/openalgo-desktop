@@ -336,8 +336,21 @@ async fn a_transport_failure_is_a_sentence() {
     let e = b.get_quote(&session(), &idea()).await.unwrap_err();
 
     assert!(matches!(e, AppError::Http(_)), "{:?}", e);
-    assert_eq!(fake.seen().len(), 1, "it was asked");
+    asked_only_for(&fake, "token=14366");
     plain_sentence(&e.client_message());
+}
+
+/// Every request `fake` saw asks for `query`, and there was one: the
+/// shared client sends a read whose connection broke once more, on a new
+/// connection (`brokers::common::http`), so a cut answer is seen once or
+/// twice.
+fn asked_only_for(fake: &Fake, query: &str) {
+    let seen: Vec<String> = fake.seen().into_iter().map(|s| s.query).collect();
+    assert!(
+        (1..=2).contains(&seen.len()) && seen.iter().all(|q| q == query),
+        "{:?}",
+        seen
+    );
 }
 
 /// Web test_pocketful_data.py::test_depth_is_the_best_bid_and_ask_padded_to_five_levels
@@ -453,7 +466,8 @@ async fn multiquotes_stop_at_the_first_failure_every_symbol_would_share() {
             reply,
             e
         );
-        assert_eq!(fake.seen().len(), 1, "{:?}", reply);
+        // RELIANCE (token 2885) is never asked for.
+        asked_only_for(&fake, "token=14366");
     }
 }
 
