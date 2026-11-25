@@ -1,4 +1,4 @@
-//! `from openalgo import ta` in Rust: the 127 callables the Agent's
+//! `from openalgo import ta` in Rust: the 128 callables the Agent's
 //! indicator tools compute with, giving the numbers OpenAlgo web gives.
 //!
 //! The web runs the `openalgo` package its `uv.lock` pins (2.0.5). Its

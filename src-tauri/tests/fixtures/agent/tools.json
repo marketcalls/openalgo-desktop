@@ -80,7 +80,7 @@
         "voice"
       ],
       "requires": [],
-      "description": "Compute any of the 127 openalgo.ta indicators over real candles, several in one call, or screen a list of instruments for one condition.",
+      "description": "Compute any of the 128 openalgo.ta indicators over real candles, several in one call, or screen a list of instruments for one condition.",
       "tools": [
         "list_indicators",
         "describe_indicator",
@@ -510,7 +510,7 @@
       "name": "list_chart_indicators",
       "toolkit": "chart",
       "agno_toolkit": "chart",
-      "description": "List the indicators this chart can DRAW.\nThese are not the indicators that compute values. The chart draws with\n``openalgo-charts``, a JavaScript library of 112 indicators, while\n``compute_indicator`` and its siblings use the Rust-backed Python\nlibrary of 127. Only 40 indicators exist in both, four of them spelled\nwith a hyphen here and an underscore there (``aroon-oscillator`` is\n``aroon_oscillator``), so AlphaTrend and HalfTrend\ncan be drawn and never tabulated, and ``bbands`` and ``adxr`` can be\ntabulated and never drawn. Consult THIS list before saying an indicator\nis unavailable on the chart, because the other one will not have it.\n\nThe operator may also have written their own indicators, which the chart\nloads at runtime from ``strategies/indicators/``. Those cannot appear\nhere, so a name absent from this list is worth trying rather than\nrefusing: the chart checks its own registry and ignores what it does not\nrecognise.",
+      "description": "List the indicators this chart can DRAW.\nThese are not the indicators that compute values. The chart draws with\n``openalgo-charts``, a JavaScript library of 112 indicators, while\n``compute_indicator`` and its siblings use the Rust-backed Python\nlibrary of 128. Only 40 indicators exist in both, four of them spelled\nwith a hyphen here and an underscore there (``aroon-oscillator`` is\n``aroon_oscillator``), so AlphaTrend and HalfTrend\ncan be drawn and never tabulated, and ``bbands`` and ``adxr`` can be\ntabulated and never drawn. Consult THIS list before saying an indicator\nis unavailable on the chart, because the other one will not have it.\n\nThe operator may also have written their own indicators, which the chart\nloads at runtime from ``strategies/indicators/``. Those cannot appear\nhere, so a name absent from this list is worth trying rather than\nrefusing: the chart checks its own registry and ignores what it does not\nrecognise.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -893,7 +893,7 @@
       "name": "list_indicators",
       "toolkit": "indicators",
       "agno_toolkit": "indicators",
-      "description": "List the technical indicators that can be computed, by keyword or category.\nThere are 127. Confirm a name here before computing it rather than\nguessing from memory: several are named differently from the textbook\n(the Relative Vigor Index is ``rvi``, the Ultimate Oscillator is\n``ultimate_oscillator``), and a guessed name costs a whole round trip.",
+      "description": "List the technical indicators that can be computed, by keyword or category.\nThere are 128. Confirm a name here before computing it rather than\nguessing from memory: several are named differently from the textbook\n(the Relative Vigor Index is ``rvi``, the Relative Volatility Index is\n``rvi_volatility`` and the Ultimate Oscillator is\n``ultimate_oscillator``), and a guessed name costs a whole round trip.",
       "parameters": {
         "type": "object",
         "properties": {

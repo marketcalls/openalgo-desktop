@@ -1,6 +1,7 @@
 //! Every `ta` method against the web's installed openalgo 2.0.5, on every
 //! candle shape, with its defaults and with the parameter variants the
-//! recorder chose (`raw_<shape>.json`).
+//! recorder chose (`raw_<shape>.json`); `rvi_volatility`, which 2.0.5 lacks,
+//! against openalgo 2.4.1's code (the recorder's `SDK_BACKPORTS`).
 //!
 //! Tolerance, per output: a value matches when it is within
 //! `1e-9 * |expected| + 1e-9 * scale`, where `scale` is the largest absolute
@@ -59,7 +60,10 @@ fn compare_output(got: &Series, want: &[Value]) -> Option<String> {
 /// Run one recorded case; the failure, if any.
 fn run_case(shape_name: &str, candles: &super::support::Shape, case: &Value) -> Option<String> {
     let name = case["name"].as_str()?;
-    let spec = get_spec(name)?;
+    // A recorded method the catalogue lacks is a failure, not a skip.
+    let Some(spec) = get_spec(name) else {
+        return Some(format!("{shape_name} {name}: not in the catalogue"));
+    };
     let inputs: Vec<&[f64]> = case["inputs"]
         .as_array()?
         .iter()
@@ -114,7 +118,7 @@ fn every_method_matches_the_web_on_every_shape() {
             }
         }
     }
-    assert_eq!(covered.len(), 127, "every registry entry has golden cases");
+    assert_eq!(covered.len(), 128, "every registry entry has golden cases");
     assert!(cases > 900, "only {cases} golden cases");
     assert!(
         failures.is_empty(),

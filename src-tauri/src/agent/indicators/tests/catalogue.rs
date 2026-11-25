@@ -31,8 +31,8 @@ fn default_value(default: Default) -> Value {
 fn every_entry_matches_the_web_registry() {
     let fixture = json(REGISTRY);
     let specs = fixture["specs"].as_array().expect("specs");
-    assert_eq!(registry::count(), 127);
-    assert_eq!(specs.len(), 127);
+    assert_eq!(registry::count(), 128);
+    assert_eq!(specs.len(), 128);
     for (spec, want) in registry::all().zip(specs) {
         let name = spec.name;
         assert_eq!(want["name"], name);
@@ -179,7 +179,7 @@ fn list_indicators_details_a_narrow_match_and_groups_a_broad_one() {
     let broad = list_indicators("", "").expect("everything");
     assert_eq!(
         broad.get("total"),
-        Some(&crate::agent::indicators::json::Json::Int(127))
+        Some(&crate::agent::indicators::json::Json::Int(128))
     );
     let broad = serde_json::to_value(broad).expect("json");
     assert_eq!(broad["detail_omitted"], true);
@@ -226,7 +226,7 @@ fn list_and_describe_refusals_are_the_webs_sentences() {
     let far = unknown_indicator("indicator", "qqq");
     assert_eq!(
         far.text(),
-        "The 'indicator' argument is invalid: 'qqq' is not one of the 127 indicators Call \
+        "The 'indicator' argument is invalid: 'qqq' is not one of the 128 indicators Call \
          list_indicators with a keyword to find the right name."
     );
 }

@@ -1,4 +1,4 @@
-//! `openalgo/indicators/volatility.py` (the 15 volatility methods) and the
+//! `openalgo/indicators/volatility.py` (the 16 volatility methods) and the
 //! `_backend.py` compositions they call.
 
 use super::numpy::{nan_vec, zip};
@@ -21,6 +21,7 @@ pub(super) fn call(name: &str, a: &Args) -> Option<TaResult> {
         "hv" => hv(a),
         "ulcerindex" => ulcerindex(a),
         "starc" => starc(a),
+        "rvi_volatility" => rvi_volatility(a),
         _ => return None,
     })
 }
@@ -328,4 +329,63 @@ fn starc(a: &Args) -> TaResult {
         middle.clone(),
         zip(&middle, &atr, |m, t| m - t * multiplier),
     ])
+}
+
+/// `RVI.calculate` (`ta.rvi_volatility`) and `_backend.rvi_volatility`, as
+/// openalgo 2.4.1 ships them (web c8b2896ca): Dorsey's Relative Volatility
+/// Index, 100 * U / (U + D), 50 when neither side moved. The rolling
+/// population deviation counts on the up side on a bar that closed above the
+/// bar before and on the down side on one that closed below, and each side
+/// is smoothed with Wilder's average. Built on the two kernels it calls,
+/// `stdev` and `ema_wilder`, which 2.4.1 left as the pinned `oa_core` has
+/// them. No period is validated: a negative one fails in the kernel's
+/// conversion, the deviation's first.
+fn rvi_volatility(a: &Args) -> TaResult {
+    let data = non_empty(a.s(0)?)?;
+    let p = a.p();
+    let deviation = oa_core::stdev(data, us(p.int("stdev_period")?)?);
+    let rsi_period = us(p.int("rsi_period")?)?;
+    // The change from the bar before; NaN on the first bar.
+    let mut moves = nan_vec(data.len());
+    for (change, pair) in moves.iter_mut().skip(1).zip(data.windows(2)) {
+        *change = pair[1] - pair[0];
+    }
+    let known: Vec<bool> = deviation
+        .iter()
+        .zip(&moves)
+        .map(|(d, m)| !d.is_nan() && !m.is_nan())
+        .collect();
+    // One side's deviation: the bar's own where it moved that way, 0 where it
+    // did not, NaN where the bar is not known.
+    let side = |on_side: fn(f64) -> bool| -> Vec<f64> {
+        known
+            .iter()
+            .zip(deviation.iter().zip(&moves))
+            .map(|(&k, (&d, &m))| {
+                if !k {
+                    f64::NAN
+                } else if on_side(m) {
+                    d
+                } else {
+                    0.0
+                }
+            })
+            .collect()
+    };
+    let up = oa_core::ema_wilder(&side(|m| m > 0.0), rsi_period);
+    let down = oa_core::ema_wilder(&side(|m| m < 0.0), rsi_period);
+    one(known
+        .iter()
+        .zip(up.iter().zip(&down))
+        .map(|(&k, (&u, &d))| {
+            let total = u + d;
+            if !k || total.is_nan() {
+                f64::NAN
+            } else if total > 0.0 {
+                100.0 * u / total
+            } else {
+                50.0
+            }
+        })
+        .collect())
 }

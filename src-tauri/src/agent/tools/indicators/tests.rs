@@ -277,7 +277,7 @@ async fn no_candles_is_refused_with_the_range_asked_for() {
 async fn discovery_answers_and_refuses_as_the_web() {
     let kit = Kit::new();
     let all = body(&kit.call(&GROUP, "list_indicators", json!({})).await);
-    assert_eq!(all["total"], 127);
+    assert_eq!(all["total"], 128);
     assert_eq!(all["detail_omitted"], true);
     let narrow = body(
         &kit.call(&GROUP, "list_indicators", json!({"query": "money flow"}))

@@ -1,4 +1,4 @@
-//! The 127-entry indicator catalogue, ported from the web's
+//! The 128-entry indicator catalogue, ported from the web's
 //! `services/agent/indicators/registry.py`: for each callable on `ta`, the
 //! OHLCV series it takes, its parameters with the library's own defaults,
 //! its outputs in return order, its measured warm-up and the caveats a
@@ -6,13 +6,14 @@
 //!
 //! The web builds `params` at import from `inspect.signature`; here they are
 //! written out, and a test compares the whole table with the registry the
-//! web renders over the openalgo build it pins
+//! web renders over the openalgo build the desktop computes with (2.0.5,
+//! plus 2.4.1's `rvi_volatility`: the module doc of `agent::indicators`)
 //! (`tests/fixtures/agent_indicators/registry.json`), so a renamed parameter
 //! or a changed default is caught when the fixtures are recorded again.
 //!
 //! One deliberate deviation (lead decision, 1.0.4): `vi` and `ulcerindex`
 //! are `ok` here. The web registers them broken, a verdict measured on
-//! openalgo 2.0.3; the 2.0.5 build it pins computes both.
+//! openalgo 2.0.3; the 2.0.5 build computes both.
 //!
 //! The tables live in one file per category (`trend.rs` ... `utility.rs`).
 
@@ -202,7 +203,7 @@ pub(crate) fn all() -> impl Iterator<Item = &'static IndicatorSpec> {
     .flatten()
 }
 
-/// How many entries the catalogue holds (127).
+/// How many entries the catalogue holds (128).
 pub(crate) fn count() -> usize {
     all().count()
 }

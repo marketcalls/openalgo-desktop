@@ -524,7 +524,7 @@ Decided:
   glue in `src/components/desktop/Flow*`, `src/lib/desktopFlow.ts` and
   `src/api/flowDesktop.ts`). The
   Indicator node runs on `oa_core`, the Rust core of the openalgo library
-  that `agent/indicators` already uses (the same 127 indicators as the web's
+  that `agent/indicators` already uses (the same 128 indicators as the web's
   `openalgo.ta`), so Flow needs no Python; Flow's port of the web's
   `services/indicator_service.py` (nested series, the fixed-length tail,
   bar offsets) is `flow/indicator_service/`, a different dispatcher from

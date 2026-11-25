@@ -1,4 +1,4 @@
-//! Volatility (15), in the web registry's order (`services/agent/indicators/registry.py`).
+//! Volatility (16), in the web registry's order (`services/agent/indicators/registry.py`).
 
 use super::{IndicatorSpec, ParamSpec, C, HL, HLC};
 
@@ -193,6 +193,20 @@ pub(super) const SPECS: &[IndicatorSpec] = &[
         warmup: 14,
         note: "Per-band warm-up is 14/4/14.",
         series_args: &["high", "low", "close"],
+        ..IndicatorSpec::BASE
+    },
+    IndicatorSpec {
+        name: "rvi_volatility",
+        category: "volatility",
+        inputs: C,
+        outputs: &["rvi_volatility"],
+        params: &[
+            ParamSpec::int("stdev_period", 10),
+            ParamSpec::int("rsi_period", 14),
+        ],
+        warmup: 22,
+        note: "Relative VOLATILITY Index (Dorsey), 0 to 100, from close only. Not ta.rvi, which is the Relative Vigor Index on OHLC. Smooths with Wilder's average, as the RSI does, not an EMA. First value at bar stdev_period + rsi_period - 2.",
+        series_args: &["data"],
         ..IndicatorSpec::BASE
     },
 ];
