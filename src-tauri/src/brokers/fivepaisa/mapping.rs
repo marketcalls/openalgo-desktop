@@ -2,7 +2,7 @@
 //! `mapping/transform_data.py`, `mapping/order_data.py`).
 
 use crate::brokers::common::mapping::{Action, Exchange, Product};
-use crate::brokers::common::mpp::{instrument_type_from_symbol, mpp_percentage, py_round};
+use crate::brokers::common::mpp::{py_round, stop_limit_off_trigger, StopLimit};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -190,44 +190,20 @@ pub fn ms_date_epoch(s: &str) -> i64 {
 // Order bodies
 // ---------------------------------------------------------------------------
 
-fn tick_decimals(tick: f64) -> i32 {
-    let s = format!("{}", tick);
-    s.split_once('.').map(|(_, f)| f.len() as i32).unwrap_or(0)
-}
-
-fn snap_to_tick(value: f64, tick: f64, floor: bool) -> f64 {
-    let ratio = py_round(value / tick, 6);
-    let k = if floor { ratio.floor() } else { ratio.ceil() };
-    py_round(k * tick, tick_decimals(tick))
-}
-
 /// web `_slm_protected_price`: a stop-limit just beyond the trigger (SELL
 /// below, BUY above), at least one tick away, tick-aligned. Refused when
 /// the tick size is unknown.
 pub fn slm_protected_price(symbol: &str, action: Action, trigger: f64, tick: f64) -> Result<f64> {
-    if !tick.is_finite() || tick <= 0.0 {
-        return Err(AppError::Validation(format!(
+    match stop_limit_off_trigger(symbol, action, trigger, tick)? {
+        StopLimit::Priced(limit) => Ok(limit),
+        StopLimit::NoTick => Err(AppError::Validation(format!(
             "The tick size of {} is not known, so the SL-M order cannot be priced. Download the master contract again.",
             symbol
-        )));
-    }
-    let pct = mpp_percentage(trigger, instrument_type_from_symbol(symbol))? / 100.0;
-    match action {
-        Action::Sell => {
-            let raw = (trigger * (1.0 - pct)).min(trigger - tick);
-            let limit = snap_to_tick(raw, tick, true);
-            if limit <= 0.0 {
-                return Err(AppError::Validation(format!(
-                    "The SL-M trigger {} for {} is too low to place a protected stop order.",
-                    trigger, symbol
-                )));
-            }
-            Ok(limit)
-        }
-        Action::Buy => {
-            let raw = (trigger * (1.0 + pct)).max(trigger + tick);
-            Ok(snap_to_tick(raw, tick, false))
-        }
+        ))),
+        StopLimit::TooLow => Err(AppError::Validation(format!(
+            "The SL-M trigger {} for {} is too low to place a protected stop order.",
+            trigger, symbol
+        ))),
     }
 }
 
