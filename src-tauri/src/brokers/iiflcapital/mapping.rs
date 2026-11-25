@@ -347,20 +347,6 @@ pub fn action(v: &str) -> String {
 // SL-M protection (web `transform_data._slm_protected_price`)
 // ---------------------------------------------------------------------------
 
-fn tick_decimals(tick: f64) -> i32 {
-    // Decimal places implied by the tick (0.05 -> 2, 0.0025 -> 4).
-    let s = format!("{}", tick);
-    s.split_once('.')
-        .map(|(_, f)| f.trim_end_matches('0').len() as i32)
-        .unwrap_or(0)
-}
-
-fn snap(value: f64, tick: f64, up: bool) -> f64 {
-    let ratio = mpp::py_round(value / tick, 6);
-    let k = if up { ratio.ceil() } else { ratio.floor() };
-    mpp::py_round(k * tick, tick_decimals(tick))
-}
-
 /// Protective limit for an SL-M order sent as SL: the MPP slab beyond the
 /// trigger in the fill direction, at least one tick away, tick-snapped
 /// outward (SELL floors, BUY ceils). Fails closed without a tick size.
@@ -370,29 +356,16 @@ pub fn slm_protected_price(
     trigger: f64,
     tick_size: f64,
 ) -> Result<f64> {
-    if !tick_size.is_finite() || tick_size <= 0.0 {
-        return Err(AppError::Validation(format!(
+    match mpp::stop_limit_off_trigger(symbol, action, trigger, tick_size)? {
+        mpp::StopLimit::Priced(limit) => Ok(limit),
+        mpp::StopLimit::NoTick => Err(AppError::Validation(format!(
             "The tick size of {} is not known, so a protected SL-M price cannot be set. Download the master contract again and retry.",
             symbol
-        )));
-    }
-    let pct = mpp::mpp_percentage(trigger, mpp::instrument_type_from_symbol(symbol))? / 100.0;
-    match action {
-        Action::Sell => {
-            let raw = (trigger * (1.0 - pct)).min(trigger - tick_size);
-            let limit = snap(raw, tick_size, false);
-            if limit <= 0.0 {
-                return Err(AppError::Validation(format!(
-                    "The SL-M trigger {} for {} is too low to set a protected sell price.",
-                    trigger, symbol
-                )));
-            }
-            Ok(limit)
-        }
-        Action::Buy => {
-            let raw = (trigger * (1.0 + pct)).max(trigger + tick_size);
-            Ok(snap(raw, tick_size, true))
-        }
+        ))),
+        mpp::StopLimit::TooLow => Err(AppError::Validation(format!(
+            "The SL-M trigger {} for {} is too low to set a protected sell price.",
+            trigger, symbol
+        ))),
     }
 }
 

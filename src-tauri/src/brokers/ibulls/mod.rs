@@ -1,6 +1,6 @@
-//! IBulls (web `broker/ibulls`): XTS in code although the skill table lists
-//! it under Noren (audit D-xts 0). The web's MARKET-to-LIMIT rewrite with a
-//! hard-coded user fallback (`transform_data.py:22-75`) is not ported.
+//! IBulls (web `broker/ibulls`), an XTS member. MARKET and SL-M go out
+//! priced with Market Price Protection (`families::xts::protection`, web
+//! #2466): its RMS may refuse a native MARKET or SL-M from an API session.
 
 use crate::brokers::common::mapping::Exchange;
 use crate::brokers::common::symbols::SymbolResolver;
@@ -42,6 +42,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         touchline_by_holding: false,
         payload_variants: false,
         oi_events: false,
+        price_protection: true,
     },
 };
 

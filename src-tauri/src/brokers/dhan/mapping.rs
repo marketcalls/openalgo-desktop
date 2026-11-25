@@ -8,7 +8,7 @@
 use crate::brokers::common::book_read;
 use crate::brokers::common::de::{f64_lenient, i64_lenient, string_lenient};
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
-use crate::brokers::common::mpp::{instrument_type_from_symbol, mpp_percentage, py_round};
+use crate::brokers::common::mpp::{py_round, stop_limit_off_trigger, StopLimit};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -128,49 +128,20 @@ pub fn map_status(s: &str) -> String {
 // SL-M protective limit (web `_slm_protected_price`)
 // ---------------------------------------------------------------------------
 
-/// Decimal places implied by a tick (`0.05` -> 2, `0.0025` -> 4).
-pub fn tick_decimals(tick: f64) -> i32 {
-    let s = format!("{}", tick);
-    match s.split_once('.') {
-        Some((_, frac)) => frac.len() as i32,
-        None => 0,
-    }
-}
-
-/// Snap to a multiple of `tick`, flooring or ceiling (web `_snap_to_tick`).
-pub fn snap_to_tick(value: f64, tick: f64, floor: bool) -> f64 {
-    let ratio = py_round(value / tick, 6);
-    let k = if floor { ratio.floor() } else { ratio.ceil() };
-    py_round(k * tick, tick_decimals(tick))
-}
-
 /// The protective STOP_LOSS limit Dhan needs in place of an SL-M: one MPP
 /// band past the trigger in the fill direction, at least one tick away,
 /// tick-aligned away from the trigger. Fails closed without a tick size.
 pub fn slm_protected_price(symbol: &str, action: Action, trigger: f64, tick: f64) -> Result<f64> {
-    if !tick.is_finite() || tick <= 0.0 {
-        return Err(AppError::Validation(format!(
+    match stop_limit_off_trigger(symbol, action, trigger, tick)? {
+        StopLimit::Priced(limit) => Ok(limit),
+        StopLimit::NoTick => Err(AppError::Validation(format!(
             "Cannot place the SL-M order for {}: the master contract has no tick size for it. Download the master contract again, then retry.",
             symbol
-        )));
-    }
-    let pct = mpp_percentage(trigger, instrument_type_from_symbol(symbol))? / 100.0;
-    match action {
-        Action::Sell => {
-            let raw = (trigger * (1.0 - pct)).min(trigger - tick);
-            let limit = snap_to_tick(raw, tick, true);
-            if limit <= 0.0 {
-                return Err(AppError::Validation(format!(
-                    "The SL-M trigger {} for {} is too low to place a protected stop. Use an SL order with your own limit price.",
-                    trigger, symbol
-                )));
-            }
-            Ok(limit)
-        }
-        Action::Buy => {
-            let raw = (trigger * (1.0 + pct)).max(trigger + tick);
-            Ok(snap_to_tick(raw, tick, false))
-        }
+        ))),
+        StopLimit::TooLow => Err(AppError::Validation(format!(
+            "The SL-M trigger {} for {} is too low to place a protected stop. Use an SL order with your own limit price.",
+            trigger, symbol
+        ))),
     }
 }
 

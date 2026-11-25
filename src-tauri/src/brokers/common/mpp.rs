@@ -125,6 +125,72 @@ pub fn protected_price(
     Ok(round_to_tick(p, tick_size))
 }
 
+/// Decimal places a tick size carries (0.05 -> 2, 0.0025 -> 4, 1 -> 0), as
+/// the web reads them from `Decimal(str(tick))`. `f64`'s `Display` is the
+/// shortest form that reads back as the same number, so no trailing zero.
+pub fn tick_decimals(tick: f64) -> i32 {
+    let s = format!("{}", tick);
+    s.split_once('.').map(|(_, f)| f.len() as i32).unwrap_or(0)
+}
+
+/// `value` on a multiple of `tick`, rounded down or up (web
+/// `_snap_to_tick`). The ratio is rounded to six places first, so float
+/// noise (804.5025 / 0.05 = 16090.049999...) cannot move it a tick.
+pub fn snap_to_tick(value: f64, tick: f64, down: bool) -> f64 {
+    let ratio = py_round(value / tick, 6);
+    let k = if down { ratio.floor() } else { ratio.ceil() };
+    py_round(k * tick, tick_decimals(tick))
+}
+
+/// A protective limit past `reference` in the direction the order fills
+/// (web `_beyond`, `_slm_protected_price`, `slm_limit_from_trigger`): the
+/// MPP slab of the reference, above it for a BUY and below it for a SELL,
+/// at least one tick past it, and snapped away from it so rounding never
+/// brings it back onto or across the reference. A SELL can come out at or
+/// below zero; the caller decides what that means. `tick` must be a
+/// positive tick size.
+pub fn beyond(reference: f64, action: Action, instrument_type: &str, tick: f64) -> Result<f64> {
+    let pct = mpp_percentage(reference, instrument_type)? / 100.0;
+    Ok(match action {
+        Action::Buy => snap_to_tick((reference * (1.0 + pct)).max(reference + tick), tick, false),
+        Action::Sell => snap_to_tick((reference * (1.0 - pct)).min(reference - tick), tick, true),
+    })
+}
+
+/// The limit of an SL-M order sent as a stop-limit, priced off its own
+/// trigger, never the LTP: the limit only matters once the trigger is hit
+/// (web #2390).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StopLimit {
+    /// The limit, on a tick, at least one tick past the trigger.
+    Priced(f64),
+    /// No positive tick size to snap the limit to.
+    NoTick,
+    /// A SELL trigger too low to leave a positive limit below it.
+    TooLow,
+}
+
+/// [`StopLimit`] of an SL-M on `symbol` with this `trigger` and the
+/// instrument's `tick` (the symbol picks the equity or the options slabs).
+/// What a broker does without a price (refuse the order, or send the
+/// trigger as the limit) is the broker's own rule.
+pub fn stop_limit_off_trigger(
+    symbol: &str,
+    action: Action,
+    trigger: f64,
+    tick: f64,
+) -> Result<StopLimit> {
+    if !tick.is_finite() || tick <= 0.0 {
+        return Ok(StopLimit::NoTick);
+    }
+    let limit = beyond(trigger, action, instrument_type_from_symbol(symbol), tick)?;
+    Ok(if limit > 0.0 {
+        StopLimit::Priced(limit)
+    } else {
+        StopLimit::TooLow
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,6 +341,37 @@ mod tests {
         for itype in ["EQ", "FUT", "FUTIDX", "FUTSTK", "FUTCOM", ""] {
             assert_eq!(mpp_percentage(50.0, itype).unwrap(), 2.0, "{itype}");
         }
+    }
+
+    #[test]
+    fn ticks_snap_away_from_the_reference() {
+        assert_eq!(snap_to_tick(87.50249, 0.0025, true), 87.5);
+        assert_eq!(snap_to_tick(87.5001, 0.0025, false), 87.5025);
+        assert_eq!(snap_to_tick(804.5025, 0.05, false), 804.55);
+        assert_eq!(tick_decimals(0.0025), 4);
+        assert_eq!(tick_decimals(0.05), 2);
+        assert_eq!(tick_decimals(1.0), 0);
+        assert_eq!(tick_decimals(5.0), 0);
+    }
+
+    /// A SELL limit that would floor to zero or below is `TooLow`, a
+    /// missing tick `NoTick`; the rest are priced off the trigger.
+    #[test]
+    fn a_stop_limit_is_priced_off_its_trigger() {
+        let sl = |action, trigger, tick| stop_limit_off_trigger("SBIN", action, trigger, tick);
+        assert_eq!(
+            sl(Action::Sell, 980.0, 0.05).unwrap(),
+            StopLimit::Priced(975.1)
+        );
+        assert_eq!(
+            sl(Action::Buy, 1020.0, 0.05).unwrap(),
+            StopLimit::Priced(1025.1)
+        );
+        assert_eq!(sl(Action::Sell, 0.05, 0.05).unwrap(), StopLimit::TooLow);
+        for tick in [0.0, -0.05, f64::NAN] {
+            assert_eq!(sl(Action::Buy, 100.0, tick).unwrap(), StopLimit::NoTick);
+        }
+        assert!(sl(Action::Buy, f64::NAN, 0.05).is_err());
     }
 
     /// Web `TestProtectedPrice`.

@@ -392,10 +392,6 @@ fn slm_becomes_protected_stop_loss_on_live_only() {
     );
     assert!(slm_protected_price("X", Action::Sell, 0.05, 0.05).is_err());
     assert!(slm_protected_price("X", Action::Buy, 10.0, 0.0).is_err());
-    assert_eq!(snap_to_tick(87.50249, 0.0025, true), 87.5);
-    assert_eq!(snap_to_tick(87.5001, 0.0025, false), 87.5025);
-    assert_eq!(tick_decimals(0.0025), 4);
-    assert_eq!(tick_decimals(1.0), 0);
 }
 
 #[test]

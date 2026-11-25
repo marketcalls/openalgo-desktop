@@ -149,6 +149,19 @@ async fn depth_payload(b: &XtsBroker, auth: &AuthToken, code: i64, token: &str) 
         })
 }
 
+/// The last traded price of one instrument, 0 when the touchline carries
+/// none (web ibulls `get_ltp`): one 1502 read without the open-interest
+/// call `get_quote` adds, since an order priced off it should not wait on
+/// a second round trip.
+pub(crate) async fn get_ltp(b: &XtsBroker, auth: &AuthToken, key: &QuoteKey) -> Result<f64> {
+    let (_, row, code) = resolve(b, key)?;
+    let quotes = quotes_call(b, auth, vec![instrument(code, &row.token)], 1502).await?;
+    Ok(quotes
+        .first()
+        .map(|q| f(touchline(q), "LastTradedPrice"))
+        .unwrap_or(0.0))
+}
+
 pub(crate) async fn get_quote(b: &XtsBroker, auth: &AuthToken, key: &QuoteKey) -> Result<Quote> {
     let (_, row, code) = resolve(b, key)?;
     let q = depth_payload(b, auth, code, &row.token).await?;

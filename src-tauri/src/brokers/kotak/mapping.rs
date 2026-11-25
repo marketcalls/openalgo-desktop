@@ -7,7 +7,7 @@
 //! Kotak MPP band past the trigger, snapped to the tick away from it.
 
 use crate::brokers::common::mapping::{Action, PriceType};
-use crate::brokers::common::mpp::{instrument_type_from_symbol, py_round};
+use crate::brokers::common::mpp::{instrument_type_from_symbol, py_round, snap_to_tick};
 use crate::brokers::common::position_read::says_no_positions;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -183,18 +183,8 @@ pub fn mpp_offset(price: f64, instrument_type: &str) -> f64 {
     0.0
 }
 
-fn tick_decimals(tick: f64) -> i32 {
-    let s = format!("{}", tick);
-    s.split_once('.').map(|(_, f)| f.len() as i32).unwrap_or(0)
-}
-
-fn snap_to_tick(value: f64, tick: f64, floor: bool) -> f64 {
-    let ratio = py_round(value / tick, 6);
-    let k = if floor { ratio.floor() } else { ratio.ceil() };
-    py_round(k * tick, tick_decimals(tick))
-}
-
-/// web `_slm_protected_price` with Kotak's grid.
+/// web `_slm_protected_price` with Kotak's grid (an offset in rupees, so
+/// not `mpp::stop_limit_off_trigger`'s percentage slabs).
 pub fn slm_protected_price(symbol: &str, action: Action, trigger: f64, tick: f64) -> Result<f64> {
     if !tick.is_finite() || tick <= 0.0 {
         return Err(AppError::Validation(format!(
