@@ -11,8 +11,7 @@
 //! are covered too: the first bar of an IST date that is flat, has zero
 //! volume and is followed by more bars that date. Index bars always carry
 //! zero volume, but their first trading bar is not flat, so it is kept.
-//! Flattrade drops its pre-open bars by the clock instead
-//! (`strict_candles`).
+//! Flattrade's pre-open bars follow its own web rule, not this one.
 
 use super::day_end::ist_date;
 use crate::brokers::families::noren::NorenConfig;

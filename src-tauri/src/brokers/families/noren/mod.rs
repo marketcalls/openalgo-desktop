@@ -313,7 +313,7 @@ pub struct NorenConfig {
     /// Drop the bar intraday TPSeries opens an IST date with when it holds
     /// the pre-open discovered price: flat, no volume, and more bars that
     /// date (tradesmart, web #2475, QA HS-07; `data::flat_open_bar`).
-    /// Recognised by its shape, not the clock, unlike `strict_candles`.
+    /// Recognised by its shape, with no session time or calendar.
     pub drop_flat_open_bar: bool,
     /// Widen the high/low of `EODChartData` rows to cover their open and
     /// close (flattrade: BSE index rows often carry a close outside the

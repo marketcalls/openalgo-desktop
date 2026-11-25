@@ -476,8 +476,8 @@ async fn intraday_history_leaves_out_the_pre_open_bar_of_each_session() {
 }
 
 /// Shoonya and Zebu keep every bar TPSeries sends: the web drops the
-/// pre-open bar by its shape for TradeSmart only (Flattrade drops it by
-/// the clock, `strict_candles`).
+/// pre-open bar by its shape for TradeSmart only (Flattrade's pre-open
+/// bars follow its own web rule).
 #[tokio::test]
 async fn other_noren_members_keep_the_bars_tpseries_sends() {
     for cfg in [shoonya::config(), zebu::config()] {
