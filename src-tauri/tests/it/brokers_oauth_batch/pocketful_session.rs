@@ -160,7 +160,6 @@ async fn a_callback_without_a_code_says_why_after_its_state_matched() {
     let url = BrokerAuthService::start_oauth(&ctx, "pocketful", None)
         .await
         .unwrap();
-    assert!(url.starts_with("https://algo.pocketful.in/oauth2/auth?client_id=APPID7Vf&"));
     let declined = params(&[
         ("error", "access_denied"),
         (
@@ -186,6 +185,12 @@ async fn a_callback_without_a_code_says_why_after_its_state_matched() {
     assert!(
         pocketful.seen.lock().is_empty(),
         "nothing reached Pocketful"
+    );
+    // The sign-in starts on the new host.
+    assert!(
+        url.starts_with("https://algo.pocketful.in/oauth2/auth?client_id=APPID7Vf&"),
+        "{}",
+        url
     );
 
     ctx.shutdown().await;
