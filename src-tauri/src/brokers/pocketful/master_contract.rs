@@ -592,18 +592,19 @@ pub fn parse_archive(files: &[(String, Vec<u8>)]) -> Result<Vec<SymToken>> {
     Ok(one_row_each(all))
 }
 
-/// Download the public contract and parse it. No session header: the file
-/// is public (see the module doc). Every failure answers the web's
-/// sentence; the cause is logged without the address.
+/// The contract's GET (web `client.get(CONTRACT_URL, timeout=DOWNLOAD_TIMEOUT)`):
+/// no session header, the file is public (see the module doc), and the
+/// download's 180 s rather than the shared client's 30 s, since the archive
+/// is about 4 MB compressed.
+pub(super) fn contract_request(b: &PocketfulBroker) -> reqwest::RequestBuilder {
+    b.http.get(&b.urls.master).timeout(DOWNLOAD_TIMEOUT)
+}
+
+/// Download the public contract and parse it. Every failure answers the
+/// web's sentence; the cause is logged without the address.
 pub async fn download(b: &PocketfulBroker) -> Result<Vec<SymToken>> {
     let unreachable = |e: reqwest::Error| failed(&redact::url_safe_error(&e.without_url()));
-    let resp = b
-        .http
-        .get(&b.urls.master)
-        .timeout(DOWNLOAD_TIMEOUT)
-        .send()
-        .await
-        .map_err(unreachable)?;
+    let resp = contract_request(b).send().await.map_err(unreachable)?;
     let status = resp.status();
     if !status.is_success() {
         return Err(failed(&format!("HTTP {}", status.as_u16())));

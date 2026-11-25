@@ -8,13 +8,14 @@
 
 use super::{capture, Fake, Reply};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
-use crate::brokers::pocketful::master_contract::parse_archive;
+use crate::brokers::pocketful::master_contract::{contract_request, parse_archive};
 use crate::brokers::pocketful::{zip, PocketfulBroker, BASE_URL, MASTER_URL};
 use crate::brokers::types::AuthToken;
 use crate::brokers::Broker;
 use crate::db::sqlite::{migrations, symbol};
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::time::Duration;
 
 macro_rules! fixture {
     ($name:literal) => {
@@ -673,7 +674,8 @@ fn session() -> AuthToken {
 }
 
 /// Web test_pocketful_master_contract.py::test_the_download_asks_for_the_documented_file_and_sends_no_credentials,
-/// and ::test_a_successful_download_replaces_the_contract.
+/// and ::test_a_successful_download_replaces_the_contract. The web test's
+/// timeout check is `the_download_waits_the_webs_180_seconds`.
 #[tokio::test]
 async fn the_download_asks_for_the_documented_file_and_sends_no_credentials() {
     assert_eq!(
@@ -707,6 +709,20 @@ async fn the_download_asks_for_the_documented_file_and_sends_no_credentials() {
         .iter()
         .all(|s| symbols(&got, "NSE_INDEX").contains(s)));
     assert!(symbols(&got, "NSE").contains("HFCL"));
+}
+
+/// Web test_pocketful_master_contract.py::test_the_download_asks_for_the_documented_file_and_sends_no_credentials,
+/// its timeout (`assert kwargs["timeout"] == mcd.DOWNLOAD_TIMEOUT`, 180 s):
+/// the archive is about 4 MB compressed, and the shared client's 30 s
+/// would fail it on a slow link. The GET carries no header of its own.
+#[tokio::test]
+async fn the_download_waits_the_webs_180_seconds() {
+    let broker = PocketfulBroker::new(SymbolResolver::new());
+    let request = contract_request(&broker).build().unwrap();
+    assert_eq!(request.timeout(), Some(&Duration::from_secs(180)));
+    assert_eq!(request.method(), reqwest::Method::GET);
+    assert_eq!(request.url().as_str(), MASTER_URL);
+    assert!(request.headers().is_empty(), "{:?}", request.headers());
 }
 
 /// Web test_pocketful_master_contract.py::test_the_download_writes_only_the_five_contract_files:
