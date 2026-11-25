@@ -42,16 +42,14 @@
 //! not an identity (CLAUDE.md, the symbol master); the web reads `name`.
 
 use super::client::{Answer, Lane, Request};
-use super::{mapping, orders, PocketfulBroker};
+use super::{gtt, mapping, orders, PocketfulBroker};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, py_round};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::common::underlying::row_underlying;
 use crate::brokers::types::{AuthToken, MarginLeg, MarginResult};
 use crate::error::{AppError, Result};
-use regex::Regex;
 use reqwest::Method;
 use serde_json::{json, Value};
-use std::sync::LazyLock;
 
 /// The calculator's route (docs, "Margin Calculator").
 pub(crate) const MARGIN_PATH: &str = "/api/space/v1/orderapis/marginCalculations";
@@ -86,11 +84,6 @@ const MARGIN_COMPONENTS: &[&str] = &[
     "somtierMargin",
 ];
 const MARGIN_BENEFIT: &str = "premiumBenefit";
-
-/// "Error from backend: (500)-event id not found" -> "event id not found"
-/// (web `gtt_data._BACKEND_PREFIX`).
-static BACKEND_PREFIX: LazyLock<Option<Regex>> =
-    LazyLock::new(|| Regex::new(r"(?i)^\s*error from backend:\s*(\(\s*\d+\s*\)\s*-?\s*)?").ok());
 
 /// Margin for `legs`, priced as one basket (web `calculate_margin_api`).
 pub async fn calculate_margin(
@@ -271,7 +264,8 @@ fn margin_of(answer: &Answer) -> Result<MarginResult> {
             "Pocketful margin refused: {:?}",
             message
         );
-        let reason = broker_reason(&message);
+        // The web imports it from gtt_data too.
+        let reason = gtt::broker_reason(&message);
         return Err(AppError::Broker(if reason.is_empty() {
             format!("{}. Check the positions and try again.", REFUSED)
         } else {
@@ -293,20 +287,6 @@ fn session_refused(answer: &Answer) -> AppError {
     match orders::refused(answer, "margin", false) {
         AppError::Auth(text) => AppError::Broker(text),
         other => other,
-    }
-}
-
-/// Pocketful's own message without its backend code prefix, its first
-/// letter capitalised, or "" (web `gtt_data.broker_reason`).
-pub(crate) fn broker_reason(message: &str) -> String {
-    let stripped = match BACKEND_PREFIX.as_ref() {
-        Some(re) => re.replace(message, "").into_owned(),
-        None => message.to_string(),
-    };
-    let mut chars = stripped.trim().chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
     }
 }
 
