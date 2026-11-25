@@ -298,7 +298,7 @@ pub fn rename<'a>(table: &'a [(&'a str, &'a str)], name: &str) -> Option<&'a str
 /// (Symbol HFCL, Series BE); `brsymbol` keeps the broker's tradingsymbol.
 /// Not stripped: the debt and government security series (SG, GS, TB, N0
 /// and the like), and -RL, whose bare names exist as rows of their own.
-const NSE_SERIES_SUFFIXES: [&str; 6] = ["BE", "BZ", "RR", "IV", "SM", "ST"];
+pub(crate) const NSE_SERIES_SUFFIXES: [&str; 6] = ["BE", "BZ", "RR", "IV", "SM", "ST"];
 
 /// The base symbol of a series-suffixed tradingsymbol (`HFCL` of
 /// `HFCL-BE`), as the web's `^(.+)-(?:BE|BZ|RR|IV|SM|ST)$` reads it.

@@ -417,7 +417,7 @@ async fn pocketful_quotes_and_depth_over_the_socket() {
 async fn pocketful_master_contract_download() {
     let (b, _, auth) = setup().await;
     let rows = b.download_master_contract(&auth).await.unwrap();
-    assert_eq!(rows.len(), 26);
+    assert_eq!(rows.len(), 73);
     let fut = rows.iter().find(|r| r.symbol == "NIFTY27OCT26FUT").unwrap();
     assert_eq!(fut.expiry, "27-OCT-26");
     assert_eq!(fut.brsymbol, "NIFTY26OCTFUT");
