@@ -35,7 +35,7 @@
 
 use super::client::{Answer, Lane, Request};
 use super::mapping::{int, num, row_symbol, text, text_any};
-use super::PocketfulBroker;
+use super::{orders, PocketfulBroker};
 use crate::brokers::common::mapping::{Action, PriceType};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price};
 use crate::brokers::common::outcome;
@@ -173,6 +173,16 @@ pub(super) fn broker_reason(message: &str) -> String {
         Some(first) => first.to_uppercase().chain(chars).collect(),
         None => String::new(),
     }
+}
+
+/// What a trader reads when Pocketful refused the session (401, 403): log
+/// in to Pocketful again, in the words every book and order of this
+/// adapter uses (`orders::refused`), where the web's GTT gives Pocketful's
+/// own "Request Unauthorised". Checked before anything else, whatever the
+/// body. The callers keep it a refusal, which the GTT wire answers with
+/// 400; `AppError::Auth` would be its 500 "internal error".
+fn session_refusal(a: &Answer, subject: &str) -> String {
+    orders::refused(a, subject, false).client_message()
 }
 
 /// web `_refusal_text`.
@@ -398,6 +408,9 @@ fn answered_id(a: &Answer) -> String {
 /// A create's answer, by the three outcomes.
 fn created(a: &Answer) -> Result<GttResponse> {
     let write = GttWrite::Place;
+    if a.session_refused() {
+        return Err(refused(session_refusal(a, "GTT")));
+    }
     if a.body.is_none() {
         return Err(uncertain(
             format!(
@@ -457,6 +470,9 @@ fn created(a: &Answer) -> Result<GttResponse> {
 /// A modify's or cancel's answer (web): a reply that could not be read is
 /// uncertain, any other "not done" Pocketful's refusal.
 fn settled(a: &Answer, write: GttWrite, trigger_id: &str) -> Result<GttResponse> {
+    if a.session_refused() {
+        return Err(refused(session_refusal(a, "GTT")));
+    }
     if !a.ok() {
         tracing::warn!(
             status = a.status.as_u16(),
@@ -499,6 +515,9 @@ async fn read_rules(b: &PocketfulBroker, auth: &AuthToken, account: &str) -> Res
         Err(AppError::Auth(m)) => return Err(refused(m)),
         Err(e) => return Err(e),
     };
+    if a.session_refused() {
+        return Err(AppError::Broker(session_refusal(&a, "GTT list")));
+    }
     if a.body.is_none() {
         return Err(AppError::Broker(LIST_UNREADABLE.into()));
     }

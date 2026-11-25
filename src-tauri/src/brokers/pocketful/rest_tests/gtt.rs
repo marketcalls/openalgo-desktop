@@ -401,7 +401,8 @@ async fn a_gtt_pocketful_cannot_take_is_refused_unsent() {
 }
 
 /// Web test_pocketful_account.py::test_a_refused_gtt_reads_as_pocketfuls_reason,
-/// and a session Pocketful refuses reads the same way.
+/// and a refusal with a client-error status reads the same way (a refused
+/// session has its own sentence: [`a_refused_session_asks_for_a_new_login`]).
 #[tokio::test]
 async fn a_refused_gtt_reads_as_pocketfuls_reason() {
     for (reply, want) in [
@@ -410,7 +411,7 @@ async fn a_refused_gtt_reads_as_pocketfuls_reason() {
             "Pocketful refused to place the GTT: `order` `product` is invalid",
         ),
         (
-            Reply::Json(401, doc("unauthorised")),
+            Reply::Json(400, doc("unauthorised")),
             "Pocketful refused to place the GTT: Request Unauthorised",
         ),
     ] {
@@ -830,21 +831,105 @@ async fn no_rules_is_an_empty_book_not_an_error() {
         .is_empty());
 }
 
-/// Web test_pocketful_account.py::test_a_book_pocketful_refuses_is_an_error
+/// Web test_pocketful_account.py::test_a_book_pocketful_refuses_is_an_error,
+/// with the web's 401 answer, which reads as the adapter's log-in sentence
+/// here (the web: "Pocketful refused to list the GTT: Request
+/// Unauthorised"), and the same body with a 400, which reads as the web's.
 #[tokio::test]
 async fn a_book_pocketful_refuses_is_an_error() {
-    let fake = Fake::start().await;
-    fake.on(&book_path(), vec![Reply::Json(401, doc("unauthorised"))]);
-    let b = fake.broker(symbols());
+    for (status, want) in [
+        (
+            401,
+            "Pocketful did not accept your session for the GTT list. Log in to Pocketful again \
+from OpenAlgo, then try again.",
+        ),
+        (
+            400,
+            "Pocketful refused to list the GTT: Request Unauthorised",
+        ),
+    ] {
+        let fake = Fake::start().await;
+        fake.on(&book_path(), vec![Reply::Json(status, doc("unauthorised"))]);
+        let b = fake.broker(symbols());
 
-    let e = gtt::get_gtt_book(&b, &session(), false).await.unwrap_err();
+        let e = gtt::get_gtt_book(&b, &session(), false).await.unwrap_err();
 
-    assert!(
-        matches!(&e, AppError::Broker(m)
-            if m == "Pocketful refused to list the GTT: Request Unauthorised"),
-        "{:?}",
-        e
-    );
+        assert!(
+            matches!(&e, AppError::Broker(m) if m == want),
+            "{}: {:?}",
+            status,
+            e
+        );
+    }
+}
+
+/// Desktop: a session Pocketful refuses (401 or 403, whatever the body) on
+/// a create, a change, a cancel or the list says to log in to Pocketful
+/// again, in the words of every book and order of this adapter
+/// (`orders::refused`), and stays a refusal, which the GTT wire answers
+/// with 400. The web gives Pocketful's own "Request Unauthorised", and a
+/// create or change whose 401 body is not JSON may or may not have been
+/// made. Review finding (gtt.rs:179).
+#[tokio::test]
+async fn a_refused_session_asks_for_a_new_login() {
+    const WRITE: &str = "Pocketful did not accept your session for the GTT. Log in to Pocketful \
+again from OpenAlgo, then try again.";
+    const LIST: &str = "Pocketful did not accept your session for the GTT list. Log in to \
+Pocketful again from OpenAlgo, then try again.";
+    for reply in [
+        Reply::Json(401, doc("unauthorised")),
+        Reply::Json(403, doc("unauthorised")),
+        Reply::Text(401, "<html>401 Authorization Required</html>"),
+    ] {
+        let fake = Fake::start().await;
+        fake.on(GTT_PATH, vec![reply.clone()]);
+        fake.on(&rule_path(GTT_ID), vec![reply.clone()]);
+        fake.on(&book_path(), vec![reply.clone()]);
+        let b = fake.broker(symbols());
+
+        let placed = gtt::place_gtt_on(&b, &session(), &single(), today())
+            .await
+            .unwrap_err();
+        let cancelled = gtt::cancel_gtt(&b, &session(), GTT_ID).await.unwrap_err();
+        let listed = gtt::get_gtt_book(&b, &session(), false).await.unwrap_err();
+        let not_read = gtt::modify_gtt(&b, &session(), HELD_ID, &modify())
+            .await
+            .unwrap_err();
+
+        for e in [placed, cancelled] {
+            assert!(
+                matches!(&e, AppError::Refused(m) if m == WRITE),
+                "{:?}: {:?}",
+                reply,
+                e
+            );
+        }
+        for e in [listed, not_read] {
+            assert!(
+                matches!(&e, AppError::Broker(m) if m == LIST),
+                "{:?}: {:?}",
+                reply,
+                e
+            );
+        }
+
+        let fake = Fake::start().await;
+        fake.on(&book_path(), vec![book(vec![doc("rule")])]);
+        fake.on(GTT_PATH, vec![reply.clone()]);
+        let b = fake.broker(symbols());
+
+        let changed = gtt::modify_gtt(&b, &session(), HELD_ID, &modify())
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(&changed, AppError::Refused(m) if m == WRITE),
+            "{:?}: {:?}",
+            reply,
+            changed
+        );
+        assert_eq!(fake.to(GTT_PATH).len(), 1, "{:?}", reply);
+    }
 }
 
 /// Web gtt_data.gtt_rows: a list keeps its rules, a single rule with an id
