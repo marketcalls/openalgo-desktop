@@ -4,7 +4,8 @@
 //! Since web #2484, #2490 and #2504 it departs from the template where the
 //! other members' web code has not moved: it reads XTS answers as the XTS
 //! v2 docs describe them, asks for history 365 days at a time, takes the
-//! consolidated `ALL|ALL|ALL` funds entry, and its feed connects with the
+//! consolidated `ALL|ALL|ALL` funds entry, sends a refused subscribe batch
+//! again one instrument at a time, and its feed connects with the
 //! market-data session quotes and history use, logging in itself only at
 //! `/apimarketdata`, where several sessions coexist.
 
@@ -39,7 +40,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         funds_balance_header: Some("ALL|ALL|ALL"),
         margin_details: false,
         multiquote_oi: false,
-        split_refused_batch: crate::brokers::families::xts::SplitRefused::Never,
+        split_refused_batch: crate::brokers::families::xts::SplitRefused::Any,
         data_stall_watchdog: true,
         event_code: EventCode::Payload,
         text_1105_as_ltp: false,

@@ -1363,9 +1363,9 @@ mod subscription_batches {
         assert_eq!(sizes, vec![vec![50, 50, 20], vec![50, 5]]);
     }
 
-    /// Only rmoney (web #2176) and wisdom (web #2469) split a refused
-    /// batch; the other members keep their web behaviour: the refusal is
-    /// non-fatal and nothing is retried.
+    /// Only rmoney (web #2176), wisdom (web #2469) and 5paisa XTS (web
+    /// #2504) split a refused batch; the other members keep their web
+    /// behaviour: the refusal is non-fatal and nothing is retried.
     #[tokio::test]
     async fn other_members_do_not_split_a_refused_batch() {
         use crate::brokers::families::xts::SplitRefused;
@@ -1373,12 +1373,18 @@ mod subscription_batches {
             crate::brokers::rmoney::CONFIG.hooks.split_refused_batch,
             SplitRefused::AlreadySubscribed
         );
-        assert_eq!(
-            crate::brokers::wisdom::CONFIG.hooks.split_refused_batch,
-            SplitRefused::Any
-        );
         for cfg in [
+            &crate::brokers::wisdom::CONFIG,
             &crate::brokers::fivepaisaxts::CONFIG,
+        ] {
+            assert_eq!(
+                cfg.hooks.split_refused_batch,
+                SplitRefused::Any,
+                "{}",
+                cfg.id
+            );
+        }
+        for cfg in [
             &crate::brokers::compositedge::CONFIG,
             &crate::brokers::jainamxts::CONFIG,
             &crate::brokers::ibulls::CONFIG,
@@ -1576,13 +1582,18 @@ mod subscription_batches {
 
     /// BF-03: a batch whose call failed with a server error is sent again
     /// (only that batch) and then starts, for rmoney (the web's retry) and
-    /// the other XTS members alike; a validation refusal (400) is not
-    /// retried; a refused token asks for a reconnect.
+    /// the other XTS members alike; a refused token asks for a reconnect,
+    /// never a split. A validation refusal (400) is not retried by rmoney
+    /// or a template member (iifl); 5paisa XTS sends that batch again one
+    /// instrument at a time (web #2504, `SplitRefused::Any`).
     #[tokio::test]
     async fn a_failed_batch_is_sent_again() {
-        for cfg in [
-            &crate::brokers::rmoney::CONFIG,
-            &crate::brokers::fivepaisaxts::CONFIG,
+        let one_call: &[Vec<i64>] = &[vec![0, 1]];
+        let one_at_a_time: &[Vec<i64>] = &[vec![0, 1], vec![0], vec![1]];
+        for (cfg, after_a_400) in [
+            (&crate::brokers::rmoney::CONFIG, one_call),
+            (&crate::brokers::iifl::CONFIG, one_call),
+            (&crate::brokers::fivepaisaxts::CONFIG, one_at_a_time),
         ] {
             let (url, seen) = scripted(vec![(2, 500, "{\"type\":\"error\"}")]).await;
             worker(
@@ -1616,7 +1627,12 @@ mod subscription_batches {
                 Duration::from_millis(300),
             )
             .await;
-            assert_eq!(seen.lock().len(), 1, "{}: a 400 was retried", cfg.id);
+            assert_eq!(
+                seen.lock().as_slice(),
+                after_a_400,
+                "{}: the calls after a 400",
+                cfg.id
+            );
 
             let (url, seen) = scripted(vec![(
                 1,

@@ -31,8 +31,8 @@
 //! ("e-session-0002"); a member's `XtsHooks::split_refused_batch` says
 //! whether such a batch is retried one instrument at a time so the others
 //! still start (rmoney, web #2176), or any refused batch is (wisdom, web
-//! #2469); for the others the refusal is non-fatal, as in their web
-//! adapters. The
+//! #2469; 5paisa XTS, web #2504); for the others the refusal is
+//! non-fatal, as in their web adapters. The
 //! snapshots in the subscribe answer (`listQuotes`) are decoded like live
 //! events with the next frame.
 //!
