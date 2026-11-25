@@ -1,0 +1,21 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY28JUL2216600CE",
+  "exchange": "NFO",
+  "mode": 2,
+  "broker": "aliceblue",
+  "data": {
+    "ltp": 84.0,
+    "ltt": 1658911102000,
+    "volume": 129781850,
+    "average_price": 61.35,
+    "open": 37.65,
+    "high": 98.0,
+    "low": 22.0,
+    "close": 42.2,
+    "change_percent": 99.05,
+    "percent_change": 99.05,
+    "total_oi": 7606750,
+    "oi": 7606750
+  }
+}

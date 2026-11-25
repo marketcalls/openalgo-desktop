@@ -201,6 +201,12 @@ pub struct QuoteExtras {
     /// (web mStock sends no `exchange_timestamp` for a packet without one).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exchange_time_ms: Option<i64>,
+    /// The last trade's time of day as the broker sends it beside its feed
+    /// time, seconds after midnight IST (AliceBlue's `ltt`, `HH:MM:SS`,
+    /// which its web adapter passes on as `last_trade_time`). Market state,
+    /// kept like the circuits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trade_clock_s: Option<u32>,
     /// What this packet says is gone (`clear`): not kept from earlier
     /// packets, where a `None` keeps the last value.
     #[serde(skip)]
@@ -223,6 +229,7 @@ pub enum ExtraField {
     OiChange = 1 << 9,
     TotalOi = 1 << 10,
     DayClose = 1 << 11,
+    TradeClock = 1 << 12,
 }
 
 /// The [`ExtraField`]s a packet clears.
@@ -262,6 +269,7 @@ impl QuoteExtras {
             X::OiChange => self.oi_change = None,
             X::TotalOi => self.total_oi = None,
             X::DayClose => self.day_close = None,
+            X::TradeClock => self.trade_clock_s = None,
         }
         self.cleared.0 |= field as u16;
     }
@@ -333,6 +341,11 @@ impl QuoteExtras {
             total_oi: pick(gone.contains(X::TotalOi), newer.total_oi, self.total_oi),
             day_close: pick(gone.contains(X::DayClose), newer.day_close, self.day_close),
             exchange_time_ms: newer.exchange_time_ms,
+            trade_clock_s: pick(
+                gone.contains(X::TradeClock),
+                newer.trade_clock_s,
+                self.trade_clock_s,
+            ),
             cleared: ClearedExtras::default(),
         }
     }

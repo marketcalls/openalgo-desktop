@@ -16,6 +16,6 @@
   ],
   "notes": [
     "AliceBlue streams five levels; LTP and Quote ride the touchline (t), Depth the depth feed (d), on the Noren socket the web opens after createWsSess.",
-    "The web's data dicts carry no symbol, exchange or mode, its ltt and Depth timestamp are AliceBlue's feed time as a string of epoch seconds, and its Quote leaves out the trade quantity and book totals: see each case's deviations."
+    "Since web #2473 the web's dicts carry every quote field the snapshot holds (OHLC, volume, average price, trade quantity, book totals, OI as total_oi and oi, the change as change_percent and percent_change, circuits, ltt as last_trade_time), no symbol, exchange or mode, and its ltt and Depth timestamp are AliceBlue's feed time in epoch seconds: see each case's deviations."
   ]
 }

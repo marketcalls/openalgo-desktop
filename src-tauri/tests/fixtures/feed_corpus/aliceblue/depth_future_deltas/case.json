@@ -22,7 +22,7 @@
     "{\"k\":\"\",\"t\":\"h\"}"
   ],
   "provenance": {
-    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
     "method": "web-script",
     "sources": [
       "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._handle_message",
@@ -31,411 +31,43 @@
       "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received"
     ],
     "notes": [
-      "The web publishes orders 0 for every level although AliceBlue sends the counts; the desktop sends them (lead ruling 2026-11-09).",
-      "Depth OI is toi on the desktop (FeedSnap::apply); the web's Depth sends no OI.",
-      "The delta carries only the changed keys, as Noren's df does. The desktop merges it level by level; the web rebuilds a side from the levels the delta carries a price for and replaces the side with them (aliceblue_mapping.py:219-262, aliceblue_adapter.py:700-718), so four unchanged bids are lost, and a quantity change without its price (sq1) is ignored. Audit appendix item 10."
+      "AliceBlue's own order counts (bo, so), which the web publishes too since web #2473.",
+      "Depth OI from the documented oi, toi kept as a fallback, on both sides (FeedSnap::apply; aliceblue_mapping.py `QUOTE_FIELD_MAP`).",
+      "The delta carries only the changed keys, as Noren's df does; both merge it per level and field (aliceblue_adapter.py `_update_market_snapshot` since web #2473)."
     ]
   },
   "deviations": [
     {
-      "key": "timestamp",
+      "key": "ltt",
       "kind": "web-defect",
-      "reason": "The web's Depth timestamp is AliceBlue's feed time ft as it came, a string of epoch seconds; the frame timestamp is epoch milliseconds as a number (docs/prompt/websockets-format.md). The desktop sends the receipt time.",
-      "ref": "aliceblue_mapping.py:255; aliceblue_adapter.py:1295-1300",
+      "reason": "The web sends AliceBlue's feed time ft as ltt in epoch seconds, an integer since web #2473 (aliceblue_adapter.py `_feed_time`, `_quote_fields`); the docs key ltt is epoch milliseconds (docs/prompt/websockets-format.md).",
+      "ref": "aliceblue_adapter.py `_feed_time`",
       "approval": "alias-unit",
       "allows": [
         [
-          "1794302700",
-          "<receipt_ms>"
-        ],
-        [
-          "1794302703",
-          "<receipt_ms>"
-        ]
-      ]
-    },
-    {
-      "key": "ltt",
-      "kind": "web-defect",
-      "reason": "The web's Depth has no ltt: it puts AliceBlue's feed time, as a string of epoch seconds, in timestamp instead (aliceblue_mapping.py:255, aliceblue_adapter.py:1295-1300). The desktop sends the trade time as ltt in ms and its receipt time as timestamp, as every frame does.",
-      "ref": "aliceblue_adapter.py:1295-1300",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
+          1794302700,
           1794302700000
         ],
         [
-          "<absent>",
+          1794302703,
           1794302703000
         ]
       ]
     },
     {
-      "key": "volume",
+      "key": "timestamp",
       "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries volume and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
+      "reason": "The web's Depth timestamp is AliceBlue's feed time ft in epoch seconds (aliceblue_adapter.py `_on_data_received`, web #2473); the frame timestamp is epoch milliseconds (docs/prompt/websockets-format.md), and the desktop sends its receipt time.",
+      "ref": "aliceblue_adapter.py `_on_data_received`",
+      "approval": "alias-unit",
       "allows": [
         [
-          "<absent>",
-          1234500
+          1794302700,
+          "<receipt_ms>"
         ],
         [
-          "<absent>",
-          1234650
-        ]
-      ]
-    },
-    {
-      "key": "last_quantity",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries last_quantity and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          150
-        ],
-        [
-          "<absent>",
-          75
-        ]
-      ]
-    },
-    {
-      "key": "average_price",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries average_price and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          24435.15
-        ]
-      ]
-    },
-    {
-      "key": "total_buy_quantity",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries total_buy_quantity and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          456000
-        ]
-      ]
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries total_sell_quantity and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          398250
-        ]
-      ]
-    },
-    {
-      "key": "open",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries open and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          24400.0
-        ]
-      ]
-    },
-    {
-      "key": "high",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries high and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          24520.0
-        ]
-      ]
-    },
-    {
-      "key": "low",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries low and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          24360.5
-        ]
-      ]
-    },
-    {
-      "key": "close",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries close and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          24380.0
-        ]
-      ]
-    },
-    {
-      "key": "change_percent",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries change_percent and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          0.29
-        ]
-      ]
-    },
-    {
-      "key": "total_oi",
-      "kind": "web-defect",
-      "reason": "AliceBlue's depth packet carries total_oi and the web's Depth dict leaves it out, sending only ltp, timestamp and the book (aliceblue_adapter.py:1270-1300): market data the broker sent, lost (lead ruling 2026-11-09). The desktop's Depth frame keeps it, as docs/api/websocket-streaming/depth.md shows the quote beside the book.",
-      "ref": "aliceblue_adapter.py:1270-1300; feed::bridge::depth_update",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          13456725
-        ]
-      ]
-    },
-    {
-      "key": "depth",
-      "kind": "web-defect",
-      "reason": "AliceBlue's dk and df carry each level's order count (bo1..bo5, so1..so5); the web publishes 0 for every level (aliceblue_adapter.py:1280-1290), a wrong value (lead ruling 2026-11-09). The desktop sends the counts. And a df delta carries only the levels that changed; the web replaces the whole bid side with the one level the delta names (losing the four unchanged bids) and drops the best ask's new quantity because the delta carries no price beside it. The desktop merges the delta level by level.",
-      "ref": "audit appendix item 10; aliceblue_mapping.py:219-262; aliceblue_adapter.py:700-718, 1280-1290",
-      "approval": "aliceblue-order-counts-zero-level-clear",
-      "allows": [
-        [
-          {
-            "buy": [
-              {
-                "price": 24450.0,
-                "quantity": 150,
-                "orders": 0
-              },
-              {
-                "price": 24449.5,
-                "quantity": 300,
-                "orders": 0
-              },
-              {
-                "price": 24449.0,
-                "quantity": 450,
-                "orders": 0
-              },
-              {
-                "price": 24448.5,
-                "quantity": 600,
-                "orders": 0
-              },
-              {
-                "price": 24448.0,
-                "quantity": 750,
-                "orders": 0
-              }
-            ],
-            "sell": [
-              {
-                "price": 24450.5,
-                "quantity": 75,
-                "orders": 0
-              },
-              {
-                "price": 24451.0,
-                "quantity": 225,
-                "orders": 0
-              },
-              {
-                "price": 24451.5,
-                "quantity": 375,
-                "orders": 0
-              },
-              {
-                "price": 24452.0,
-                "quantity": 525,
-                "orders": 0
-              },
-              {
-                "price": 24452.5,
-                "quantity": 675,
-                "orders": 0
-              }
-            ]
-          },
-          {
-            "buy": [
-              {
-                "price": 24450.0,
-                "quantity": 150,
-                "orders": 3
-              },
-              {
-                "price": 24449.5,
-                "quantity": 300,
-                "orders": 5
-              },
-              {
-                "price": 24449.0,
-                "quantity": 450,
-                "orders": 6
-              },
-              {
-                "price": 24448.5,
-                "quantity": 600,
-                "orders": 8
-              },
-              {
-                "price": 24448.0,
-                "quantity": 750,
-                "orders": 9
-              }
-            ],
-            "sell": [
-              {
-                "price": 24450.5,
-                "quantity": 75,
-                "orders": 1
-              },
-              {
-                "price": 24451.0,
-                "quantity": 225,
-                "orders": 2
-              },
-              {
-                "price": 24451.5,
-                "quantity": 375,
-                "orders": 4
-              },
-              {
-                "price": 24452.0,
-                "quantity": 525,
-                "orders": 5
-              },
-              {
-                "price": 24452.5,
-                "quantity": 675,
-                "orders": 7
-              }
-            ]
-          }
-        ],
-        [
-          {
-            "buy": [
-              {
-                "price": 24450.2,
-                "quantity": 75,
-                "orders": 0
-              }
-            ],
-            "sell": [
-              {
-                "price": 24450.5,
-                "quantity": 75,
-                "orders": 0
-              },
-              {
-                "price": 24451.0,
-                "quantity": 225,
-                "orders": 0
-              },
-              {
-                "price": 24451.5,
-                "quantity": 375,
-                "orders": 0
-              },
-              {
-                "price": 24452.0,
-                "quantity": 525,
-                "orders": 0
-              },
-              {
-                "price": 24452.5,
-                "quantity": 675,
-                "orders": 0
-              }
-            ]
-          },
-          {
-            "buy": [
-              {
-                "price": 24450.2,
-                "quantity": 75,
-                "orders": 1
-              },
-              {
-                "price": 24449.5,
-                "quantity": 300,
-                "orders": 5
-              },
-              {
-                "price": 24449.0,
-                "quantity": 450,
-                "orders": 6
-              },
-              {
-                "price": 24448.5,
-                "quantity": 600,
-                "orders": 8
-              },
-              {
-                "price": 24448.0,
-                "quantity": 750,
-                "orders": 9
-              }
-            ],
-            "sell": [
-              {
-                "price": 24450.5,
-                "quantity": 150,
-                "orders": 1
-              },
-              {
-                "price": 24451.0,
-                "quantity": 225,
-                "orders": 2
-              },
-              {
-                "price": 24451.5,
-                "quantity": 375,
-                "orders": 4
-              },
-              {
-                "price": 24452.0,
-                "quantity": 525,
-                "orders": 5
-              },
-              {
-                "price": 24452.5,
-                "quantity": 675,
-                "orders": 7
-              }
-            ]
-          }
+          1794302703,
+          "<receipt_ms>"
         ]
       ]
     }

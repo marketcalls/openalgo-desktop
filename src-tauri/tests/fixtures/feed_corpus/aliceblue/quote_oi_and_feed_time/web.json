@@ -1,0 +1,265 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+  "adapter": "aliceblue",
+  "inputs_sha256": "a65eb7b1282fc567bdc9288dea32470678e618f15a0471761822d0e9355166fb",
+  "instruments": [
+    {
+      "symbol": "NIFTY28JUL2216600CE",
+      "exchange": "NFO",
+      "token": "54957",
+      "brsymbol": "NIFTY28JUL22C16600",
+      "brexchange": "NFO",
+      "expiry": "28-JUL-22",
+      "strike": 16600,
+      "lotsize": 50,
+      "instrumenttype": "CE"
+    },
+    {
+      "symbol": "CRUDEOIL19SEP22FUT",
+      "exchange": "MCX",
+      "token": "239484",
+      "brsymbol": "CRUDEOIL19SEP22",
+      "brexchange": "MCX",
+      "expiry": "19-SEP-22",
+      "lotsize": 100,
+      "instrumenttype": "FUT"
+    },
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 3,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "NIFTY28JUL2216600CE",
+              "exchange": "NFO",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "aliceblue"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "aliceblue"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "CRUDEOIL19SEP22FUT",
+              "exchange": "MCX",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "aliceblue"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "aliceblue"
+        }
+      ],
+      "from_adapter": true
+    },
+    {
+      "line": 7,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "LTP",
+              "depth": 5,
+              "broker": "aliceblue"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "aliceblue"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY28JUL2216600CE_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY28JUL2216600CE",
+          "mode": 2,
+          "data": {
+            "ltp": 84.0,
+            "ltt": 1658911102,
+            "volume": 129781850,
+            "open": 37.65,
+            "high": 98.0,
+            "low": 22.0,
+            "close": 42.2,
+            "change_percent": 99.05,
+            "average_price": 61.35,
+            "total_oi": 7606750,
+            "percent_change": 99.05,
+            "oi": 7606750
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "aliceblue",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "MCX_CRUDEOIL19SEP22FUT_QUOTE",
+          "exchange": "MCX",
+          "symbol": "CRUDEOIL19SEP22FUT",
+          "mode": 2,
+          "data": {
+            "ltp": 7568.0,
+            "ltt": 1658911100,
+            "volume": 469,
+            "close": 7522.0,
+            "total_oi": 429,
+            "oi": 429
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "b",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "aliceblue",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 1,
+          "data": {
+            "ltp": 84.2
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "c",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "broker": "aliceblue",
+          "serves": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "line": 15,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 1,
+          "data": {
+            "ltp": 84.35,
+            "ltt": 1658911103
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "c",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "broker": "aliceblue",
+          "serves": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "line": 17,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 1,
+          "data": {
+            "ltp": 84.4,
+            "ltt": 1658911103
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "c",
+          "publication": 0,
+          "mode": 1,
+          "topic_mode": 1,
+          "broker": "aliceblue",
+          "serves": [
+            1
+          ]
+        }
+      ]
+    }
+  ]
+}

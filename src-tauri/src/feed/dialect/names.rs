@@ -49,6 +49,8 @@ pub(crate) enum Extra {
     TotalOi,
     DayClose,
     ExchangeTime(Unit),
+    /// The broker's own trade time of day, `HH:MM:SS` (AliceBlue's `ltt`).
+    TradeClock,
 }
 
 /// Where a web key's value comes from.
@@ -372,9 +374,17 @@ const XTS: &[WebName] = &[
     CIRCUITS_IN_DEPTH[1],
 ];
 
+/// aliceblue_adapter.py `_quote_fields` (web #2473): the quote fields the
+/// snapshot holds, in Quote and Depth, with `percent_change` and `oi` beside
+/// AliceBlue's `change_percent` and `total_oi`, and its `ltt` clock as
+/// `last_trade_time`.
 const ALICEBLUE: &[WebName] = &[
     n("change_percent", S::ChangePercent, Q),
+    n("percent_change", S::ChangePercent, Q),
     n("total_oi", S::Oi, Q),
+    n("upper_circuit", S::Extra(E::UpperCircuit), Q),
+    n("lower_circuit", S::Extra(E::LowerCircuit), Q),
+    n("last_trade_time", S::Extra(E::TradeClock), Q),
 ];
 
 /// Definedge sends `ltq` in Depth only (`_DEPTH_EXTRA_FIELDS`); Quote's
@@ -777,14 +787,11 @@ fn named_modes(broker: &str) -> Option<Dialect> {
             .no_index_change(),
         "hdfcsecurities" | "hdfcsky" => d(Absent, ARROW_HDFC).open_interest().no_index_change(),
         "rupeezy" => d(Absent, RUPEEZY).open_interest().no_index_change(),
-        // aliceblue_adapter.py:1243-1305: no symbol, exchange or mode in
-        // `data`, and `timestamp` in the Depth dict only; a dict per
-        // subscribed mode (LTP `{ltp, ltt}`), OI only as `total_oi` and
-        // the change only as `change_percent`.
-        "aliceblue" => d(Absent, ALICEBLUE)
-            .bare(Mode::Depth)
-            .no_index_change()
-            .key(Key::Oi, Modes::NEVER),
+        // aliceblue_adapter.py `_on_data_received`: no symbol, exchange or
+        // mode in `data`, and `timestamp` in the Depth dict only; a dict
+        // per subscribed mode (LTP `{ltp, ltt}`), the change only under
+        // AliceBlue's names.
+        "aliceblue" => d(Absent, ALICEBLUE).bare(Mode::Depth).no_index_change(),
         "kotak" => d(Absent, KOTAK).no_index_change().index_book(),
         // upstox_adapter.py `_build_payload`: no change keys, OI a float.
         "upstox" => d(Absent, UPSTOX)

@@ -62,5 +62,7 @@ corpus_cases!(
         reconnect_logs_in_again,
         reconnect_starts_afresh,
         order_lifecycle,
+        depth_quote_fields,
+        quote_oi_and_feed_time,
     ]
 );

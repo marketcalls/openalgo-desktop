@@ -1,0 +1,18 @@
+{"step": "upstream_receives", "frames": [{"json": {"susertoken": "5ce3151c3330d77217eec62326ffd67e4f22d297172904dc86575089f8e6e909", "t": "c", "actid": "AB1_API", "uid": "AB1_API", "source": "API"}}], "note": "The relay's login to the market socket: susertoken is SHA-256 of SHA-256 of the fake session JWT header.payload.signature, not a secret (gitleaks:allow)."}
+{"step": "push", "frame": "frames/login_ok.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28JUL2216600CE", "exchange": "NFO"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY28JUL2216600CE", "exchange": "NFO", "status": "success", "mode": "Quote", "depth": 5, "broker": "aliceblue"}], "message": "Subscription processing complete", "broker": "aliceblue"}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NFO|54957"}}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "CRUDEOIL19SEP22FUT", "exchange": "MCX"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "CRUDEOIL19SEP22FUT", "exchange": "MCX", "status": "success", "mode": "Quote", "depth": 5, "broker": "aliceblue"}], "message": "Subscription processing complete", "broker": "aliceblue"}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "MCX|239484"}}]}
+{"step": "send", "client": "c", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "LTP", "depth": 5, "broker": "aliceblue"}], "message": "Subscription processing complete", "broker": "aliceblue"}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NSE|2885"}}]}
+{"step": "push", "frame": "frames/tk_oi.json", "note": "Web test_open_interest_is_read_from_documented_oi_key: OI in the documented oi key."}
+{"step": "receive", "client": "a", "frame": "expected/quote_oi.json"}
+{"step": "push", "frame": "frames/tk_mcx.json", "note": "Web test_quote_omits_fields_the_feed_never_sent: the MCX tk sample has no o, h, l or ap."}
+{"step": "receive", "client": "b", "frame": "expected/quote_mcx.json"}
+{"step": "push", "frame": "frames/tf_no_time.json", "note": "Web test_ltt_is_exchange_feed_time_and_omitted_when_absent: no ft yet, so no ltt and no receipt time in its place."}
+{"step": "receive", "client": "c", "frame": "expected/ltp_no_time.json"}
+{"step": "push", "frame": "frames/tf_timed.json"}
+{"step": "receive", "client": "c", "frame": "expected/ltp_timed.json"}
+{"step": "push", "frame": "frames/tf_untimed.json", "note": "A partial tf without ft keeps the feed time it had (Partial-update feeds)."}
+{"step": "receive", "client": "c", "frame": "expected/ltp_untimed.json"}

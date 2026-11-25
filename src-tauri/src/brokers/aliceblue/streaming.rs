@@ -13,10 +13,12 @@
 //!   `{"t":"u","k":..}` unsubscribes, `{"k":"","t":"h"}` keeps it alive;
 //! * frames `tk` (tick snapshot) / `tf` (tick delta) / `dk` (depth
 //!   snapshot) / `df` (depth delta) with keys `e, tk, ts, lp, o, h, l, c, v,
-//!   pc, cv, ap, ft, ltq, tbq, tsq, oi, poi, toi, bp1..5, bq1..5, bo1..5,
-//!   sp1..5, sq1..5, so1..5` (web `alicebluewebsocket.py:476-741`).
-//!   Deltas send 0 for unchanged prices, so the snapshot keeps the last
-//!   non-zero value (web `aliceblue_adapter.py:_update_market_snapshot`).
+//!   pc, cv, ap, ft, ltt, ltq, tbq, tsq, uc, lc, oi, poi, toi, bp1..5,
+//!   bq1..5, bo1..5, sp1..5, sq1..5, so1..5` (web `alicebluewebsocket.py:476-741`,
+//!   `aliceblue_mapping.py` `QUOTE_FIELD_MAP`, web #2473). A depth message
+//!   carries the quote as a tick does. Deltas send 0 for unchanged prices,
+//!   so the snapshot keeps the last non-zero value (web
+//!   `aliceblue_adapter.py:_update_market_snapshot`).
 //!
 //! Both this connect and the order feed's need REST calls first, which
 //! `BrokerFeed::ws_request` cannot make, so both run through the loopback
@@ -333,9 +335,29 @@ pub struct FeedSnap {
     pub change_percent: Option<f64>,
     pub change: Option<f64>,
     pub ft_ms: i64,
+    /// Today's price band (`uc`, `lc`): prices, so a 0 keeps the last one.
+    pub upper_circuit: Option<f64>,
+    pub lower_circuit: Option<f64>,
+    /// The last trade's time of day (`ltt`, `HH:MM:SS`), seconds after
+    /// midnight IST; the web passes it on as `last_trade_time`.
+    pub trade_clock_s: Option<u32>,
     pub bids: Vec<DepthLevel>,
     pub asks: Vec<DepthLevel>,
     pub known: AbsentFields,
+}
+
+/// `HH:MM:SS` as seconds after midnight; anything else is not read.
+fn clock_seconds(text: &str) -> Option<u32> {
+    let mut parts = text.split(':');
+    let mut field = |max: u32| -> Option<u32> {
+        let p = parts.next()?;
+        let x: u32 = (p.len() == 2 && p.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| p.parse().ok())
+            .flatten()?;
+        (x < max).then_some(x)
+    };
+    let (h, m, s) = (field(24)?, field(60)?, field(60)?);
+    parts.next().is_none().then_some(h * 3600 + m * 60 + s)
 }
 
 impl FeedSnap {
@@ -362,7 +384,6 @@ impl FeedSnap {
             ("ltq", F::LastQuantity, &mut self.ltq),
             ("tbq", F::TotalBuyQuantity, &mut self.total_buy_qty),
             ("tsq", F::TotalSellQuantity, &mut self.total_sell_qty),
-            ("toi", F::OpenInterest, &mut self.oi),
         ] {
             if v.get(k).is_some() {
                 let x = int(v.get(k));
@@ -371,6 +392,32 @@ impl FeedSnap {
                     self.known = self.known.with(field);
                 }
             }
+        }
+        // OI is the documented `oi`; `toi` is still read (the earlier
+        // parser's key), and wins when a message carries both, as the web's
+        // map reads them in that order (aliceblue_mapping.py `QUOTE_FIELD_MAP`).
+        for k in ["oi", "toi"] {
+            if v.get(k).is_some() {
+                let x = int(v.get(k));
+                if x >= 0 {
+                    self.oi = x;
+                    self.known = self.known.with(F::OpenInterest);
+                }
+            }
+        }
+        for (k, f) in [
+            ("uc", &mut self.upper_circuit),
+            ("lc", &mut self.lower_circuit),
+        ] {
+            if v.get(k).is_some() {
+                let x = num(v.get(k));
+                if x != 0.0 {
+                    *f = Some(x);
+                }
+            }
+        }
+        if let Some(clock) = v.get("ltt").and_then(Value::as_str).and_then(clock_seconds) {
+            self.trade_clock_s = Some(clock);
         }
         if v.get("pc").is_some() {
             self.change_percent = Some(num(v.get("pc")));
@@ -391,9 +438,10 @@ impl FeedSnap {
     fn side(levels: &[DepthLevel]) -> Vec<DepthLevel> {
         levels
             .iter()
-            // AliceBlue's own order counts (bo, so); the web publishes 0
-            // for every level (aliceblue_adapter.py `_on_data_received`), a
-            // wrong value the desktop does not copy.
+            // A level a delta sent as 0/0 is cleared (lead decision
+            // aliceblue-order-counts-zero-level-clear); the web keeps it
+            // with price 0, quantity 0 and the order count it had before
+            // (aliceblue_adapter.py `_depth_side`), a stale value.
             .filter(|l| l.price != 0.0)
             .copied()
             .collect()
@@ -677,6 +725,9 @@ fn snapshot_tick(sub: &FeedSubscription, snap: &FeedSnap, book: bool) -> Normali
         timestamp_ms: now_ms(),
         ..Default::default()
     };
+    tick.extras.upper_circuit = snap.upper_circuit;
+    tick.extras.lower_circuit = snap.lower_circuit;
+    tick.extras.trade_clock_s = snap.trade_clock_s;
     for field in [
         F::Ltp,
         F::Open,

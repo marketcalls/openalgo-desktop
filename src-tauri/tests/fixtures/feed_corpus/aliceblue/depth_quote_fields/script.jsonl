@@ -1,0 +1,8 @@
+{"step": "upstream_receives", "frames": [{"json": {"susertoken": "5ce3151c3330d77217eec62326ffd67e4f22d297172904dc86575089f8e6e909", "t": "c", "actid": "AB1_API", "uid": "AB1_API", "source": "API"}}], "note": "The relay's login to the market socket: susertoken is SHA-256 of SHA-256 of the fake session JWT header.payload.signature, not a secret (gitleaks:allow)."}
+{"step": "push", "frame": "frames/login_ok.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28JUL2216600CE", "exchange": "NFO"}], "mode": 3, "depth": 5}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY28JUL2216600CE", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "aliceblue"}], "message": "Subscription processing complete", "broker": "aliceblue"}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "d", "k": "NFO|54957"}}]}
+{"step": "push", "frame": "frames/dk.json", "note": "Web test_depth_ack_publishes_quote_fields_and_orders: the dk sample of aliceblue-api-docs/11-websocket.md."}
+{"step": "receive", "client": "a", "frame": "expected/depth_ack.json"}
+{"step": "push", "frame": "frames/df.json", "note": "Web test_depth_diff_merges_per_level_and_field: a df that changes ltp and the first ask quantity only."}
+{"step": "receive", "client": "a", "frame": "expected/depth_diff.json"}

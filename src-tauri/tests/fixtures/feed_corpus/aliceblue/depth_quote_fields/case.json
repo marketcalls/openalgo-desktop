@@ -1,0 +1,69 @@
+{
+  "broker": "aliceblue",
+  "summary": "The web test's depth sample on an NFO option: a dk carrying the quote beside the book (OHLC, volume, average price, trade quantity, book totals, OI as oi, circuits, the ltt clock) becomes a Depth frame with every one of them and AliceBlue's order counts; a df that changes the price and the first ask's quantity keeps every other field and level.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY28JUL2216600CE",
+      "exchange": "NFO",
+      "token": "54957",
+      "brsymbol": "NIFTY28JUL22C16600",
+      "brexchange": "NFO",
+      "expiry": "28-JUL-22",
+      "strike": 16600,
+      "lotsize": 50,
+      "instrumenttype": "CE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"k\":\"\",\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+    "method": "web-script",
+    "sources": [
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._handle_message",
+      "broker/aliceblue/streaming/aliceblue_mapping.py::AliceBlueMessageMapper.parse_depth_data",
+      "broker/aliceblue/streaming/aliceblue_mapping.py::AliceBlueMessageMapper.parse_tick_data",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._update_market_snapshot",
+      "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._on_data_received",
+      "test/test_aliceblue_quote_feed.py"
+    ],
+    "notes": [
+      "Inputs of web test/test_aliceblue_quote_feed.py (marketcalls/openalgo#2473, de8456ab3): test_depth_ack_publishes_quote_fields_and_orders and test_depth_diff_merges_per_level_and_field.",
+      "AliceBlue's ltt (HH:MM:SS) goes out as last_trade_time, as the web passes it on; ltt is the feed time ft on both sides."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends AliceBlue's feed time ft as ltt in epoch seconds, an integer since web #2473 (aliceblue_adapter.py `_feed_time`, `_quote_fields`); the docs key ltt is epoch milliseconds (docs/prompt/websockets-format.md).",
+      "ref": "aliceblue_adapter.py `_feed_time`",
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1658910517,
+          1658910517000
+        ]
+      ]
+    },
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "The web's Depth timestamp is AliceBlue's feed time ft in epoch seconds (aliceblue_adapter.py `_on_data_received`, web #2473); the frame timestamp is epoch milliseconds (docs/prompt/websockets-format.md), and the desktop sends its receipt time.",
+      "ref": "aliceblue_adapter.py `_on_data_received`",
+      "approval": "alias-unit",
+      "allows": [
+        [
+          1658910517,
+          "<receipt_ms>"
+        ]
+      ]
+    }
+  ]
+}

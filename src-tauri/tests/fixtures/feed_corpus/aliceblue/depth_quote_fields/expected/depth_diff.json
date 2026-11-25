@@ -1,0 +1,84 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY28JUL2216600CE",
+  "exchange": "NFO",
+  "mode": 3,
+  "broker": "aliceblue",
+  "data": {
+    "ltp": 76.55,
+    "ltt": 1658910517000,
+    "timestamp": "<receipt_ms>",
+    "volume": 125888500,
+    "last_quantity": 50,
+    "average_price": 60.72,
+    "total_buy_quantity": 965400,
+    "total_sell_quantity": 980950,
+    "open": 37.65,
+    "high": 98.0,
+    "low": 22.0,
+    "close": 42.2,
+    "change_percent": 81.04,
+    "percent_change": 81.04,
+    "total_oi": 7361100,
+    "oi": 7361100,
+    "upper_circuit": 469.9,
+    "lower_circuit": 0.05,
+    "last_trade_time": "13:58:37",
+    "depth": {
+      "buy": [
+        {
+          "price": 76.3,
+          "quantity": 50,
+          "orders": 1
+        },
+        {
+          "price": 76.25,
+          "quantity": 2000,
+          "orders": 9
+        },
+        {
+          "price": 76.2,
+          "quantity": 3800,
+          "orders": 22
+        },
+        {
+          "price": 76.15,
+          "quantity": 2000,
+          "orders": 12
+        },
+        {
+          "price": 76.1,
+          "quantity": 7350,
+          "orders": 17
+        }
+      ],
+      "sell": [
+        {
+          "price": 76.45,
+          "quantity": 900,
+          "orders": 2
+        },
+        {
+          "price": 76.5,
+          "quantity": 1400,
+          "orders": 8
+        },
+        {
+          "price": 76.55,
+          "quantity": 2250,
+          "orders": 12
+        },
+        {
+          "price": 76.6,
+          "quantity": 3400,
+          "orders": 16
+        },
+        {
+          "price": 76.65,
+          "quantity": 2250,
+          "orders": 7
+        }
+      ]
+    }
+  }
+}

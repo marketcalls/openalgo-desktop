@@ -207,6 +207,9 @@ fn extra(e: Extra, q: &QuoteFields) -> Option<Value> {
         Extra::TotalOi => i(x.total_oi),
         Extra::DayClose => f(x.day_close),
         Extra::ExchangeTime(unit) => x.exchange_time_ms.map(|ms| time(ms, unit)),
+        Extra::TradeClock => x
+            .trade_clock_s
+            .map(|s| Value::from(format!("{:02}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60))),
     }
 }
 
@@ -266,7 +269,7 @@ fn number_of(source: Source) -> Option<Number> {
             Extra::OiChange => N::OiChange,
             Extra::TotalOi => N::TotalOi,
             Extra::DayClose => N::DayClose,
-            Extra::ExchangeTime(_) => return None,
+            Extra::ExchangeTime(_) | Extra::TradeClock => return None,
         },
         Source::FiftyLevels(inner) => return number_of(*inner),
         _ => return None,

@@ -19,7 +19,7 @@
     "{\"k\":\"\",\"t\":\"h\"}"
   ],
   "provenance": {
-    "web_sha": "ee123273b305461732f482fcbf59f2db054c78b1",
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
     "method": "web-script",
     "sources": [
       "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._handle_message",
@@ -29,7 +29,7 @@
       "broker/aliceblue/streaming/aliceblue_adapter.py::AliceblueWebSocketAdapter._resubscribe_after_auth"
     ],
     "notes": [
-      "Partial updates overlay within a connection only: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. Both sides drop their snapshots on a new connection.",
+      "Partial updates overlay within a connection only: docs/port/market-data-frames.md, Partial-update feeds; lead correction 2026-11-09, .lane/107/decisions.md: a field a partial packet omits is unchanged, not unknown. The desktop drops its snapshots on a new connection; the web keeps them (audit appendix item 11), so its first frame after the reconnect carries the feed time from before the outage.",
       "Lead ruling (round 3 review): on a partial-update feed, no trade time yet in this connection means ltt is left out; a receipt time is never passed off as a trade time."
     ]
   },
@@ -37,74 +37,32 @@
     {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "The first tk of the new connection has no feed time; the web's snapshot was cleared and it sends ltt as an empty string. With no trade time yet on this connection the desktop leaves ltt out rather than pass a receipt time off as one.",
-      "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146",
-      "approval": "do-not-invent-data",
+      "reason": "The web sends AliceBlue's feed time ft as ltt in epoch seconds, an integer since web #2473 (aliceblue_adapter.py `_feed_time`, `_quote_fields`); the docs key ltt is epoch milliseconds (docs/prompt/websockets-format.md).",
+      "ref": "aliceblue_adapter.py `_feed_time`",
+      "approval": "alias-unit",
+      "cause": "unit",
       "allows": [
         [
-          "",
-          "<absent>"
+          1794302700,
+          1794302700000
+        ],
+        [
+          1794302765,
+          1794302765000
         ]
       ]
     },
     {
       "key": "ltt",
-      "cause": "seconds-as-ms",
+      "kind": "web-defect",
+      "reason": "After the reconnect the first tk carries no feed time: the web keeps its snapshot across the reconnect and sends the feed time from before the outage as ltt (aliceblue_adapter.py `_update_market_snapshot`); the desktop starts the connection afresh and leaves ltt out until AliceBlue sends one.",
+      "ref": "aliceblue_adapter.py `_update_market_snapshot`",
+      "approval": "merge-restart-on-reconnect",
+      "cause": "stale-after-reconnect",
       "allows": [
         [
-          "1794302700",
-          1794302700000
-        ],
-        [
-          "1794302765",
-          1794302765000
-        ]
-      ],
-      "kind": "web-defect",
-      "reason": "The web sends AliceBlue's feed time ft unchanged as ltt: epoch seconds, as a string; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the time in ms, as a number.",
-      "ref": "aliceblue_adapter.py:1248-1257; aliceblue_mapping.py:146",
-      "approval": "lost-data-kept"
-    },
-    {
-      "key": "last_quantity",
-      "kind": "web-defect",
-      "reason": "AliceBlue's tick carries last_quantity (ltq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
-      "ref": "aliceblue_mapping.py:111-217",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          15
-        ],
-        [
-          "<absent>",
-          20
-        ]
-      ]
-    },
-    {
-      "key": "total_buy_quantity",
-      "kind": "web-defect",
-      "reason": "AliceBlue's tick carries total_buy_quantity (tbq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
-      "ref": "aliceblue_mapping.py:111-217",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          234567
-        ]
-      ]
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "web-defect",
-      "reason": "AliceBlue's tick carries total_sell_quantity (tsq); the web's mapper never reads it (aliceblue_mapping.py:111-217), so its Quote leaves out a value the broker sent (lost data, lead ruling 2026-11-09). The desktop sends it.",
-      "ref": "aliceblue_mapping.py:111-217",
-      "approval": "lost-data-kept",
-      "allows": [
-        [
-          "<absent>",
-          345678
+          1794302700,
+          "<absent>"
         ]
       ]
     }

@@ -18,7 +18,9 @@
     "low": 24360.5,
     "close": 24380.0,
     "change_percent": 0.29,
+    "percent_change": 0.29,
     "total_oi": 13456725,
+    "oi": 13456725,
     "depth": {
       "buy": [
         {
