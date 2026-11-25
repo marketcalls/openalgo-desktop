@@ -262,6 +262,11 @@ pub struct ToolCtx {
     /// The trader's own message for this turn: the web search taint
     /// boundary builds every outbound query from it.
     pub operator_message: String,
+    /// The trader's earlier messages in the conversation, redacted and
+    /// bounded (`chat::operator_history`): the web tools may take words and
+    /// addresses from them too, never from a reply or a file. Empty where
+    /// a surface has none.
+    pub operator_history: String,
     /// What the `/trading` panel sent about its chart (chart surface).
     pub chart_context: Option<Map<String, Value>>,
     /// Where a rendering tool leaves its frame (charts, cards, OpenUI,

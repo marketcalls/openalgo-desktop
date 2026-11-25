@@ -13,6 +13,7 @@ use crate::agent::websearch::taint::Constrained;
 use crate::agent::websearch::{
     duckduckgo, keyed, label, DUCKDUCKGO, KEYED_LINK_PROVIDERS, PERPLEXITY,
 };
+use crate::security::Secret;
 use serde_json::{Map, Value};
 
 impl WebTool {
@@ -26,7 +27,12 @@ impl WebTool {
             Ok(t) => t,
             Err(refused) => return refused,
         };
-        let q = match constrained(args, "query", &self.shared.operator_message) {
+        let q = match constrained(
+            args,
+            "query",
+            &self.shared.operator_message,
+            &self.shared.operator_history,
+        ) {
             Ok(q) => q,
             Err(refused) => return refused,
         };
@@ -101,13 +107,17 @@ impl WebTool {
         ))
     }
 
-    /// One link search (`_link_outcome`): the configured provider, and
-    /// DuckDuckGo when it has no key or fails. Perplexity answers questions
+    /// One link search (`_link_outcome`): the configured provider first,
+    /// then every other keyed link provider that has a key, and DuckDuckGo
+    /// only when none of them answered (web 5e19ce407). A provider that
+    /// fails (a rate limit, a timeout, a bad key) is a reason to try the
+    /// next paid one, not to fall straight to the slow keyless scraper while
+    /// a working key sits unused: DuckDuckGo once took 22 seconds to answer
+    /// the search Firecrawl had refused with a 429. Every request that went
+    /// out and failed counts against the turn. Perplexity answers questions
     /// rather than returning links, so with it configured the first keyed
-    /// link provider that has a key answers (DuckDuckGo rate limits under
-    /// load, and falling back to it while a working key sat unused made
-    /// every search slow). A busy gate is the answer as it is: the provider
-    /// never failed, so nothing falls back.
+    /// link provider that has a key is asked first. A busy gate is the answer
+    /// as it is: the provider never failed, so nothing falls back.
     pub(super) async fn link_outcome(
         &self,
         ctx: &ToolCtx,
@@ -134,28 +144,56 @@ impl WebTool {
             }
             provider = borrowed.unwrap_or(DUCKDUCKGO);
         }
-        if KEYED_LINK_PROVIDERS.contains(&provider) {
+        let chain = self.keyed_chain(ctx, provider).await;
+        let configured_has_key = chain.first().is_some_and(|(n, _)| *n == provider);
+        if KEYED_LINK_PROVIDERS.contains(&provider) && !configured_has_key {
             let name = label(provider);
-            match stored_key(&ctx.app, provider).await {
-                None => {
-                    let message = format!(
-                        "{} is the configured provider but no {} key is stored in the agent settings, so DuckDuckGo answered instead.",
-                        name, name
-                    );
-                    if !notices.contains(&message) {
-                        notices.push(message);
-                    }
-                }
-                Some(key) => {
-                    let o = keyed::search_with(&self.shared.net, provider, text, count, &key).await;
-                    mark_used(&ctx.app, &o).await;
-                    if o.busy || o.ok {
-                        return o;
-                    }
-                    notices.push(format!("{} DuckDuckGo answered instead.", o.error));
-                }
+            let instead = chain.first().map(|(n, _)| label(n)).unwrap_or("DuckDuckGo");
+            let message = format!(
+                "{} is the configured provider but no {} key is stored in the agent settings, so {} answered instead.",
+                name, name, instead
+            );
+            if !notices.contains(&message) {
+                notices.push(message);
+            }
+        }
+        for (index, &(name, ref key)) in chain.iter().enumerate() {
+            let o = keyed::search_with(&self.shared.net, name, text, count, key).await;
+            mark_used(&ctx.app, &o).await;
+            if o.busy || o.ok {
+                return o;
+            }
+            self.shared.budget.record_attempt();
+            let following = chain
+                .get(index + 1)
+                .map(|(n, _)| label(n))
+                .unwrap_or("DuckDuckGo");
+            notices.push(format!("{} {} was tried instead.", o.error, following));
+        }
+        // The last notice said "tried instead"; when DuckDuckGo is what
+        // answers, it says so in the words the trader already knows.
+        if let Some(last) = notices.last_mut().filter(|_| !chain.is_empty()) {
+            if let Some(head) = last.strip_suffix("DuckDuckGo was tried instead.") {
+                *last = format!("{}DuckDuckGo answered instead.", head);
             }
         }
         duckduckgo::search(&self.shared.net, text, count).await
+    }
+
+    /// The keyed link providers that hold a key, `first` at the head when it
+    /// is one of them.
+    async fn keyed_chain(&self, ctx: &ToolCtx, first: &'static str) -> Vec<(&'static str, Secret)> {
+        let mut order: Vec<&'static str> = Vec::new();
+        if KEYED_LINK_PROVIDERS.contains(&first) {
+            order.push(first);
+        }
+        order.extend(KEYED_LINK_PROVIDERS.iter().copied().filter(|n| *n != first));
+        let mut chain = Vec::new();
+        for name in order {
+            if let Some(key) = stored_key(&ctx.app, name).await {
+                chain.push((name, key));
+            }
+        }
+        chain
     }
 }

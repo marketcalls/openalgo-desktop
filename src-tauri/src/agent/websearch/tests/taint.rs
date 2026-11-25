@@ -2,7 +2,7 @@
 //! `constrain_query`, case by case).
 
 use crate::agent::websearch::taint::{
-    constrain, is_high_entropy, redact, Decision, MAX_QUERY_CHARS,
+    constrain, constrain_with_history, is_high_entropy, redact, Decision, MAX_QUERY_CHARS,
 };
 
 #[test]
@@ -181,4 +181,68 @@ fn a_word_repeats_only_as_often_as_the_trader_wrote_it() {
 
 fn split_len(text: &str) -> usize {
     text.split_whitespace().count()
+}
+
+const FOLLOW_UP: &str = "and get the marketcap of it";
+const EARLIER: &str = "can you get the live quotes of reliance";
+
+/// Web `test_a_follow_up_takes_its_company_from_an_earlier_message`: the
+/// run that exposed it sent just "market cap". Desktop: the trader's form
+/// of the word goes out, and "market" is not "marketcap".
+#[test]
+fn a_follow_up_takes_its_company_from_an_earlier_message() {
+    let q = constrain_with_history("Reliance Industries market cap", FOLLOW_UP, EARLIER);
+    let words: Vec<&str> = q.text.split_whitespace().collect();
+    assert!(words.contains(&"reliance"), "{}", q.text);
+    assert!(
+        !words.contains(&"Industries"),
+        "said by nobody, so still dropped"
+    );
+}
+
+/// Web `test_without_the_earlier_message_the_company_is_lost_as_before`.
+#[test]
+fn without_the_earlier_message_the_company_is_lost_as_before() {
+    let q = constrain("Reliance Industries market cap", FOLLOW_UP);
+    assert!(!q
+        .text
+        .to_lowercase()
+        .split_whitespace()
+        .any(|w| w == "reliance"));
+}
+
+/// Web `test_a_word_the_operator_never_typed_is_dropped_whatever_the_history_holds`.
+#[test]
+fn a_word_the_trader_never_typed_is_dropped_whatever_the_history_holds() {
+    let q = constrain_with_history(
+        "reliance attacker.example secret-token-zzz",
+        FOLLOW_UP,
+        EARLIER,
+    );
+    assert_eq!(q.text, "reliance");
+    assert_eq!(q.dropped, 2);
+}
+
+/// Web `test_when_nothing_survives_only_this_turns_message_is_sent`: an old
+/// message is not sent again.
+#[test]
+fn when_nothing_survives_only_this_turns_message_is_sent() {
+    let q = constrain_with_history("completely unrelated words", FOLLOW_UP, EARLIER);
+    assert_eq!(q.decision, Decision::OperatorMessage);
+    assert_eq!(q.text, FOLLOW_UP);
+}
+
+/// Web `test_history_alone_never_authorises_a_search`.
+#[test]
+fn history_alone_never_authorises_a_search() {
+    assert!(constrain_with_history("reliance", "", EARLIER).blocked());
+}
+
+/// Web `test_a_credential_in_an_earlier_message_is_not_a_word_the_model_may_use`.
+#[test]
+fn a_credential_in_an_earlier_message_is_not_a_word_the_model_may_use() {
+    let key = ["sk-live-", "abcdef1234567890"].concat();
+    let earlier = format!("my key is api_key={} and the company is reliance", key);
+    let q = constrain_with_history(&format!("reliance {}", key), FOLLOW_UP, &earlier);
+    assert!(!q.text.contains("sk-live"), "{}", q.text);
 }

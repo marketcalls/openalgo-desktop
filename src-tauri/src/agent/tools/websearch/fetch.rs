@@ -107,7 +107,7 @@ impl WebTool {
         let config = self.shared.budget.config(&ctx.app).await;
         let checked = fetch_url::check(
             requested,
-            &self.shared.operator_message,
+            &self.shared.operator_words(),
             &self.shared.run.seen(),
             &config.preferred_sources,
         );

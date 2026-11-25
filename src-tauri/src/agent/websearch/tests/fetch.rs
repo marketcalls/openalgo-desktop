@@ -41,6 +41,18 @@ impl Kit {
 /// The web's `_toolkit`: Firecrawl answers both tools, a key for each of
 /// `keys`, at most `per_turn` calls in the turn.
 pub(super) fn kit(t: &TestCtx, operator: &str, keys: &[&str], per_turn: i64) -> Kit {
+    kit_with_history(t, operator, "", keys, per_turn)
+}
+
+/// [`kit`] for a run whose conversation holds the trader's earlier
+/// messages (the web's `_toolkit_with_history`).
+pub(super) fn kit_with_history(
+    t: &TestCtx,
+    operator: &str,
+    history: &str,
+    keys: &[&str],
+    per_turn: i64,
+) -> Kit {
     configure(
         t,
         json!({"provider": "firecrawl", "max_calls_per_turn": per_turn}),
@@ -50,6 +62,7 @@ pub(super) fn kit(t: &TestCtx, operator: &str, keys: &[&str], per_turn: i64) -> 
     }
     let mut c = run_ctx(t, Surface::Chat);
     c.operator_message = operator.into();
+    c.operator_history = history.into();
     let built = (GROUP.build)(&c);
     Kit {
         search_tool: built[0].clone(),

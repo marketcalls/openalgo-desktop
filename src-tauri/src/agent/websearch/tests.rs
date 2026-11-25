@@ -7,9 +7,11 @@
 //! `test_agent_websearch_settings.py` are ported in `fetch_url`, `keyed`,
 //! `sources`, `fetch`, `preferred` and `prompt`.
 
+mod chain;
 mod config;
 mod fetch;
 mod fetch_url;
+mod history;
 mod keyed;
 mod preferred;
 mod prompt;

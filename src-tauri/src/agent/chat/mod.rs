@@ -7,9 +7,12 @@
 //! the route streams its frames.
 //!
 //! - [`request`]: the request's fields; [`build`]: one run's tools, prompt
-//!   and history; [`start`] and [`resume`]: a new turn and an approval.
+//!   and history; [`operator_history`]: the trader's earlier messages the
+//!   web tools may take words from; [`start`] and [`resume`]: a new turn
+//!   and an approval.
 
 pub mod build;
+pub mod operator_history;
 pub mod request;
 
 use crate::agent::attachments;

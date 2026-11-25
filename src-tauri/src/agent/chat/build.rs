@@ -4,7 +4,7 @@
 //! Database reads run on the blocking pool; every failure answers with the
 //! web's status and sentence before the stream opens.
 
-use super::{paused_state, Caller, Refusal, NOT_FOUND};
+use super::{operator_history, paused_state, Caller, Refusal, NOT_FOUND};
 use crate::agent::contract::approval::{Decision, DecisionScope};
 use crate::agent::contract::model::{ModelError, ResolvedModel};
 use crate::agent::contract::tool::{AgentTool, Capabilities, Surface, ToolCtx};
@@ -217,17 +217,20 @@ struct Reads {
     settings: crate::agent::contract::policy::RunSettings,
     analyzer: bool,
     history: Vec<String>,
-    /// The trader's preferred sources for company figures, read only for a
-    /// run offered the web tools.
+    /// The trader's preferred sources for company figures, and their
+    /// earlier messages in the conversation, read only for a run offered
+    /// the web tools.
     web_sources: Vec<String>,
+    operator_history: String,
 }
 
 async fn reads(
     app: &Arc<AppState>,
     surface: Surface,
-    session: Option<String>,
+    conversation: &Conversation,
     web_search: bool,
 ) -> Result<Reads, Refusal> {
+    let (session, conversation) = (conversation.session_id.clone(), conversation.id);
     let policy = app.agent.policy();
     app.blocking(move |ctx| {
         let settings = policy.settings(ctx, surface);
@@ -239,16 +242,20 @@ async fn reads(
             Some(s) => store::history(&conn, &s, history::HISTORY_RUNS)?,
             None => Vec::new(),
         };
-        let web_sources = if web_search {
-            WebSearchConfig::read(&conn).preferred_sources
+        let (web_sources, operator_history) = if web_search {
+            (
+                WebSearchConfig::read(&conn).preferred_sources,
+                operator_history::read(&conn, conversation),
+            )
         } else {
-            Vec::new()
+            (Vec::new(), String::new())
         };
         Ok(Reads {
             settings,
             analyzer,
             history,
             web_sources,
+            operator_history,
         })
     })
     .await
@@ -287,14 +294,9 @@ pub async fn run_parts(app: &Arc<AppState>, key: Turnkey) -> Result<RunParts, Re
         .agent
         .client()
         .map_err(|e| failed(internal("Agent model client", e)))?;
-    let r = reads(
-        app,
-        key.surface,
-        key.conversation.session_id.clone(),
-        key.web_search,
-    )
-    .await
-    .map_err(failed)?;
+    let r = reads(app, key.surface, &key.conversation, key.web_search)
+        .await
+        .map_err(failed)?;
     let trading = key.trading_asked
         && r.settings.trading_enabled
         && (key.surface != Surface::Voice || r.settings.voice_trading_enabled);
@@ -318,6 +320,7 @@ pub async fn run_parts(app: &Arc<AppState>, key: Turnkey) -> Result<RunParts, Re
         caps,
         analyzer_mode: r.analyzer,
         operator_message: key.operator_message,
+        operator_history: r.operator_history,
         chart_context: key.chart_context,
         viz: VizSink::new(),
         cancel: CancellationToken::new(),

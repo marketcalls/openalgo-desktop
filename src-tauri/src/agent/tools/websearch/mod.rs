@@ -72,6 +72,9 @@ const NO_OPERATOR_MESSAGE: &str = "Nothing was sent to any provider. Every outgo
 struct Shared {
     /// The trader's message for the turn, redacted.
     operator_message: String,
+    /// Their earlier messages in the conversation, redacted (web 5e19ce407):
+    /// a follow-up keeps the company it names only earlier.
+    operator_history: String,
     budget: Budget,
     run: RunState,
     net: Net,
@@ -80,6 +83,7 @@ struct Shared {
 fn build(ctx: &ToolCtx) -> Vec<Arc<dyn AgentTool>> {
     let shared = Arc::new(Shared {
         operator_message: taint::redact(&ctx.operator_message),
+        operator_history: taint::redact(&ctx.operator_history),
         budget: Budget::new(),
         run: RunState::default(),
         net: providers::net(),
@@ -187,6 +191,19 @@ async fn mark_used(app: &Arc<AppState>, outcome: &Outcome) {
                 Ok(())
             })
             .await;
+    }
+}
+
+impl Shared {
+    /// Everything the trader typed that an address may be matched to or
+    /// built from (`_operator_words`): the turn's message and their earlier
+    /// ones, or nothing when the turn has no message of its own, so a run
+    /// with nothing from the trader fetches nothing they named earlier.
+    fn operator_words(&self) -> String {
+        if self.operator_message.is_empty() {
+            return String::new();
+        }
+        format!("{}\n{}", self.operator_message, self.operator_history)
     }
 }
 

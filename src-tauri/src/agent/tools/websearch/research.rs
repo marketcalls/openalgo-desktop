@@ -14,7 +14,12 @@ const NO_PERPLEXITY_KEY: &str = "No Perplexity key is stored in the agent settin
 impl WebTool {
     /// `web_research`.
     pub(super) async fn research(&self, ctx: &ToolCtx, args: &Map<String, Value>) -> ToolOutcome {
-        let q = match constrained(args, "question", &self.shared.operator_message) {
+        let q = match constrained(
+            args,
+            "question",
+            &self.shared.operator_message,
+            &self.shared.operator_history,
+        ) {
             Ok(q) => q,
             Err(refused) => return refused,
         };

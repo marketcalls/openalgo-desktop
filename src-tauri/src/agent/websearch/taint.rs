@@ -1,13 +1,15 @@
 //! The taint boundary (the web's `websearch.redact` and `constrain_query`).
 //!
 //! The model's query never reaches a provider. The outgoing query is built
-//! from the trader's own message for the turn: a token of the model's
-//! survives only when it is one of that message's words, whole, and goes
+//! from the trader's own words: a token of the model's survives only when
+//! it is one of the words of the turn's message, or of the trader's earlier
+//! messages in the conversation (web 5e19ce407: a follow-up such as "get
+//! the marketcap of it" names its company only earlier), whole, and goes
 //! out in the trader's own form, no more often than they wrote it (the web
-//! kept any substring in the model's form; deviations), and when none survives
-//! the message itself is sent. A word the model invented, or copied out of
-//! a poisoned tool result, cannot leave the machine. With no message to
-//! build from, nothing is sent.
+//! kept any substring in the model's form; deviations); when none survives
+//! the turn's message itself is sent, never an earlier one. A word the
+//! model invented, or copied out of a poisoned tool result, cannot leave
+//! the machine. With no message of the turn's own, nothing is sent.
 //!
 //! Redaction runs first, while the punctuation that marks `api_key=...`,
 //! `Bearer ...`, prefixed keys and emails is still there; long high-entropy
@@ -208,11 +210,25 @@ fn operator_words(operator: &str) -> (HashMap<String, Word>, usize) {
 ///   holds at most as many words as the trader's message (the web sent
 ///   each word once).
 pub fn constrain(requested: &str, operator_message: &str) -> Constrained {
+    constrain_with_history(requested, operator_message, "")
+}
+
+/// [`constrain`], with the trader's earlier messages in the conversation
+/// widening the words a token may be (`constrain_query`'s
+/// `earlier_messages`). They are redacted too, they never authorise a
+/// search on their own, and what goes out when nothing survives is still
+/// the turn's message alone.
+pub fn constrain_with_history(
+    requested: &str,
+    operator_message: &str,
+    earlier_messages: &str,
+) -> Constrained {
     let operator = redact(operator_message);
     if operator.is_empty() {
         return Constrained::block();
     }
-    let (words, total) = operator_words(&operator);
+    let typed = format!("{}\n{}", operator, redact(earlier_messages));
+    let (words, total) = operator_words(&typed);
     let requested = redact(requested);
     let mut used: HashMap<String, usize> = HashMap::new();
     let mut kept: Vec<&str> = Vec::new();

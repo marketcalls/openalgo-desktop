@@ -42,11 +42,13 @@ pub(super) fn max_results(args: &Map<String, Value>) -> Result<(i64, Option<Stri
     Ok((clamped, notice))
 }
 
-/// The taint boundary on one argument; an empty one is refused.
+/// The taint boundary on one argument, with words from the turn's message
+/// and the trader's earlier ones; an empty argument is refused.
 pub(super) fn constrained(
     args: &Map<String, Value>,
     field: &str,
     operator: &str,
+    earlier: &str,
 ) -> Result<Constrained, ToolOutcome> {
     let text = match args.get(field) {
         Some(Value::String(s)) => s.clone(),
@@ -60,7 +62,7 @@ pub(super) fn constrained(
             Some("Pass the operator's own question as plain text."),
         ));
     }
-    Ok(taint::constrain(&text, operator))
+    Ok(taint::constrain_with_history(&text, operator, earlier))
 }
 
 /// `web_search` topics (`TOPICS`): `fundamentals` looks on the trader's
