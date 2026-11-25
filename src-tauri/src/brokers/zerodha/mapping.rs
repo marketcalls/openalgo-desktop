@@ -389,6 +389,10 @@ pub struct KiteHolding {
     pub quantity: i64,
     #[serde(deserialize_with = "i64_lenient")]
     pub t1_quantity: i64,
+    /// Shares pledged as margin collateral, which Kite takes out of
+    /// `quantity`.
+    #[serde(deserialize_with = "i64_lenient")]
+    pub collateral_quantity: i64,
     #[serde(deserialize_with = "f64_lenient")]
     pub average_price: f64,
     #[serde(deserialize_with = "f64_lenient")]
@@ -514,7 +518,21 @@ pub fn map_positions(rows: Vec<KitePosition>, symbols: &SymbolResolver) -> Vec<P
         .collect()
 }
 
+/// Shares the trader owns in a Kite holdings row (web `_holding_quantity`,
+/// openalgo#2503). Kite's `quantity` is the settled, unpledged part only:
+/// pledged shares sit in `collateral_quantity` and unsettled buys in
+/// `t1_quantity`, while Kite works its `pnl` out on every share. Counting
+/// `quantity` alone showed a fully pledged holding as 0 shares worth Rs.0.
+fn holding_quantity(h: &KiteHolding) -> i64 {
+    h.quantity
+        .saturating_add(h.t1_quantity)
+        .saturating_add(h.collateral_quantity)
+}
+
 /// `map_portfolio_data` + `transform_holdings_data`. Product is always CNC.
+/// The portfolio totals are worked out from these rows
+/// (`PortfolioStats::from_holdings`), so they count the same shares as the
+/// web's `calculate_portfolio_statistics`.
 pub fn map_holdings(rows: Vec<KiteHolding>, symbols: &SymbolResolver) -> Vec<Holding> {
     rows.into_iter()
         .map(|h| {
@@ -523,19 +541,20 @@ pub fn map_holdings(rows: Vec<KiteHolding>, symbols: &SymbolResolver) -> Vec<Hol
             } else {
                 round2((h.last_price - h.average_price) / h.average_price * 100.0)
             };
+            let quantity = holding_quantity(&h);
             Holding {
                 symbol: symbols.oa_symbol_or_raw(&h.tradingsymbol, &h.exchange),
                 exchange: h.exchange.clone(),
                 product: "CNC".into(),
                 isin: non_empty(&h.isin),
-                quantity: clamp_i32(h.quantity),
+                quantity: clamp_i32(quantity),
                 t1_quantity: clamp_i32(h.t1_quantity),
                 average_price: h.average_price,
                 ltp: h.last_price,
                 close_price: h.close_price,
                 pnl: round2(h.pnl),
                 pnl_percentage,
-                current_value: h.last_price * h.quantity as f64,
+                current_value: h.last_price * quantity as f64,
             }
         })
         .collect()
