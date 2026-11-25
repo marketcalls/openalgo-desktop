@@ -117,12 +117,18 @@ pub enum BseIndices {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BfoNaming {
     /// The `Symbol` and `OptionType` columns, as on every other segment
-    /// (flattrade, tradesmart).
+    /// (flattrade).
     Columns,
     /// The leading letters of the trading symbol, the type from its
     /// suffix (shoonya, zebu: web `re.match("[A-Za-z]+")`, so SENSEX50
     /// reads SENSEX and M&M reads M).
     LeadingLetters,
+    /// The trading symbol less its expiry, strike and type, anchored on
+    /// the expiry's year, the type from its suffix (tradesmart, web #2475):
+    /// its BFO `Symbol` column holds codes (`BSXOPT`, `SX50FUT`), and the
+    /// stem keeps SENSEX50, M&M, BAJAJ-AUTO and 360ONE whole
+    /// (`master_contract::bfo_stem`).
+    TradingSymbolStem,
 }
 
 /// Market Price Protection: Noren OMS rejects MKT / SL-MKT for API orders.
@@ -267,12 +273,22 @@ pub struct NorenConfig {
     /// `instrumenttype` of index rows: `INDEX`, or `EQ` where the web keeps
     /// index rows inside OpenAlgo's EQ/FUT/CE/PE vocabulary and lets the
     /// `NSE_INDEX` / `BSE_INDEX` exchange alone mark them (flattrade, web
-    /// #2198, QA MC-04).
+    /// #2198; tradesmart, web #2475; QA MC-04).
     pub index_instrument_type: &'static str,
+    /// Type every NSE cash row EQ (tradesmart, web #2475, QA MC-04): the
+    /// Noren `Instrument` column on NSE holds the series (EQ, BE, SG, N0,
+    /// GB, SM, MF), not a type. Off, a series other than EQ or BE is stored
+    /// as the type, as the other members' web code does.
+    pub nse_all_eq: bool,
     /// Drop BSE master rows whose `Exchange` is blank or NULL (flattrade,
     /// web #2198, QA MC-14): stale scrips the broker refuses, with no name,
     /// some repeating a live scrip under an old token.
     pub bse_drop_without_exchange: bool,
+    /// Drop BSE master rows with no tick size (tradesmart, web #2475, QA
+    /// MC-03): placeholder rows (WEAL, MFLS2, MFLS3, INVE) that share the
+    /// trading symbol `12:`, which cannot be traded or addressed by symbol
+    /// and were stored as duplicates.
+    pub bse_drop_zero_tick: bool,
     pub bfo_naming: BfoNaming,
     /// OpenAlgo interval -> Noren `intrv` (`D` is the EOD endpoint).
     pub timeframes: &'static [(&'static str, &'static str)],
