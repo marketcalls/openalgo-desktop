@@ -1,16 +1,32 @@
 {
-  "status": "success",
-  "message": "",
   "data": {
-    "headers": ["Description", "Value"],
+    "client_id": "<USER_ID>",
+    "headers": ["Description", ""],
     "values": [
-      ["Opening Balance", "100000.00"],
-      ["Available Margin", "85234.567"],
-      ["Margin Used", "14765.43"],
-      ["DP Collateral Benefit", "1000"],
-      ["Total Pledge Collateral", 25000],
-      ["unrealized_mtm", "-120.5"],
-      ["realized_mtm", "340.25"]
+      ["Available", "39.99"],
+      ["Adhoc Deposit", "0.00"],
+      ["Cash Deposit", "39.99"],
+      ["Delivery", "0.00"],
+      ["DP Collateral Benefit", "0.00"],
+      ["DP Credit for Sale", "0.00"],
+      ["DP Pledge Collateral", "0.00"],
+      ["Manual Collateral", "0.00"],
+      ["Pay In", "0.00"],
+      ["Net Margin", "0.00"],
+      ["Notion Deposit", "0.00"],
+      ["Overdraft", "0.00"],
+      ["Pay out", "0.00"],
+      ["Pool Collateral Benefit", "0.00"],
+      ["Pool Pledge Collateral", "0.00"],
+      ["Premium", "0.00"],
+      ["Sar Collateral Benefit", "0.00"],
+      ["Sar Credit for Sale", "0.00"],
+      ["Span Margin", "0.00"],
+      ["Var Margin", "0.00"],
+      ["Extreme Loss Margin", "0.00"],
+      ["Option Credit For Sell", "0.00"]
     ]
-  }
+  },
+  "message": "",
+  "status": "success"
 }

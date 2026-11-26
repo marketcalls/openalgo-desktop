@@ -1,0 +1,6 @@
+{
+  "status": false,
+  "message": "Invalid request parameters or unauthorized",
+  "errorcode": "40001",
+  "data": {}
+}

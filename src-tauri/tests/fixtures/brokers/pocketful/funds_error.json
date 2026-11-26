@@ -1,0 +1,6 @@
+{
+  "status": "error",
+  "message": "Request Unauthorised",
+  "error_code": 40000,
+  "data": {}
+}

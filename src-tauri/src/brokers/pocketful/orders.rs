@@ -84,7 +84,7 @@ fn refusal_text(a: &Answer, subject: &str, after_write: bool) -> String {
 
 /// A read or write Pocketful answered without doing it, as an error: a
 /// session refusal is a session error, everything else Pocketful's words.
-fn refused(a: &Answer, subject: &str, after_write: bool) -> AppError {
+pub(super) fn refused(a: &Answer, subject: &str, after_write: bool) -> AppError {
     tracing::warn!(
         status = a.status.as_u16(),
         "Pocketful refused the {}: {}",

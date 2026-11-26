@@ -1,0 +1,22 @@
+{
+  "status": true,
+  "message": "SUCCESS",
+  "errorcode": "",
+  "data": {
+    "combinedMargin": {
+      "deliveryMargin": 0,
+      "span": 0,
+      "somtierMargin": 0,
+      "additionalMargin": 0,
+      "spanSpreadMargin": 0,
+      "varMargin": 0,
+      "exposureMargin": 0,
+      "premiumMargin": 0,
+      "premiumBenefit": 0,
+      "extremeLossMargin": 0,
+      "maxSpan": 0,
+      "netSpan": 0
+    },
+    "individualMarginValues": []
+  }
+}

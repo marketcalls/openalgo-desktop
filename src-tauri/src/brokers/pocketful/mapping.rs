@@ -548,33 +548,3 @@ pub(crate) fn map_holdings(rows: &[Value], symbols: &SymbolResolver) -> Vec<Hold
         })
         .collect()
 }
-
-// ---------------------------------------------------------------------------
-// Funds
-// ---------------------------------------------------------------------------
-
-/// web `get_margin_data`: `data.values` is a list of `[label, value]`.
-pub fn map_funds(body: &Value) -> Funds {
-    let values = body["data"]["values"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    let lookup = |label: &str| -> f64 {
-        values
-            .iter()
-            .find(|pair| pair.get(0).and_then(Value::as_str) == Some(label))
-            .and_then(|pair| pair.get(1).and_then(as_f64))
-            .unwrap_or(0.0)
-    };
-    let available = lookup("Available Margin");
-    let used = lookup("Margin Used");
-    Funds {
-        available_cash: round2(available),
-        used_margin: round2(used),
-        collateral: round2(lookup("Total Pledge Collateral")),
-        m2m_unrealized: round2(lookup("unrealized_mtm")),
-        m2m_realized: round2(lookup("realized_mtm")),
-        utilised_debits: round2(used),
-        ..Default::default()
-    }
-}

@@ -5,6 +5,7 @@
 
 mod auth;
 mod client;
+mod funds_margin;
 mod orders;
 
 use super::PocketfulBroker;
@@ -59,6 +60,9 @@ pub(super) enum Reply {
     /// Headers, then the connection breaks inside the body: a request that
     /// was sent and whose answer was lost.
     Cut,
+
+    /// The reply, after a wait: a Pocketful that is slow to answer.
+    Late(Duration, Box<Reply>),
 }
 
 /// A path, what its query must contain (empty for anything), and the
@@ -98,6 +102,9 @@ fn respond(reply: Reply) -> Response {
                 .body(Body::from_stream(broken))
                 .unwrap()
         }
+
+        // The wait is the handler's (`Fake::start`).
+        Reply::Late(_, reply) => respond(*reply),
     }
 }
 
@@ -137,10 +144,14 @@ impl Fake {
                                 }
                             })
                     };
-                    respond(reply.unwrap_or(Reply::Json(
+                    let reply = reply.unwrap_or(Reply::Json(
                         404,
                         serde_json::json!({"status": "error", "message": "not mocked"}),
-                    )))
+                    ));
+                    if let Reply::Late(wait, _) = &reply {
+                        tokio::time::sleep(*wait).await;
+                    }
+                    respond(reply)
                 }
             },
         );
