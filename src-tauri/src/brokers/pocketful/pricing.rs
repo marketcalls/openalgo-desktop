@@ -18,7 +18,9 @@
 
 use super::{market, PocketfulBroker};
 use crate::brokers::common::mapping::{Action, PriceType};
-use crate::brokers::common::mpp::{instrument_type_from_symbol, mpp_percentage, py_round};
+use crate::brokers::common::mpp::{
+    beyond, instrument_type_from_symbol, stop_limit_off_trigger, StopLimit,
+};
 use crate::brokers::common::outcome;
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::types::{AuthToken, ResolvedModify, ResolvedOrder};
@@ -70,38 +72,9 @@ pub(crate) struct Priced {
     pub trigger_price: f64,
 }
 
-/// Decimal places a tick size implies (0.05 -> 2, 0.0025 -> 4, 1 -> 0).
-fn tick_decimals(tick: f64) -> i32 {
-    let text = format!("{}", tick);
-    text.split_once('.')
-        .map_or(0, |(_, frac)| frac.len() as i32)
-}
-
-/// `value` on a multiple of `tick`, rounded down (`up` false) or up. The
-/// ratio is tamed to 6 places first, as the web does, so float noise
-/// (804.5025 / 0.05) does not move it a tick.
-fn snap(value: f64, tick: f64, up: bool) -> f64 {
-    let ratio = py_round(value / tick, 6);
-    let k = if up { ratio.ceil() } else { ratio.floor() };
-    py_round(k * tick, tick_decimals(tick))
-}
-
-/// A limit `pct` past `reference` in the fill direction, at least one tick
-/// past it and on a tick (web `_beyond`).
-pub(crate) fn beyond(reference: f64, action: Action, pct: f64, tick: f64) -> f64 {
-    match action {
-        Action::Buy => snap((reference * (1.0 + pct)).max(reference + tick), tick, true),
-        Action::Sell => snap((reference * (1.0 - pct)).min(reference - tick), tick, false),
-    }
-}
-
 /// The instrument's tick size, `None` when missing or not a positive number.
 fn tick_size(row: &SymToken) -> Option<f64> {
     (row.tick_size.is_finite() && row.tick_size > 0.0).then_some(row.tick_size)
-}
-
-fn pct(price: f64, symbol: &str) -> Result<f64> {
-    Ok(mpp_percentage(price, instrument_type_from_symbol(symbol))? / 100.0)
 }
 
 /// The SL a SL-M goes out as (web `protected_order_type`, SL-M branch).
@@ -112,19 +85,26 @@ pub(crate) fn stop_market(ask: &Ask<'_>) -> Result<Priced> {
             "An SL-M order needs a trigger price above zero.",
         ));
     }
-    let Some(tick) = tick_size(ask.instrument) else {
-        return Err(outcome::refusal(format!(
-            "OpenAlgo cannot price the SL-M order: the tick size of {} on {} is missing from the master contract. Download the master contract again, or place an SL order with your own limit price.",
-            ask.symbol, ask.exchange
-        )));
+    let limit = match stop_limit_off_trigger(
+        ask.symbol,
+        ask.action,
+        trigger,
+        ask.instrument.tick_size,
+    )? {
+        StopLimit::Priced(limit) => limit,
+        StopLimit::NoTick => {
+            return Err(outcome::refusal(format!(
+                "OpenAlgo cannot price the SL-M order: the tick size of {} on {} is missing from the master contract. Download the master contract again, or place an SL order with your own limit price.",
+                ask.symbol, ask.exchange
+            )))
+        }
+        StopLimit::TooLow => {
+            return Err(outcome::refusal(format!(
+                "The trigger price {} is too low for an SL-M sell on {}: there is no limit price below it. Place an SL order with your own limit price instead.",
+                trigger, ask.symbol
+            )))
+        }
     };
-    let limit = beyond(trigger, ask.action, pct(trigger, ask.symbol)?, tick);
-    if limit <= 0.0 {
-        return Err(outcome::refusal(format!(
-            "The trigger price {} is too low for an SL-M sell on {}: there is no limit price below it. Place an SL order with your own limit price instead.",
-            trigger, ask.symbol
-        )));
-    }
     tracing::info!(
         "MPP: SL-M -> SL for {}:{}, trigger {}, limit {}",
         ask.exchange,
@@ -156,7 +136,8 @@ pub(crate) fn market_limit(ask: &Ask<'_>, ltp: Option<f64>) -> Result<Priced> {
     };
     // A SELL off the lowest-priced contracts can floor to zero: the
     // smallest price there is, one tick, is still at or below the LTP.
-    let limit = beyond(ltp, ask.action, pct(ltp, ask.symbol)?, tick).max(tick);
+    let instrument_type = instrument_type_from_symbol(ask.symbol);
+    let limit = beyond(ltp, ask.action, instrument_type, tick)?.max(tick);
     tracing::info!(
         "MPP: MARKET -> LIMIT for {}:{}, LTP {}, limit {}",
         ask.exchange,
