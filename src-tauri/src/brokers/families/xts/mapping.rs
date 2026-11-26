@@ -128,6 +128,14 @@ const DOCUMENTED_OPEN: &[&str] = &["Replaced", "PendingNew", "PendingReplace", "
 /// (web fivepaisaxts `_CANCELLABLE_STATUSES`): every order still working,
 /// modified and part-filled ones included, but not a `PendingCancel`,
 /// whose cancel is already on its way.
+///
+/// Deviation: a `Trigger Pending` (or `TriggerPending`) order is cancelled
+/// too. Web #2504 dropped it as a status the XTS v2 docs do not list, but
+/// `oa_status` still shows such an order as `trigger pending`, still
+/// working, so cancel-all must not leave it live at the exchange. It is
+/// what the desktop did before and what the six other members' web code
+/// still does (`["New", "Trigger Pending"]`); for documented answers it
+/// changes nothing.
 const DOCUMENTED_CANCELLABLE: &[&str] = &[
     "New",
     "Open",
@@ -135,6 +143,8 @@ const DOCUMENTED_CANCELLABLE: &[&str] = &[
     "PartiallyFilled",
     "PendingNew",
     "PendingReplace",
+    "Trigger Pending",
+    "TriggerPending",
 ];
 
 /// The order-book status of a member: the documented states read as the

@@ -52,6 +52,9 @@ fn statuses_and_cancel_all_by_member() {
     }
     assert_eq!(member_status("Trigger Pending", five), "trigger pending");
     let row = |status: &str| json!({"OrderStatus": status});
+    // A trigger-pending order still works at the exchange, so cancel-all
+    // cancels it for 5paisa XTS too, as the book shows it (a deviation
+    // from web #2504, which dropped the status: `DOCUMENTED_CANCELLABLE`).
     for (status, five_cancels, template_cancels) in [
         ("New", true, true),
         ("Open", true, true),
@@ -60,7 +63,8 @@ fn statuses_and_cancel_all_by_member() {
         ("PendingNew", true, false),
         ("PendingReplace", true, false),
         ("PendingCancel", false, false),
-        ("Trigger Pending", false, true),
+        ("Trigger Pending", true, true),
+        ("TriggerPending", true, true),
         ("Filled", false, false),
     ] {
         assert_eq!(cancellable(&row(status), five), five_cancels, "{status}");

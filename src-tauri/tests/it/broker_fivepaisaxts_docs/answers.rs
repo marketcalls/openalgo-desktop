@@ -199,6 +199,29 @@ async fn cancel_all_cancels_modified_and_part_filled_orders() {
     assert!(r.failed.is_empty());
 }
 
+/// Desktop deviation from web #2504: an order the book shows as trigger
+/// pending is still working at the exchange, so cancel-all cancels it
+/// rather than leave an untriggered stop live (the desktop's behaviour
+/// before #2504, and the other XTS members' web code). 1200003 is the
+/// `Trigger Pending` StopLimit of the recorded book
+/// (`tests/fixtures/brokers/fivepaisaxts/books.json`).
+#[tokio::test]
+async fn cancel_all_cancels_what_the_book_shows_as_trigger_pending() {
+    let (b, fake, _) = broker().await;
+    *fake.orders.lock() = json!({"type": "success", "result": [
+        {"AppOrderID": 1200001, "OrderStatus": "New"},
+        {"AppOrderID": 1200003, "OrderStatus": "Trigger Pending"},
+        {"AppOrderID": 1200004, "OrderStatus": "Rejected"},
+        {"AppOrderID": 1200007, "OrderStatus": "TriggerPending"},
+    ]});
+    let book = b.get_order_book(&token()).await.unwrap();
+    assert_eq!(book[1].status, "trigger pending");
+    *fake.answer.lock() = json!({"type": "success", "result": {}});
+    let r = b.cancel_all_orders(&token()).await.unwrap();
+    assert_eq!(r.cancelled, ["1200001", "1200003", "1200007"]);
+    assert!(r.failed.is_empty());
+}
+
 // ---------------------------------------------------------------------------
 // Cancel and modify read XTS's {"type": ...} answer
 // ---------------------------------------------------------------------------
