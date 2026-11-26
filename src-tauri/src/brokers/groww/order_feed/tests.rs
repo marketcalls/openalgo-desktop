@@ -520,3 +520,68 @@ fn the_order_feed_is_a_socket_that_needs_a_session() {
     }
     assert!(b.capabilities().order_feed);
 }
+
+/// Both Groww sockets answer the server's INFO with the same `CONNECT`
+/// (`streaming::signed_connect`): signed over the nonce with the
+/// connection's key pair, and unsigned when the server sends no nonce.
+#[test]
+fn both_groww_sockets_sign_the_connect_alike() {
+    for nonce in ["abc", ""] {
+        let info = Message::Text(format!("INFO {{\"nonce\":\"{}\"}}\r\n", nonce));
+        let mut market = GrowwFeed::new(http::client(), "tok", FeedEndpoints::default());
+        market.set_minted("jwt", Some(KeyPair::from_seed(&[7u8; 32])));
+        market.on_connected();
+        let mut orders = order_feed("http://127.0.0.1:9/token".into());
+        orders.set_minted("jwt", "sub-1", Some(KeyPair::from_seed(&[7u8; 32])));
+        orders.on_connected();
+
+        let market_connect = replies(&market.parse(&info))[0].clone();
+        let order_frame = replies(&orders.parse(&info))[0].clone();
+        let order_connect = order_frame.split_inclusive("\r\n").next().unwrap();
+        assert_eq!(market_connect, order_connect, "nonce {:?}", nonce);
+        assert_eq!(market_connect.contains("\"sig\""), !nonce.is_empty());
+        assert_eq!(market_connect.contains("\"nkey\""), !nonce.is_empty());
+    }
+}
+
+/// Both Groww sockets read through `streaming::NatsReader`: a partial op
+/// over its 4 MiB cap is a broken stream and is dropped, and the next
+/// frame is read afresh. Kept, the junk and the next op would read as one
+/// unknown line, so the server's PING would go unanswered.
+#[test]
+fn both_groww_sockets_drop_an_oversized_op_and_read_on() {
+    fn drops_and_reads_on(feed: &mut dyn BrokerFeed) {
+        feed.on_connected();
+        let junk = Message::Binary(vec![b'x'; 4 * 1024 * 1024 + 1]);
+        assert!(feed.parse(&junk).is_empty());
+        let ping = Message::Text("PING\r\n".into());
+        assert_eq!(replies(&feed.parse(&ping)), vec!["PONG\r\n".to_string()]);
+    }
+    drops_and_reads_on(&mut GrowwFeed::new(
+        http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    ));
+    drops_and_reads_on(&mut order_feed("http://127.0.0.1:9/token".into()));
+}
+
+/// The order socket gives up the `nats` subprotocol a server did not echo,
+/// once, as the market feed does (`streaming::retry_without_subprotocol`),
+/// and asks for it again after the next `prepare`. Any other failure is
+/// left to the manager's backoff.
+#[tokio::test]
+async fn the_order_feed_retries_once_without_the_subprotocol() {
+    let (url, _) = server(200, r#"{"token":"jwt","subscriptionId":"sub-1"}"#).await;
+    let mut feed = order_feed(url);
+    assert_eq!(feed.prepare().await, Ok(()));
+    assert!(!feed.on_connect_failed("IO error: Connection refused"));
+    let refused = "Protocol error: SubProtocol error";
+    assert!(feed.on_connect_failed(refused));
+    assert!(!feed.on_connect_failed(refused));
+    let req = feed.ws_request().unwrap();
+    assert!(req.headers().get("sec-websocket-protocol").is_none());
+
+    assert_eq!(feed.prepare().await, Ok(()));
+    let req = feed.ws_request().unwrap();
+    assert_eq!(req.headers()["sec-websocket-protocol"], "nats");
+}

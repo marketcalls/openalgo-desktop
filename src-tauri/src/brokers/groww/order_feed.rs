@@ -33,7 +33,8 @@ use super::mapping::{
 };
 use super::order_push::{self, OrderPush};
 use super::streaming::{
-    connect_frame, next_op, socket_token, FeedEndpoints, Minted, Op, TokenAsk, MAX_PENDING_BYTES,
+    retry_without_subprotocol, signed_connect, socket_token, FeedEndpoints, Minted, NatsReader, Op,
+    TokenAsk,
 };
 use super::{Category, GrowwCore};
 use crate::brokers::common::streaming::{
@@ -79,8 +80,7 @@ pub struct GrowwOrderFeed {
     minted: Option<Minted>,
     /// Ask for the `nats` subprotocol (dropped when not echoed).
     with_protocol: bool,
-    /// Bytes of a partial NATS op (bounded by `MAX_PENDING_BYTES`).
-    buf: Vec<u8>,
+    reader: NatsReader,
     connect_sent: bool,
 }
 
@@ -194,7 +194,7 @@ impl GrowwOrderFeed {
             symbols,
             minted: None,
             with_protocol: true,
-            buf: Vec::new(),
+            reader: NatsReader::new("Groww order feed"),
             connect_sent: false,
         }
     }
@@ -215,12 +215,7 @@ impl GrowwOrderFeed {
     /// subjects, `PING`.
     fn handshake(&self, info: &Value) -> Option<String> {
         let m = self.minted.as_ref()?;
-        let nonce = info.get("nonce").and_then(Value::as_str).unwrap_or("");
-        let (nkey, sig) = match (&m.key, nonce.is_empty()) {
-            (Some(k), false) => (Some(k.public_key()), Some(k.sign_nonce(nonce))),
-            _ => (None, None),
-        };
-        let mut frame = connect_frame(m.jwt.expose(), nkey.as_deref(), sig.as_deref());
+        let mut frame = signed_connect(m.jwt.expose(), m.key.as_ref(), info);
         for (sid, subject) in [EQUITY_ORDER_SUBJECT, FNO_ORDER_SUBJECT].iter().enumerate() {
             frame.push_str(&format!(
                 "SUB {}{} {}\r\n",
@@ -251,17 +246,8 @@ impl GrowwOrderFeed {
     /// Buffer one frame and handle every complete NATS op in it (web
     /// `_split_frames`).
     fn parse_ops(&mut self, data: &[u8]) -> Vec<FeedEvent> {
-        self.buf.extend_from_slice(data);
-        if self.buf.len() > MAX_PENDING_BYTES {
-            tracing::warn!("Groww order feed sent an oversized frame; dropping it");
-            self.buf.clear();
-            return Vec::new();
-        }
-        let buf = std::mem::take(&mut self.buf);
         let mut out = Vec::new();
-        let mut used = 0;
-        while let Some((op, n)) = next_op(&buf[used..]) {
-            used += n;
+        for op in self.reader.ops(data) {
             match op {
                 // Only the first INFO is the handshake: answering the one
                 // the server sends after CONNECT gets the connection refused.
@@ -282,8 +268,6 @@ impl GrowwOrderFeed {
                 Op::Other(line) => tracing::debug!("Groww order feed op ignored: {}", line),
             }
         }
-        self.buf = buf;
-        self.buf.drain(..used);
         out
     }
 }
@@ -343,16 +327,11 @@ impl BrokerFeed for GrowwOrderFeed {
     }
 
     fn on_connect_failed(&mut self, error: &str) -> bool {
-        // The server did not echo the `nats` subprotocol: retry without it.
-        if self.with_protocol && error.to_ascii_lowercase().contains("subprotocol") {
-            self.with_protocol = false;
-            return true;
-        }
-        false
+        retry_without_subprotocol(&mut self.with_protocol, error)
     }
 
     fn on_connected(&mut self) -> Vec<Message> {
-        self.buf.clear();
+        self.reader.clear();
         self.connect_sent = false;
         Vec::new()
     }
