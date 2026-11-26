@@ -167,6 +167,11 @@ impl PocketfulBroker {
     }
 }
 
+/// What a GTT or margin request answers when the session carries no
+/// client id (web `gtt_api.NO_CLIENT_ID`): refused before anything is sent.
+const NO_CLIENT_ID: &str =
+    "Your Pocketful session carries no client id. Log in to Pocketful again and retry.";
+
 pub(crate) fn session_expired() -> AppError {
     AppError::Auth("Your Pocketful session has expired. Log in to Pocketful again.".into())
 }

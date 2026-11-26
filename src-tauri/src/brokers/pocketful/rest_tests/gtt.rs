@@ -7,10 +7,9 @@ use super::{capture, Fake, Reply, CLIENT};
 use crate::brokers::common::mapping::{Action, PriceType, Product};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::pocketful::gtt::{
-    self, broker_reason, expiry_date, gtt_rows, order_block, valid_trigger_id, BAD_ID, GTT_PATH,
-    NO_CLIENT_ID,
+    self, expiry_date, gtt_rows, order_block, valid_trigger_id, BAD_ID, GTT_PATH,
 };
-use crate::brokers::pocketful::PocketfulBroker;
+use crate::brokers::pocketful::{PocketfulBroker, NO_CLIENT_ID};
 use crate::brokers::types::{AuthToken, GttLeg, GttOrder, GttRequest, GttTriggerType, QuoteKey};
 use crate::brokers::Broker;
 use crate::error::AppError;
@@ -1009,31 +1008,6 @@ async fn a_gtt_list_that_was_not_read_is_never_empty() {
             body,
             listed
         );
-    }
-}
-
-/// Web gtt_data.broker_reason: Pocketful's backend code goes, and the
-/// first letter is capitalised.
-#[test]
-fn pocketfuls_reason_loses_its_backend_code() {
-    for (raw, want) in [
-        (
-            "Error from backend: (500)-event id not found",
-            "Event id not found",
-        ),
-        (
-            "error from backend: (1600)-cannot modify, no data found with this id",
-            "Cannot modify, no data found with this id",
-        ),
-        ("Error from backend: no gtt data found", "No gtt data found"),
-        (
-            "`order` `product` is invalid",
-            "`order` `product` is invalid",
-        ),
-        ("  ", ""),
-        ("", ""),
-    ] {
-        assert_eq!(broker_reason(raw), want, "{}", raw);
     }
 }
 

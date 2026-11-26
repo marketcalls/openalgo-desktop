@@ -3,7 +3,9 @@
 
 use super::{success, Fake, Reply, CLIENT};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
-use crate::brokers::pocketful::client::{Answer, Lane, Request, RATE_LIMITED, RATE_LIMIT_RETRIES};
+use crate::brokers::pocketful::client::{
+    broker_reason, Answer, Lane, Request, RATE_LIMITED, RATE_LIMIT_RETRIES,
+};
 use crate::brokers::pocketful::market::{last_price, path};
 use crate::brokers::types::AuthToken;
 use crate::error::AppError;
@@ -247,4 +249,29 @@ async fn no_price_is_none_never_an_error() {
         None
     );
     assert!(fake.seen().is_empty(), "nothing is asked for");
+}
+
+/// Web gtt_data.broker_reason: Pocketful's backend code goes, and the
+/// first letter is capitalised.
+#[test]
+fn pocketfuls_reason_loses_its_backend_code() {
+    for (raw, want) in [
+        (
+            "Error from backend: (500)-event id not found",
+            "Event id not found",
+        ),
+        (
+            "error from backend: (1600)-cannot modify, no data found with this id",
+            "Cannot modify, no data found with this id",
+        ),
+        ("Error from backend: no gtt data found", "No gtt data found"),
+        (
+            "`order` `product` is invalid",
+            "`order` `product` is invalid",
+        ),
+        ("  ", ""),
+        ("", ""),
+    ] {
+        assert_eq!(broker_reason(raw), want, "{}", raw);
+    }
 }

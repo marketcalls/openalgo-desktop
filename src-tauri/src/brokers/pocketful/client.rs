@@ -24,8 +24,10 @@ use super::PocketfulBroker;
 use crate::brokers::common::outcome;
 use crate::brokers::types::AuthToken;
 use crate::error::{AppError, Result};
+use regex::Regex;
 use reqwest::{Method, StatusCode};
 use serde_json::Value;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 /// web `REQUEST_TIMEOUT`.
@@ -156,6 +158,27 @@ impl Answer {
             self.status,
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
         )
+    }
+}
+
+/// "Error from backend: (500)-event id not found" -> "event id not found"
+/// (web `gtt_data._BACKEND_PREFIX`).
+static BACKEND_PREFIX: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"(?i)^\s*error from backend:\s*(\(\s*\d+\s*\)\s*-?\s*)?").ok());
+
+/// Pocketful's own message ([`Answer::message`]) as a trader reads it:
+/// without its backend code prefix, its first letter capitalised, or ""
+/// (web `gtt_data.broker_reason`, which the web's GTT and margin calls
+/// both use).
+pub(super) fn broker_reason(message: &str) -> String {
+    let stripped = match BACKEND_PREFIX.as_ref() {
+        Some(re) => re.replace(message, "").into_owned(),
+        None => message.to_string(),
+    };
+    let mut chars = stripped.trim().chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
     }
 }
 
