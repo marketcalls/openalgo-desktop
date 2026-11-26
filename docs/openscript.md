@@ -2,7 +2,7 @@
 
 OpenScript is an open trading language. You write a study once, plot it on the
 `/trading` chart, backtest it, and run the same file as a strategy. OpenAlgo
-Desktop uses the same compiler as OpenAlgo web (`openalgo-script` 0.8.1, pinned
+Desktop uses the same compiler as OpenAlgo web (`openalgo-script` 0.9.0, pinned
 in `package.json`), so a script written for one works in the other.
 
 It is not a replacement for the custom indicators described in
@@ -126,7 +126,11 @@ A strategy is backtested in the **Backtest** panel of `/trading`:
 1. The page compiles the script (a study is refused: only a strategy places
    orders).
 2. It reads the bars with the API's `history` call, using your API key. A
-   range over 100,000 bars is refused.
+   range over 100,000 bars is refused. A read the chart's bars cannot answer
+   (fifteen or three minutes on a ten minute chart, or another instrument
+   with `req.symbol`) gets its bars the same way before the run starts, at
+   the interval the engine builds it from (five minutes for a fifteen minute
+   read on a ten minute chart).
 3. It runs the program in a Web Worker, one per backtest, so the chart stays
    responsive; the result comes back to the panel and the worker ends. A
    backtest that takes more than 60 seconds is given up, and you can stop one
@@ -171,6 +175,13 @@ run's own routes, with a secret it is given when it opens.
   history every 10 seconds and hands the run each new bar. Orders are sent
   only on a confirmed bar: once a newer bar has arrived, or the clock has
   passed the bar's end. A run does not act on individual ticks.
+- **Other timeframes.** A run is given its own bars only, so a
+  `req.timeframe` read must be a whole multiple of the deployment's interval
+  (twenty or thirty minutes on a ten minute deployment). Fifteen or three
+  minutes, which the chart and the backtest build from finer bars, end the
+  run as it starts, with the read and the interval in its log; the web's
+  runner refuses them too. Intraday reads count from the session open, 09:15
+  on NSE, as on the chart.
 - **Orders.** OpenScript order types map to the platform's: market to
   MARKET, limit to LIMIT, stop to SL-M, stop-limit to SL. A quantity in lots is
   multiplied by the contract's lot size from the master contract; only whole

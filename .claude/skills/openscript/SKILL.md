@@ -30,7 +30,7 @@ with no more said, it is probably `chart-indicator`.
 ## Desktop: where this differs from the web skill
 
 This skill is the web repository's `openscript` skill, carried over for
-OpenAlgo Desktop. The desktop pins the same `openalgo-script` (0.8.1, in
+OpenAlgo Desktop. The desktop pins the same `openalgo-script` (0.9.0, in
 `package.json` at the repository root) and compiles in the page exactly as the
 web does, so the library, pitfalls, strategies and examples apply unchanged.
 What differs:
@@ -193,10 +193,17 @@ still come out clean. It also checks that the page and the script name the same
 set of codes, so neither can drift alone. Two claims on the first draft of that
 page were wrong, and this is what found them.
 
-This skill describes `openalgo-script` 0.8.1, the compiler `/trading` pins, with
-the server engine `openscript` at the same version. OpenScript 0.9.0, with
-fixes to the backtest engine, is coming; when the pin moves to it, read its
-changelog for anything a backtest now reports differently and say so here.
+This skill describes `openalgo-script` 0.9.0, the compiler `/trading` pins (the
+web's server engine `openscript` is at the same version). What 0.9.0 changed
+for a script, from its changelog: an intraday `req.timeframe` or `req.symbol`
+read is counted from the trading day's open (the session's start, 09:15 on
+NSE) instead of from midnight UTC, so a 10, 20, 30 or 60 minute read draws and
+backtests different numbers than it did on 0.8.1, the ones that match the
+broker's candles; and any whole number of minutes reads on an intraday chart
+and in a backtest, finer or not a multiple of the chart's interval, built from
+finer bars the page fetches. A live run is served only its own bars, so it
+still refuses those reads at start (`reference/pitfalls.md`). No compiled
+format change: programs compiled by 0.8.1 load unchanged.
 
 **Bumping `openalgo-script` means updating this skill in the same change**, the
 way a chart bump does. Run the generator, run both checks, then update the prose
