@@ -127,10 +127,11 @@ A strategy is backtested in the **Backtest** panel of `/trading`:
    orders).
 2. It reads the bars with the API's `history` call, using your API key. A
    range over 100,000 bars is refused. A read the chart's bars cannot answer
-   (fifteen or three minutes on a ten minute chart, or another instrument
+   (fifteen or three minutes on a ten minute chart, any read finer than the
+   chart such as fifteen minutes on an hourly one, or another instrument
    with `req.symbol`) gets its bars the same way before the run starts, at
    the interval the engine builds it from (five minutes for a fifteen minute
-   read on a ten minute chart).
+   read on a ten minute chart, fifteen minutes on an hourly one).
 3. It runs the program in a Web Worker, one per backtest, so the chart stays
    responsive; the result comes back to the panel and the worker ends. A
    backtest that takes more than 60 seconds is given up, and you can stop one
@@ -305,6 +306,14 @@ As of this writing:
   run's side is fixed at start, so turning analyzer mode on or off does not
   stop it or move its orders.
 - There is no log viewer in the app; read the files in `openscript_logs`.
+- On the chart, a read finer than the chart whose interval the chart's
+  divides, written with its unit (`"1m"` on a five minute chart, `"15m"` on
+  an hourly one), draws nothing with `openalgo-script` 0.9.0, the same as on
+  the web: the language's chart adapter does not fetch its bars. Write the
+  minutes as a bare number (`"1"`, `"15"`), which is fetched and drawn. An
+  interval setting stores the written form, so choosing such an interval in
+  a study's settings meets this too. Backtests fetch it either way. The fix
+  is due in the next `openalgo-script` release.
 
 ## Writing scripts with an AI assistant
 

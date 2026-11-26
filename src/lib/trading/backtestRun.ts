@@ -53,7 +53,7 @@ import type {
 } from './backtestWorkerProtocol'
 import { factsFor, type InstrumentFacts } from './instrumentFacts'
 import { compileSource, type EditorDiagnostic } from './openscriptFiles'
-import { languageInterval } from './openscriptIntervals'
+import { finerThanChart, languageInterval } from './openscriptIntervals'
 
 export type { RunInstrument, RunStop } from './backtestWorkerProtocol'
 
@@ -509,8 +509,10 @@ interface AskedRead {
  * asked rather than worked out here: the strategy is loaded, and nothing more,
  * with a provider that records every read and answers none. A load asks the
  * host about every read before any bar runs, so no bar of the backtest runs on
- * this thread. A read of the chart's own instrument whose `interval` is its
- * `timeframe` folds from the chart's bars and needs nothing.
+ * this thread. A read of the chart's own instrument that the engine asks at an
+ * interval no finer than the chart's folds from the chart's bars and needs
+ * nothing (`finerThanChart`; web e44126d67 left this sentence saying "whose
+ * `interval` is its `timeframe`", the comparison it replaced).
  *
  * **Desktop: the probe is the run's host, less the bars.** It states the
  * contract's symbol and exchange and has an order route, as the host the
@@ -559,7 +561,11 @@ async function servedFor(
   const wanted = new Map<string, AskedRead & { instrument: string }>()
   for (const query of asked) {
     if (query.instrument === null) continue
-    if (query.read === 'timeframe' && query.interval === query.timeframe) continue
+    // The engine folds the run's own bars unless the interval it asks at is
+    // finer than the run's; the spelling cannot tell, because a finer read that
+    // is its own base asks at its own timeframe.
+    if (query.read === 'timeframe' && !finerThanChart(query.interval, instrument.interval ?? null))
+      continue
     wanted.set(`${query.instrument}|${query.exchange ?? ''}|${query.interval}`, {
       ...query,
       instrument: query.instrument,

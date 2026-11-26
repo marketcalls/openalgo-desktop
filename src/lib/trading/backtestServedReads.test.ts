@@ -53,6 +53,18 @@ if not isNone(other) and pos.isFlat
     buy(tag = "long")
 `
 
+/**
+ * A fifteen minute read on an hourly chart, with its unit written out. Finer
+ * than the chart and dividing it, so it is its own base: the engine asks at
+ * `15m`, the same text as the read's timeframe (web e44126d67).
+ */
+const QUARTER_HOUR_SPELLED = `version 1
+strategy("a quarter hour read on an hourly chart")
+quarter = req.timeframe("15m", close)
+if not isNone(quarter) and pos.isFlat
+    buy(tag = "long")
+`
+
 /** A whole multiple of the chart's interval, which the engine folds from the chart's own bars. */
 const TWENTY_MINUTES = `version 1
 strategy("a whole multiple")
@@ -119,19 +131,19 @@ function platform() {
   )
   post.mockImplementation(async (url: string, body: HistoryAsk) => {
     if (url !== '/history') return { data: { status: 'error' } }
-    const step = { '10m': 10, '5m': 5 }[body.interval]
+    const step = { '1h': 60, '15m': 15, '10m': 10, '5m': 5 }[body.interval]
     if (step === undefined) return { data: { status: 'error', message: 'no such interval' } }
     return { data: { status: 'success', data: session(step) } }
   })
 }
 
-function request(source: string) {
+function request(source: string, interval = '10m') {
   return {
     file: 'reads.oscript',
     source,
     symbol: 'SBIN',
     exchange: 'NSE',
-    interval: '10m',
+    interval,
     startDate: '2026-09-22',
     endDate: '2026-09-22',
     apiKey: 'key',
@@ -191,6 +203,23 @@ describe('a backtest serves the reads its chart bars cannot answer', () => {
     expect(historyAsked()).toEqual([
       { symbol: 'SBIN', exchange: 'NSE', interval: '10m' },
       { symbol: 'RELIANCE', exchange: 'NSE', interval: '5m' },
+    ])
+    expect(out.trades?.length).toBe(1)
+  })
+
+  it('fetches a fifteen minute read spelled "15m" on an hourly chart, and trades on it', async () => {
+    // Web e44126d67 on the real engine. The backtest decided what to fetch by
+    // comparing the read's interval with its timeframe, and a finer read that
+    // is its own base asks at its own timeframe, so nothing was fetched.
+    platform()
+
+    const out = await runBacktest(request(QUARTER_HOUR_SPELLED, '1h'))
+
+    expect(out.problem).toBeUndefined()
+    expect(out.ok).toBe(true)
+    expect(historyAsked()).toEqual([
+      { symbol: 'SBIN', exchange: 'NSE', interval: '1h' },
+      { symbol: 'SBIN', exchange: 'NSE', interval: '15m' },
     ])
     expect(out.trades?.length).toBe(1)
   })
