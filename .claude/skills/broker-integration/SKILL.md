@@ -493,11 +493,12 @@ seconds away.
   cancel at once, as its web adapter does (`zerodha::orders::cancel_order`,
   `dhan::orders::cancel_order`), with no book read on the orders path.
   Where the row is read, its failures stay apart: an id the book does not
-  list is `AppError::NotFound` (404) with nothing sent; a row no longer
-  working is refused naming its current status (`AppError::Validation`,
-  400, matched against the broker's whole status vocabulary, Paytm #2374);
-  a read that fails stays that read's error. Check: one test for each of
-  the three.
+  list is `AppError::NotFound` (404) with nothing sent; where the adapter
+  checks the row's state, as Paytm does, a row no longer working is
+  refused naming its current status (`AppError::Validation`, 400, matched
+  against the broker's whole status vocabulary, Paytm #2374); a read that
+  fails stays that read's error. Check: one test for each failure the
+  adapter has.
 
 **Books**
 
