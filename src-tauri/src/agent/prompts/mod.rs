@@ -551,13 +551,15 @@ mod tests {
     fn the_prompt_describes_the_desktop() {
         let raw: Recorded = serde_json::from_str(include_str!("sections.json")).unwrap();
         for (key, from, _) in DESKTOP_WORDING {
-            let body = &raw.base.iter().find(|s| s.key == *key).unwrap().body;
-            assert_eq!(
-                body.matches(from).count(),
-                1,
-                "{}: the web's text moved",
-                key
-            );
+            // A key such as `surface` names one section per surface; the
+            // text is in exactly one of them.
+            let found: usize = [&raw.base, &raw.chat, &raw.chart, &raw.voice]
+                .into_iter()
+                .flatten()
+                .filter(|s| s.key == *key)
+                .map(|s| s.body.matches(from).count())
+                .sum();
+            assert_eq!(found, 1, "{}: the web's text moved", key);
         }
         let p = build_system_prompt(&SystemPrompt {
             surface: Some(Surface::Chat),
@@ -582,6 +584,36 @@ mod tests {
         assert!(p.contains("```json flow-ema-crossover.json"));
         assert!(p.contains(r#"os.getenv("HOST_SERVER", "http://127.0.0.1:5500")"#));
         assert!(p.contains(r#"os.getenv("WEBSOCKET_URL", "ws://127.0.0.1:8766")"#));
+    }
+
+    /// Review of the d941bb3b1 port: the chart's symbol, interval and price
+    /// are in RIGHT NOW, so the chart section sends the model there. THIS
+    /// SESSION, which holds only the trading and analyzer lines, is named
+    /// once, by the rule that orders need trading enabled.
+    #[test]
+    fn the_chart_section_sends_the_model_to_where_the_chart_is_named() {
+        let p = build_system_prompt(&SystemPrompt {
+            surface: Some(Surface::Chart),
+            extra_runtime_lines: vec![
+                "exchange: NSE".into(),
+                "interval: 5m".into(),
+                "symbol: INFY".into(),
+            ],
+            ..Default::default()
+        });
+        let surface = &surface_sections(Surface::Chart, None)[0];
+        assert_eq!(surface.key, "surface");
+        let chart = surface.render();
+        assert!(p.contains(&chart));
+
+        assert!(chart.contains("- RIGHT NOW already names the chart's symbol, exchange,"));
+        assert!(chart.contains("exchange and interval from RIGHT NOW;"));
+        assert_eq!(chart.matches("THIS SESSION").count(), 1, "{}", chart);
+        assert!(chart.contains("only when THIS SESSION says\n  trading is enabled"));
+        assert!(p.ends_with("RIGHT NOW\n- exchange: NSE\n- interval: 5m\n- symbol: INFY"));
+        let session = p.split("THIS SESSION\n").nth(1).unwrap();
+        let session = session.split("\n\n").next().unwrap();
+        assert!(!session.contains("symbol"), "{}", session);
     }
 
     #[test]
