@@ -964,7 +964,12 @@ Every flaky test found so far was a race, not a slow machine:
   whether the thread was idle in the gap). Where the operating system is the
   remainder, bound the test with `on_watched_runtime` and
   `IdleLog::longest_hold`, the longest the runtime thread ran without going
-  idle, instead of raising the bound.
+  idle, instead of raising the bound. A long `longest_hold` splits on Linux
+  by reading `/proc/thread-self/schedstat` (time on the CPU, time in the run
+  queue) at each park and unpark: the rest of the hold is the thread asleep
+  in a blocking call. The scalping reconcile test's 334 ms hold was 1 ms on
+  the CPU, 23 ms in the run queue and the rest two fsyncs on the runtime
+  (probe run 45777568703).
 - A synchronous database call on the runtime waits for a free pooled
   connection for as long as other requests' blocking reads hold the pool.
   The strategy pages and `/api/v1/strategy` looked their strategy up that
