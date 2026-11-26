@@ -13,7 +13,7 @@ use openalgo_desktop_lib::brokers::mock::MockCall;
 use openalgo_desktop_lib::brokers::types::Position;
 use openalgo_desktop_lib::clock::Clock;
 use openalgo_desktop_lib::clock::ManualClock;
-use openalgo_desktop_lib::db::sqlite::SqliteDb;
+use openalgo_desktop_lib::db::sqlite::{checkouts, SqliteDb};
 use openalgo_desktop_lib::events::subscribers::socketio::UiEmitter;
 use openalgo_desktop_lib::scalping::monitor::{
     chunks, MonitorDeps, RiskMonitor, BOOK_LAG_GRACE_MS,
@@ -2854,7 +2854,11 @@ async fn a_sync_keeps_the_trail_the_monitor_moved() {
 /// from their saved rows) on the blocking pool. It asked on its async worker
 /// every pass, so with every pooled connection taken the runtime waited
 /// with it. Afterwards the unconfirmed entry is settled from the book once,
-/// and the page trades again.
+/// and the page trades again. Settling it writes twice to openalgo.db, each
+/// commit an fsync at `synchronous=FULL`: on the runtime those held it for
+/// 215 ms on a CI runner's disk (lane-test 45750410715), so the pass takes
+/// no pooled connection on the runtime thread at all, which fails every
+/// run where the bound fails only when the disk is slow.
 #[test]
 fn a_reconcile_pass_waiting_for_the_database_never_holds_the_runtime() {
     crate::on_watched_runtime(|runtime| async move {
@@ -2879,8 +2883,11 @@ fn a_reconcile_pass_waiting_for_the_database_never_holds_the_runtime() {
         assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{}", b);
         runtime.until_idle().await;
         let holder = hold_the_pool(&h.ctx.sqlite, 600);
+        let pooled = checkouts().0;
         let (_, hold) = runtime.longest_hold(h.ctx.reconciler.pass()).await;
+        let pooled = checkouts().0 - pooled;
         holder.join().unwrap();
+        assert_eq!(pooled, 0, "pooled connections taken on the runtime");
         assert!(
             hold < Duration::from_millis(200),
             "the runtime was held for {:?}",

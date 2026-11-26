@@ -37,7 +37,7 @@ use parking_lot::Mutex;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::Value;
 use std::collections::HashSet;
-use std::sync::Weak;
+use std::sync::{Arc, Weak};
 
 /// What the page is told when its order was not confirmed.
 pub const NOT_CONFIRMED: &str =
@@ -374,7 +374,7 @@ impl OrderOwner for ScalpingOrders {
                     self.absence.forget(&key);
                     self.ambiguous.lock().remove(&key);
                     book.claim(&b.order_id);
-                    self.settle_placed(&ctx, p, &b.order_id, book.read_at);
+                    self.settle_placed(&ctx, p, &b.order_id, book.read_at).await;
                 }
                 Found::Absent => {
                     let id = p.id.to_string();
@@ -382,10 +382,12 @@ impl OrderOwner for ScalpingOrders {
                         Absence::Wait => unresolved += 1,
                         Absence::NotPlaced => {
                             self.absence.forget(&key);
+                            let (row, at) = (p.id, book.read_at);
                             let settled = ctx
-                                .sqlite
-                                .conn()
-                                .and_then(|c| settle(&c, p.id, "not_placed", None, book.read_at));
+                                .blocking(move |c| {
+                                    settle(&c.sqlite.conn()?, row, "not_placed", None, at)
+                                })
+                                .await;
                             match settled {
                                 Ok(_) => tracing::info!(
                                     "The unconfirmed scalping {} {} {} is not in the order book after repeated checks: it was not placed.",
@@ -451,12 +453,16 @@ impl OrderOwner for ScalpingOrders {
             return Ok(false);
         };
         let now = ctx.now();
-        let marked = ctx.sqlite.conn().and_then(|c| {
-            let Some(p) = read_one(&c, row_id)? else {
-                return Ok(None);
-            };
-            Ok(Some((p, settle(&c, row_id, "not_placed", None, now)?)))
-        });
+        // On the blocking pool, as the pass's own writes (PROD-REL-02).
+        let marked = ctx
+            .blocking(move |c| {
+                let conn = c.sqlite.conn()?;
+                let Some(p) = read_one(&conn, row_id)? else {
+                    return Ok(None);
+                };
+                Ok(Some((p, settle(&conn, row_id, "not_placed", None, now)?)))
+            })
+            .await;
         match marked {
             Ok(Some((p, true))) => {
                 self.absence.forget(&key);
@@ -486,15 +492,43 @@ impl OrderOwner for ScalpingOrders {
 
 impl ScalpingOrders {
     /// The book shows the order: settle it as placed; an entry joins the
-    /// scalping list.
-    fn settle_placed(&self, ctx: &AppState, p: &Pending, order_id: &str, at: DateTime<Utc>) {
-        match ctx
-            .sqlite
-            .conn()
-            .and_then(|c| settle(&c, p.id, "placed", Some(order_id), at))
-        {
-            Ok(true) => {}
-            Ok(false) => return,
+    /// scalping list. Both writes run on the blocking pool (PROD-REL-02):
+    /// each commits to openalgo.db at `synchronous=FULL`, an fsync, and a
+    /// slow disk held the pass's async worker, the one the feed and the
+    /// risk owners run on, for as long as it took (lane-test 45750410715).
+    async fn settle_placed(
+        &self,
+        ctx: &Arc<AppState>,
+        p: &Pending,
+        order_id: &str,
+        at: DateTime<Utc>,
+    ) {
+        let (row, order) = (p.id, order_id.to_string());
+        let entry = (p.kind == "entry").then(|| {
+            (
+                p.symbol.clone(),
+                p.exchange.clone(),
+                p.product.clone(),
+                p.mode.clone(),
+            )
+        });
+        let written = ctx
+            .blocking(move |c| {
+                if !settle(&c.sqlite.conn()?, row, "placed", Some(&order), at)? {
+                    return Ok(None);
+                }
+                let tracked = entry.map(|(symbol, exchange, product, mode)| {
+                    c.scalping.store.track(&symbol, &exchange, &product, &mode)
+                });
+                Ok(Some(tracked))
+            })
+            .await;
+        match written {
+            Ok(Some(Some(Err(e)))) => {
+                tracing::error!("Scalping list could not record {}: {}", p.symbol, e);
+            }
+            Ok(Some(_)) => {}
+            Ok(None) => return,
             Err(e) => {
                 tracing::error!(
                     "Unconfirmed scalping order {} could not be settled as order {}: {}",
@@ -503,15 +537,6 @@ impl ScalpingOrders {
                     e
                 );
                 return;
-            }
-        }
-        if p.kind == "entry" {
-            if let Err(e) = ctx
-                .scalping
-                .store
-                .track(&p.symbol, &p.exchange, &p.product, &p.mode)
-            {
-                tracing::error!("Scalping list could not record {}: {}", p.symbol, e);
             }
         }
         tracing::info!(
