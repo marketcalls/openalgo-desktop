@@ -94,6 +94,12 @@ struct Recorded {
 /// and there is no Python strategy page. Each `from` must occur exactly once
 /// in the web's text, so a web change that moves it fails a test instead
 /// of silently restoring the web's words.
+///
+/// The two `surface` entries fix a web defect instead of copying it: web
+/// d941bb3b1 moved the chart's symbol, interval and price from THIS SESSION
+/// to RIGHT NOW, and read_chart's description with them, but left the chart
+/// section sending the model to THIS SESSION for them, where it finds only
+/// the trading and analyzer lines.
 pub(crate) const DESKTOP_WORDING: &[(&str, &str, &str)] = &[
     (
         "identity",
@@ -134,6 +140,16 @@ pub(crate) const DESKTOP_WORDING: &[(&str, &str, &str)] = &[
         "openalgo_sdk",
         "- **Do not re-check what the host guarantees.** The strategy host sets the\n  environment before the script runs, so an `if not os.getenv(...): raise` block\n  is ceremony.",
         "- **Do not add environment checks.** An `if not os.getenv(...): raise` block\n  is ceremony.",
+    ),
+    (
+        "surface",
+        "- THIS SESSION already names the chart's symbol,",
+        "- RIGHT NOW already names the chart's symbol,",
+    ),
+    (
+        "surface",
+        "exchange and interval from THIS SESSION;",
+        "exchange and interval from RIGHT NOW;",
     ),
 ];
 
@@ -551,13 +567,15 @@ mod tests {
     fn the_prompt_describes_the_desktop() {
         let raw: Recorded = serde_json::from_str(include_str!("sections.json")).unwrap();
         for (key, from, _) in DESKTOP_WORDING {
-            let body = &raw.base.iter().find(|s| s.key == *key).unwrap().body;
-            assert_eq!(
-                body.matches(from).count(),
-                1,
-                "{}: the web's text moved",
-                key
-            );
+            // A key such as `surface` names one section per surface; the
+            // text is in exactly one of them.
+            let found: usize = [&raw.base, &raw.chat, &raw.chart, &raw.voice]
+                .into_iter()
+                .flatten()
+                .filter(|s| s.key == *key)
+                .map(|s| s.body.matches(from).count())
+                .sum();
+            assert_eq!(found, 1, "{}: the web's text moved", key);
         }
         let p = build_system_prompt(&SystemPrompt {
             surface: Some(Surface::Chat),
@@ -582,6 +600,36 @@ mod tests {
         assert!(p.contains("```json flow-ema-crossover.json"));
         assert!(p.contains(r#"os.getenv("HOST_SERVER", "http://127.0.0.1:5500")"#));
         assert!(p.contains(r#"os.getenv("WEBSOCKET_URL", "ws://127.0.0.1:8766")"#));
+    }
+
+    /// Review of the d941bb3b1 port: the chart's symbol, interval and price
+    /// are in RIGHT NOW, so the chart section sends the model there. THIS
+    /// SESSION, which holds only the trading and analyzer lines, is named
+    /// once, by the rule that orders need trading enabled.
+    #[test]
+    fn the_chart_section_sends_the_model_to_where_the_chart_is_named() {
+        let p = build_system_prompt(&SystemPrompt {
+            surface: Some(Surface::Chart),
+            extra_runtime_lines: vec![
+                "exchange: NSE".into(),
+                "interval: 5m".into(),
+                "symbol: INFY".into(),
+            ],
+            ..Default::default()
+        });
+        let surface = &surface_sections(Surface::Chart, None)[0];
+        assert_eq!(surface.key, "surface");
+        let chart = surface.render();
+        assert!(p.contains(&chart));
+
+        assert!(chart.contains("- RIGHT NOW already names the chart's symbol, exchange,"));
+        assert!(chart.contains("exchange and interval from RIGHT NOW;"));
+        assert_eq!(chart.matches("THIS SESSION").count(), 1, "{}", chart);
+        assert!(chart.contains("only when THIS SESSION says\n  trading is enabled"));
+        assert!(p.ends_with("RIGHT NOW\n- exchange: NSE\n- interval: 5m\n- symbol: INFY"));
+        let session = p.split("THIS SESSION\n").nth(1).unwrap();
+        let session = session.split("\n\n").next().unwrap();
+        assert!(!session.contains("symbol"), "{}", session);
     }
 
     #[test]
