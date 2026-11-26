@@ -370,6 +370,45 @@ pub async fn funds(ctx: &AppState) -> Reply {
     }
 }
 
+/// Average price of a complete order from its trade book rows, `None` when
+/// the book has no row for it. The web (`orderstatus_service.py`) answers
+/// the first row with the order's id.
+///
+/// A web defect not copied: where the order has more than one row and their
+/// quantities add up to what it filled, the rows are its fills and the first
+/// is one fill's price, not the order's. Flattrade's book is read that way
+/// since #2480 (each row its own `flqty` and `flprc`), so the web answers a
+/// SELL 120 filled 60 at 316.05 and 60 at 315.99 with 316.05 or 315.99, by
+/// the book's order, never its 316.02. Such rows answer their
+/// quantity-weighted average, to two decimals like the web's trade book.
+/// Rows that repeat the order's quantity (Shoonya, Zebu and TradeSmart: one
+/// row per fill, each with the order's `qty` and running `avgprc`) add up
+/// to more than it filled and keep the web's reading, as does a single row.
+pub(crate) fn traded_average_price(order: &Order, trades: &[Trade]) -> Option<f64> {
+    let mut rows = trades.iter().filter(|t| t.order_id == order.order_id);
+    let first = rows.next()?;
+    let (mut quantity, mut value, mut count) = (
+        i64::from(first.quantity),
+        f64::from(first.quantity) * first.average_price,
+        1_usize,
+    );
+    for t in rows {
+        quantity += i64::from(t.quantity);
+        value += f64::from(t.quantity) * t.average_price;
+        count += 1;
+    }
+    let filled = if order.filled_quantity > 0 {
+        order.filled_quantity
+    } else {
+        order.quantity
+    };
+    if count > 1 && quantity > 0 && quantity == i64::from(filled) {
+        Some(round2(value / quantity as f64))
+    } else {
+        Some(first.average_price)
+    }
+}
+
 /// `orderstatus`.
 pub async fn order_status(ctx: &AppState, req: &Value) -> Reply {
     let orderid = s(req, "orderid");
@@ -394,9 +433,7 @@ pub async fn order_status(ctx: &AppState, req: &Value) -> Reply {
     let mut average_price = 0.0;
     if order.status.eq_ignore_ascii_case("complete") {
         if let Ok(trades) = h.broker.get_trade_book(&h.auth).await {
-            if let Some(t) = trades.iter().find(|t| t.order_id == orderid) {
-                average_price = t.average_price;
-            }
+            average_price = traded_average_price(order, &trades).unwrap_or(0.0);
         }
     }
     let mut row = order_row(order);
@@ -533,6 +570,65 @@ mod tests {
             st,
             json!({"total_buy_orders": 1, "total_sell_orders": 2, "total_completed_orders": 1,
                 "total_open_orders": 1, "total_rejected_orders": 1})
+        );
+    }
+
+    fn trade(order_id: &str, quantity: i32, average_price: f64) -> Trade {
+        Trade {
+            order_tag: None,
+            trade_id: order_id.into(),
+            order_id: order_id.into(),
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            product: "MIS".into(),
+            side: "SELL".into(),
+            quantity,
+            average_price,
+            trade_value: f64::from(quantity) * average_price,
+            timestamp: "10:00:00".into(),
+        }
+    }
+
+    /// The web's first trade book row, unless the order's rows are its fills
+    /// (Flattrade since #2480, the Flattrade orderstatus tests).
+    #[test]
+    fn a_traded_price_averages_the_rows_only_when_they_are_the_fills() {
+        let mut o = order("SELL", "complete", "MARKET");
+        o.filled_quantity = 10;
+        let price = |rows: &[Trade]| traded_average_price(&o, rows);
+        assert_eq!(price(&[trade("2", 10, 5.0)]), None);
+        // One row, as the book has it.
+        assert_eq!(price(&[trade("1", 10, 801.256)]), Some(801.256));
+        // Fills making up the 10: their average, to two decimals; another
+        // order's row is not one of them.
+        let fills = [
+            trade("1", 4, 100.0),
+            trade("2", 6, 1.0),
+            trade("1", 6, 101.0),
+        ];
+        assert_eq!(price(&fills), Some(100.6));
+        // Rows repeating the order's quantity, or a fill the book lacks.
+        assert_eq!(
+            price(&[trade("1", 10, 100.0), trade("1", 10, 100.5)]),
+            Some(100.0)
+        );
+        assert_eq!(
+            price(&[trade("1", 4, 100.0), trade("1", 4, 101.0)]),
+            Some(100.0)
+        );
+        // A book with no filled quantity: the order's quantity is what filled.
+        o.filled_quantity = 0;
+        let price = |rows: &[Trade]| traded_average_price(&o, rows);
+        assert_eq!(
+            price(&[trade("1", 4, 100.0), trade("1", 6, 101.0)]),
+            Some(100.6)
+        );
+        // Rows of no quantity never divide by zero.
+        o.quantity = 0;
+        let price = |rows: &[Trade]| traded_average_price(&o, rows);
+        assert_eq!(
+            price(&[trade("1", 0, 100.0), trade("1", 0, 101.0)]),
+            Some(100.0)
         );
     }
 

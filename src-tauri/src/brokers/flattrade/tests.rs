@@ -182,6 +182,113 @@ fn the_other_noren_members_keep_reading_the_order_fields() {
 }
 
 // ---------------------------------------------------------------------------
+// Order status of a part-filled order: the order's average, not one fill's.
+// The web's orderstatus takes the first trade book row with the order's id,
+// which since #2480 is one Flattrade fill: a web defect not copied (lane110
+// review, `account_service::traded_average_price`).
+// ---------------------------------------------------------------------------
+
+mod order_status {
+    use super::*;
+    use crate::agent::tools::testkit::Kit;
+    use crate::brokers::families::noren::mapping::map_order;
+    use crate::brokers::types::Order;
+    use crate::services::account_service;
+
+    /// The SELL 120 as PiConnect's OrderBook reports it once complete: 120
+    /// filled, at the order's average of 316.02.
+    fn complete_sell(cfg: &'static NorenConfig) -> Order {
+        let row = json!({
+            "stat": "Ok",
+            "norenordno": ORDER,
+            "exch": "BFO",
+            "tsym": SYMBOL,
+            "trantype": "S",
+            "qty": "120",
+            "fillshares": "120",
+            "prc": "0.00",
+            "avgprc": "316.02",
+            "prctyp": "MKT",
+            "status": "COMPLETE",
+            "prd": "M",
+            "norentm": "13:09:10 17-11-2026",
+        });
+        map_order(cfg, &row, &SymbolResolver::new())
+    }
+
+    /// `average_price` of `/api/v1/orderstatus` for the SELL 120, with the
+    /// order book and the trade `rows` both read through `cfg`.
+    async fn average_price(kit: &Kit, cfg: &'static NorenConfig, rows: &[Value]) -> Value {
+        *kit.mock.order_book.lock() = Some(Ok(vec![complete_sell(cfg)]));
+        *kit.mock.trade_book.lock() = Some(Ok(book(cfg, rows)));
+        let reply = account_service::order_status(kit.app(), &json!({"orderid": ORDER})).await;
+        assert_eq!(reply.status, 200, "{}", reply.body);
+        assert_eq!(reply.body["data"]["order_status"], "complete");
+        reply.body["data"]["average_price"].clone()
+    }
+
+    /// The split SELL with its last fill listed first.
+    fn last_fill_first() -> Vec<Value> {
+        let mut rows = split_sell();
+        rows.reverse();
+        rows
+    }
+
+    /// Flattrade's rows are the fills, 60 at 316.05 and 60 at 315.99: the
+    /// order status answers their average, 316.02, whichever fill the book
+    /// lists first. Reading the first row answered 316.05 or 315.99.
+    #[tokio::test]
+    async fn a_part_filled_order_reports_the_average_of_its_fills() {
+        let kit = Kit::new();
+        assert_eq!(
+            average_price(&kit, config(), &split_sell()).await,
+            json!(316.02)
+        );
+        assert_eq!(
+            average_price(&kit, config(), &last_fill_first()).await,
+            json!(316.02)
+        );
+    }
+
+    /// One fill of the whole order answers that fill's price.
+    #[tokio::test]
+    async fn a_single_fill_reports_its_own_price() {
+        let kit = Kit::new();
+        let one = [fill(
+            ORDER,
+            "SELL",
+            120,
+            Some("120"),
+            Some("316.10"),
+            "316.10",
+        )];
+        assert_eq!(average_price(&kit, config(), &one).await, json!(316.1));
+    }
+
+    /// Shoonya, Zebu and TradeSmart repeat the order's quantity and running
+    /// average on every row, so their rows add up to 240 of a 120 order and
+    /// the order status keeps the web's first row, as before.
+    #[tokio::test]
+    async fn the_other_noren_members_keep_the_first_rows_price() {
+        let kit = Kit::new();
+        for cfg in [shoonya::config(), zebu::config(), tradesmart::config()] {
+            assert_eq!(
+                average_price(&kit, cfg, &split_sell()).await,
+                json!(316.05),
+                "{}",
+                cfg.id
+            );
+            assert_eq!(
+                average_price(&kit, cfg, &last_fill_first()).await,
+                json!(316.02),
+                "{}",
+                cfg.id
+            );
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // History: each session opens at the pre-open discovered price, from the
 // market calendar (web test/test_flattrade_preopen_history.py), through
 // Flattrade's adapter, the history service and the app's own calendar
