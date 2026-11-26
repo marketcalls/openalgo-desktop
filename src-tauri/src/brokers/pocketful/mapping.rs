@@ -1,6 +1,6 @@
 //! OpenAlgo <-> Pocketful translation (web `mapping/transform_data.py` and
-//! `mapping/order_data.py`, marketcalls/openalgo#2467; the feed's own maps
-//! in `streaming/pocketful_mapping.py`).
+//! `mapping/order_data.py`, marketcalls/openalgo#2467). The feeds keep
+//! their own maps (`streaming`, `streaming::order_feed`).
 //!
 //! Pocketful answers are read as loose JSON: numbers arrive as numbers or
 //! strings, and a missing field reads as empty or zero, as the web reads
@@ -39,23 +39,9 @@ pub fn text_any(v: &Value, keys: &[&str]) -> String {
         .unwrap_or_default()
 }
 
-fn as_f64(v: &Value) -> Option<f64> {
-    match v {
-        Value::Number(n) => n.as_f64(),
-        Value::String(s) => s.trim().parse::<f64>().ok(),
-        _ => None,
-    }
-    .filter(|n| n.is_finite())
-}
-
 /// Number field (numeric strings accepted; 0 when absent or unreadable).
 pub fn num(v: &Value, key: &str) -> f64 {
     v.get(key).map(number).unwrap_or(0.0)
-}
-
-/// The first of `keys` that is present and numeric.
-pub fn num_any(v: &Value, keys: &[&str]) -> Option<f64> {
-    keys.iter().find_map(|k| v.get(*k).and_then(as_f64))
 }
 
 /// Integer field, truncated like Python `int(float(x))`.
@@ -104,50 +90,6 @@ pub fn oa_pricetype(s: &str) -> String {
         "LIMIT" | "LMT" => "LIMIT".into(),
         "SL" | "SL-L" => "SL".into(),
         other => other.to_string(),
-    }
-}
-
-/// Feed exchange codes (web `pocketful_mapping.py`); unknown exchanges
-/// default to NSE (1) like the web.
-pub fn exchange_code(exchange: &str) -> u8 {
-    match exchange {
-        "NSE" | "NSE_INDEX" => 1,
-        "NFO" => 2,
-        "CDS" => 3,
-        "MCX" => 4,
-        "BSE" | "BSE_INDEX" => 6,
-        "BFO" => 7,
-        _ => 1,
-    }
-}
-
-/// An order update's status (the feed's `transform_order_data`): substring
-/// tests on the upper `order_status`, in the web's order, with `mode ==
-/// NEW` meaning open.
-pub fn map_status(status: &str, mode: &str) -> String {
-    let s = status.trim().to_ascii_uppercase();
-    let mode = mode.trim().to_ascii_uppercase();
-    if s.contains("CANCEL_CONFIRMED") {
-        "cancelled".into()
-    } else if s.contains("COMPLETE") {
-        "complete".into()
-    } else if s.contains("REJECTED") {
-        "rejected".into()
-    } else if s.contains("TRIGGER PENDING") {
-        "trigger pending".into()
-    } else if s.contains("OPEN")
-        || s.contains("PENDING")
-        || s.contains("AMO_SUBMIT")
-        || s.contains("MODIFY")
-        || mode == "NEW"
-    {
-        "open".into()
-    } else if s.contains("CANCEL") {
-        "cancelled".into()
-    } else if s.is_empty() {
-        "unknown".into()
-    } else {
-        crate::brokers::lower_status(&s)
     }
 }
 

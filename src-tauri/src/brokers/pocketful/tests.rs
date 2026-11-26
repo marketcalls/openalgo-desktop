@@ -53,35 +53,6 @@ fn enum_maps_match_web() {
     assert_eq!(oa_product("MARGIN"), "NRML");
     assert_eq!(openalgo_product("CO"), None);
     assert_eq!(oa_product("co"), "CO");
-    for (ex, code) in [
-        ("NSE", 1),
-        ("NFO", 2),
-        ("CDS", 3),
-        ("MCX", 4),
-        ("BSE", 6),
-        ("BFO", 7),
-        ("NSE_INDEX", 1),
-        ("BSE_INDEX", 6),
-        ("XYZ", 1),
-    ] {
-        assert_eq!(exchange_code(ex), code, "{}", ex);
-    }
-}
-
-#[test]
-fn status_map_follows_web_order() {
-    assert_eq!(map_status("CANCEL_CONFIRMED", ""), "cancelled");
-    assert_eq!(map_status("COMPLETE", ""), "complete");
-    assert_eq!(map_status("REJECTED", ""), "rejected");
-    assert_eq!(map_status("TRIGGER PENDING", ""), "trigger pending");
-    assert_eq!(map_status("OPEN", ""), "open");
-    assert_eq!(map_status("PENDING", ""), "open");
-    assert_eq!(map_status("AMO_SUBMIT", ""), "open");
-    assert_eq!(map_status("MODIFY_PENDING", ""), "open");
-    assert_eq!(map_status("whatever", "new"), "open");
-    assert_eq!(map_status("CANCELLED", ""), "cancelled");
-    assert_eq!(map_status("", ""), "unknown");
-    assert_eq!(map_status("EXPIRED", ""), "expired");
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +66,6 @@ fn loose_readers() {
     assert_eq!(text(&v, "b"), "");
     assert_eq!(text(&v, "c"), "7");
     assert_eq!(int(&v, "a"), 1);
-    assert_eq!(num_any(&v, &["b", "c"]), Some(7.0));
 }
 
 // ---------------------------------------------------------------------------
@@ -397,39 +367,6 @@ async fn transport_errors_lose_their_url_before_logging() {
     // Non-transport errors pass through untouched.
     let other = super::redact(crate::error::AppError::Broker("kept".into()));
     assert_eq!(other.client_message(), "kept");
-}
-
-#[tokio::test]
-async fn socket_errors_are_logged_by_kind_only() {
-    use tokio_tungstenite::tungstenite::{error::UrlError, http, Error as E};
-    let url = format!(
-        "ws://127.0.0.1:{}/session?token={s}&api_key={s}",
-        closed_port(),
-        s = SENTINEL
-    );
-    let real = tokio_tungstenite::connect_async(url.as_str())
-        .await
-        .unwrap_err();
-    let refused = http::Response::builder()
-        .status(401)
-        .body(Some(format!("bad token {}", SENTINEL).into_bytes()))
-        .unwrap();
-    let errors = vec![
-        real,
-        E::Http(refused),
-        E::Io(std::io::Error::other(url.clone())),
-        E::Url(UrlError::UnsupportedUrlScheme),
-        E::ConnectionClosed,
-    ];
-    for e in &errors {
-        let kind = super::streaming::ws_error_kind(e);
-        assert!(!kind.contains(SENTINEL), "{}", kind);
-        assert!(!kind.is_empty());
-    }
-    assert_eq!(
-        super::streaming::ws_error_kind(&errors[1]),
-        "refused with HTTP 401"
-    );
 }
 
 // ---------------------------------------------------------------------------

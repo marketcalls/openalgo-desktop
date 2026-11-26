@@ -748,20 +748,3 @@ impl BrokerFeed for PocketfulFeed {
         Some((Duration::from_secs(HEARTBEAT_SECS), heartbeat_frame()))
     }
 }
-
-/// A log-safe description of a socket error. The error's `Display` can
-/// echo the request (whose URL carries the session token), so only its
-/// kind is ever logged.
-pub fn ws_error_kind(e: &tokio_tungstenite::tungstenite::Error) -> String {
-    use tokio_tungstenite::tungstenite::Error as E;
-    match e {
-        E::Http(r) => format!("refused with HTTP {}", r.status().as_u16()),
-        E::Io(io) => format!("network error ({:?})", io.kind()),
-        E::Tls(_) => "secure connection failed".into(),
-        E::ConnectionClosed | E::AlreadyClosed => "connection closed".into(),
-        E::Protocol(_) => "protocol error".into(),
-        E::Capacity(_) => "message too large".into(),
-        E::Url(_) => "invalid address".into(),
-        _ => "socket error".into(),
-    }
-}
