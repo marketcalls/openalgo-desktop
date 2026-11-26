@@ -50,6 +50,7 @@ const OPENSCRIPT: EmbeddedFolder = EmbeddedFolder {
         openscript!("SKILL.md"),
         openscript!("examples/intraday-session.oscript"),
         openscript!("examples/long-only.oscript"),
+        openscript!("examples/mtf-ema-crossover.oscript"),
         openscript!("examples/short-only.oscript"),
         openscript!("examples/stop-and-reverse.oscript"),
         openscript!("examples/stop-and-target.oscript"),

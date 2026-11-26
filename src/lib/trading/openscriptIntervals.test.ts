@@ -13,7 +13,12 @@
 import { createChart, registerIndicator } from 'openalgo-charts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { idForScript, isScriptInstance } from './openscriptFiles'
-import { foldsOnto, languageInterval, scriptIntervalChoices } from './openscriptIntervals'
+import {
+  finerThanChart,
+  foldsOnto,
+  languageInterval,
+  scriptIntervalChoices,
+} from './openscriptIntervals'
 
 /** What the terminal fills an interval input with: its empty entry, then the broker's codes. */
 const BROKER = ['1m', '3m', '5m', '10m', '15m', '30m', '1h', '2h', 'D', 'W', 'M']
@@ -189,6 +194,66 @@ describe('held to the installed engine', () => {
           ])
         }
       }
+    }
+  })
+
+  it('agrees with the engine on which reads a backtest must serve', async () => {
+    // Desktop, for web e44126d67: `finerThanChart` restates when the engine
+    // folds a read from a base the host serves rather than from the chart's own
+    // bars. The engine's own answer is whether the read is refused on a host
+    // with no bars provider (OS6002, OS6015). Each pair is the interval the
+    // engine asks at, as it states it, and the chart; `15m` on `1h` is a finer
+    // read that is its own base, asked at its own timeframe.
+    const { sourceFile, lex, parseTokens, check, emit, load, DiagnosticBag } = await import(
+      'openalgo-script'
+    )
+    const pairs: [string, string][] = [
+      ['15m', '1h'],
+      ['1m', '5m'],
+      ['15', '10m'],
+      ['7m', '5m'],
+      ['1h', '5m'],
+      ['20', '10m'],
+      ['1D', '15m'],
+      ['1W', 'D'],
+    ]
+    for (const [requested, chart] of pairs) {
+      const text = [
+        'version 1',
+        'study("Read")',
+        `plot(req.timeframe("${requested}", close), "Read", aqua)`,
+        '',
+      ].join('\n')
+      const file = sourceFile('read.oscript', text)
+      const bag = new DiagnosticBag()
+      const program = emit(
+        file,
+        check(file, parseTokens(file, lex(file, bag), bag), bag),
+        bag,
+        {}
+      ).program
+      const instrument = {
+        symbol: 'AAA',
+        exchange: 'NSE',
+        interval: languageInterval(chart) ?? chart,
+      }
+      const asked: string[] = []
+      load(program, {
+        host: {
+          instrument,
+          requestBars: ((query: { interval: string }) => {
+            asked.push(query.interval)
+            return { pending: true }
+          }) as never,
+        },
+      })
+      const servedOnly = !load(program, { host: { instrument } }).ok
+      expect(asked).toHaveLength(1)
+      expect([requested, chart, finerThanChart(asked[0], instrument.interval)]).toEqual([
+        requested,
+        chart,
+        servedOnly,
+      ])
     }
   })
 
