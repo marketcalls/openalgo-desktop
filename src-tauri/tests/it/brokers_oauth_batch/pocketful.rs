@@ -550,7 +550,8 @@ async fn pocketful_quotes_and_depth_over_the_socket() {
         )
         .await
     );
-    assert!(saw_frame(&fake, json!({"a":"h"})).await);
+    // The SDK's heartbeat, which the feed sends since web #2467.
+    assert!(saw_frame(&fake, json!({"a":"h","v":[],"m":""})).await);
     assert!(
         saw_frame(
             &fake,
