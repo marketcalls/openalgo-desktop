@@ -14,6 +14,14 @@ stale, read upstream through `gh` instead.
 
 ## 1. List the commits
 
+Start from the line "Next sync starts after <sha>" at the top of
+`docs/web-sync/README.md`: the sync covers every web commit after that sha
+(`gh api "repos/marketcalls/openalgo/compare/<sha>...main" --jq '.commits[] | [.sha[0:9], (.commit.message | split("\n")[0])] | @tsv'`).
+At the end of the sync, write its record (`docs/web-sync/sync-<date>.md`,
+every web commit with its desktop commits or the reason it is not carried),
+add its row at the top of the README's table, and move that line to the
+last web commit the sync covered, with its date, in the same commit.
+
 From GitHub (always current):
 
 ```bash
@@ -32,8 +40,8 @@ git -C /Users/openalgo/openalgo-desktop/openalgo log --since=2026-10-01 --onelin
 git -C /Users/openalgo/openalgo-desktop/openalgo show --stat <sha>
 ```
 
-Start from the last web commit already ported: search this repo's history for
-the web PR numbers (`git log --grep 'openalgo#'`).
+To check whether one web PR is already carried, search this repo's history
+for its number (`git log --grep 'openalgo#2463'`).
 
 ## 2. Classify each commit
 
