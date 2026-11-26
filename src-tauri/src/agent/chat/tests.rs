@@ -16,6 +16,8 @@ use serde_json::{json, Map, Value};
 use std::sync::Arc;
 use tower::ServiceExt;
 
+mod web;
+
 const USER: &str = "trader";
 
 pub(crate) struct Harness {

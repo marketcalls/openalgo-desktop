@@ -32,7 +32,13 @@ async fn the_configuration_describes_every_key_and_shows_none() {
     assert_eq!(c["perplexity_model"], "openai/gpt-5.6-luna");
     assert_eq!(
         (c["max_calls_per_turn"].clone(), c["daily_cap"].clone()),
-        (json!(5), json!(200))
+        (json!(10), json!(200))
+    );
+    assert_eq!(c["fetch_provider"], "firecrawl");
+    assert_eq!(c["fetch_ready"], json!(false), "a Tavily key reads no page");
+    assert_eq!(
+        c["preferred_sources"],
+        json!(["screener.in", "scanx.trade", "tickertape.in"])
     );
     let day = today(t.ctx.now());
     assert_eq!(
@@ -45,7 +51,16 @@ async fn the_configuration_describes_every_key_and_shows_none() {
         .iter()
         .map(|p| p["id"].as_str().unwrap())
         .collect();
-    assert_eq!(ids, ["duckduckgo", "tavily", "perplexity"]);
+    assert_eq!(
+        ids,
+        [
+            "duckduckgo",
+            "tavily",
+            "perplexity",
+            "firecrawl",
+            "tinyfish"
+        ]
+    );
     let tavily = &c["providers"][1];
     assert_eq!(
         (tavily["has_api_key"].clone(), tavily["ready"].clone()),
@@ -69,7 +84,7 @@ async fn the_configuration_describes_every_key_and_shows_none() {
         "keyless is always ready"
     );
     let keys: Vec<&String> = tavily.as_object().unwrap().keys().collect();
-    assert_eq!(keys.len(), 10, "{:?}", keys);
+    assert_eq!(keys.len(), 11, "{:?}", keys);
     assert!(!c.to_string().contains("tvly-test-key"));
 }
 
@@ -81,12 +96,12 @@ fn the_provider_vocabulary_is_closed_and_case_insensitive() {
     for bad in ["bing", "", "duckduckgo2"] {
         assert_eq!(
             provider_spec(bad).unwrap_err(),
-            "provider must be one of: duckduckgo, tavily, perplexity"
+            "provider must be one of: duckduckgo, tavily, perplexity, firecrawl, tinyfish"
         );
     }
     assert_eq!(
         prepare(&body(json!({"provider": null}))).unwrap_err(),
-        "provider must be one of: duckduckgo, tavily, perplexity"
+        "provider must be one of: duckduckgo, tavily, perplexity, firecrawl, tinyfish"
     );
 }
 

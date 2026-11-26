@@ -593,6 +593,7 @@ Decided:
     left the trader's provider and the web-search boundary. Patched in the
     vendored crate (`vendor/genai-0.7.1/VENDORED.md`, change 3). After a
     genai upgrade, rerun `agent::run::tests::a_tool_named_web_search_is_sent_as_ours`
+    and its `web_fetch` twin (Anthropic has a server tool of that name too)
     and check the request body a provider receives, not only the reply.
 
 ## Testing

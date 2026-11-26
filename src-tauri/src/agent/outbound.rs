@@ -1,6 +1,7 @@
 //! The Agent's requests outside a model turn: the ChatGPT plan's sign-in
-//! (device code, poll, token exchange, renewal) and the web search
-//! providers (DuckDuckGo, Tavily, Perplexity).
+//! (device code, poll, token exchange, renewal) and the web search and
+//! page read providers (DuckDuckGo, Tavily, Firecrawl, TinyFish,
+//! Perplexity).
 //!
 //! One client for the process, built on first use with the Agent's own
 //! client settings (`run::client::http_client`: rustls on ring, no

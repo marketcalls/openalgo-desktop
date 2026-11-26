@@ -1,6 +1,7 @@
 //! Tavily and Perplexity (the web's `_tavily_search`,
 //! `_perplexity_research` and `_parse_perplexity_output`), what every
-//! provider call produces, and the gate that keeps too many searches from
+//! provider call produces, the request every keyed provider goes through
+//! (`_provider_json`), and the gate that keeps too many searches from
 //! running at once.
 //!
 //! The web sends these requests on its hub and answers "the web server was
@@ -13,8 +14,15 @@
 //! by its text (a transport error can quote the URL, and the URL the
 //! query). The web's sentences put a Python error class in brackets; the
 //! desktop has none, so that part is left out.
+//!
+//! Every request goes out on the Agent's own client
+//! (`agent::outbound`): no redirect is followed, a name that resolves only
+//! to the link-local block is refused, no cookie is kept or sent, and the
+//! only credential is the provider's own key. Desktop: an answer is read
+//! up to [`MAX_ANSWER_BYTES`] and refused beyond it, so no provider can
+//! make the app hold an unbounded body (the web reads it whole).
 
-use super::{PERPLEXITY, TAVILY};
+use super::{label, PERPLEXITY, TAVILY};
 use crate::security::Secret;
 use serde_json::{json, Value};
 use std::sync::{Arc, LazyLock};
@@ -25,6 +33,14 @@ pub const TAVILY_URL: &str = "https://api.tavily.com/search";
 pub const PERPLEXITY_URL: &str = "https://api.perplexity.ai/v1/agent";
 pub const DUCKDUCKGO_HTML_URL: &str = "https://html.duckduckgo.com/html/";
 pub const DUCKDUCKGO_LITE_URL: &str = "https://lite.duckduckgo.com/lite/";
+pub const FIRECRAWL_SEARCH_URL: &str = "https://api.firecrawl.dev/v2/search";
+pub const FIRECRAWL_SCRAPE_URL: &str = "https://api.firecrawl.dev/v2/scrape";
+pub const TINYFISH_SEARCH_URL: &str = "https://api.search.tinyfish.ai";
+pub const TINYFISH_FETCH_URL: &str = "https://api.fetch.tinyfish.ai";
+
+/// The most of one provider answer read: a page's text is kept to 400,000
+/// characters, and this leaves room for its JSON and metadata.
+pub const MAX_ANSWER_BYTES: usize = 5 * 1024 * 1024;
 
 /// The web's `SEARCH_TIMEOUT_SECONDS` (Tavily).
 pub const SEARCH_TIMEOUT: Duration = Duration::from_secs(20);
@@ -32,6 +48,12 @@ pub const SEARCH_TIMEOUT: Duration = Duration::from_secs(20);
 pub const RESEARCH_TIMEOUT: Duration = Duration::from_secs(60);
 /// The web's `DUCKDUCKGO_TIMEOUT_SECONDS`, per page.
 pub const DUCKDUCKGO_TIMEOUT: Duration = Duration::from_secs(10);
+/// The web's `FETCH_TIMEOUT_SECONDS`: a page fetch renders JavaScript and
+/// can queue behind the provider's own crawlers.
+pub const FETCH_TIMEOUT: Duration = Duration::from_secs(60);
+/// What the provider is told to give up after (`FETCH_PROVIDER_TIMEOUT_MS`),
+/// below the request's own timeout so its own error arrives first.
+pub const FETCH_PROVIDER_TIMEOUT_MS: u64 = 45_000;
 
 pub const MAX_SNIPPET_CHARS: usize = 400;
 pub const MAX_TITLE_CHARS: usize = 200;
@@ -49,7 +71,8 @@ pub const MAX_IN_FLIGHT: usize = 8;
 pub const GATE_WAIT: Duration = Duration::from_secs(10);
 
 /// The sentence for a search the gate could not take (the web's
-/// `PLATFORM_BUSY_MESSAGE`; `what` is `Web search` or `Web research`).
+/// `PLATFORM_BUSY_MESSAGE`; `what` is `Web search`, `Web research` or
+/// `Web fetch`).
 pub fn busy_message(what: &str) -> String {
     format!(
         "{} could not run because the web server was too busy to take it. Try the search again in a moment.",
@@ -64,6 +87,10 @@ pub struct Net {
     pub perplexity: String,
     pub duckduckgo_html: String,
     pub duckduckgo_lite: String,
+    pub firecrawl_search: String,
+    pub firecrawl_scrape: String,
+    pub tinyfish_search: String,
+    pub tinyfish_fetch: String,
     pub gate: Arc<Semaphore>,
     pub gate_wait: Duration,
 }
@@ -73,6 +100,10 @@ static DEFAULT_NET: LazyLock<Net> = LazyLock::new(|| Net {
     perplexity: PERPLEXITY_URL.into(),
     duckduckgo_html: DUCKDUCKGO_HTML_URL.into(),
     duckduckgo_lite: DUCKDUCKGO_LITE_URL.into(),
+    firecrawl_search: FIRECRAWL_SEARCH_URL.into(),
+    firecrawl_scrape: FIRECRAWL_SCRAPE_URL.into(),
+    tinyfish_search: TINYFISH_SEARCH_URL.into(),
+    tinyfish_fetch: TINYFISH_FETCH_URL.into(),
     gate: Arc::new(Semaphore::new(MAX_IN_FLIGHT)),
     gate_wait: GATE_WAIT,
 });
@@ -129,6 +160,12 @@ pub struct Outcome {
     pub busy: bool,
     /// The provider answered, so its key was used.
     pub key_used: bool,
+    /// A fetched page's readable text (`web_fetch` only).
+    pub text: String,
+    /// A fetched page's title.
+    pub title: String,
+    /// Where a fetch ended up after redirects, when the provider says.
+    pub final_url: String,
 }
 
 impl Outcome {
@@ -172,17 +209,14 @@ pub fn bounded(value: Option<&Value>, limit: usize) -> String {
 /// A provider's HTTP status as a sentence naming the next step
 /// (`_status_message`).
 pub fn status_message(provider: &str, status: u16) -> String {
-    let mut label = provider.to_string();
-    if let Some(first) = label.get_mut(0..1) {
-        first.make_ascii_uppercase();
-    }
+    let label = label(provider);
     match status {
         401 | 403 => format!(
             "{} rejected the stored key (HTTP {}). Check the {} key in the agent settings; it is wrong, expired or revoked.",
             label, status, provider
         ),
         429 => format!(
-            "{} rate limited this request (HTTP {}). Wait before searching again.",
+            "{} rate limited this request (HTTP {}). Wait before trying again.",
             label, status
         ),
         s if s >= 500 => format!("{} is having an outage (HTTP {}).", label, s),
@@ -190,36 +224,90 @@ pub fn status_message(provider: &str, status: u16) -> String {
     }
 }
 
-/// One POST with a bearer key; the body as JSON when it is one.
-async fn post_json(
-    url: &str,
-    key: &Secret,
-    body: &Value,
-    timeout: Duration,
-    label: &str,
-) -> Result<(u16, Option<Value>), String> {
+/// How a keyed provider is handed its key.
+pub enum Auth<'a> {
+    /// `Authorization: Bearer <key>` (Tavily, Perplexity, Firecrawl).
+    Bearer(&'a Secret),
+    /// The key in a header of the provider's own (TinyFish's `X-API-Key`).
+    Header(&'static str, &'a Secret),
+}
+
+/// One request to a keyed provider.
+pub struct Ask<'a> {
+    pub provider: &'static str,
+    pub url: &'a str,
+    pub auth: Auth<'a>,
+    /// A POST's JSON body; `None` sends a GET.
+    pub body: Option<&'a Value>,
+    /// A GET's query string.
+    pub query: &'a [(&'a str, &'a str)],
+    pub timeout: Duration,
+}
+
+/// The JSON a provider answered with, or the sentence that says why there
+/// is none (`_provider_json`): it could not be reached, it answered a status
+/// other than 200, its body is not JSON, or (desktop) its body is larger
+/// than [`MAX_ANSWER_BYTES`]. Logged by kind and status only: the key is in
+/// the request and a transport error can quote it. The caller makes the
+/// sentence its provider's failed outcome.
+pub async fn ask_json(ask: Ask<'_>) -> Result<Value, String> {
+    let label = label(ask.provider);
+    let not_reached = || format!("{} could not be reached.", label);
     let client = crate::agent::outbound::client().map_err(|e| {
         tracing::error!("Web search could not build its HTTP client: {}", e);
-        format!("{} could not be reached.", label)
+        not_reached()
     })?;
-    let response = client
-        .post(url)
-        .timeout(timeout)
-        .bearer_auth(key.expose())
-        .json(body)
-        .send()
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                "{} request failed: {}",
-                label,
-                crate::agent::outbound::error_kind(&e)
-            );
-            format!("{} could not be reached.", label)
-        })?;
+    let mut url = ::url::Url::parse(ask.url).map_err(|_| {
+        tracing::error!("{} has no usable address", label);
+        not_reached()
+    })?;
+    if !ask.query.is_empty() {
+        url.query_pairs_mut().extend_pairs(ask.query.iter());
+    }
+    let mut request = match ask.body {
+        Some(body) => client.post(url.as_str()).json(body),
+        None => client.get(url.as_str()),
+    };
+    request = match ask.auth {
+        Auth::Bearer(key) => request.bearer_auth(key.expose()),
+        Auth::Header(name, key) => request.header(name, key.expose()),
+    };
+    let mut response = request.timeout(ask.timeout).send().await.map_err(|e| {
+        tracing::error!(
+            "{} request failed: {}",
+            label,
+            crate::agent::outbound::error_kind(&e)
+        );
+        not_reached()
+    })?;
     let status = response.status().as_u16();
-    let text = response.text().await.unwrap_or_default();
-    Ok((status, serde_json::from_str(&text).ok()))
+    if status != 200 {
+        tracing::warn!("{} returned HTTP {}", label, status);
+        return Err(status_message(ask.provider, status));
+    }
+    let mut body: Vec<u8> = Vec::new();
+    loop {
+        match response.chunk().await {
+            Ok(Some(chunk)) if body.len() + chunk.len() > MAX_ANSWER_BYTES => {
+                tracing::warn!("{} returned more than {} bytes", label, MAX_ANSWER_BYTES);
+                return Err(format!("{} returned an answer too large to read.", label));
+            }
+            Ok(Some(chunk)) => body.extend_from_slice(&chunk),
+            Ok(None) => break,
+            Err(e) => {
+                tracing::error!(
+                    "{} answer could not be read: {}",
+                    label,
+                    crate::agent::outbound::error_kind(&e)
+                );
+                return Err(not_reached());
+            }
+        }
+    }
+    serde_json::from_slice(&body).map_err(|_| {
+        tracing::warn!("{} returned a body that is not JSON", label);
+        format!("{} returned a body that is not JSON.", label)
+    })
 }
 
 /// Words that make a query a market question (`_FINANCE_WORDS`).
@@ -307,18 +395,18 @@ pub async fn tavily(net: &Net, query: &str, max_results: usize, key: &Secret) ->
         "topic": topic,
     });
     let started = Instant::now();
-    let (status, payload) = match post_json(&net.tavily, key, &body, SEARCH_TIMEOUT, "Tavily").await
+    let payload = match ask_json(Ask {
+        provider: TAVILY,
+        url: &net.tavily,
+        auth: Auth::Bearer(key),
+        body: Some(&body),
+        query: &[],
+        timeout: SEARCH_TIMEOUT,
+    })
+    .await
     {
-        Ok(r) => r,
+        Ok(p) => p,
         Err(message) => return Outcome::failed(TAVILY, message),
-    };
-    if status != 200 {
-        tracing::warn!("Tavily returned HTTP {}", status);
-        return Outcome::failed(TAVILY, status_message(TAVILY, status));
-    }
-    let Some(payload) = payload else {
-        tracing::warn!("Tavily returned a body that is not JSON");
-        return Outcome::failed(TAVILY, "Tavily returned a body that is not JSON.");
     };
     let results: Vec<Link> = payload
         .get("results")
@@ -368,18 +456,18 @@ pub async fn perplexity(net: &Net, question: &str, model: &str, key: &Secret) ->
         "max_output_tokens": PERPLEXITY_MAX_OUTPUT_TOKENS,
     });
     let started = Instant::now();
-    let (status, payload) =
-        match post_json(&net.perplexity, key, &body, RESEARCH_TIMEOUT, "Perplexity").await {
-            Ok(r) => r,
-            Err(message) => return Outcome::failed(PERPLEXITY, message),
-        };
-    if status != 200 {
-        tracing::warn!("Perplexity returned HTTP {}", status);
-        return Outcome::failed(PERPLEXITY, status_message(PERPLEXITY, status));
-    }
-    let Some(payload) = payload else {
-        tracing::warn!("Perplexity returned a body that is not JSON");
-        return Outcome::failed(PERPLEXITY, "Perplexity returned a body that is not JSON.");
+    let payload = match ask_json(Ask {
+        provider: PERPLEXITY,
+        url: &net.perplexity,
+        auth: Auth::Bearer(key),
+        body: Some(&body),
+        query: &[],
+        timeout: RESEARCH_TIMEOUT,
+    })
+    .await
+    {
+        Ok(p) => p,
+        Err(message) => return Outcome::failed(PERPLEXITY, message),
     };
     let (answer, citations) = parse_perplexity(&payload);
     let cost = payload

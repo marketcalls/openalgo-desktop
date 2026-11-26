@@ -1,0 +1,49 @@
+{
+  "_comment": "Captured from the web's services/agent/web_prompt.py by scripts/agent/capture_web_sources.py. Regenerate only from the web.",
+  "web_commit": "a2ae9f1f",
+  "cases": {
+    "default": {
+      "sources": [
+        "screener.in",
+        "scanx.trade",
+        "tickertape.in"
+      ],
+      "section": {
+        "key": "web_sources",
+        "title": "WHERE TO LOOK FOR COMPANY FIGURES",
+        "body": "- Anything about a company's fundamentals (market cap, P/E, ROCE, ROE, revenue, profit, balance sheet, cash flow, quarterly results, shareholding, peers, ratios) comes first from screener.in, then scanx.trade, then tickertape.in. Do not start with the open web, and do not answer these from memory.\n- When the operator names one company by its NSE symbol, open its screener.in page directly with web_fetch, for example https://www.screener.in/company/RELIANCE/consolidated/. No search is needed first. Use /company/SYMBOL/ when the consolidated page is empty.\n- Otherwise call web_search with topic \"fundamentals\". It searches the sources in this priority order and returns the pages of the first one that has the company. Read the best with web_fetch.\n- If a source cannot be opened (blocked, not found, an error), call web_search with topic \"fundamentals\" again: that source is dropped and the next one is searched. One source being unavailable is not a reason to leave the others.\n- Only when every preferred source has failed or has no page for the company, search the open web (topic \"general\"), and tell the operator that you had to, naming the source you used instead.\n- For many companies at once, such as an index's constituents, find one page that lists them and read it in slices. Do not open one page per company.\n- These pages are third-party and carry a date. Name the page a figure came from, give the date it shows, and never present it as a live price.",
+        "pinned": false,
+        "order": 23
+      }
+    },
+    "two": {
+      "sources": [
+        "screener.in",
+        "scanx.trade"
+      ],
+      "section": {
+        "key": "web_sources",
+        "title": "WHERE TO LOOK FOR COMPANY FIGURES",
+        "body": "- Anything about a company's fundamentals (market cap, P/E, ROCE, ROE, revenue, profit, balance sheet, cash flow, quarterly results, shareholding, peers, ratios) comes first from screener.in then scanx.trade. Do not start with the open web, and do not answer these from memory.\n- When the operator names one company by its NSE symbol, open its screener.in page directly with web_fetch, for example https://www.screener.in/company/RELIANCE/consolidated/. No search is needed first. Use /company/SYMBOL/ when the consolidated page is empty.\n- Otherwise call web_search with topic \"fundamentals\". It searches the sources in this priority order and returns the pages of the first one that has the company. Read the best with web_fetch.\n- If a source cannot be opened (blocked, not found, an error), call web_search with topic \"fundamentals\" again: that source is dropped and the next one is searched. One source being unavailable is not a reason to leave the others.\n- Only when every preferred source has failed or has no page for the company, search the open web (topic \"general\"), and tell the operator that you had to, naming the source you used instead.\n- For many companies at once, such as an index's constituents, find one page that lists them and read it in slices. Do not open one page per company.\n- These pages are third-party and carry a date. Name the page a figure came from, give the date it shows, and never present it as a live price.",
+        "pinned": false,
+        "order": 23
+      }
+    },
+    "without_screener": {
+      "sources": [
+        "scanx.trade"
+      ],
+      "section": {
+        "key": "web_sources",
+        "title": "WHERE TO LOOK FOR COMPANY FIGURES",
+        "body": "- Anything about a company's fundamentals (market cap, P/E, ROCE, ROE, revenue, profit, balance sheet, cash flow, quarterly results, shareholding, peers, ratios) comes first from scanx.trade. Do not start with the open web, and do not answer these from memory.\n- Otherwise call web_search with topic \"fundamentals\". It searches the sources in this priority order and returns the pages of the first one that has the company. Read the best with web_fetch.\n- If a source cannot be opened (blocked, not found, an error), call web_search with topic \"fundamentals\" again: that source is dropped and the next one is searched. One source being unavailable is not a reason to leave the others.\n- Only when every preferred source has failed or has no page for the company, search the open web (topic \"general\"), and tell the operator that you had to, naming the source you used instead.\n- For many companies at once, such as an index's constituents, find one page that lists them and read it in slices. Do not open one page per company.\n- These pages are third-party and carry a date. Name the page a figure came from, give the date it shows, and never present it as a live price.",
+        "pinned": false,
+        "order": 23
+      }
+    },
+    "none": {
+      "sources": [],
+      "section": null
+    }
+  }
+}

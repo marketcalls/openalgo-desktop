@@ -70,7 +70,7 @@ fn a_status_reads_as_the_next_step() {
     );
     assert_eq!(
         status_message("perplexity", 429),
-        "Perplexity rate limited this request (HTTP 429). Wait before searching again."
+        "Perplexity rate limited this request (HTTP 429). Wait before trying again."
     );
     assert_eq!(
         status_message("tavily", 503),

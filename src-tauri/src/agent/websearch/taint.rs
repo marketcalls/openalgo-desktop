@@ -1,13 +1,15 @@
 //! The taint boundary (the web's `websearch.redact` and `constrain_query`).
 //!
 //! The model's query never reaches a provider. The outgoing query is built
-//! from the trader's own message for the turn: a token of the model's
-//! survives only when it is one of that message's words, whole, and goes
+//! from the trader's own words: a token of the model's survives only when
+//! it is one of the words of the turn's message, or of the trader's earlier
+//! messages in the conversation (web 5e19ce407: a follow-up such as "get
+//! the marketcap of it" names its company only earlier), whole, and goes
 //! out in the trader's own form, no more often than they wrote it (the web
-//! kept any substring in the model's form; deviations), and when none survives
-//! the message itself is sent. A word the model invented, or copied out of
-//! a poisoned tool result, cannot leave the machine. With no message to
-//! build from, nothing is sent.
+//! kept any substring in the model's form; deviations); when none survives
+//! the turn's message itself is sent, never an earlier one. A word the
+//! model invented, or copied out of a poisoned tool result, cannot leave
+//! the machine. With no message of the turn's own, nothing is sent.
 //!
 //! Redaction runs first, while the punctuation that marks `api_key=...`,
 //! `Bearer ...`, prefixed keys and emails is still there; long high-entropy
@@ -23,6 +25,11 @@ const REDACTION_TOKEN: &str = "redacted";
 
 /// The longest outgoing query (the web's `MAX_QUERY_CHARS`).
 pub const MAX_QUERY_CHARS: usize = 400;
+
+/// How many words one query may take from the trader's earlier messages
+/// alone (desktop): enough for a company a follow-up names only earlier,
+/// so a long conversation does not widen what one query can carry.
+pub(crate) const HISTORY_WORDS: usize = 4;
 
 /// A token this long is tested for being a key (`MIN_ENTROPY_CHARS`).
 pub const MIN_ENTROPY_CHARS: usize = 24;
@@ -172,17 +179,15 @@ struct Word {
 
 /// The trader's own words, keyed by their lower-cased form: the redacted
 /// message split as `str.split()` splits it, each word without its edge
-/// punctuation, the redaction marker left out. Also the number of words.
-fn operator_words(operator: &str) -> (HashMap<String, Word>, usize) {
+/// punctuation, the redaction marker left out.
+fn operator_words(operator: &str) -> HashMap<String, Word> {
     let mut words: HashMap<String, Word> = HashMap::new();
-    let mut total = 0;
     for t in split(operator) {
         let form = strip_edges(t);
         let key = form.to_lowercase();
         if key.is_empty() || key == REDACTION_TOKEN {
             continue;
         }
-        total += 1;
         words
             .entry(key)
             .or_insert_with(|| Word {
@@ -191,7 +196,7 @@ fn operator_words(operator: &str) -> (HashMap<String, Word>, usize) {
             })
             .count += 1;
     }
-    (words, total)
+    words
 }
 
 /// Build the outgoing query out of the trader's own words
@@ -204,17 +209,38 @@ fn operator_words(operator: &str) -> (HashMap<String, Word>, usize) {
 ///   passed, and data could leave a piece at a time);
 /// - what goes out is the trader's own form of the word, never the model's
 ///   casing (casing is a channel);
-/// - a word goes out at most as often as the trader wrote it, and the query
+/// - a word goes out at most as often as the trader wrote it, so the query
 ///   holds at most as many words as the trader's message (the web sent
 ///   each word once).
 pub fn constrain(requested: &str, operator_message: &str) -> Constrained {
+    constrain_with_history(requested, operator_message, "")
+}
+
+/// [`constrain`], with the trader's earlier messages in the conversation
+/// widening the words a token may be (`constrain_query`'s
+/// `earlier_messages`). They are redacted too, they never authorise a
+/// search on their own, and what goes out when nothing survives is still
+/// the turn's message alone.
+///
+/// Desktop (security review, 2026-11-25): a word only the earlier messages
+/// hold goes out at most once, and at most [`HISTORY_WORDS`] of them in one
+/// query, so the query holds at most the turn's words plus that allowance.
+/// The web counts the earlier messages' words as the turn's, so a long
+/// conversation let one query carry more of them.
+pub fn constrain_with_history(
+    requested: &str,
+    operator_message: &str,
+    earlier_messages: &str,
+) -> Constrained {
     let operator = redact(operator_message);
     if operator.is_empty() {
         return Constrained::block();
     }
-    let (words, total) = operator_words(&operator);
+    let turn = operator_words(&operator);
+    let earlier = operator_words(&redact(earlier_messages));
     let requested = redact(requested);
     let mut used: HashMap<String, usize> = HashMap::new();
+    let mut from_earlier = 0;
     let mut kept: Vec<&str> = Vec::new();
     let mut dropped = 0;
     for raw in split(&requested) {
@@ -222,15 +248,21 @@ pub fn constrain(requested: &str, operator_message: &str) -> Constrained {
         if lowered.is_empty() || lowered == REDACTION_TOKEN {
             continue;
         }
-        let Some(word) = words.get(&lowered) else {
-            dropped += 1;
-            continue;
+        let (word, limit, earlier_only) = match (turn.get(&lowered), earlier.get(&lowered)) {
+            (Some(word), _) => (word, word.count, false),
+            (None, Some(_)) if from_earlier >= HISTORY_WORDS => continue,
+            (None, Some(word)) => (word, 1, true),
+            (None, None) => {
+                dropped += 1;
+                continue;
+            }
         };
         let n = used.entry(lowered).or_insert(0);
-        if *n >= word.count || kept.len() >= total {
+        if *n >= limit {
             continue;
         }
         *n += 1;
+        from_earlier += usize::from(earlier_only);
         kept.push(&word.form);
     }
     let text = join_within(&kept, MAX_QUERY_CHARS);

@@ -143,6 +143,7 @@ pub(crate) mod testing {
             caps,
             analyzer_mode: false,
             operator_message: String::new(),
+            operator_history: String::new(),
             chart_context: None,
             viz: VizSink::new(),
             cancel: CancellationToken::new(),
