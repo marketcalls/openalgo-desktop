@@ -75,7 +75,8 @@ impl std::fmt::Debug for SandboxOptions {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EngineCmd {
     /// Something on this symbol now needs ticks (pending order, GTT leg,
-    /// open position).
+    /// open position). The engine checks that again when it handles it: a
+    /// cancel's `Rebuild` may have overtaken it.
     Watch(SymbolKey),
     /// Config changed: rebuild the schedule.
     ConfigChanged,

@@ -3,9 +3,12 @@
 //! * [`MasterSymbols`]: the shared symbol master as a `SymbolSource`;
 //! * [`LiveQuotes`]: the connected broker's quote API as a `QuoteSource`;
 //! * [`FeedTicks`]: the market-data feed (the `WebSocketManager` broadcast)
-//!   as a `TickSource`.
+//!   as a `TickSource`; the subscribes and releases it asks for wait in
+//!   `calls` for its worker.
 //!
 //! The engine never sees a broker; these are the only seams.
+
+mod calls;
 
 use crate::brokers::common::master_contract::parse_oa_expiry;
 use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription};
@@ -14,11 +17,12 @@ use crate::brokers::types::QuoteKey;
 use crate::sandbox::{Quote, QuoteSource, SymbolKey, SymbolMeta, SymbolSource, Tick, TickSource};
 use crate::state::AppState;
 use crate::websocket::WebSocketManager;
+use calls::{FeedCalls, Refused, WatchCmd};
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::broadcast;
 
 /// The symbol master as the engine's instrument source.
 pub struct MasterSymbols(pub SymbolResolver);
@@ -111,24 +115,19 @@ impl QuoteSource for LiveQuotes {
 
 /// Bound of the tick channel handed to the engine.
 pub const TICK_CAPACITY: usize = 4096;
-/// Bound of the watch/unwatch command channel.
-const CMD_CAPACITY: usize = 1024;
-
-enum WatchCmd {
-    Watch(FeedSubscription),
-    Unwatch(FeedSubscription),
-    /// Drop the subscription (if one was made) and make it again: the
-    /// engine saw no tick for the symbol, or the first subscribe failed.
-    Resubscribe(FeedSubscription),
-}
 
 /// Live LTP ticks from the market-data feed. One forwarding task (owned by
 /// the app context) turns feed events into sandbox ticks and applies the
 /// engine's watch list to the feed; it ends when this adapter is dropped
-/// (the command channel closes), releasing every subscription it made.
+/// (its queue of calls closes), releasing every subscription it made.
+///
+/// The engine's watch, unwatch and resubscribe never wait: each is queued
+/// in the same hold of the watch list as the change that decided it, so
+/// the calls reach the broker in the order they were decided (web
+/// marketcalls/openalgo#2192).
 pub struct FeedTicks {
     tx: broadcast::Sender<Tick>,
-    cmd: mpsc::Sender<WatchCmd>,
+    calls: Arc<FeedCalls>,
     symbols: SymbolResolver,
     watched: Mutex<HashSet<SymbolKey>>,
 }
@@ -141,15 +140,15 @@ impl FeedTicks {
 
     pub fn with_feed(ctx: &AppState, feed: Arc<WebSocketManager>) -> Arc<Self> {
         let (tx, _) = broadcast::channel(TICK_CAPACITY);
-        let (cmd, rx) = mpsc::channel(CMD_CAPACITY);
+        let calls = Arc::new(FeedCalls::default());
         let me = Arc::new(Self {
             tx: tx.clone(),
-            cmd,
+            calls: calls.clone(),
             symbols: ctx.symbols.clone(),
             watched: Mutex::new(HashSet::new()),
         });
         let shutdown = ctx.shutdown.clone();
-        ctx.spawn(forward(feed, tx, rx, shutdown));
+        ctx.spawn(forward(feed, tx, calls, shutdown));
         me
     }
 
@@ -170,6 +169,26 @@ impl FeedTicks {
     pub fn watched(&self) -> HashSet<SymbolKey> {
         self.watched.lock().clone()
     }
+
+    /// A subscribe the full queue turned away. The symbol stays on the
+    /// watch list, so the engine asks for it again while its prices stay
+    /// quiet (SB-01), and polling checks its orders meanwhile.
+    fn subscribe_turned_away(&self, key: &SymbolKey) {
+        tracing::warn!(
+            "Sandbox could not ask to stream {}:{} now ({} requests turned away since sandbox \
+             mode started); it asks again while the symbol's prices stay quiet, and checks \
+             its orders by polling meanwhile",
+            key.exchange,
+            key.symbol,
+            self.calls.turned_away()
+        );
+    }
+}
+
+impl Drop for FeedTicks {
+    fn drop(&mut self) {
+        self.calls.close();
+    }
 }
 
 /// The forwarder: ticks read as they come, and the watch list applied
@@ -177,13 +196,13 @@ impl FeedTicks {
 async fn forward(
     feed: Arc<WebSocketManager>,
     tx: broadcast::Sender<Tick>,
-    rx: mpsc::Receiver<WatchCmd>,
+    calls: Arc<FeedCalls>,
     shutdown: tokio_util::sync::CancellationToken,
 ) {
     let stop = shutdown.child_token();
     tokio::join!(
         read_ticks(&feed, tx, stop.clone()),
-        apply_watches(&feed, rx, stop)
+        apply_watches(&feed, &calls, stop)
     );
 }
 
@@ -223,19 +242,20 @@ async fn read_ticks(
     }
 }
 
-/// Apply the engine's watch list to the feed until the adapter is dropped
-/// or the app shuts down; the ticks stop with it, and every subscription
-/// made here is released, on every exit path.
+/// Apply the engine's watch list to the feed, one call at a time and
+/// oldest first, until the adapter is dropped or the app shuts down; the
+/// ticks stop with it, nothing more is queued, and every subscription made
+/// here is released, on every exit path.
 async fn apply_watches(
     feed: &WebSocketManager,
-    mut rx: mpsc::Receiver<WatchCmd>,
+    calls: &FeedCalls,
     stop: tokio_util::sync::CancellationToken,
 ) {
     let mut mine: HashMap<SymbolKey, FeedSubscription> = HashMap::new();
     loop {
         let cmd = tokio::select! {
             _ = stop.cancelled() => break,
-            cmd = rx.recv() => match cmd {
+            cmd = calls.next() => match cmd {
                 Some(cmd) => cmd,
                 None => break,
             },
@@ -283,6 +303,7 @@ async fn apply_watches(
         }
     }
     stop.cancel();
+    calls.close();
     if !mine.is_empty() {
         let subs: Vec<FeedSubscription> = mine.into_values().collect();
         let _ = feed.unsubscribe(subs).await;
@@ -295,36 +316,48 @@ impl TickSource for FeedTicks {
     }
 
     fn watch(&self, key: &SymbolKey) {
-        if !self.watched.lock().insert(key.clone()) {
-            return;
-        }
-        if let Some(s) = self.subscription(key) {
-            if self.cmd.try_send(WatchCmd::Watch(s)).is_err() {
-                // The engine's polling fallback covers a dropped watch.
-                tracing::debug!("Sandbox watch queue full");
-                self.watched.lock().remove(key);
+        let queued = {
+            let mut watched = self.watched.lock();
+            if !watched.insert(key.clone()) {
+                return;
             }
+            self.subscription(key)
+                .map(|s| self.calls.push(WatchCmd::Watch(s)))
+        };
+        if queued == Some(Err(Refused::Full)) {
+            self.subscribe_turned_away(key);
         }
     }
 
     fn unwatch(&self, key: &SymbolKey) {
-        if !self.watched.lock().remove(key) {
-            return;
-        }
-        if let Some(s) = self.subscription(key) {
-            let _ = self.cmd.try_send(WatchCmd::Unwatch(s));
+        let queued = {
+            let mut watched = self.watched.lock();
+            if !watched.remove(key) {
+                return;
+            }
+            self.subscription(key)
+                .map(|s| self.calls.push(WatchCmd::Unwatch(s)))
+        };
+        if queued == Some(Err(Refused::Full)) {
+            tracing::warn!(
+                "Sandbox could not stop streaming {}:{} now; it stops when sandbox mode stops",
+                key.exchange,
+                key.symbol
+            );
         }
     }
 
     fn resubscribe(&self, key: &SymbolKey) {
-        if !self.watched.lock().contains(key) {
-            return;
-        }
-        if let Some(s) = self.subscription(key) {
-            if self.cmd.try_send(WatchCmd::Resubscribe(s)).is_err() {
-                // The engine retries on its next backoff step.
-                tracing::debug!("Sandbox watch queue full");
+        let queued = {
+            let watched = self.watched.lock();
+            if !watched.contains(key) {
+                return;
             }
+            self.subscription(key)
+                .map(|s| self.calls.push(WatchCmd::Resubscribe(s)))
+        };
+        if queued == Some(Err(Refused::Full)) {
+            self.subscribe_turned_away(key);
         }
     }
 }
@@ -374,20 +407,20 @@ mod tests {
         };
         feed.set_presubscribe(Some(step));
         let (tx, mut ticks) = broadcast::channel(16);
-        let (cmd, rx) = mpsc::channel(8);
+        let calls = Arc::new(FeedCalls::default());
         let shutdown = tokio_util::sync::CancellationToken::new();
-        let task = tokio::spawn(forward(feed.clone(), tx, rx, shutdown.clone()));
-        cmd.send(WatchCmd::Watch(FeedSubscription {
-            symbol: "SBIN".into(),
-            exchange: "NSE".into(),
-            token: "1".into(),
-            brsymbol: "SBIN".into(),
-            brexchange: "NSE".into(),
-            mode: FeedMode::Ltp,
-            depth: 5,
-        }))
-        .await
-        .unwrap();
+        let task = tokio::spawn(forward(feed.clone(), tx, calls.clone(), shutdown.clone()));
+        calls
+            .push(WatchCmd::Watch(FeedSubscription {
+                symbol: "SBIN".into(),
+                exchange: "NSE".into(),
+                token: "1".into(),
+                brsymbol: "SBIN".into(),
+                brexchange: "NSE".into(),
+                mode: FeedMode::Ltp,
+                depth: 5,
+            }))
+            .unwrap();
         entered.notified().await;
 
         feed.emit(Arc::new(FeedEvent::Tick(NormalizedTick {

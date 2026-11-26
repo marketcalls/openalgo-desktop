@@ -1180,7 +1180,10 @@ and add each new one here.
   positive-price checks, and its polling fallback quotes just the symbols
   that are stale (plus resting orders on symbols not yet watched). A
   watched symbol that stays stale is subscribed again with a backoff
-  doubling to 5 minutes, which also retries a subscription that failed. The
+  doubling to 5 minutes, which also retries a subscription that failed or
+  that the full queue of feed calls turned away (`services::sandbox_feed`
+  holds at most 1024 subscribes while the broker does not answer, besides
+  the web's per-symbol cancelling; the web's queue has no overall bound). The
   web keeps one global timestamp, so any tick (a chart's, a watchlist's)
   kept a stalled symbol from ever being polled.
 - **An old price is not filled at** (SB-06). Ticks and quotes carry the
