@@ -286,11 +286,14 @@ pub struct NorenConfig {
     pub eod_widen: bool,
     /// Hardened candle parsing (flattrade, web #2198): a candle with a
     /// price that is missing, null, empty, NaN or infinite is skipped
-    /// instead of charted as 0; intraday bars stamped before the 09:15
-    /// open on NSE/BSE/NFO/BFO (TPSeries' pre-open bar, QA HS-07) are
-    /// dropped; intraday volume is floored at 0 (the cumulative volume
-    /// switches counters in the closing session).
+    /// instead of charted as 0; intraday volume is floored at 0 (the
+    /// cumulative volume switches counters in the closing session).
     pub strict_candles: bool,
+    /// TPSeries bars include the pre-open, which the history service
+    /// folds into each session's opening price from the market calendar
+    /// (flattrade, web #2482; `Broker::history_pre_open_minutes`): a flat
+    /// 09:14 bar on a normal day, 14:05 to 14:19 on Muhurat 2026.
+    pub pre_open_from_calendar: bool,
     /// Today's synthetic daily bar at UTC midnight of the IST date (true)
     /// or at IST midnight (zebu).
     pub today_bar_utc: bool,
@@ -312,6 +315,13 @@ pub struct NorenConfig {
     pub position_pnl: PositionPnl,
     /// Tradebook keeps only `HH:MM:SS` of `norentm` (shoonya).
     pub tradebook_time_only: bool,
+    /// Tradebook quantity and price come from each row's own fill,
+    /// `flqty` and `flprc` (flattrade, web #2480): TradeBook has one row
+    /// per fill and repeats the order's `qty` and running `avgprc` on each,
+    /// so reading those counted a part-filled order once per fill. Off, the
+    /// order's `qty` and `avgprc` are read, as the shoonya, zebu and
+    /// tradesmart plugins read them.
+    pub tradebook_by_fill: bool,
     /// Orderbook price falls back to `avgprc` / `rprc` (flattrade).
     pub orderbook_price_fallback: bool,
     /// Depth carries `oi` (shoonya reports 0).
@@ -753,6 +763,10 @@ impl Broker for NorenBroker {
 
     async fn get_history(&self, auth: &AuthToken, req: &HistoryRequest) -> Result<Vec<Candle>> {
         data::get_history(self, auth, req).await
+    }
+
+    fn history_pre_open_minutes(&self, req: &HistoryRequest) -> Option<i64> {
+        data::pre_open_minutes(self.cfg, &req.interval)
     }
 
     async fn download_master_contract(&self, _auth: &AuthToken) -> Result<Vec<SymbolData>> {

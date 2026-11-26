@@ -170,7 +170,7 @@ pub(super) async fn repair(
             return;
         }
     };
-    let minute = sort_dedupe_last(parse_history(b.cfg, &read.rows, false, chart.exch));
+    let minute = sort_dedupe_last(parse_history(b.cfg, &read.rows, false));
     let done = rebuild_day_last_bars(bars, &minute, &read.failed);
     if done.changed > 0 {
         tracing::info!(

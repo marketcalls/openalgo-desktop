@@ -19,6 +19,7 @@
 
 use crate::brokers::common::outcome::PlaceOutcome;
 use crate::events::{Event, Mode};
+use crate::services::account_service::traded_average_price;
 use crate::services::core::{broker_handle, meta, safe_request, Reply};
 use crate::services::order_service::{place_order, sandbox_order, Route};
 use crate::state::AppState;
@@ -518,8 +519,8 @@ impl OrderGateway for AppGateway {
                 let mut average_price = order.average_price;
                 if average_price <= 0.0 && order.status.eq_ignore_ascii_case("complete") {
                     if let Ok(trades) = h.broker.get_trade_book(&h.auth).await {
-                        if let Some(t) = trades.iter().find(|t| t.order_id == broker_order_id) {
-                            average_price = t.average_price;
+                        if let Some(p) = traded_average_price(order, &trades) {
+                            average_price = p;
                         }
                     }
                 }
@@ -693,8 +694,8 @@ impl OrderGateway for AppGateway {
                 let o = &t.order;
                 let mut average_price = o.average_price;
                 if average_price <= 0.0 && o.status.eq_ignore_ascii_case("complete") {
-                    if let Some(tr) = trades.iter().find(|tr| tr.order_id == o.order_id) {
-                        average_price = tr.average_price;
+                    if let Some(p) = traded_average_price(o, &trades) {
+                        average_price = p;
                     }
                 }
                 let mut row = crate::services::account_service::order_row(o);

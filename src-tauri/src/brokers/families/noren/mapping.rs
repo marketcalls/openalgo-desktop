@@ -568,13 +568,35 @@ pub fn map_order(cfg: &NorenConfig, o: &Value, symbols: &SymbolResolver) -> Orde
     }
 }
 
-pub fn map_trade(cfg: &NorenConfig, t: &Value, symbols: &SymbolResolver) -> Trade {
-    let exch = text(t, "exch");
-    let qty = i(t, "qty").max(i(t, "flqty"));
+/// Quantity and price of a TradeBook row from its own fill (web flattrade
+/// `transform_tradebook_data`, #2480): `flqty` and `flprc`, the order's
+/// `qty` and `avgprc` only when the row has no fill field; an unreadable
+/// number is 0.
+fn fill_quantity_price(t: &Value) -> (i64, f64) {
+    let fill = |k: &str| t.get(k).filter(|v| !v.is_null());
+    (
+        num_i64(fill("flqty").or_else(|| t.get("qty"))),
+        num_f64(fill("flprc").or_else(|| t.get("avgprc"))),
+    )
+}
+
+/// Quantity and price of a TradeBook row from its order: `qty` and
+/// `avgprc`, the fill's only where the order field is smaller or zero.
+fn order_quantity_price(t: &Value) -> (i64, f64) {
     let mut avg = f(t, "avgprc");
     if avg == 0.0 {
         avg = f(t, "flprc");
     }
+    (i(t, "qty").max(i(t, "flqty")), avg)
+}
+
+pub fn map_trade(cfg: &NorenConfig, t: &Value, symbols: &SymbolResolver) -> Trade {
+    let exch = text(t, "exch");
+    let (qty, mut avg) = if cfg.tradebook_by_fill {
+        fill_quantity_price(t)
+    } else {
+        order_quantity_price(t)
+    };
     let mut value = avg * qty as f64;
     if !cfg.tradebook_time_only {
         avg = py_round(avg, 2);

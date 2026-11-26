@@ -70,6 +70,7 @@ pub mod order_router;
 pub mod order_service;
 pub mod pnl_capital;
 pub mod pnl_tracker_service;
+pub mod pre_open;
 pub mod record_loss;
 pub mod report_flight;
 pub mod report_gate;

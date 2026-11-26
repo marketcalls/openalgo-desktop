@@ -2,9 +2,11 @@
 //! jKey form dialect, `/trade/apitoken` login, S3 CSV masters with fixed
 //! tick sizes and BSE `UNDIND` indices (index rows typed `EQ`, stale BSE
 //! rows with no exchange dropped, every file required), hardened candle
-//! parsing, the basket's own margin (`marginusedtrade` less what is in
-//! use), funds M2M from the position book, a dual rolling-window limiter,
-//! and one socket per session (order updates ride the market socket).
+//! parsing, intraday bars that carry the pre-open (folded into each
+//! session's open by the history service), the basket's own margin
+//! (`marginusedtrade` less what is in use), funds M2M from the position
+//! book, a dual rolling-window limiter, one socket per session (order
+//! updates ride the market socket), and a trade book counted by each fill.
 
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::*;
@@ -56,6 +58,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     day_end_repair: false,
     eod_widen: true,
     strict_candles: true,
+    pre_open_from_calendar: true,
     today_bar_utc: true,
     quote_identity_retries: 0,
     multiquote_batch: 10,
@@ -69,6 +72,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     margin_mpp: MarginMpp::TriggerFirst,
     position_pnl: PositionPnl::RealisedPlusUnrealised,
     tradebook_time_only: false,
+    tradebook_by_fill: true,
     orderbook_price_fallback: true,
     depth_oi: true,
     feed_oi: FeedOi::TotalInDepth,
@@ -92,3 +96,6 @@ pub fn config() -> &'static NorenConfig {
 pub fn broker(symbols: SymbolResolver) -> NorenBroker {
     NorenBroker::new(&CONFIG, symbols)
 }
+
+#[cfg(test)]
+mod tests;
