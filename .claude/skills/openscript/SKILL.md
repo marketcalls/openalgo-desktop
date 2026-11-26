@@ -59,6 +59,12 @@ What differs:
 - **Library lookup.** The scripts read `node_modules/openalgo-script` at the
   repository root; in a worktree under `.claude/worktrees/` without its own
   `node_modules` they use the main checkout's.
+- **`run.mjs` needs no server.** It reads a bars file and runs the engine in
+  Node. The desktop app answers `/api/v1/history` as the web does, so a
+  trader's bars come from the app with their own API key. When testing the
+  skill itself, build a bars file instead (a JSON array of bars with
+  `timestamp` in seconds): never call a running app, and on a development
+  machine port 5000 may be OpenAlgo web.
 
 ## The one rule
 
@@ -111,6 +117,37 @@ instrument and timeframe rather than changing the script.
 `reference/strategies.md` ends with the four steps between a compile and money,
 and they are not optional.
 
+## Run it on bars before installing
+
+A pass cannot see what a script draws. Each of these compiled clean while
+writing `examples/mtf-ema-crossover.oscript`, and each was found by running it:
+a crossing level from weeks before that stretched the price scale until the
+candles were a strip, and a read finer than the chart that drew nothing.
+`run.mjs` runs the draft on real bars with the engine `/trading` ships, and
+prints each plot's first value and last value and every marker with its bar.
+It runs a study: it routes no orders, so for a strategy it says to backtest it
+in the Backtest panel on `/trading` instead, which reports the trades:
+
+```bash
+# bars from the app's own /api/v1/history (127.0.0.1:5000 unless the port was
+# changed in the app), with your API key, for the instrument and interval the chart shows
+curl -s -X POST http://127.0.0.1:5000/api/v1/history -H 'Content-Type: application/json' \
+  -d '{"apikey":"'"$OPENALGO_API_KEY"'","symbol":"RELIANCE","exchange":"NSE","interval":"5m","start_date":"2026-11-10","end_date":"2026-11-25"}' \
+  > <scratch>/bars.json
+
+node .claude/skills/openscript/run.mjs <scratch>/my_study.oscript <scratch>/bars.json \
+  --symbol RELIANCE --interval 5m
+```
+
+Read the output against what the study is meant to do: a plot absent on every
+bar, a first value much later than the warmup explains, a marker that never
+fires, or a level far from the last close is a script to fix before it is
+installed. `run.mjs` serves no bars beyond the file, so a read of another
+instrument, or of an interval that is not a whole multiple of `--interval`, is
+refused at load there and draws on a chart, which fetches them. A strategy run
+live is served no more than `run.mjs` is, so a read refused here is refused
+when the run starts too (`reference/pitfalls.md`).
+
 ## Read these before writing
 
 | Page | What it is for |
@@ -119,7 +156,7 @@ and they are not optional.
 | `reference/pitfalls.md` | what goes wrong, with the diagnostic code you will actually see. Every code on it is proved against the compiler. |
 | `reference/strategies.md` | the shapes a strategy takes, and which example answers which ask. |
 | `reference/porting-from-javascript.md` | porting a JavaScript chart indicator into a study that computes the same values: the chart helpers whose OpenScript twin differs, absent values, `fn` scope, markers, tables, inputs, and how to check parity. |
-| `examples/*.oscript` | six worked files, all of which compile. The reasoning is in the comments. |
+| `examples/*.oscript` | seven worked files, all of which compile. The reasoning is in the comments. `mtf-ema-crossover.oscript` is the one for reading another timeframe. |
 
 **Look a name up rather than recalling it.** 350 names is more than anyone holds,
 and the dangerous failure is not reaching for a name that does not exist: it is
@@ -203,7 +240,11 @@ broker's candles; and any whole number of minutes reads on an intraday chart
 and in a backtest, finer or not a multiple of the chart's interval, built from
 finer bars the page fetches. A live run is served only its own bars, so it
 still refuses those reads at start (`reference/pitfalls.md`). No compiled
-format change: programs compiled by 0.8.1 load unchanged.
+format change: programs compiled by 0.8.1 load unchanged. `reference/pitfalls.md`
+has these under the timeframe entries, with the one 0.9.0 chart bug: a finer
+read whose interval the chart's divides draws nothing when written with its
+unit. When the pin moves past 0.9.0, read the changelog for what changed and
+delete that bug's entry if the release carries the fix.
 
 **Bumping `openalgo-script` means updating this skill in the same change**, the
 way a chart bump does. Run the generator, run both checks, then update the prose
