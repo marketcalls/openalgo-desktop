@@ -29,8 +29,9 @@ its results are a check of your order flow, not a forecast of live results.
 - **Orders fill in full or not at all.** There are no partial fills, no queue
   position and no market impact. A fill uses the price your broker reports at
   that moment; depth beyond the best bid and ask is not considered.
-- **P&L is shown before charges.** Brokerage and statutory charges are
-  taken from the available balance when an order fills (see below), and the
+- **P&L is shown before charges.** Charges are taken from the available
+  balance when an order fills (see below): brokerage and the statutory
+  charges on the Indian exchanges, only the venue fee on a crypto venue. The
   P&L figures stay gross, as a broker's position book shows them, with the
   charges beside them.
 - **Quantities are in contracts.** For a crypto contract the contract value

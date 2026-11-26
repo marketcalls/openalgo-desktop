@@ -209,7 +209,8 @@ Positions and holdings come from the sandbox, not your broker:
   weekends and holidays included;
 - closed positions leave the position book;
 - sandbox P&L is shown before charges; brokerage and statutory charges
-  are taken from the sandbox balance at each fill and shown beside it.
+  (on a crypto venue, only the venue fee you set) are taken from the
+  sandbox balance at each fill and shown beside it.
 
 See [Sandbox mode](../../user/sandbox.md).
 

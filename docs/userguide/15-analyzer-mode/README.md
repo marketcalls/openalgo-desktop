@@ -227,9 +227,10 @@ exactly what a webhook or script sent.
 
 - Orders fill in full or not at all: no partial fills, queue position or
   market impact.
-- P&L is shown before charges: brokerage and statutory charges are taken
-  from the available balance at each fill and shown beside it. Depository
-  charges and STT on an option exercised at expiry are not charged.
+- P&L is shown before charges: brokerage and statutory charges (on a crypto
+  venue, only the venue fee you set) are taken from the available balance at
+  each fill and shown beside it. Depository charges and STT on an option
+  exercised at expiry are not charged.
 - Margin is a leverage rule, not your broker's margin.
 - Capital is in rupees and crypto prices in US dollars, without conversion.
 - Fills depend on your broker's data: outages and missing entitlements affect
