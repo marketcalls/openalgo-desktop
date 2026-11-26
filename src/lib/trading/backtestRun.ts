@@ -463,24 +463,6 @@ export async function runBacktest(request: BacktestRequest): Promise<BacktestOut
   }
 }
 
-/**
- * Run the engine, on a worker where there is one and on this thread otherwise.
- *
- * **The fallback is not a lesser answer, only a slower page.** The engine is a
- * pure function over data, so both paths compute the same report from the same
- * inputs; what differs is whether the chart keeps drawing while it happens. So
- * a browser that will not start a worker, a policy that refuses the file, a
- * test environment that has none, all still get a backtest.
- *
- * **A worker that fails to start is retried inline; a run it refuses is not.**
- * Those are different things and conflating them is the mistake worth naming: a
- * refusal is the engine's answer and would be the same answer inline, so
- * running it again would cost a second full fold to be told what we already
- * know. Only a worker that never got to run is worth repeating.
- *
- * Answers `null` for a run that was abandoned, which is a run nobody is waiting
- * for rather than a run that failed.
- */
 /** Minutes this platform's history serves an intraday interval at. */
 const HISTORY_MINUTES = new Set([1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 240])
 
@@ -625,6 +607,24 @@ async function servedFor(
   return served
 }
 
+/**
+ * Run the engine, on a worker where there is one and on this thread otherwise.
+ *
+ * **The fallback is not a lesser answer, only a slower page.** The engine is a
+ * pure function over data, so both paths compute the same report from the same
+ * inputs; what differs is whether the chart keeps drawing while it happens. So
+ * a browser that will not start a worker, a policy that refuses the file, a
+ * test environment that has none, all still get a backtest.
+ *
+ * **A worker that fails to start is retried inline; a run it refuses is not.**
+ * Those are different things and conflating them is the mistake worth naming: a
+ * refusal is the engine's answer and would be the same answer inline, so
+ * running it again would cost a second full fold to be told what we already
+ * know. Only a worker that never got to run is worth repeating.
+ *
+ * Answers `null` for a run that was abandoned, which is a run nobody is waiting
+ * for rather than a run that failed.
+ */
 async function fold(message: BacktestMessage, signal?: AbortSignal): Promise<BacktestReply | null> {
   if (workersAvailable()) {
     try {
