@@ -81,6 +81,15 @@ approval whose answer was lost, in full or for one leg or chunk, stays
 `submitting` (unconfirmed): never marked rejected or partial, never sent
 again, across a restart too.
 
+A live GTT placement follows the same rule (1.0.10,
+`gtt_service::live_place_reply`): an `AppError::Uncertain` from any GTT
+adapter travels beside the reply as uncertain, so an Action Center approval
+of `placegttorder` stays `submitting` and MCP reports the outcome unknown.
+The wire keeps each broker's web answer: Pocketful's adapter writes its web
+plugin's 502 "check the GTT list" sentences, and another broker's unknown
+answer (Zerodha's or Upstox's 2xx with neither marker) keeps the 500
+`Failed to place GTT due to internal error` (`UNKNOWN_GTT_ANSWERED_502`).
+
 A strategy exit whose order row cannot be written is not sent (P2-6): it
 could not be found again if its answer were lost.
 

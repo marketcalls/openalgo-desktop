@@ -163,7 +163,7 @@ The trigger sits above the last price, so it goes in `triggerprice_tg`. `price` 
 | triggerprice_tg | SINGLE: the trigger, when it sits above the last price. OCO: the target leg's trigger | Conditional | 0 |
 | stoploss | OCO only: the stop-loss leg's limit price | Conditional | null |
 | target | OCO only: the target leg's limit price | Conditional | null |
-| expires_at | Analyzer mode only: when the GTT lapses, as an ISO date or date-time (`2027-03-31`, `2027-03-31T15:30:00+05:30`). A value that cannot be read is replaced by the default | Optional | One year from placement |
+| expires_at | Analyzer mode, and live on Pocketful: when the GTT lapses, as an ISO date or date-time (`2027-03-31`, `2027-03-31T15:30:00+05:30`). In analyzer mode a value that cannot be read is replaced by the default; Pocketful refuses one that is not a date from today on (see [Pocketful](#pocketful-single-rules-only)). Other live brokers ignore it | Optional | One year from placement; on Pocketful a derivative's contract expiry |
 
 `stoploss`, `target`, `triggerprice_sl` and `triggerprice_tg` may also be sent as `""` (read as unset). Fields this endpoint does not know are ignored, not refused.
 
@@ -220,6 +220,7 @@ Validation errors on this endpoint carry `message` as a string that spells out a
 | 400 | The broker's own reason | The broker refused the GTT |
 | 400 | `Could not fetch the last price from Zerodha to place the GTT. Try again.` | The broker needs the last price for the GTT and it could not be read (Zerodha; Angel One for a SINGLE; Upstox for an OCO) |
 | 501 | `GTT orders are not supported for broker 'shoonya' yet` | Your broker has no GTT in OpenAlgo (see Notes) |
+| 502 | `Pocketful did not answer, so the GTT may or may not have been created. Check the GTT list before placing it again.` | The GTT was sent and no clear answer came back (Pocketful). It may exist: check the [GTT order book](./gttorderbook.md) before placing it again |
 | 500 | `Failed to place GTT due to internal error` | The broker call failed without a readable answer |
 
 In analyzer mode the sandbox adds its own refusals, with `"mode": "analyze"`:
@@ -233,7 +234,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 
 ## Notes
 
-- Live GTT works with Zerodha, Upstox, Angel One, Fyers, Dhan and Rupeezy, as on the web. With any other broker, live GTT answers 501; analyzer mode works with every broker.
+- Live GTT works with Zerodha, Upstox, Angel One, Fyers, Dhan, Pocketful and Rupeezy, as on the web. With any other broker, live GTT answers 501; analyzer mode works with every broker.
 - You do not send the last price: OpenAlgo reads it from your broker where the broker's GTT needs it.
 - Some brokers take only LIMIT orders in a GTT. There a MARKET request is sent as a LIMIT with a price protection band around the last price (SINGLE) or each trigger (OCO), so MARKET works the same everywhere.
 - A GTT's order, once placed, is an ordinary order: it appears in the [order book](../account-services/orderbook.md). A trigger that fires does not mean its order fills, above all when a MARKET request was sent as a protected LIMIT.
@@ -249,6 +250,16 @@ Angel One has no OCO rule. OpenAlgo places an OCO as two independent rules, the 
 - If the second rule cannot be created, OpenAlgo cancels the first, so no half OCO is left. After any error, check the [GTT order book](./gttorderbook.md): a connection that drops during that cancel can still leave the first rule active.
 - A modify or a cancel changes the two rules one after the other. If it fails after the first, the error names the leg that failed (modify) or the rule already cancelled (cancel); check both rules in the GTT order book before trying again.
 - The GTT order book shows the two rules as two SINGLE rows, because Angel One does not keep them as a pair.
+
+### Pocketful: single rules only
+
+Pocketful's GTT takes one trigger only, so `trigger_type=OCO` is refused before anything is sent: place the stop-loss and the target as two SINGLE GTTs (Pocketful will not cancel one when the other fires).
+
+- A `MARKET` request goes out as a `LIMIT` priced with Market Price Protection from the trigger price, where the order is placed, so a sell stop below the market still fills once it fires.
+- Pocketful needs an expiry on every rule: OpenAlgo sends your `expires_at` when you give one (a date from today on), otherwise a derivative's rule expires with its contract and any other rule after 365 days.
+- An index, a symbol not in the Pocketful master contract and a trigger or limit price of 0 are refused before anything is sent.
+- A modify reads your GTT book first and keeps the rule's expiry. It refuses a rule that is no longer active (404), one that is not a single trigger, and a change of symbol, exchange or side: cancel it and place a new one.
+- A create, modify or cancel that gets no clear answer is never sent again: the answer is 502 and says to check the [GTT order book](./gttorderbook.md) before trying again. With `"status": "all"` the book includes rules that fired, lapsed or were cancelled.
 
 ### Rupeezy
 
@@ -271,6 +282,9 @@ The `stoploss` and `target` limit prices are not used: each Upstox rule fires at
 - In the desktop, a Fyers GTT carries the tag `openalgo`; the web sends the strategy name (letters and digits, up to 20) as the Fyers order tag.
 - In the desktop, use whole-number quantities for a GTT: a fractional CRYPTO quantity is cut down to a whole number in analyzer mode (no live broker with GTT trades CRYPTO).
 - In the desktop, if OpenAlgo cannot read whether the order mode is Semi-Auto, the GTT is refused (500) instead of being placed; the web places it.
+- In the desktop, a Pocketful GTT that Pocketful answers with a server error, with a success that carries no id, or with an answer that says neither success nor failure is reported as unknown (502, "Check the GTT list before placing it again"), and an Action Center approval of it stays unconfirmed instead of rejected; the web reports a server error as a refusal. A GTT that never reached Pocketful (the connection did not open) is refused with 400 and says it was not placed; the web cannot tell it from a lost answer.
+- In the desktop, Pocketful's own refusal answers 400 whatever HTTP status Pocketful gave it, like every broker's refusal here; the web passes Pocketful's status on (401, 500).
+- In the desktop, a session Pocketful refuses (401 or 403) on a GTT create, modify, cancel or book answers 400 `Pocketful did not accept your session for the GTT. Log in to Pocketful again from OpenAlgo, then try again.` (for the book, `... for the GTT list ...`), as Pocketful's orders and books do; the web answers Pocketful's status with `Pocketful refused to place the GTT: Request Unauthorised`.
 
 ---
 

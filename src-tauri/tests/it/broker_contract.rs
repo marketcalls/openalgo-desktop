@@ -220,6 +220,7 @@ async fn optional_capabilities_default_to_typed_unsupported() {
         triggerprice_tg: 0.0,
         target: 0.0,
         last_price: None,
+        expires_at: None,
     };
     for e in [
         b.place_gtt(&auth(), &req).await.unwrap_err(),

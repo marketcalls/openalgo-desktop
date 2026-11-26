@@ -179,7 +179,9 @@ Validation errors carry `message` as a string that spells out a Python dictionar
 | 400 | The broker's own reason | The broker refused the change |
 | 400 | `Could not fetch the last price from Zerodha to place the GTT. Try again.` | The broker needs the last price and it could not be read |
 | 403 | `Modify GTT order is not allowed in Semi-Auto mode. Switch to Auto mode.` | The API key's order mode is Semi-Auto (live mode only) |
+| 404 | `This GTT is no longer active at Pocketful: it may have fired, expired or been cancelled. Check the GTT list.` | Pocketful: the GTT book does not show the rule as active, so nothing was changed |
 | 501 | `GTT orders are not supported for broker 'shoonya' yet` | Your broker has no GTT in OpenAlgo |
+| 502 | `Pocketful did not answer, so the change may or may not have been made. Check the GTT list before trying again.` | The change was sent and no clear answer came back (Pocketful) |
 | 500 | `Failed to modify GTT due to internal error` | The broker call failed without a readable answer |
 
 In analyzer mode the sandbox adds its own refusals, with `"mode": "analyze"`:
@@ -200,6 +202,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 - You do not send the last price: OpenAlgo reads it from your broker where needed.
 - Whether an OCO's two legs change in one step depends on the broker. Angel One changes its two rules one after the other, and a failure after the first leaves them different; Rupeezy needs your GTT book to be readable first. After an error, check both legs in the [GTT order book](./gttorderbook.md) before sending the modify again; an error does not mean the first change was undone. See [Angel One](./placegttorder.md#angel-one-an-oco-is-two-separate-rules).
 - MARKET is handled as on [PlaceGTTOrder](./placegttorder.md#notes).
+- On Pocketful a modify reads your GTT book first, keeps the rule's expiry, and changes only an active single trigger with the same symbol, exchange and side. See [Pocketful](./placegttorder.md#pocketful-single-rules-only).
 - Semi-Auto does not queue a modify; it refuses it (403) in live mode, as on the web.
 - Rate limit: 10 requests per second per caller, shared with the other order endpoints. See [Rate limiting](../rate-limiting.md).
 
@@ -207,6 +210,8 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 
 - In the desktop, a failed analyzer-mode modify (an unknown or no longer active `trigger_id`) answers 404 `No active GTT with trigger_id '...'` and is recorded in the sandbox log; the web answers 500 `An unexpected error occurred` and logs nothing (a web defect).
 - In the desktop, when the broker's last price cannot be read the answer is 400 with a message naming the broker; the web answers 502.
+- In the desktop, Pocketful's own refusal of a change answers 400 whatever HTTP status Pocketful gave it, and a Pocketful GTT book that cannot be read (or a rule whose expiry Pocketful did not report) answers 400 with the reason; the web answers with Pocketful's status, and 502 for those two.
+- In the desktop, a session Pocketful refuses (401 or 403) answers 400 `Pocketful did not accept your session for the GTT. Log in to Pocketful again from OpenAlgo, then try again.` (`... for the GTT list ...` when it refuses the GTT book read first); the web answers Pocketful's status with `Pocketful refused to change the GTT: Request Unauthorised`.
 
 ---
 

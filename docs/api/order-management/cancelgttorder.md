@@ -92,6 +92,7 @@ Validation errors carry `message` as a string that spells out a Python dictionar
 | 403 | `Cancel GTT order is not allowed in Semi-Auto mode. Switch to Auto mode.` | The API key's order mode is Semi-Auto (live mode only) |
 | 404 | The broker's reason | The broker reports the GTT as not found |
 | 501 | `GTT orders are not supported for broker 'shoonya' yet` | Your broker has no GTT in OpenAlgo |
+| 502 | `Pocketful did not answer, so the GTT may or may not have been cancelled. Check the GTT list before trying again.` | The cancel was sent and no clear answer came back (Pocketful) |
 | 500 | `Failed to cancel GTT due to internal error` | The broker call failed without a readable answer |
 
 In analyzer mode the sandbox adds its own refusals, with `"mode": "analyze"`:
@@ -121,6 +122,8 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 
 ## In the desktop
 
+- In the desktop, Pocketful's own refusal of a cancel ("Pocketful refused to cancel the GTT: Event id not found") answers 400 whatever HTTP status Pocketful gave it; the web answers with Pocketful's status (500).
+- In the desktop, a session Pocketful refuses (401 or 403) answers 400 `Pocketful did not accept your session for the GTT. Log in to Pocketful again from OpenAlgo, then try again.`; the web answers Pocketful's status with `Pocketful refused to cancel the GTT: Request Unauthorised`.
 - In the desktop, an analyzer-mode OCO that was modified to a higher target, with positions closed in between, cancels normally and releases its margin; the web can answer 500 `Could not release ... margin ... retry the cancel.` and leave the OCO active, because its sandbox had already dropped the margin of resting orders (a web defect).
 
 ---
