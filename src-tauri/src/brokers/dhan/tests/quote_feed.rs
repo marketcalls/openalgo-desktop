@@ -221,3 +221,71 @@ fn a_new_connection_forgets_the_previous_close() {
     let d = the_frame(&parse(&mut f, quote_frame(0.0)), Mode::Quote);
     assert_eq!(d["close"], 1281.0);
 }
+
+/// Web test_trailing_zero_length_header_stops_parse (openalgo#2509,
+/// f83592a0b; issue #2502): zero padding after a packet reads as a header
+/// whose length, 0, is shorter than the header itself. The web's loop never
+/// moved past it and spun, freezing the feed; the desktop's parser stops at
+/// any length under the 8-byte header (`DhanFeed::parse_binary`), so the
+/// packet before the padding is published, alone. A non-zero length under
+/// the header stops it the same way.
+#[test]
+fn padding_after_a_packet_ends_the_parse() {
+    for padding in [[0u8; 8], [4, 3, 0, SEG_NSE, 0x45, 0x0b, 0, 0]] {
+        let mut f = reliance(FeedMode::Quote);
+        parse(&mut f, prev_close_frame(1280.5, 120));
+        let mut frame = quote_frame(0.0);
+        frame.extend(padding);
+        let events = parse(&mut f, frame);
+        assert_eq!(events.len(), 1, "{:?}", events);
+        let d = the_frame(&events, Mode::Quote);
+        assert_eq!(d["symbol"], "RELIANCE");
+        assert_eq!(d["close"], 1280.5);
+    }
+}
+
+/// The web test's `_header_20depth`: the 20-level socket's 12-byte header,
+/// u16 length (header included), u8 code, u8 segment, u32 security id,
+/// u32 sequence.
+fn header_20depth(code: u8, payload_len: usize) -> Vec<u8> {
+    let mut v = ((12 + payload_len) as u16).to_le_bytes().to_vec();
+    v.push(code);
+    v.push(SEG_NSE);
+    v.extend(SEC_ID.to_le_bytes());
+    v.extend(0u32.to_le_bytes());
+    v
+}
+
+/// The web test's `depth_20_frame`: one side's 20 levels of 16 bytes.
+fn depth_20_frame(code: u8) -> Vec<u8> {
+    let mut v = header_20depth(code, 320);
+    v.extend([0u8; 320]);
+    v
+}
+
+/// Web test_trailing_zero_length_header_stops_20depth_parse: the same on
+/// the 20-level socket, whose header is 12 bytes (`Dhan20DepthFeed::
+/// parse_binary` stops under 12). The web publishes each side as it comes;
+/// the desktop publishes the book once both sides have come, so the bid
+/// side followed by padding is held, and the ask side followed by padding
+/// completes it.
+#[test]
+fn padding_after_a_20_level_packet_ends_the_parse() {
+    let mut f = Dhan20DepthFeed::with_url("wss://depth", "t", "c");
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", FeedMode::Depth)]);
+    let mut bids = depth_20_frame(41);
+    bids.extend([0u8; 12]);
+    assert!(f.parse(&Message::Binary(bids)).is_empty());
+    assert_eq!(f.sizes(), (1, 1));
+    let mut asks = depth_20_frame(51);
+    asks.extend([0u8; 12]);
+    let events = f.parse(&Message::Binary(asks));
+    match &events[..] {
+        [FeedEvent::Depth(d)] => {
+            assert_eq!(d.symbol, "RELIANCE");
+            assert_eq!((d.buy.len(), d.sell.len()), (20, 20));
+        }
+        other => panic!("one book expected: {:?}", other),
+    }
+    assert_eq!(f.sizes(), (1, 0));
+}
