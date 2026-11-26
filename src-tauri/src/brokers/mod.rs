@@ -508,6 +508,17 @@ pub trait Broker: Send + Sync {
         false
     }
 
+    /// The bar length in minutes when this broker's intraday bars for
+    /// `req` include the pre-open (Flattrade's TPSeries: a flat 09:14 bar,
+    /// 14:05 to 14:19 on Muhurat 2026). The history service then leaves
+    /// those bars out and opens each session at the last pre-open close,
+    /// the discovered price, from the market calendar an adapter cannot
+    /// read (web flattrade `_open_at_discovered_price`, openalgo#2482).
+    /// Default: `None`, the bars are the session's own.
+    fn history_pre_open_minutes(&self, _req: &HistoryRequest) -> Option<i64> {
+        None
+    }
+
     // ---- GTT (optional) ----
 
     async fn place_gtt(&self, _auth: &AuthToken, _req: &GttRequest) -> Result<GttResponse> {

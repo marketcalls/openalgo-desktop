@@ -139,6 +139,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 
 - `strategy` is required, as in the web's code; the web docs list it as optional.
 - In live mode the order is found in your broker's order book for the day, so the row has the same keys as an [order book](../account-services/orderbook.md) row plus `average_price`.
+- In the desktop, an order filled in parts reports the average price of all its fills when the trade book lists each fill with its own quantity and the fills add up to what the order filled (Flattrade, for one). The web reports the first fill it finds, so for a SELL 120 filled 60 at 316.05 and 60 at 315.99 it answers 316.05 or 315.99, where the desktop answers 316.02 (a web defect). A trade book that repeats the order's quantity on every fill (Shoonya, Zebu, TradeSmart) is read as on the web.
 - Rate limit: 100 requests per second per caller. See [Rate limiting](../rate-limiting.md).
 
 ---

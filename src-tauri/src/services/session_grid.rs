@@ -26,7 +26,7 @@ use chrono_tz::Asia::Kolkata;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// `day`'s IST midnight plus `open_minute`, epoch seconds.
-fn session_open_epoch(day: NaiveDate, open_minute: i64) -> i64 {
+pub(super) fn session_open_epoch(day: NaiveDate, open_minute: i64) -> i64 {
     cal::ist_midnight_ms(day) / 1000 + open_minute * 60
 }
 
@@ -91,8 +91,9 @@ pub fn bucket_day(bars: &[Candle], day: NaiveDate, open: i64, step: i64) -> Vec<
 
 /// The minute of the IST day `exchange` opens on each of `days`, from the
 /// market calendar (read off the runtime). A day the calendar has no
-/// session for is left out.
-async fn session_opens(
+/// session for is left out, and a calendar that cannot be read leaves out
+/// every day, so the bars stay as the broker sent them.
+pub(super) async fn session_opens(
     ctx: &AppState,
     exchange: &str,
     days: BTreeSet<NaiveDate>,
@@ -121,7 +122,7 @@ async fn session_opens(
         Ok(Ok(opens)) => opens,
         Ok(Err(e)) => {
             tracing::warn!(
-                "Market calendar could not be read; bars kept on the broker's grid: {}",
+                "Market calendar could not be read; history bars kept as the broker sent them: {}",
                 e.code()
             );
             HashMap::new()
