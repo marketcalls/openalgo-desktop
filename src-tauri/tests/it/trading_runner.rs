@@ -1476,6 +1476,49 @@ async fn the_page_gets_the_inputs_its_run_started_with() {
     assert_eq!(spec["inputs"], json!({"qty": 1}));
 }
 
+/// Web test/test_openscript_engine_reads.py::test_a_ten_minute_read_starts_at_the_session_open,
+/// the runner's half. From openalgo-script 0.9.0 the engine counts an
+/// intraday `req.timeframe` read from the session's open in the
+/// instrument's zone (a ten minute read runs 09:15 to 09:25, as the
+/// broker's candles do), and from midnight where it is handed no session.
+/// The engine runs in the run's page, which reads the session from its spec
+/// alone: the app hands it the platform's own record of the instrument, the
+/// one the chart and the backtest read, so a live run's reads count from
+/// the same open as its backtest. The read itself is pinned on the engine
+/// in `src/runner/reads.test.ts`.
+#[tokio::test]
+async fn the_page_is_handed_the_session_its_reads_count_from() {
+    use openalgo_desktop_lib::trading::runner::services::AppServices;
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    t.start(&id).await;
+    // The app's own services from here, so the record is the platform's.
+    t.h.ctx
+        .trading
+        .runner
+        .set_services(Arc::new(AppServices::new(Arc::downgrade(&t.h.ctx))));
+
+    let (s, spec) = t.page(Method::GET, &id, "spec", None).await;
+    assert_eq!(s, StatusCode::OK, "{}", spec);
+    let instrument = &spec["facts"]["instrument"];
+    assert_eq!(instrument["timezone"], "Asia/Kolkata");
+    assert_eq!(instrument["session"]["start"], "09:15", "{}", instrument);
+    assert_eq!(instrument["session"]["days"], json!([1, 2, 3, 4, 5]));
+
+    let (s, chart) = t
+        .call(
+            Method::GET,
+            "/openscript/instrument?symbol=SBIN&exchange=NSE",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{}", chart);
+    assert_eq!(
+        *instrument, chart["instrument"],
+        "the record the chart and the backtest are handed"
+    );
+}
+
 /// PROD-TR-06 follow-up: saved parameters that cannot be read, or that are
 /// no longer ones a run may carry, are not a run without parameters. They
 /// were read as `{}`, and the start ran the script's default quantity and
