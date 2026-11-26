@@ -41,7 +41,8 @@
     ],
     "notes": [
       "Web 73599f37c (marketcalls/openalgo#2507, issue #2386): one order-book read after each new order stream, the first only recording it; the web runs it on its supervisor's next tick, the replay after the login answer.",
-      "The desktop reads it once the reconnect's login is accepted and its order subscription has been written (WebSocketManager::watch_ready, broker_runtime::catch_up_orders), as the web reads only after _subscribe_order_updates sent t=o, through the session's own order book read."
+      "The desktop reads it once the reconnect's login is accepted and its order subscription has been written (WebSocketManager::watch_ready, broker_runtime::catch_up_orders), as the web reads only after _subscribe_order_updates sent t=o, through the session's own order book read.",
+      "A push that comes while a read is on its way (the first read: any push before it) is kept over that read's row of the order, which publishes nothing; the next read settles it. The web's _catch_up lets the row overwrite it (known.update after _remember, which before the first read drops the push), so an update pushed meanwhile is published again, and after a later read the order's older state goes out after the newer one: a web defect not copied (stale data). This case pushes nothing while a read is on its way; services::broker_runtime::catch_up's unit tests do."
     ]
   },
   "deviations": [
