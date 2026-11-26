@@ -9,20 +9,27 @@ OpenAlgo web's work of 17 to 26 November. Sandbox trades now pay brokerage
 and the statutory charges a live account pays, from the first fill after you
 update; one switch on the new Charges page turns them off, and a Brokerage
 Calculator and `/api/v1/charges` price an order before you place it.
-**Pocketful users, read Brokers before you log in after updating:** Pocketful
-moved to its new API, you must register a custom redirect URL on Pocketful's
-portal first, and some saved Pocketful symbols change. **TradeSmart users:**
+**Pocketful users, read Brokers before you update:** Pocketful moved to its
+new API, you must register a custom redirect URL on Pocketful's portal before
+you log in, and some saved Pocketful symbols change. **TradeSmart users:**
 BSE futures and options take their underlying's name (SENSEX, BANKEX) after
-the next master contract download. Zerodha holdings now count pledged and T1
+the next master contract download; close a sandbox position in one before
+you update. **OpenScript users:** intraday
+`req.timeframe` reads such as 10, 20, 30 and 60 minutes now count from the
+session open (09:15 to 10:15 for an hour on NSE), so a strategy that uses
+them can signal on different bars; backtest it again before you run it Live.
+**5paisa XTS users:** if live prices do not start after the update, log out
+of 5paisa XTS and log in once. Zerodha holdings now count pledged and T1
 shares, so a pledged stock no longer shows 0 shares. Also: live order updates
-from Tradejini, Groww, Sahi and Flattrade's own streams, iBulls and
-Shoonya, Flattrade and Firstock stop orders priced off their trigger, 5paisa
-XTS live prices that stay connected, an Agent that reads web pages,
-openalgo-charts 2.7.5 with Pivot Points, OpenScript reads at any minute
-timeframe, and weekly and monthly charts for every broker. If you run 1.0.9,
-OpenAlgo offers this update in the app; choose Update when no live strategy
-or active workflow is running. The update adds the charge columns to your
-sandbox data by itself, after its usual backup.
+from Tradejini, Groww and Sahi's own streams, Flattrade order updates that
+survive a dropped connection, iBulls and Shoonya, Flattrade and Firstock stop
+orders priced off their trigger, 5paisa XTS live prices that stay connected,
+an Agent that reads web pages, openalgo-charts 2.7.5 with Pivot Points,
+OpenScript reads at any minute timeframe, and weekly and monthly charts for
+every broker. If you run 1.0.9, OpenAlgo offers this update in the app;
+choose Update when no live strategy or active workflow is running. The update
+adds the charge columns to your sandbox data by itself, after its usual
+backup.
 
 ### Sandbox
 
@@ -49,12 +56,11 @@ sandbox data by itself, after its usual backup.
   a Fee Calculator. A profit reads in a darker green in the light theme than
   on OpenAlgo web, so it can be read against the white card
   (marketcalls/openalgo#2496).
-- In analyzer mode, Funds shows today's and total charges, and My P&L shows
-  them with the net figures and a charges column per day and per trade. P&L
-  itself is still shown before charges, as a broker's position book shows
-  it. The daily and trade CSV exports gain Charges and Net MTM columns, and
-  Reset to Defaults also restores the default brokerage plan
-  (marketcalls/openalgo#2496).
+- In analyzer mode, My P&L shows today's and total charges with the net
+  figures and a charges column per day and per trade. P&L itself is still
+  shown before charges, as a broker's position book shows it. The daily and
+  trade CSV exports gain Charges and Net MTM columns, and Reset to Defaults
+  also restores the default brokerage plan (marketcalls/openalgo#2496).
 - While your broker's feed is slow to answer, sandbox orders no longer pile
   up subscribe and unsubscribe requests: one no longer needed is dropped
   before it is sent, so the next new symbol streams at once. A symbol the
@@ -82,9 +88,11 @@ sandbox data by itself, after its usual backup.
   (AUTO is BSEAUTO), NSE indices other than NIFTY, BANKNIFTY, FINNIFTY,
   MIDCPNIFTY, NIFTYNXT50 and INDIAVIX are written in capitals without spaces
   (NIFTYIT), and MCX contracts on underlyings with digits carry their whole
-  name (SILVER10030NOV26FUT). Change strategies, watchlists, alerts and
-  sandbox positions saved under the old names yourself; OpenAlgo moves none
-  of them (marketcalls/openalgo#2467).
+  name (SILVER10030NOV26FUT). Close any sandbox position you hold under an
+  old name before you update: after the download the sandbox no longer finds
+  that name, so it cannot close the position. Then change strategies,
+  watchlists (Historify's too) and alerts to the new names yourself; OpenAlgo
+  moves none of them (marketcalls/openalgo#2467).
 - Pocketful: NSE stocks traded in the BE, BZ, RR, IV, SM and ST series are
   listed under their base symbol (HFCL, EMBASSY), so a Nifty 500 list finds
   all 500 stocks. A master contract download that fails keeps the symbols
@@ -106,18 +114,20 @@ sandbox data by itself, after its usual backup.
   (marketcalls/openalgo#2467).
 - **Pocketful GTT orders work live**, single trigger only: an OCO is refused
   before anything is sent, so place the stop-loss and the target as two
-  GTTs. Every Pocketful GTT needs an expiry: send `expires_at` to choose one,
-  otherwise an F&O GTT lapses with its contract and any other after 365
-  days. A MARKET GTT goes out as a LIMIT priced from its trigger with market
-  price protection (marketcalls/openalgo#2467).
+  GTTs. Pocketful does not cancel one when the other fires: cancel the other
+  yourself, or it can later open a new position. Every Pocketful GTT needs an
+  expiry: send `expires_at` to choose one, otherwise an F&O GTT lapses with
+  its contract and any other after 365 days. A MARKET GTT goes out as a
+  LIMIT priced from its trigger with market price protection
+  (marketcalls/openalgo#2467).
 - A Pocketful GTT whose answer was lost or unclear is never sent twice:
   OpenAlgo says it may or may not have been created and asks you to check
   the GTT order book first (marketcalls/openalgo#2467).
 - Pocketful quotes, depth and multiquotes come straight from Pocketful's
   REST API, as on OpenAlgo web; a quote's depth shows the best bid and ask,
-  and the full five-level book is on the live feed. History is back for
-  charts, Historify and `/api/v1/history` at 1m to 1h and daily, with open
-  interest on NFO futures and options (marketcalls/openalgo#2467).
+  and the full five-level book is on the live feed. Pocketful now has
+  history for charts, Historify and `/api/v1/history` at 1m to 1h and daily,
+  with open interest on NFO futures and options (marketcalls/openalgo#2467).
 - **Zerodha: pledged and T1 shares count in your holdings**
   (marketcalls/openalgo#2503, OpenAlgo web 8128336df). A stock pledged as
   margin collateral showed 0 shares and a value of 0, and shares bought the
@@ -134,7 +144,8 @@ sandbox data by itself, after its usual backup.
   (BSXOPT03DEC2689500PE, SX50FUT26NOV26FUT), so the SENSEX and BANKEX option
   chains found nothing. From the next master contract download they are
   SENSEX03DEC2689500PE, SENSEX5026NOV26FUT and BANKEX26NOV2626000CE, as on
-  OpenAlgo web; enter the new name wherever you saved the old one.
+  OpenAlgo web; enter the new name wherever you saved the old one, and
+  close a sandbox position held under an old name before you update.
 - TradeSmart: stock tick sizes are the ones TradeSmart sends (RELIANCE 0.1,
   not 0.001), every NSE stock and index is typed EQ, 1-minute history opens
   each session at 09:15 without the pre-open bar, and daily history of
@@ -158,8 +169,10 @@ sandbox data by itself, after its usual backup.
   OpenAlgo web 3f7fcd295). A SELL stop at 980 with the stock at 1000 went
   out with a limit near 995 and, once triggered, waited above the market;
   it now goes out at 975.10, the protection buffer past the trigger. An
-  SL-M without a trigger price is refused before it is sent, and Firstock
-  prices a modified SL-M the same way.
+  SL-M without a trigger price is refused before it is sent. Firstock prices
+  a modified SL-M the same way; on Shoonya and Flattrade a modified SL-M
+  still goes out as a plain SL-M, as on OpenAlgo web
+  (marketcalls/openalgo#2393).
 - **Flattrade: an order filled in parts is counted once in the trade book**
   (marketcalls/openalgo#2480, OpenAlgo web 1e1d2ad1e, issue #2464). A SELL
   120 filled 60 + 60 showed 240 sold, and Scalping showed more sold than
@@ -173,19 +186,18 @@ sandbox data by itself, after its usual backup.
   calendar, Muhurat included. Candles already stored in Historify stay as
   they were: delete the affected Flattrade symbols there and download them
   again.
-- Flattrade: an order book answer OpenAlgo cannot read, as Flattrade sends
-  for an expired login, says the book could not be read and asks you to try
-  again, instead of showing no orders (marketcalls/openalgo#2507, OpenAlgo
-  web 73599f37c).
 - Flattrade: contracts that tick in steps other than 0.05, such as
   NATGASMINI on MCX at 0.10, get their exchange tick size from the next
   master contract download, so the chart and the order ticket no longer
   offer prices Flattrade rejects (marketcalls/openalgo#2508, OpenAlgo web
-  702153110). <!-- confirm after merge: unit late-fixes -->
+  702153110). The download reads these tick sizes from Shoonya's public
+  symbol files, as OpenAlgo web does; if they cannot be read, contracts keep
+  the fixed tick they had before. <!-- confirm after merge: unit late-fixes -->
 - 5paisa XTS: the trade book shows each fill with its own quantity, price
-  and time; Replaced and Pending orders show as open and Cancel All cancels
-  them, stops the book shows as trigger pending included (OpenAlgo web now
-  leaves those working). Funds come from the consolidated balance, futures
+  and time. Replaced and pending orders show as open, and Cancel All cancels
+  them, except one already being cancelled. Cancel All also still cancels
+  stop orders the order book shows as Trigger Pending, which OpenAlgo web
+  now leaves working. Funds come from the consolidated balance, futures
   in the master contract are never taken for options, and the 1-second
   interval is gone (marketcalls/openalgo#2504, OpenAlgo web 5749d4126).
 - 5paisa XTS: history is fetched up to a year per request, so a long
@@ -202,7 +214,8 @@ sandbox data by itself, after its usual backup.
   change, with Tradejini's reason for a rejection, so `subscribe_orders` in
   the Python SDK and Flow's order-update trigger hear them. Each update names
   the OpenAlgo symbol the order book gives that order, where OpenAlgo web
-  names Tradejini's own trading symbol.
+  names Tradejini's own trading symbol. If Tradejini refuses your login,
+  order updates stop until you log in to Tradejini again.
 - **Groww: order updates arrive as they happen**, from Groww's own order
   stream for equity and F&O orders, instead of a read of the order book every
   five seconds (marketcalls/openalgo#2474, OpenAlgo web f0a50b038). If Groww
@@ -210,7 +223,8 @@ sandbox data by itself, after its usual backup.
   arrives with its status and quantities, and its prices show 0.
 - **Sahi: order updates** arrive from Sahi's order stream, with the same
   symbols, prices and statuses as the order book, on a connection of their
-  own beside your live prices (marketcalls/openalgo#2474).
+  own beside your live prices (marketcalls/openalgo#2474). When your Sahi
+  login expires, order updates stop until you log in to Sahi again.
 - **Flattrade: order updates are no longer lost when the live connection
   drops** (marketcalls/openalgo#2507, OpenAlgo web 73599f37c). After a
   reconnect OpenAlgo reads the order book once and sends the fills,
@@ -223,7 +237,7 @@ sandbox data by itself, after its usual backup.
   reconnect. After a reconnect every subscribed symbol keeps streaming, and
   one symbol 5paisa refuses no longer stops the others in the same request.
 - Pocketful: live prices and depth follow Pocketful's new API with OpenAlgo
-  web's fields, the depth frame never shows the average price as the last
+  web's fields, market depth never shows the average price as the last
   price, and order updates arrive on their own connection
   (marketcalls/openalgo#2467).
 - AliceBlue: live quotes and depth carry open interest under `oi` as well as
@@ -234,13 +248,13 @@ sandbox data by itself, after its usual backup.
   contract it no longer streams after a reconnect, the others are subscribed
   one at a time instead of all losing their live prices
   (marketcalls/openalgo#2469, OpenAlgo web 11b53225e).
-- Dhan: a padded packet in Dhan's live feed no longer stops the feed
-  (marketcalls/openalgo#2509, OpenAlgo web f83592a0b).
-  <!-- confirm after merge: unit late-fixes -->
 - OpenAlgo web now closes WebSocket clients when your broker login changes,
-  so they connect again (marketcalls/openalgo#2277), and reads Zerodha's
-  full-mode open interest from the right bytes (marketcalls/openalgo#2494).
-  OpenAlgo Desktop already did both; nothing changes here.
+  so they connect again (marketcalls/openalgo#2277). It also reads Zerodha's
+  open interest correctly in live quotes (marketcalls/openalgo#2494), and
+  Dhan's live prices no longer freeze on a short message after a quote
+  (marketcalls/openalgo#2509, OpenAlgo web f83592a0b). OpenAlgo Desktop
+  already did all three; nothing changes here.
+  <!-- confirm after merge: unit late-fixes -->
 
 ### API
 
@@ -292,8 +306,12 @@ sandbox data by itself, after its usual backup.
   (OpenAlgo web c8b2896ca, 348b7edf7). The numbers are openalgo 2.0.5's
   plus 2.4.1's `rvi_volatility`; OpenAlgo web runs 2.4.1, whose psar, vwap,
   pivot points and some warm-up periods can differ.
-- ChatGPT plan requests go out as OpenAlgo web's LiteLLM 1.110.1 sends them
-  (OpenAlgo web 5a5a60bfc).
+- Agent requests on a ChatGPT plan now identify themselves to OpenAI as
+  OpenAlgo web's do (OpenAlgo web 5a5a60bfc).
+- The Agent's OpenScript skill gains a worked multi-timeframe example, a
+  5-minute study reading the 15-minute and hourly EMA, and notes on the
+  mistakes such reads invite (OpenAlgo web 7a92a704c).
+  <!-- confirm after merge: unit openscript-followup -->
 
 ### Charts and OpenScript
 
@@ -338,11 +356,10 @@ sandbox data by itself, after its usual backup.
   multiples of its interval: a fifteen-minute read on a ten-minute
   deployment is refused as the run starts, and the run log names the read,
   as on OpenAlgo web (OpenAlgo web 264b3c2a7).
-- A backtest now fetches a finer read that the chart's interval divides,
-  such as `"15m"` on an hourly chart, which came back empty on every bar
-  (OpenAlgo web e44126d67). On a chart such a read still draws nothing on
-  openalgo-script 0.9.0: write the minutes as a bare number (`"15"`) until
-  the next release of the language.
+- A backtest also fetches a finer read whose interval divides the chart's,
+  such as `"15m"` on an hourly chart (OpenAlgo web e44126d67). On a chart
+  such a read still draws nothing on openalgo-script 0.9.0: write the
+  minutes as a bare number (`"15"`) until the next release of the language.
   <!-- confirm after merge: unit openscript-followup -->
 
 ### Fixes
@@ -382,9 +399,6 @@ sandbox data by itself, after its usual backup.
   sign-in, and the new Tradejini, Groww, Sahi and Pocketful order
   connections, keep their codes and tokens out of the logs; the release's
   security review checked each.
-- `/api/v1/charges` and the Brokerage Calculator refuse a trade value too
-  large to price, with a message. This release's security review found that
-  such a request could close the app, and it was fixed before release.
 
 ### Known limitations
 
@@ -401,13 +415,11 @@ sandbox data by itself, after its usual backup.
   account. Pocketful tokens expire at midnight while OpenAlgo keeps the
   session until about 03:00 IST, so in between Pocketful asks you to log in
   again. Pocketful history refuses a range longer than about ten years in
-  one request.
+  one request. Each week of one-minute history counts as one of the 10,000
+  market data requests Pocketful allows a day.
 - On a special-session day (Muhurat), a live OpenScript run counts its
   intraday reads from the regular 09:15 open, as the chart and backtests do,
   where OpenAlgo web's runner uses that day's own session.
-- The Agent's tool list and descriptions match OpenAlgo web 348b7edf7. They
-  were checked against the web's code rather than recorded again from a
-  running OpenAlgo web, which a later release will do.
 - Sound alerts and native notifications (issue #222) are not in this
   release.
 - Some broker behaviour can only be confirmed with a real login during
