@@ -1,4 +1,4 @@
-{"step": "upstream_connected", "connection": 1, "path": "/apimarketdata/socket.io/?token=tok&userID=U1&publishFormat=JSON&broadcastMode=FULL&EIO=4&transport=websocket", "note": "The market data socket: the member's Socket.IO path and broadcast mode, the stored token and user."}
+{"step": "upstream_connected", "connection": 1, "path": "/apimarketdata/socket.io/?token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySUQiOiJNRDFfQVBQIn0.sig&userID=MD1&publishFormat=JSON&broadcastMode=FULL&EIO=4&transport=websocket", "note": "The market data socket: the member's Socket.IO path and broadcast mode, the market data token stored at sign-in and the user id its userID claim names before the underscore (MD1), as the web reads it (market_data_user_id)."}
 {"step": "push", "frame": {"text": "0{\"sid\":\"s1\",\"upgrades\":[],\"pingInterval\":25000,\"pingTimeout\":20000,\"maxPayload\":1000000}"}, "note": "Engine.IO open; the feed answers with the Socket.IO connect."}
 {"step": "upstream_receives", "frames": [{"text": "40"}]}
 {"step": "push", "frame": {"text": "40{\"sid\":\"n1\"}"}, "note": "The Socket.IO connect ack accepts the session; the feed subscribes its book over REST."}
@@ -7,7 +7,7 @@
 {"step": "push", "frame": "frames/quote_1501.txt"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
 {"step": "drop_upstream"}
-{"step": "upstream_connected", "connection": 2, "path": "/apimarketdata/socket.io/?token=tok&userID=U1&publishFormat=JSON&broadcastMode=FULL&EIO=4&transport=websocket", "note": "Connection 2, with the same stored token (FeedSource::stored)."}
+{"step": "upstream_connected", "connection": 2, "path": "/apimarketdata/socket.io/?token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySUQiOiJNRDFfQVBQIn0.sig&userID=MD1&publishFormat=JSON&broadcastMode=FULL&EIO=4&transport=websocket", "note": "Connection 2, with the same stored token (FeedSource::stored)."}
 {"step": "push", "frame": {"text": "0{\"sid\":\"s2\",\"upgrades\":[],\"pingInterval\":25000,\"pingTimeout\":20000,\"maxPayload\":1000000}"}, "note": "Engine.IO open; the feed answers with the Socket.IO connect."}
 {"step": "upstream_receives", "frames": [{"text": "40"}], "connection": 2}
 {"step": "push", "frame": {"text": "40{\"sid\":\"n2\"}"}, "note": "The Socket.IO connect ack accepts the session; the feed subscribes its book over REST."}

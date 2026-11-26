@@ -26,24 +26,29 @@ const TOKEN: &str = "tok";
 const USER: &str = "U1";
 
 pub(super) fn feeds(cfg: &'static XtsConfig, env: &Env) -> Feeds {
-    feeds_with(cfg, env, None)
+    feeds_with(cfg, env, None, TOKEN)
 }
 
 /// The feed of a session signed in with its market data keys, which the
-/// adapter keeps in memory (`Broker::restore_session`, as a resume does).
-/// 5paisa XTS's feed still connects with the stored session and logs in
-/// for nothing (web #2484), so a login would reach the fake API unanswered
-/// and fail the case.
-pub(super) fn feeds_signed_in(cfg: &'static XtsConfig, env: &Env) -> Feeds {
+/// adapter keeps in memory (`Broker::restore_session`, as a resume does),
+/// and `market_token` stored at sign-in. 5paisa XTS's feed connects with
+/// the stored session and never logs in while one is stored (web #2484),
+/// so a login would reach the fake API unanswered and fail the case.
+pub(super) fn feeds_signed_in(cfg: &'static XtsConfig, env: &Env, market_token: &str) -> Feeds {
     let keys = BrokerCredentials {
         api_key_market: Some("mkey".into()),
         api_secret_market: Some("msecret".into()),
         ..Default::default()
     };
-    feeds_with(cfg, env, Some(keys))
+    feeds_with(cfg, env, Some(keys), market_token)
 }
 
-fn feeds_with(cfg: &'static XtsConfig, env: &Env, keys: Option<BrokerCredentials>) -> Feeds {
+fn feeds_with(
+    cfg: &'static XtsConfig,
+    env: &Env,
+    keys: Option<BrokerCredentials>,
+    market_token: &str,
+) -> Feeds {
     let broker = Arc::new(
         XtsBroker::with_base_url(cfg, env.symbols(), env.http_url())
             .with_socket_base(env.url("main")),
@@ -52,7 +57,7 @@ fn feeds_with(cfg: &'static XtsConfig, env: &Env, keys: Option<BrokerCredentials
         broker.restore_session(keys);
     }
     let auth = AuthToken::new(INTERACTIVE)
-        .with_feed(Some(TOKEN))
+        .with_feed(Some(market_token))
         .with_user_id(USER);
     let feed = broker.create_feed(&auth).expect("the XTS market feed");
     Feeds::boxed(feed).with_broker(broker, &auth)

@@ -137,8 +137,8 @@ async fn feed_connects_with_the_stored_token_and_never_logs_in() {
 }
 
 /// Web `test_reconnect_reads_the_stored_token_again`: once quotes renewed
-/// the market-data session, the feed's next connect uses it, and logs in
-/// for nothing of its own.
+/// the market-data session, the feed's next connect uses it, and never
+/// logs in on its own.
 #[tokio::test]
 async fn reconnect_takes_the_session_quotes_renewed() {
     let log = Arc::new(Mutex::new(Vec::new()));
@@ -191,7 +191,7 @@ async fn without_a_stored_token_the_feed_logs_in_where_history_does() {
 }
 
 /// Web `test_a_failed_connect_with_a_stored_token_raises_instead_of_logging_in`:
-/// a refused stored session logs in for nothing. The desktop then holds
+/// a refused stored session is not followed by a login. The desktop then holds
 /// the feed until the next sign-in, as it does every refused feed, where
 /// the web retries the same token.
 #[tokio::test]

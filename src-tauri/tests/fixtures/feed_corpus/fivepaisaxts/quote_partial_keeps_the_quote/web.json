@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
   "adapter": "fivepaisaxts",
-  "inputs_sha256": "5b9d6ab6f605fc2ad1fdf08b8b76e8e3a41d6a8b988da481aad6f126def72e5c",
+  "inputs_sha256": "05eb8204b4965d4d9cb993364b86d6391e7cefa8ee49069f2c8ab72a38bd5149",
   "instruments": [
     {
       "symbol": "RELIANCE",

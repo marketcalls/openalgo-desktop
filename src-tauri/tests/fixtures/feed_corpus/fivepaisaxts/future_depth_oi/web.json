@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
   "adapter": "fivepaisaxts",
-  "inputs_sha256": "2e2588ef0bb44cb57c0e65f569f41abb1dd8fbaa00e5c936f562042d2dab3483",
+  "inputs_sha256": "d4673aee05f5a607eedd6192f9dabb9ffeafd2e2605aa3a1db334b2cd84002b3",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",

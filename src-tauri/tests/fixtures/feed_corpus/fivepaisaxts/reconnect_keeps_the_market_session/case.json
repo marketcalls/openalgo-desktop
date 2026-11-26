@@ -1,6 +1,6 @@
 {
   "broker": "fivepaisaxts",
-  "summary": "Quote on an NSE equity across two dropped sockets of a signed-in session: each reconnect connects with the market data session stored at sign-in, logs in for nothing, and subscribes the book again whole, the instrument once in one request, so the next 1501 event reaches the client.",
+  "summary": "Quote on an NSE equity across two dropped sockets of a signed-in session: each reconnect connects with the market data session stored at sign-in, never logs in, and subscribes the book again whole, the instrument once in one request, so the next 1501 event reaches the client.",
   "scenarios": [
     "reconnect",
     "first-full-packet",
@@ -44,7 +44,7 @@
       "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._resubscribe_all"
     ],
     "notes": [
-      "Web #2484 (5749d4126): the feed connects with the market data token stored at broker login, read again on every reconnect (feed_token_provider), and never logs in while one is stored; a login of its own at /apibinarymarketdata cancelled the /apimarketdata session history uses. The corpus's 5paisa XTS module keeps the market keys in memory as a session does (tests/it/feed_corpus/xts.rs feeds_signed_in), so a login would show.",
+      "Web #2484 (5749d4126): the feed connects with the market data token stored at broker login, read again on every reconnect (feed_token_provider), and never logs in while one is stored; a login of its own at /apibinarymarketdata cancelled the /apimarketdata session history uses. The corpus's 5paisa XTS module keeps the market keys in memory as a session does (tests/it/feed_corpus/xts.rs feeds_signed_in), so a login would show. Its stored token is shaped as XTS issues it, a JWT whose userID claim reads MD1_APP (tests/it/feed_corpus/fivepaisaxts.rs MARKET_TOKEN), so the case runs the web's path: the address takes the user id from the claim (market_data_user_id), where for a token without one the web logs in and the desktop connects with the user id XTS answered at sign-in (a declared deviation, families/xts/streaming.rs Connector::known_session).",
       "Web #2504: the client keeps one entry per instrument, so a reconnect's replay never grows the book (test_replaying_the_book_on_every_reconnect_does_not_grow_it); the desktop's book is keyed by segment and instrument (families/xts/streaming.rs).",
       "The third frame is made for this case from the second, a later trade."
     ]
