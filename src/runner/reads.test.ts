@@ -79,13 +79,16 @@ interface Ran {
 
 /**
  * A live run of one program over bars that have all closed, on the real
- * engine, with the facts the app hands the page (`RunSpec.facts`).
+ * engine, with the facts the app hands the page (`RunSpec.facts`): the
+ * instrument record, and `today`, the calendar's window for the day the run
+ * starts, as `trading::instrument::facts` writes it beside the record.
  */
 async function run(
   program: string,
   bars: readonly HostBar[],
   interval: string,
-  instrument: Record<string, unknown>
+  instrument: Record<string, unknown>,
+  today: Record<string, unknown> | null = null
 ): Promise<Ran> {
   const ended: string[] = []
   const values: Value[] = []
@@ -99,6 +102,9 @@ async function run(
       ended.push(message)
     },
   }
+  // The app's answer carries `today` beside the record; the page's type names
+  // only the record, which is all it reads.
+  const facts = { instrument: { exchange: 'NSE', hasVolume: true, ...instrument }, today }
   const spec: RunSpec = {
     run: {
       id: 'openscript_reads',
@@ -110,7 +116,7 @@ async function run(
     },
     program,
     inputs: {},
-    facts: { instrument: { exchange: 'NSE', hasVolume: true, ...instrument } },
+    facts,
   }
   // Records what each bar plotted, as the web's `plotted` does.
   const recording: Loader = (text, options) => {
@@ -172,6 +178,48 @@ describe('a live run reads another timeframe as its chart and backtest do', () =
     const ran = await run(program, rising(times), '1m', { timezone: PLATFORM_ZONE })
 
     expect(ran.values).toEqual([null, null, null, 102, 102, 102])
+  })
+
+  it('counts from the regular open on a special-session day, as the chart and the backtest do', async () => {
+    // Desktop, a recorded difference from the web (docs/openscript.md,
+    // "Differences from OpenAlgo web"). The app hands the page the calendar's
+    // window for the start day under `today`, and the page reads only the
+    // regular record. The web's runner states a special day's own window as
+    // the session of a run started on it, so from 0.9.0 its buckets count
+    // from that window's start. Here a thirty minute read on a Sunday evening
+    // session from 18:00 (as Muhurat trading is) runs on the 09:15 count:
+    // 17:45-18:15, 18:15-18:45, 18:45-19:15, where the web's runs 18:00-18:30
+    // and 18:30-19:00.
+    const program = compile('half.oscript', study('Half hour close', 'req.timeframe("30", close)'))
+    // 18:00 IST on Sunday 8 November 2026, then every five minutes to 18:55.
+    const evening = Date.UTC(2026, 10, 8, 12, 30)
+    const times = Array.from({ length: 12 }, (_, step) => evening + step * 5 * MIN)
+
+    const ran = await run(
+      program,
+      rising(times),
+      '5m',
+      { timezone: PLATFORM_ZONE, session: REGULAR_SESSION },
+      {
+        date: '2026-11-08',
+        open: true,
+        isSpecial: true,
+        session: { start: '18:00', end: '19:00', days: [7] },
+      }
+    )
+
+    expect(ran.loaded).toBe(true)
+    // The 17:45 bucket closes on the 18:15 bar with 18:10's close, the 18:15
+    // one on the 18:45 bar with 18:40's.
+    expect(ran.values).toEqual([null, null, null, ...Array(6).fill(102), 108, 108, 108])
+
+    // The record the web's runner states on that day, the special window as
+    // the session: the 18:00 bucket closes on the 18:30 bar with 18:25's.
+    const web = await run(program, rising(times), '5m', {
+      timezone: PLATFORM_ZONE,
+      session: { start: '18:00', end: '19:00', days: [7] },
+    })
+    expect(web.values).toEqual([...Array(6).fill(null), ...Array(6).fill(105)])
   })
 
   it('refuses at start a read the chart bars cannot fold, naming it and the interval', async () => {

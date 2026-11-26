@@ -181,7 +181,8 @@ run's own routes, with a secret it is given when it opens.
   minutes, which the chart and the backtest build from finer bars, end the
   run as it starts, with the read and the interval in its log; the web's
   runner refuses them too. Intraday reads count from the session open, 09:15
-  on NSE, as on the chart.
+  on NSE, as on the chart, also on a special-session day such as Muhurat
+  (see Differences from OpenAlgo web).
 - **Orders.** OpenScript order types map to the platform's: market to
   MARKET, limit to LIMIT, stop to SL-M, stop-limit to SL. A quantity in lots is
   multiplied by the contract's lot size from the master contract; only whole
@@ -291,6 +292,7 @@ need the run's secret.
 | An order with no answer | Treated as failed | Kept pending, asked about again, never placed twice |
 | Account | Not recorded | Each order records its broker, account and run; other accounts' positions are reported, never touched |
 | Logs | `log/strategies/` | `openscript_logs/` in the data folder |
+| A run started on a special-session day (Muhurat) | Reads that day's own window as its session, so a sixty minute read in an 18:00 session runs 18:00 to 19:00 | Reads the regular window, as the chart and the backtest do, so the same read runs 17:15 to 18:15 and 18:15 to 19:15 and a live run agrees with its backtest |
 
 ## Known gaps
 

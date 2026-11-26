@@ -123,7 +123,10 @@ minute read runs 09:15 to 10:15, as the broker's candles do. Before 0.9.0 it ran
 10, 20, 30 or 60 minutes draws different values after the upgrade, and the new
 ones are the ones that match the chart. A live run counts from the same open:
 the app hands its runner the instrument's session from the market calendar,
-the regular window, as it hands the chart and the backtest.
+the regular window, as it hands the chart and the backtest. That holds on a
+special-session day too: in an 18:00 Muhurat session a sixty minute read runs
+17:15 to 18:15 and 18:15 to 19:15 here, while OpenAlgo web's runner reads that
+day's own window and runs it 18:00 to 19:00.
 
 ## The warnings, which do not stop a thing
 
