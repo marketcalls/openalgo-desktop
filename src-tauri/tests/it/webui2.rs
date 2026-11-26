@@ -1749,6 +1749,32 @@ fn charges_order(changes: Value) -> Value {
     body
 }
 
+/// POST /api/v1/charges refuses a price times quantity too large to price
+/// (integration review of 1.0.10, security lens). The schema bounds the
+/// price only from below, so 10^20 at 10^9 reached rust_decimal's
+/// multiplication, which panics past about 7.9 x 10^28; the release build
+/// aborts on a panic, so one request from any key holder, through the
+/// tunnel too, ended the app. A test build unwinds, and the route answered
+/// 500. The web prices any size.
+#[tokio::test]
+async fn api_v1_charges_refuses_a_trade_too_large_to_price() {
+    let h = H::new(true).await;
+    let (s, v) = h
+        .api(
+            "/api/v1/charges",
+            charges_order(json!({"quantity": 1000000000, "price": 1e20})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{v}");
+    assert_eq!(
+        v,
+        json!({"status": "error", "message":
+            "The trade value is too large to calculate charges. Check the price and the quantity."})
+    );
+    let (s, _) = h.api("/api/v1/charges", charges_order(json!({}))).await;
+    assert_eq!(s, StatusCode::OK, "the app still answers");
+}
+
 /// POST /api/v1/charges field for field with the web (restx_api/charges.py,
 /// services/charges_service.py; web test/test_charges_api.py).
 #[tokio::test]

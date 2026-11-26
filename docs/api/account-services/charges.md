@@ -132,6 +132,7 @@ there is nothing to work out without it. For options, send the premium.
 | 400 | A validation message naming the field | A field is missing, or is not one of the allowed values |
 | 400 | `Symbol <symbol> not found on <exchange>` | The symbol is not in the master contract |
 | 400 | `Orders cannot be placed on <exchange>, so no charges apply to it` | The exchange is an index exchange |
+| 400 | `The trade value is too large to calculate charges. Check the price and the quantity.` | Price x quantity (x the contract value, for crypto) is above 10^15. Desktop only: OpenAlgo web prices any size |
 | 403 | `Invalid openalgo apikey` | The API key is not valid |
 
 Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wrong method, rate limit) are listed in the [API overview](../README.md#errors-common-to-every-endpoint).

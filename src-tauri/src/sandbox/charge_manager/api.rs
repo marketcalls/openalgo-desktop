@@ -5,11 +5,17 @@
 
 use super::report::{self, ReportRange, REPORT_TRADE_LIMIT};
 use super::settings;
-use crate::sandbox::charges::{default_config_values, Market};
+use crate::sandbox::charges::{default_config_values, trade_value, Market};
 use crate::sandbox::core::blocking;
 use crate::sandbox::{Sandbox, SandboxError, SbResult};
 use rust_decimal::Decimal;
 use serde_json::Value;
+
+/// `/api/v1/charges` for an order whose price times quantity is past what
+/// charges are worked out for (`charges::trade_value`). The web prices any
+/// size; here such a figure would end the app, so it is refused.
+const TRADE_TOO_LARGE: &str =
+    "The trade value is too large to calculate charges. Check the price and the quantity.";
 
 /// One order to price for `/api/v1/charges`, already validated.
 #[derive(Debug, Clone, PartialEq)]
@@ -118,9 +124,12 @@ impl Sandbox {
         } else {
             Decimal::ONE
         };
+        let Some(value) = trade_value(order.price, order.quantity.abs(), contract_value) else {
+            return Err(SandboxError::bad_request(TRADE_TOO_LARGE));
+        };
         blocking(self.core(), move |c| {
             let priced =
-                c.db.with_conn(|conn| super::order_charges(conn, &order, contract_value))?;
+                c.db.with_conn(|conn| super::order_charges(conn, &order, value))?;
             priced.ok_or_else(|| {
                 SandboxError::bad_request(format!(
                     "Orders cannot be placed on {}, so no charges apply to it",

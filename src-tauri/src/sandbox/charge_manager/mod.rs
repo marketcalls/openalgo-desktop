@@ -160,18 +160,19 @@ fn debit_fill(
 /// `order_charges`): the segment, the trade value, and the charges as
 /// total, brokerage, taxes and other charges. An estimate of what the trade
 /// costs, so it does not look at the switch: with it off a sandbox fill pays
-/// nothing, and the same order in a live account still pays this. `None`
-/// when orders cannot be placed on the exchange.
+/// nothing, and the same order in a live account still pays this. `value` is
+/// the order's trade value, already read through
+/// [`trade_value`](super::charges::trade_value). `None` when orders cannot
+/// be placed on the exchange.
 pub(crate) fn order_charges(
     conn: &Connection,
     order: &OrderCharges,
-    contract_value: Decimal,
+    value: Decimal,
 ) -> rusqlite::Result<Option<Value>> {
     let Some(segment) = classify_segment(&order.exchange, &order.product, &order.symbol) else {
         return Ok(None);
     };
     let plan = read_plan(conn, segment)?;
-    let value = order.price * order.quantity.abs() * contract_value;
     let c = compute_charges(
         Some(segment),
         &order.exchange,

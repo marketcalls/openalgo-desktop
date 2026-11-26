@@ -21,6 +21,13 @@ use std::collections::BTreeMap;
 /// The sentence a save answers with.
 pub(crate) const SAVED: &str = "Charges saved. They apply from the next trade.";
 
+/// The calculator for a trade whose value is past what charges are worked
+/// out for, or a quantity so small that the points to breakeven overflow
+/// (`charges::estimate_round_trip`). The web estimates any size; here such
+/// a figure would end the app, so it is refused.
+const OUT_OF_RANGE: &str =
+    "This trade is too large or too small to estimate. Check the prices and the quantity.";
+
 /// The plan and the statutory schedule as the settings page shows them,
 /// for `market` alone (a page never offers the other market's rate card).
 pub(crate) fn settings(conn: &Connection, market: Market) -> rusqlite::Result<Value> {
@@ -197,7 +204,9 @@ pub(crate) fn estimate(
         let plan = read_plan(conn, s)?;
         (plan.flat, plan.percent)
     };
-    let r = estimate_round_trip(s.key, &exchange, buy, sell, quantity, flat, percent);
+    let Some(r) = estimate_round_trip(s.key, &exchange, buy, sell, quantity, flat, percent) else {
+        return Ok(Err(OUT_OF_RANGE.to_string()));
+    };
     Ok(Ok(json!({
         "segment": s.key,
         "exchange": exchange,

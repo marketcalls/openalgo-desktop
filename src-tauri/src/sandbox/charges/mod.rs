@@ -43,7 +43,7 @@ mod rates;
 
 pub use note::{
     brokerage_for, compute_charges, estimate_round_trip, paisa, rupee, split_exchange_charges,
-    Charges, RoundTrip, CHARGE_COLUMNS,
+    trade_value, Charges, RoundTrip, CHARGE_COLUMNS,
 };
 pub use plan::{
     brokerage_flat_key, brokerage_percent_key, config_keys, default_config_rows,

@@ -8,6 +8,26 @@ use rust_decimal_macros::dec;
 
 const HUNDRED: Decimal = dec!(100);
 
+/// The largest trade value (price x quantity x contract value), rupees or
+/// dollars, that charges are worked out for: 10^15, far above any order a
+/// venue takes. Every line of a contract note on a value up to it (rates of
+/// at most 18 per cent, a plan's brokerage of at most 5) stays far inside
+/// what a decimal holds. Past about 7.9 x 10^28 rust_decimal's operators
+/// panic, and the release build aborts on a panic, so one request with a
+/// huge price or quantity ended the app (integration review of 1.0.10).
+const MAX_TRADE_VALUE: Decimal = dec!(1000000000000000);
+
+/// `price x quantity x contract value`, multiplied with checks, or `None`
+/// when it is above [`MAX_TRADE_VALUE`] (or past what a decimal holds).
+/// Every caller that prices a trade from a request reads its value here
+/// first, before any line is worked out from it.
+pub fn trade_value(price: Decimal, quantity: Decimal, contract_value: Decimal) -> Option<Decimal> {
+    price
+        .checked_mul(quantity)?
+        .checked_mul(contract_value)
+        .filter(|v| v.abs() <= MAX_TRADE_VALUE)
+}
+
 /// What one fill or one round trip costs, each line as a contract note
 /// prints it.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -214,6 +234,9 @@ pub struct RoundTrip {
 /// Price a round trip as one contract note for the two orders: brokerage on
 /// each order, every other line on the combined value, rounded once. The two
 /// fills charged one at a time can come to a paisa more or less on a line.
+/// `None` when a side's value is past [`MAX_TRADE_VALUE`] or the points to
+/// breakeven cannot be expressed (a quantity so small the charges divided
+/// by it overflow): the calculator says so instead of the app ending.
 pub fn estimate_round_trip(
     segment_key: &str,
     exchange: &str,
@@ -222,9 +245,9 @@ pub fn estimate_round_trip(
     quantity: Decimal,
     flat: Decimal,
     percent: Decimal,
-) -> RoundTrip {
-    let buy_value = buy_price * quantity;
-    let sell_value = sell_price * quantity;
+) -> Option<RoundTrip> {
+    let buy_value = trade_value(buy_price, quantity, Decimal::ONE)?;
+    let sell_value = trade_value(sell_price, quantity, Decimal::ONE)?;
     let total = match segment(segment_key) {
         Some(s) if buy_value > Decimal::ZERO && sell_value > Decimal::ZERO => {
             let brokerage = paisa(
@@ -236,15 +259,15 @@ pub fn estimate_round_trip(
     };
     let gross = sell_value - buy_value;
     let breakeven = if quantity > Decimal::ZERO {
-        paisa(total.total() / quantity)
+        paisa(total.total().checked_div(quantity)?)
     } else {
         paisa(Decimal::ZERO)
     };
-    RoundTrip {
+    Some(RoundTrip {
         turnover: paisa(buy_value + sell_value),
         total,
         gross_pnl: paisa(gross),
         net_pnl: paisa(gross - total.total()),
         points_to_breakeven: breakeven,
-    }
+    })
 }

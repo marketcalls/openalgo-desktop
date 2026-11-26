@@ -29,6 +29,7 @@ fn reference_plan(segment: &str) -> (Decimal, Decimal) {
 fn round_trip(segment: &str, exchange: &str, buy: &str, sell: &str, qty: &str) -> RoundTrip {
     let (flat, percent) = reference_plan(segment);
     estimate_round_trip(segment, exchange, d(buy), d(sell), d(qty), flat, percent)
+        .expect("a trade within range")
 }
 
 fn reference() -> Value {
@@ -63,6 +64,7 @@ fn priced(t: &Value) -> Charges {
         d(&s(t, "flat")),
         d(&s(t, "percent")),
     )
+    .expect("a trade within range")
     .total
 }
 
@@ -440,7 +442,8 @@ fn delivery_is_charged_brokerage_by_default_though_the_reference_charges_none() 
         dec!(400),
         flat,
         percent,
-    );
+    )
+    .expect("a trade within range");
     assert_eq!(r.total.brokerage, dec!(40.00));
     assert_eq!(r.total.total(), dec!(931.42) + dec!(40) + dec!(7.20));
     let small = compute_charges(
@@ -885,4 +888,77 @@ fn charges_are_sent_under_their_column_names() {
             "total_charges": 172.28
         })
     );
+}
+
+/// Integration review of 1.0.10 (security lens): a trade value is read
+/// with checked multiplication and bounded at 10^15 before any line is
+/// worked out from it. `price * quantity` with rust_decimal's operator
+/// panicked past about 7.9 x 10^28, and the release build aborts on a
+/// panic, so one request ended the app.
+#[test]
+fn a_trade_value_past_the_bound_or_a_decimal_is_none() {
+    assert_eq!(
+        trade_value(dec!(2500), dec!(50), Decimal::ONE),
+        Some(dec!(125000))
+    );
+    assert_eq!(
+        trade_value(dec!(62000), dec!(10), dec!(0.001)),
+        Some(dec!(620))
+    );
+    // The bound itself is priced; a paisa above it is not.
+    assert_eq!(
+        trade_value(dec!(1000000000000000), Decimal::ONE, Decimal::ONE),
+        Some(dec!(1000000000000000))
+    );
+    assert_eq!(
+        trade_value(dec!(1000000000000000.01), Decimal::ONE, Decimal::ONE),
+        None
+    );
+    // 10^20 x 10^9 is past what a decimal holds (the multiply panicked).
+    assert_eq!(
+        trade_value(dec!(100000000000000000000), dec!(1000000000), Decimal::ONE),
+        None
+    );
+    assert_eq!(
+        trade_value(dec!(100000000000000000000), Decimal::MAX, Decimal::ONE),
+        None
+    );
+}
+
+/// The same for the calculator: a side past the bound, or a quantity so
+/// small that the points to breakeven (the charges divided by it) overflow,
+/// is `None`, never a panic. 10^15 x 10^15 panicked in the multiply, and
+/// 47.20 of options charges over 10^-28 lots in the division.
+#[test]
+fn a_round_trip_out_of_range_is_none_not_a_panic() {
+    let (flat, percent) = default_plan("equity_intraday");
+    let big = dec!(1000000000000000);
+    assert_eq!(
+        estimate_round_trip("equity_intraday", "NSE", big, big, big, flat, percent),
+        None
+    );
+    let (flat, percent) = default_plan("fno_options");
+    let tiny = dec!(0.0000000000000000000000000001);
+    assert_eq!(
+        estimate_round_trip(
+            "fno_options",
+            "NFO",
+            dec!(100),
+            dec!(101),
+            tiny,
+            flat,
+            percent
+        ),
+        None
+    );
+    assert!(estimate_round_trip(
+        "fno_options",
+        "NFO",
+        dec!(100),
+        dec!(101),
+        dec!(65),
+        flat,
+        percent
+    )
+    .is_some());
 }

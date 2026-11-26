@@ -931,3 +931,77 @@ async fn an_order_is_priced_whatever_the_switch_and_refused_where_it_cannot_trad
     );
     env.shutdown().await;
 }
+
+/// Integration review of 1.0.10 (security lens): a trade value past what
+/// charges are worked out for (10^15) is refused with the reason, for one
+/// order and in the calculator. The price times the quantity was multiplied
+/// with rust_decimal's operator, which panics past about 7.9 x 10^28, and
+/// the release build aborts on a panic: one request (an API key holder's,
+/// or the calculator as the trader types) ended the app, live risk
+/// monitoring and the feed with it. A test build unwinds instead, and the
+/// request failed as a sandbox fault. The web prices any size.
+#[tokio::test]
+async fn a_trade_too_large_to_price_is_refused_not_a_crash() {
+    const ORDER: &str =
+        "The trade value is too large to calculate charges. Check the price and the quantity.";
+    const ESTIMATE: &str =
+        "This trade is too large or too small to estimate. Check the prices and the quantity.";
+    let env = Env::at(T);
+    // 10^9 shares at 10^20: past what a decimal holds.
+    let e = env
+        .sb
+        .order_charges(order(
+            "RELIANCE",
+            "NSE",
+            "CNC",
+            "BUY",
+            "1000000000",
+            "100000000000000000000",
+        ))
+        .await
+        .unwrap_err();
+    assert_eq!((e.http_status, e.message.as_str()), (400, ORDER));
+    // A crypto quantity has no 32-bit cap; 10^20 contracts are past the
+    // bound even at a contract value of 0.001.
+    let e = env
+        .sb
+        .order_charges(order(
+            "BTCUSD.P",
+            "CRYPTO",
+            "NRML",
+            "BUY",
+            "100000000000000000000",
+            "62000",
+        ))
+        .await
+        .unwrap_err();
+    assert_eq!((e.http_status, e.message.as_str()), (400, ORDER));
+    // The calculator: 10^15 at 10^15 overflowed the multiply; 10^-28 lots
+    // of an option overflowed the points to breakeven (the flat brokerage
+    // divided by the quantity).
+    for trade in [
+        json!({"segment": "equity_intraday", "exchange": "NSE", "buy_price": "1e15",
+               "sell_price": "1e15", "quantity": "1e15"}),
+        json!({"segment": "fno_options", "exchange": "NFO", "buy_price": "100",
+               "sell_price": "101", "quantity": "0.0000000000000000000000000001"}),
+    ] {
+        let e = env
+            .sb
+            .estimate_charges(trade.clone(), Market::Indian)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            (e.http_status, e.message.as_str()),
+            (400, ESTIMATE),
+            "{trade}"
+        );
+    }
+    // A large trade inside the bound is still priced.
+    let r = env
+        .sb
+        .order_charges(order("RELIANCE", "NSE", "CNC", "BUY", "1000000", "2500"))
+        .await
+        .unwrap();
+    assert_eq!(r["trade_value"], json!(2500000000.0));
+    env.shutdown().await;
+}
