@@ -81,7 +81,8 @@ async fn book_with(
 
 /// LTP for MPP (`None` when the quote cannot be read). Read before the
 /// order is sent: a server error on the quote never counts against the
-/// order's own answer (review P2-3).
+/// order's own answer (review P2-3). Only MARKET reads it: an SL-M is
+/// priced off its trigger (web #2390).
 async fn ltp(b: &FirstockBroker, s: &Session, exchange: &str, brsymbol: &str) -> Option<f64> {
     let q = crate::brokers::common::outcome::before_send(super::data::quote_data(
         b, s, exchange, brsymbol,
@@ -97,7 +98,7 @@ pub async fn place_order(
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
     let s = session(auth)?;
-    let quote = if matches!(o.pricetype, PriceType::Market | PriceType::SlM) {
+    let quote = if o.pricetype == PriceType::Market {
         ltp(b, &s, o.exchange.as_str(), o.brsymbol()).await
     } else {
         None
@@ -129,7 +130,7 @@ pub async fn modify_order(
     m: &ResolvedModify,
 ) -> Result<OrderResponse> {
     let s = session(auth)?;
-    let quote = if matches!(m.pricetype, PriceType::Market | PriceType::SlM) {
+    let quote = if m.pricetype == PriceType::Market {
         ltp(b, &s, m.exchange.as_str(), m.brsymbol()).await
     } else {
         None

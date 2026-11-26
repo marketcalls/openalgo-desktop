@@ -8,6 +8,7 @@ use super::streaming::FirstockFeed;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType};
 use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::families::noren::mapping::MppOrder;
 use serde_json::{json, Value};
 
 macro_rules! fixture {
@@ -205,26 +206,28 @@ fn order_payloads_and_mpp() {
         place_body(&order("MARKET"), None).unwrap()["priceType"],
         "MKT"
     );
+    let terms = |action, pricetype, price, trigger| MppOrder {
+        symbol: "SBIN",
+        action,
+        pricetype,
+        price,
+        trigger,
+    };
+    // SL-M is priced off its trigger whatever the LTP (web #2390).
     assert_eq!(
         mpp(
-            "SBIN",
-            Some(Action::Sell),
-            PriceType::SlM,
-            0.0,
+            &terms(Action::Sell, PriceType::SlM, 0.0, 980.0),
             Some(1000.0),
             0.05,
             false
         )
         .unwrap(),
-        ("SL-LMT", "995".into(), "0")
+        ("SL-LMT", "975.1".into(), "0")
     );
     // Modify without a quote defers to the server with mkt_protection 1.
     assert_eq!(
         mpp(
-            "SBIN",
-            Some(Action::Buy),
-            PriceType::Market,
-            0.0,
+            &terms(Action::Buy, PriceType::Market, 0.0, 0.0),
             None,
             0.05,
             true
@@ -234,10 +237,7 @@ fn order_payloads_and_mpp() {
     );
     assert_eq!(
         mpp(
-            "SBIN",
-            Some(Action::Buy),
-            PriceType::Limit,
-            811.0,
+            &terms(Action::Buy, PriceType::Limit, 811.0, 0.0),
             None,
             0.05,
             true
