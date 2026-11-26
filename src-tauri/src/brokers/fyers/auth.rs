@@ -1,10 +1,9 @@
 //! Fyers auth-code exchange (web `api/auth_api.py`) and access-token claims.
 
 use super::{code_message, FyersBroker};
-use crate::brokers::common::http;
+use crate::brokers::common::{http, jwt};
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
-use base64::Engine;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -31,14 +30,10 @@ pub struct JwtClaims {
 /// Decode the payload of a Fyers JWT (`app_id:` prefix tolerated), without
 /// verifying the signature (web `_extract_hsm_key`).
 pub fn decode_jwt_claims(token: &str) -> Option<JwtClaims> {
-    let jwt = token.split_once(':').map(|(_, t)| t).unwrap_or(token);
-    let mut parts = jwt.split('.');
-    let (_header, payload, _sig) = (parts.next()?, parts.next()?, parts.next()?);
-    let trimmed = payload.trim_end_matches('=');
-    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(trimmed)
-        .ok()?;
-    serde_json::from_slice(&bytes).ok()
+    let token = token.split_once(':').map(|(_, t)| t).unwrap_or(token);
+    // A token has its three parts (`header.payload.signature`).
+    token.split('.').nth(2)?;
+    serde_json::from_value(Value::Object(jwt::claims(token)?)).ok()
 }
 
 pub async fn authenticate(b: &FyersBroker, creds: BrokerCredentials) -> Result<AuthResponse> {
@@ -118,6 +113,7 @@ pub async fn authenticate(b: &FyersBroker, creds: BrokerCredentials) -> Result<A
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine;
 
     #[test]
     fn app_id_hash_is_sha256_of_pair() {

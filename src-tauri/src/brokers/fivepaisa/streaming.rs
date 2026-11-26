@@ -33,6 +33,7 @@
 //! connection per token and drops the other, so the web polls REST instead.
 
 use super::mapping::{ms_date_epoch, num, text};
+use crate::brokers::common::jwt;
 use crate::brokers::common::streaming::{
     now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
     NormalizedDepth, NormalizedTick, Number, NumberForm, QuoteField, WsRequest,
@@ -40,7 +41,6 @@ use crate::brokers::common::streaming::{
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use crate::security::secret::Secret;
-use base64::Engine;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
@@ -56,17 +56,13 @@ const SNAPSHOT_FIELDS: &[&str] = &[
 
 /// `RedirectServer` claim of the access-token JWT, `default` when absent.
 pub fn redirect_server(token: &str) -> String {
-    let parts: Vec<&str> = token.split('.').collect();
-    if parts.len() != 3 {
+    // A token has exactly three parts (`header.payload.signature`).
+    if token.split('.').count() != 3 {
         return "default".into();
     }
-    let payload = parts[1].trim_end_matches('=');
-    base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(payload)
-        .ok()
-        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
-        .and_then(|v| {
-            v.get("RedirectServer")
+    jwt::claims(token)
+        .and_then(|c| {
+            c.get("RedirectServer")
                 .and_then(Value::as_str)
                 .map(str::to_string)
         })
