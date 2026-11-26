@@ -399,8 +399,11 @@ A built-in agent, on its own page and as the Assistant panel beside the
   OpenAlgo's own services, and in analyzer mode your sandbox account
 - Draws price, open interest, gamma exposure, volatility surface and payoff
   charts in the chat, and marks levels, trend lines and zones on your chart
-- Computes 128 indicators with the same results as OpenAlgo web's
-  `openalgo.ta`, and writes OpenScript studies and strategies
+- Computes 128 indicators, the ones OpenAlgo web's `openalgo.ta` offers,
+  with the numbers of openalgo 2.0.5 (and 2.4.1's `rvi_volatility`).
+  OpenAlgo web runs 2.4.1, so its `psar`, `vwap`, `pivot_points` and where a
+  few indicators start giving values can differ from the desktop's
+- Writes OpenScript studies and strategies
 - **Every order pauses for your approval**, with a kill switch and risk
   limits on Agent Config that are checked again after you approve
 - Models from OpenAI, Anthropic, Gemini and other providers, a ChatGPT Plus

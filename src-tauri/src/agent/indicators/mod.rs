@@ -1,8 +1,8 @@
 //! The Agent's technical indicators: the 128 `openalgo.ta` callables, with
-//! the numbers OpenAlgo web gives, behind the pure functions the indicator
-//! tools call. Ported from the web's `services/agent/indicators/` (registry,
-//! descriptions, compute) and the pure parts of
-//! `services/agent/tools/indicators.py`.
+//! the numbers of openalgo 2.0.5 (the web's are 2.4.1's: see below), behind
+//! the pure functions the indicator tools call. Ported from the web's
+//! `services/agent/indicators/` (registry, descriptions, compute) and the
+//! pure parts of `services/agent/tools/indicators.py`.
 //!
 //! Nothing here touches the network, the database or the clock: candles
 //! arrive as the cleaned frame the tool fetched
