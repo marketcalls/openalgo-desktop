@@ -15,9 +15,13 @@
 //!   book folds `trigger pending` into `open`, the push keeps it apart) and
 //!   its filled quantity, kept from the reads and from every update the
 //!   socket pushed, so an update already pushed is not published again
-//!   (web `_remember`). A push that comes before the first read has
-//!   finished is kept over that read's row: the web drops it, so an update
-//!   pushed while that read was on its way could go out a second time.
+//!   (web `_remember`). A push that comes while a read is on its way is
+//!   newer than that read's rows, so it is kept over its order's row, which
+//!   publishes nothing: the web lets the row overwrite it (`known.update`),
+//!   and so publishes the order's older state after the newer one and the
+//!   newer one again at the next read. The first read keeps every push
+//!   before it too (the web drops them, `_remember`), so the next read
+//!   publishes what the book has moved past since.
 //! * **rollover** (`SessionDay`): once the session's daily boundary has
 //!   passed nothing is read, and the feed connects no more until the next
 //!   sign-in (web `_login_this_trading_session`), the same rule
@@ -64,9 +68,24 @@ pub struct OrderCatchUp {
 struct Known {
     /// Whether a read has recorded the book yet.
     read: bool,
+    /// How many updates the socket has pushed: they are numbered from 1.
+    pushes: u64,
     /// Order id to its last known state.
-    states: HashMap<String, State>,
+    states: HashMap<String, Told>,
 }
+
+/// An order's last known state, and the push that told it.
+#[derive(Debug)]
+struct Told {
+    state: State,
+    /// The push's number, 0 when a read of the order book told it.
+    push: u64,
+}
+
+/// The pushes that came before a read of the order book was sent: one
+/// numbered above it is newer than every row of that read.
+#[derive(Debug, Clone, Copy)]
+struct Issued(u64);
 
 /// `status` as the order book and the push feed agree on it: the book
 /// folds `trigger pending` into `open`, the push keeps it apart (web
@@ -91,50 +110,65 @@ impl OrderCatchUp {
         if u.orderid.is_empty() {
             return;
         }
-        self.known.lock().states.insert(
-            u.orderid.clone(),
-            (comparable(&u.order_status), u.filled_quantity),
-        );
+        let mut known = self.known.lock();
+        known.pushes += 1;
+        let told = Told {
+            state: (comparable(&u.order_status), u.filled_quantity),
+            push: known.pushes,
+        };
+        known.states.insert(u.orderid.clone(), told);
     }
 
-    /// One read of the order book: the first only records it, under what
-    /// the socket has pushed meanwhile; a later one returns an update, with
-    /// the prices the order book shows, for each order whose state differs
-    /// from the last known one, in the book's order. An order listed twice
-    /// counts once, as its last row.
-    pub fn changed(&self, book: &[Order]) -> Vec<OrderUpdate> {
-        let mut rows: Vec<&Order> = Vec::new();
-        let mut at: HashMap<&str, usize> = HashMap::new();
-        for o in book.iter().filter(|o| !o.order_id.is_empty()) {
-            match at.get(o.order_id.as_str()) {
-                Some(&i) => rows[i] = o,
-                None => {
-                    at.insert(&o.order_id, rows.len());
-                    rows.push(o);
-                }
-            }
-        }
+    /// Taken as a read of the order book is sent.
+    fn issued(&self) -> Issued {
+        Issued(self.known.lock().pushes)
+    }
+
+    /// One read of the order book, sent at `issued`: the first only records
+    /// it; a later one returns an update, with the prices the order book
+    /// shows, for each order whose state differs from the last known one,
+    /// in the book's order. An order listed twice counts once, as its last
+    /// row. A row never overrides a push newer than the read (one after
+    /// `issued`; for the first read, any): its order publishes nothing and
+    /// keeps the pushed state, which the next read settles.
+    fn changed(&self, book: &[Order], issued: Issued) -> Vec<OrderUpdate> {
         let mut known = self.known.lock();
-        if !known.read {
-            known.read = true;
-            for o in rows {
-                known
-                    .states
-                    .entry(o.order_id.clone())
-                    .or_insert_with(|| state(o));
-            }
-            return Vec::new();
-        }
+        let first = !std::mem::replace(&mut known.read, true);
         let mut out = Vec::new();
-        for o in rows {
+        for o in last_rows(book) {
+            let told = known.states.get(&o.order_id);
+            if told.is_some_and(|t| first || t.push > issued.0) {
+                continue;
+            }
             let now = state(o);
-            if known.states.get(&o.order_id) != Some(&now) {
+            if !first && told.map(|t| &t.state) != Some(&now) {
                 out.push(to_update(o));
             }
-            known.states.insert(o.order_id.clone(), now);
+            let told = Told {
+                state: now,
+                push: 0,
+            };
+            known.states.insert(o.order_id.clone(), told);
         }
         out
     }
+}
+
+/// The book's rows with an order id, an order listed twice as its last
+/// row, in the book's order.
+fn last_rows(book: &[Order]) -> Vec<&Order> {
+    let mut rows: Vec<&Order> = Vec::new();
+    let mut at: HashMap<&str, usize> = HashMap::new();
+    for o in book.iter().filter(|o| !o.order_id.is_empty()) {
+        match at.get(o.order_id.as_str()) {
+            Some(&i) => rows[i] = o,
+            None => {
+                at.insert(&o.order_id, rows.len());
+                rows.push(o);
+            }
+        }
+    }
+    rows
 }
 
 /// The trading day of a session authenticated at `at`: current until the
@@ -243,9 +277,10 @@ async fn run<R, F, C, P>(
             );
             continue;
         }
+        let issued = state.issued();
         match read().await {
             Ok(book) => {
-                for u in state.changed(&book) {
+                for u in state.changed(&book, issued) {
                     publish(u);
                 }
             }
