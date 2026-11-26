@@ -3212,3 +3212,186 @@ async fn an_unreadable_stop_list_is_unavailable_not_empty() {
     assert_eq!(h.ctx.scalping.monitor.leg_count(), 1);
     h.shutdown().await;
 }
+
+// ---------------------------------------------------------------------------
+// PROBE (wip branch only, never merged): what the runtime thread did during
+// the longest hold of a_reconcile_pass_waiting_for_the_database_never_holds_the_runtime.
+// ---------------------------------------------------------------------------
+
+/// (on-CPU ns, run-queue wait ns) of the calling thread, from
+/// /proc/thread-self/schedstat; zeros where it cannot be read.
+fn probe_schedstat() -> (u64, u64) {
+    std::fs::read_to_string("/proc/thread-self/schedstat")
+        .ok()
+        .and_then(|s| {
+            let mut it = s.split_whitespace().map(|x| x.parse::<u64>().ok());
+            Some((it.next()??, it.next()??))
+        })
+        .unwrap_or((0, 0))
+}
+
+type ProbeLog = Arc<Mutex<Vec<(std::time::Instant, bool, u64, u64)>>>;
+
+fn probe_once(load: bool) -> String {
+    let log: ProbeLog = Arc::new(Mutex::new(Vec::new()));
+    let (a, b) = (log.clone(), log.clone());
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .on_thread_park(move || {
+            let (c, r) = probe_schedstat();
+            a.lock().push((std::time::Instant::now(), true, c, r))
+        })
+        .on_thread_unpark(move || {
+            let (c, r) = probe_schedstat();
+            b.lock().push((std::time::Instant::now(), false, c, r))
+        })
+        .build()
+        .unwrap();
+    let log2 = log.clone();
+    rt.block_on(async move {
+        let h = H::new().await;
+        h.ctx.reconciler.stop();
+        let (cookie, csrf) = session(&h);
+        h.mock.after_send.lock().push_back((
+            openalgo_desktop_lib::brokers::mock::AfterSend::Dropped,
+            "complete",
+        ));
+        *h.mock.after_send_time.lock() = "2026-10-03 09:42:05".into();
+        let (s, body) = call(
+            &h,
+            req(
+                Method::POST,
+                "/scalping/api/order",
+                Some(page_entry()),
+                Some(&cookie),
+                Some(&csrf),
+            ),
+        )
+        .await;
+        assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{}", body);
+        // until idle
+        let since = std::time::Instant::now();
+        while !log2.lock().iter().any(|&(at, idle, _, _)| idle && at >= since) {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        let released = Arc::new(Mutex::new(None));
+        let rel = released.clone();
+        let db = h.ctx.sqlite.clone();
+        let (held, ready) = std::sync::mpsc::channel();
+        let holder = std::thread::spawn(move || {
+            let conns: Vec<_> = (0..8).map(|_| db.conn().unwrap()).collect();
+            held.send(()).unwrap();
+            std::thread::sleep(Duration::from_millis(600));
+            drop(conns);
+            *rel.lock() = Some(std::time::Instant::now());
+        });
+        ready.recv().unwrap();
+        let pooled = checkouts().0;
+        let start = std::time::Instant::now();
+        let (_, busy) = crate::runtime_busy(h.ctx.reconciler.pass()).await;
+        let end = std::time::Instant::now();
+        let pooled = checkouts().0 - pooled;
+        holder.join().unwrap();
+        let rel_ms = released
+            .lock()
+            .map(|r| r.saturating_duration_since(start).as_secs_f64() * 1e3)
+            .unwrap_or(-1.0);
+        // longest hold, with schedstat deltas
+        let events: Vec<_> = log2
+            .lock()
+            .iter()
+            .copied()
+            .filter(|(at, _, _, _)| (start..end).contains(at))
+            .collect();
+        let mut longest = (Duration::ZERO, 0.0, 0.0, 0.0, 0.0);
+        let mut running: Option<(std::time::Instant, u64, u64)> = None;
+        // the pass is being polled from `start`: schedstat at start is not
+        // known, so the first interval's deltas start at the first event
+        let mut first = true;
+        for &(at, idle, cpu, rq) in &events {
+            match (idle, running) {
+                (true, Some((since, c, r))) => {
+                    let wall = at - since;
+                    if wall > longest.0 {
+                        longest = (
+                            wall,
+                            since.saturating_duration_since(start).as_secs_f64() * 1e3,
+                            (cpu.saturating_sub(c)) as f64 / 1e6,
+                            (rq.saturating_sub(r)) as f64 / 1e6,
+                            0.0,
+                        );
+                    }
+                    running = None;
+                }
+                (true, None) if first => {
+                    let wall = at - start;
+                    if wall > longest.0 {
+                        longest = (wall, 0.0, -1.0, -1.0, 0.0);
+                    }
+                }
+                (false, None) => running = Some((at, cpu, rq)),
+                _ => {}
+            }
+            first = false;
+        }
+        if let Some((since, _, _)) = running {
+            let wall = end - since;
+            if wall > longest.0 {
+                longest = (
+                    wall,
+                    since.saturating_duration_since(start).as_secs_f64() * 1e3,
+                    -2.0,
+                    -2.0,
+                    0.0,
+                );
+            }
+        }
+        h.shutdown().await;
+        format!(
+            "pooled_on_runtime={} load={} pass_wall={:.1}ms pass_polls={:.1}ms pool_released_at={:.1}ms longest_hold={:.1}ms from={:.1}ms cpu_in_hold={:.1}ms runqueue_in_hold={:.1}ms events={}",
+            pooled,
+            load,
+            (end - start).as_secs_f64() * 1e3,
+            busy.as_secs_f64() * 1e3,
+            rel_ms,
+            longest.0.as_secs_f64() * 1e3,
+            longest.1,
+            longest.2,
+            longest.3,
+            events.len()
+        )
+    })
+}
+
+#[test]
+fn probe_reconcile_hold() {
+    let cores = std::thread::available_parallelism().map_or(4, |n| n.get());
+    let mut lines = vec![format!("cores={}", cores)];
+    for round in 0..30 {
+        let load = round % 2 == 1;
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let burners: Vec<_> = if load {
+            (0..cores * 2)
+                .map(|_| {
+                    let s = stop.clone();
+                    std::thread::spawn(move || {
+                        let mut x = 1u64;
+                        while !s.load(std::sync::atomic::Ordering::Relaxed) {
+                            x = x.wrapping_mul(6364136223846793005).wrapping_add(1);
+                            std::hint::black_box(x);
+                        }
+                    })
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let line = probe_once(load);
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        for b in burners {
+            b.join().unwrap();
+        }
+        lines.push(format!("round {:02}: {}", round, line));
+    }
+    panic!("PROBE RESULTS\n{}", lines.join("\n"));
+}
