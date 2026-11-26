@@ -682,7 +682,7 @@ mod tests {
     }
 
     /// A context with the mock broker logged in as `id` and SBIN and INFY
-    /// in the master, for the margin tests.
+    /// in the master, for the margin tests and the long daily history.
     fn margin_as(
         id: &'static str,
     ) -> (
@@ -773,5 +773,62 @@ mod tests {
         let r = margin(&t.ctx, &[margin_leg("SBIN")]).await;
         assert_eq!(r.status, 200, "{}", r.body);
         assert!(margin_asked(&mock));
+    }
+
+    /// The `/trading` chart builds W and M from daily bars and asks for up
+    /// to 2000 days of D a call (web openalgo#2384, 6c9d35b61; the change is
+    /// the chart's alone). The window reaches the broker whole, in one call,
+    /// and every daily bar comes back as the broker sent it, including one
+    /// on a day the calendar shows closed (the Sunday Muhurat session of
+    /// 2019-10-27, before the holiday list starts), which the chart places
+    /// on its own date.
+    #[tokio::test]
+    async fn history_answers_a_long_daily_window_whole() {
+        use crate::brokers::mock::MockCall;
+        use crate::brokers::types::Candle;
+        let (t, mock) = margin_as("zerodha");
+        let date = |y, m, d| NaiveDate::from_ymd_opt(y, m, d).unwrap();
+        let ist_midnight =
+            |day: NaiveDate| day.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() - 19_800;
+        let start = date(2016, 11, 1);
+        let end = start + chrono::Duration::days(2000);
+        let days = [
+            start,
+            date(2019, 10, 25),
+            date(2019, 10, 27),
+            date(2019, 10, 29),
+            end,
+        ];
+        let stamps: Vec<i64> = days.iter().map(|d| ist_midnight(*d)).collect();
+        *mock.history.lock() = Some(Ok(stamps
+            .iter()
+            .map(|&timestamp| Candle {
+                timestamp,
+                open: 100.0,
+                high: 101.0,
+                low: 99.0,
+                close: 100.5,
+                volume: 10,
+                ..Default::default()
+            })
+            .collect()));
+        let r = history(&t.ctx, "SBIN", "NSE", "D", start, end, "api").await;
+        assert_eq!(r.status, 200, "{}", r.body);
+        let answered: Vec<i64> = r.body["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["timestamp"].as_i64().unwrap())
+            .collect();
+        assert_eq!(answered, stamps);
+        let asked: Vec<(String, NaiveDate, NaiveDate)> = mock
+            .calls()
+            .into_iter()
+            .filter_map(|c| match c {
+                MockCall::History(req) => Some((req.interval, req.start, req.end)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(asked, vec![("D".to_string(), start, end)]);
     }
 }
