@@ -113,6 +113,18 @@ fn symbol_needed(conn: &rusqlite::Connection, key: &SymbolKey) -> rusqlite::Resu
     Ok(n > 0)
 }
 
+/// Does anything still need ticks for `key`? A read that fails answers yes:
+/// a symbol watched a little longer costs a subscription, one dropped too
+/// early costs fills, and the next rebuild settles it either way.
+async fn still_needed(core: &Arc<Core>, key: &SymbolKey) -> bool {
+    let k = key.clone();
+    blocking(core, move |c| {
+        Ok(c.db.with_conn(|conn| symbol_needed(conn, &k))?)
+    })
+    .await
+    .unwrap_or(true)
+}
+
 /// Longest wait between re-subscriptions of a symbol whose feed stays
 /// stale.
 pub const RESUBSCRIBE_CAP: Duration = Duration::from_secs(300);
@@ -316,16 +328,8 @@ async fn on_tick(core: &Arc<Core>, state: &mut State, ticks: &dyn TickSource, ti
             }
         }
     }
-    if filled > 0 || fired > 0 {
-        let k = key.clone();
-        let needed = blocking(core, move |c| {
-            Ok(c.db.with_conn(|conn| symbol_needed(conn, &k))?)
-        })
-        .await
-        .unwrap_or(true);
-        if !needed {
-            state.forget(ticks, &key);
-        }
+    if (filled > 0 || fired > 0) && !still_needed(core, &key).await {
+        state.forget(ticks, &key);
     }
 }
 
