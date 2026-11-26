@@ -594,3 +594,242 @@ mod pre_open_history {
         assert_eq!(opens, [1023.2]);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Order updates on the one PiConnect socket (web 73599f37c, #2507)
+// ---------------------------------------------------------------------------
+
+/// Web #2507 keeps its order-stream change to Flattrade, whose PiConnect
+/// allows one socket per login (issue #1806): its feed is the session's
+/// only stream (the order catch-up after each reconnect, no connect after
+/// the daily boundary), and the other Noren members keep their behaviour.
+#[test]
+fn only_flattrade_streams_its_orders_on_its_one_socket() {
+    use crate::brokers::Broker;
+    let s = SymbolResolver::new();
+    assert!(super::broker(s.clone()).single_session_stream());
+    for b in [
+        shoonya::broker(s.clone()),
+        zebu::broker(s.clone()),
+        tradesmart::broker(s),
+    ] {
+        assert!(!b.single_session_stream(), "{}", b.id());
+    }
+}
+
+mod order_stream {
+    //! Flattrade's order stream on its one PiConnect socket, through the
+    //! runtime a session runs (web 73599f37c, marketcalls/openalgo#2507,
+    //! issue #2386), against a local PiConnect.
+
+    use crate::brokers::common::symbols::SymbolResolver;
+    use crate::brokers::families::noren::{NorenBroker, NorenEndpoints};
+    use crate::brokers::flattrade::config;
+    use crate::brokers::{Broker, BrokerRegistry};
+    use crate::events::{bus::Lane, bus::Subscriber, Event, Topic};
+    use crate::security::Secret;
+    use crate::state::{testing, BrokerSession};
+    use crate::websocket::FeedStatus;
+    use axum::routing::post;
+    use axum::{Json, Router};
+    use chrono::{DateTime, TimeZone, Utc};
+    use chrono_tz::Asia::Kolkata;
+    use futures_util::{SinkExt, StreamExt};
+    use parking_lot::Mutex;
+    use serde_json::{json, Value};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio_tungstenite::tungstenite::Message;
+
+    fn ist(d: u32, h: u32, m: u32) -> DateTime<Utc> {
+        Kolkata
+            .with_ymd_and_hms(2026, 11, d, h, m, 0)
+            .single()
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    /// An OrderBook row as PiConnect sends it: a limit buy of 10 RELIANCE.
+    fn row(id: &str, status: &str, filled: &str) -> Value {
+        json!({"stat": "Ok", "norenordno": id, "exch": "NSE", "tsym": "RELIANCE-EQ",
+               "token": "2885", "trantype": "B", "qty": "10", "fillshares": filled,
+               "prc": "1480.00", "prctyp": "LMT", "prd": "I", "status": status,
+               "avgprc": "1480.00", "norentm": "10:20:00 18-11-2026", "ret": "DAY"})
+    }
+
+    /// A local PiConnect: the order book answers `book` (its reads
+    /// counted), the socket acknowledges every login (counted) and holds
+    /// the connection. Stopped when dropped.
+    struct PiConnect {
+        rest: String,
+        ws: String,
+        book: Arc<Mutex<Value>>,
+        reads: Arc<AtomicUsize>,
+        logins: Arc<AtomicUsize>,
+        tasks: Vec<tokio::task::JoinHandle<()>>,
+    }
+
+    impl Drop for PiConnect {
+        fn drop(&mut self) {
+            for t in &self.tasks {
+                t.abort();
+            }
+        }
+    }
+
+    async fn piconnect(book: Value) -> PiConnect {
+        let book = Arc::new(Mutex::new(book));
+        let reads = Arc::new(AtomicUsize::new(0));
+        let (answer, count) = (book.clone(), reads.clone());
+        let app = Router::new().route(
+            "/PiConnectAPI/OrderBook",
+            post(move || {
+                let (answer, count) = (answer.clone(), count.clone());
+                async move {
+                    count.fetch_add(1, Ordering::SeqCst);
+                    let body = answer.lock().clone();
+                    Json(body)
+                }
+            }),
+        );
+        let http = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let rest = format!("http://{}", http.local_addr().unwrap());
+        let rest_task = tokio::spawn(async move {
+            let _ = axum::serve(http, app).await;
+        });
+        let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws = format!("ws://{}", socket.local_addr().unwrap());
+        let logins = Arc::new(AtomicUsize::new(0));
+        let seen = logins.clone();
+        let ws_task = tokio::spawn(async move {
+            let mut held = tokio::task::JoinSet::new();
+            while let Ok((tcp, _)) = socket.accept().await {
+                let seen = seen.clone();
+                held.spawn(async move {
+                    let Ok(mut ws) = tokio_tungstenite::accept_async(tcp).await else {
+                        return;
+                    };
+                    while let Some(Ok(m)) = ws.next().await {
+                        if let Message::Text(t) = m {
+                            if t.contains(r#""t":"a""#) {
+                                seen.fetch_add(1, Ordering::SeqCst);
+                                let ak = Message::Text(r#"{"t":"ak","s":"OK"}"#.into());
+                                let _ = ws.send(ak).await;
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        PiConnect {
+            rest,
+            ws,
+            book,
+            reads,
+            logins,
+            tasks: vec![rest_task, ws_task],
+        }
+    }
+
+    /// `order.update` events on the bus: order id and status.
+    #[derive(Default)]
+    struct Updates(Mutex<Vec<(String, String)>>);
+
+    #[async_trait::async_trait]
+    impl Subscriber for Updates {
+        fn name(&self) -> &'static str {
+            "flattrade-order-stream-test"
+        }
+        fn topics(&self) -> Vec<Topic> {
+            vec![Topic::OrderUpdate]
+        }
+        async fn handle(&self, event: Arc<Event>) {
+            if let Event::OrderUpdate(u) = event.as_ref() {
+                self.0
+                    .lock()
+                    .push((u.orderid.clone(), u.order_status.clone()));
+            }
+        }
+    }
+
+    async fn until(what: &str, mut f: impl FnMut() -> bool) {
+        for _ in 0..1000 {
+            if f() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("timed out waiting for {}", what);
+    }
+
+    /// Web `test_flattrade_issue_2386.py`'s catch-up and rollover, through
+    /// a Flattrade session: the order book is read once the socket's login
+    /// is accepted (that read only records it), once more after the socket
+    /// reconnects (the order that filled meanwhile goes out as an order
+    /// update), and once the daily boundary has passed the socket does not
+    /// log in again and nothing is read, until the next sign-in.
+    #[tokio::test]
+    async fn the_session_catches_up_after_a_reconnect_and_stops_at_the_boundary() {
+        let pi = piconnect(json!([row("26111800000001", "OPEN", "0")])).await;
+        let endpoints = NorenEndpoints::rebased(config(), &pi.rest, &pi.ws);
+        let symbols = SymbolResolver::new();
+        let flattrade = NorenBroker::with_endpoints(config(), symbols.clone(), endpoints);
+        let t = testing::build(
+            BrokerRegistry::with_symbols(symbols, vec![Arc::new(flattrade) as Arc<dyn Broker>]),
+            ist(18, 10, 0),
+        );
+        let ctx = &t.ctx;
+        let updates = Arc::new(Updates::default());
+        ctx.bus.subscribe(updates.clone(), Lane::Critical);
+        let session = BrokerSession {
+            broker_id: "flattrade".into(),
+            auth_token: Secret::new("U1:::tok"),
+            feed_token: None,
+            user_id: "U1".into(),
+            user_name: None,
+            authenticated_at: ctx.now(),
+        };
+        ctx.runtime.activate(ctx, &session).await;
+        until("the order book read at the login", || {
+            pi.reads.load(Ordering::SeqCst) == 1
+        })
+        .await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(updates.0.lock().is_empty(), "the first read only records");
+
+        *pi.book.lock() = json!([row("26111800000001", "COMPLETE", "10")]);
+        ctx.websocket.reconnect();
+        until("the catch-up", || !updates.0.lock().is_empty()).await;
+        assert_eq!(
+            *updates.0.lock(),
+            vec![("26111800000001".to_string(), "complete".to_string())]
+        );
+        assert_eq!(pi.reads.load(Ordering::SeqCst), 2);
+        assert_eq!(pi.logins.load(Ordering::SeqCst), 2);
+
+        t.clock.set(ist(19, 3, 1));
+        ctx.websocket.reconnect();
+        until("the feed to stand down", || {
+            matches!(ctx.websocket.status(), FeedStatus::AuthFailed { .. })
+        })
+        .await;
+        match ctx.websocket.status() {
+            FeedStatus::AuthFailed { message, .. } => {
+                assert!(message.contains("Log in to Flattrade again"), "{}", message)
+            }
+            other => panic!("{:?}", other),
+        }
+        assert_eq!(
+            pi.logins.load(Ordering::SeqCst),
+            2,
+            "no login after the boundary"
+        );
+        assert_eq!(
+            pi.reads.load(Ordering::SeqCst),
+            2,
+            "no read after the boundary"
+        );
+        ctx.runtime.teardown(ctx).await;
+    }
+}

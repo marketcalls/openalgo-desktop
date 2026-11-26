@@ -424,6 +424,14 @@ pub type FeedHeld = Arc<dyn Fn(&[FeedSubscription]) + Send + Sync>;
 /// takes it. Every consumer of the feed hears it, not only feed clients.
 pub type FeedRefusal = Arc<dyn Fn(&FeedSubscription) -> Option<String> + Send + Sync>;
 
+/// Whether the session may still open its feed's connection, asked before
+/// every connect and reconnect: `None` connects, `Some` says why not, for
+/// the trader (the session's daily boundary has passed, web
+/// marketcalls/openalgo#2507). A refusal ends the connection as a refused
+/// login does, until the next sign-in. Must be quick: it runs on the
+/// socket's task.
+pub type ConnectGate = Arc<dyn Fn() -> Option<String> + Send + Sync>;
+
 /// How a broker socket ended, for `BrokerFeed::on_ended` (audit P-12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ended<'a> {

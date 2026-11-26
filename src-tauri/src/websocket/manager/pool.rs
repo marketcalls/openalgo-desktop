@@ -75,6 +75,7 @@ impl WebSocketManager {
                 sets,
                 set_answer: None,
                 generation: 0,
+                gate: self.gate.clone(),
             }
             .run(),
         );

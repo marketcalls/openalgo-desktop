@@ -25,8 +25,8 @@
 //! is a bounded broadcast whose slow receivers see `Lagged` and skip ahead.
 
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedHeld, FeedLetGo, FeedRefusal, FeedSubscription, MarketEvent, Presubscribe,
-    StopKind,
+    BrokerFeed, ConnectGate, FeedHeld, FeedLetGo, FeedRefusal, FeedSubscription, MarketEvent,
+    Presubscribe, StopKind,
 };
 use crate::error::{AppError, Result};
 use parking_lot::Mutex;
@@ -215,6 +215,9 @@ pub struct WebSocketManager {
     /// The broker's own words for a subscribe past the room, where its web
     /// adapter refuses before the pool does (`set_room_refusal`).
     room_refusal: Mutex<Option<&'static str>>,
+    /// Asked before each connection's every connect (`set_connect_gate`);
+    /// shared with the socket tasks.
+    gate: Arc<Mutex<Option<ConnectGate>>>,
 }
 
 impl Default for WebSocketManager {
@@ -249,6 +252,7 @@ impl WebSocketManager {
             let_go: Mutex::new(None),
             held: Mutex::new(None),
             room_refusal: Mutex::new(None),
+            gate: Arc::default(),
         }
     }
 
@@ -440,6 +444,7 @@ impl WebSocketManager {
         *self.let_go.lock() = None;
         *self.held.lock() = None;
         *self.room_refusal.lock() = None;
+        *self.gate.lock() = None;
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
     }
@@ -449,6 +454,14 @@ impl WebSocketManager {
         for r in all {
             pool::stop(r).await;
         }
+    }
+
+    /// Whether the session may still connect, asked before every connect
+    /// and reconnect of each connection: a refusal stops that connection as
+    /// a refused login does (`FeedStatus::AuthFailed`, until the next
+    /// sign-in). None (the default; a disconnect clears it) always connects.
+    pub fn set_connect_gate(&self, gate: Option<ConnectGate>) {
+        *self.gate.lock() = gate;
     }
 
     /// The broker's words for a subscribe past this feed's room, where its

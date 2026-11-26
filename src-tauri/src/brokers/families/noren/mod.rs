@@ -330,7 +330,10 @@ pub struct NorenConfig {
     pub feed_oi: FeedOi,
     pub rate: RateLimits,
     /// The broker allows one socket per session (flattrade): order updates
-    /// must ride the market-data socket, never a second one.
+    /// ride the market-data socket, never a second one, and that socket is
+    /// the session's order stream (`Broker::single_session_stream`: one
+    /// order-book read after each reconnect, none after the daily
+    /// boundary; web #2507).
     pub persistent_socket: bool,
     /// Send `{"t":"o"}` to receive order updates on the feed (tradesmart
     /// pushes them unasked).
@@ -771,6 +774,10 @@ impl Broker for NorenBroker {
 
     async fn download_master_contract(&self, _auth: &AuthToken) -> Result<Vec<SymbolData>> {
         master_contract::download(self).await
+    }
+
+    fn single_session_stream(&self) -> bool {
+        self.cfg.persistent_socket
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {

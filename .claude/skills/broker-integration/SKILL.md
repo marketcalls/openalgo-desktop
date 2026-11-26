@@ -70,6 +70,7 @@ Defaults you override only when the broker differs:
 | `on_logout()` | nothing | the adapter runs anything itself (an order poller, cached session state). Called by `BrokerRuntime::teardown` on logout, at the 03:00 IST boundary and at shutdown. Must be idempotent. |
 | `create_feed(&auth)` | `Unsupported("streaming")` | the broker has a market-data socket. Returns `Box<dyn BrokerFeed>`. |
 | `create_order_feed(&auth)` | `Unsupported("order_feed")` | order updates come from a socket (`OrderFeed::Socket`) or a poller you own (`OrderFeed::Stream(mpsc::Receiver)`, see `common::order_poll`). Leave unsupported when the market feed already carries them (Kite). |
+| `single_session_stream()` | `false` | the market feed is the session's only socket and carries its order updates (Flattrade: one PiConnect session per login): the runtime reads the order book once after each reconnect and publishes what the gap missed, and the feed connects no more after the daily boundary (`broker_runtime::catch_up`, web #2507). |
 | `create_depth_feed(&auth, levels)` | `Unsupported("depth_feed")` | a separate socket serves books deeper than 5 (Fyers 50, Dhan 20). `BrokerRuntime` asks for each `depth_levels` entry above 5. |
 | `feed_depth_levels(exchange)` | `capabilities().depth_levels` | depth differs by exchange. The feed bridge uses it to answer 8765 subscribers. |
 | `get_holdings_with_totals(&auth)` | holdings, `totals: None` (the service computes them) | the broker reports its own portfolio totals (Angel's `totalholding`). Used by `account_service`. |

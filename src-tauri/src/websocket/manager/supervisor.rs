@@ -14,8 +14,8 @@ use super::{Apply, Command, FeedConfig, FeedStatus};
 use crate::brokers::common::ratelimit::backoff_delay;
 use crate::brokers::common::redact::{url_safe_error, ws_error_kind};
 use crate::brokers::common::streaming::{
-    normalize_request, BrokerFeed, Ended, FeedEvent, FeedSubscription, MarketEvent, Message,
-    PrepareError, Reconnect, ReleaseAnswer, ReleaseRefusals, StopKind,
+    normalize_request, BrokerFeed, ConnectGate, Ended, FeedEvent, FeedSubscription, MarketEvent,
+    Message, PrepareError, Reconnect, ReleaseAnswer, ReleaseRefusals, StopKind,
 };
 use futures_util::{FutureExt, SinkExt, StreamExt};
 use parking_lot::Mutex;
@@ -120,6 +120,8 @@ pub(super) struct Supervisor {
     pub(super) set_answer: Option<SetAnswer>,
     /// How many sets the connection has sent.
     pub(super) generation: u64,
+    /// The manager's connect gate (`WebSocketManager::set_connect_gate`).
+    pub(super) gate: Arc<Mutex<Option<ConnectGate>>>,
 }
 
 impl Supervisor {
@@ -243,6 +245,15 @@ impl Supervisor {
     }
 
     async fn connect_once(&mut self, broker: &str) -> SessionEnd {
+        // Cloned out of the lock: the gate is called with nothing held.
+        let gate = self.gate.lock().clone();
+        if let Some(message) = gate.and_then(|may_connect| may_connect()) {
+            tracing::info!(
+                broker,
+                "Market data feed not connected: the session has ended"
+            );
+            return SessionEnd::AuthFailed(message);
+        }
         match tokio::time::timeout(self.config.connect_timeout, self.feed.prepare()).await {
             Ok(Ok(())) => {}
             Ok(Err(PrepareError::AuthFailed(message))) => return SessionEnd::AuthFailed(message),

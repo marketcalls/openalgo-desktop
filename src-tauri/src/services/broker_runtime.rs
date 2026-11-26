@@ -14,7 +14,10 @@
 //!    poller);
 //! 5. order updates from any of them are published as `order.update` with
 //!    the web payload, which the Socket.IO subscriber and the 8765 order
-//!    stream consume.
+//!    stream consume; where the market feed is the session's only stream
+//!    (Flattrade), the order book is read once after each of its connects
+//!    for what a gap missed, and the feed does not reconnect after the daily
+//!    boundary (`catch_up`).
 //!
 //! `teardown`: every task above is owned by one `JoinSet` and aborted; the
 //! three managers are disconnected (sockets closed, subscriptions cleared);
@@ -41,7 +44,9 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinSet;
 
+mod catch_up;
 mod limits;
+pub use catch_up::{catch_up_orders, CatchUpSession, OrderCatchUp, SessionDay};
 pub use limits::{deep_book_timeout, pool_limits};
 #[cfg(test)]
 mod relay_tests;
@@ -187,12 +192,25 @@ impl BrokerRuntime {
         // Order updates: subscribe before any socket connects so none is
         // missed. Kite carries them on the market feed.
         let bus = ctx.bus.clone();
+        let catch_up = self.single_stream(ctx, &broker, &auth, session, generation);
         for feed in [ctx.websocket.clone(), self.order_ws.clone()] {
             let rx = feed.subscribe_ticks();
             let bus = bus.clone();
+            // The catch-up hears what the market feed pushed.
+            let remember = if Arc::ptr_eq(&feed, &ctx.websocket) {
+                catch_up.clone()
+            } else {
+                None
+            };
             Self::spawn(
                 &self.tasks,
-                relay_socket_orders(rx, feed, bus, (broker.clone(), auth.clone(), generation)),
+                relay_socket_orders(
+                    rx,
+                    feed,
+                    bus,
+                    (broker.clone(), auth.clone(), generation),
+                    remember,
+                ),
             );
         }
 
@@ -202,6 +220,44 @@ impl BrokerRuntime {
             let Some(ctx) = weak.upgrade() else { return };
             start_session(ctx, broker, auth, tasks, generation).await;
         });
+    }
+
+    /// A broker whose market feed is its session's only stream
+    /// (`Broker::single_session_stream`): the feed's connect gate for the
+    /// session's day, and the order catch-up after each of its connects,
+    /// watching its status from before it starts. Returns the catch-up the
+    /// market feed's order relay tells of every update it pushes.
+    fn single_stream(
+        &self,
+        ctx: &AppState,
+        broker: &Arc<dyn Broker>,
+        auth: &AuthToken,
+        session: &BrokerSession,
+        generation: u64,
+    ) -> Option<Arc<OrderCatchUp>> {
+        if !broker.single_session_stream() {
+            return None;
+        }
+        let cfg = ctx.server_config();
+        let day = SessionDay::new(
+            ctx.clock.clone(),
+            session.authenticated_at,
+            cfg.session_expiry_hour,
+            cfg.session_expiry_minute,
+        );
+        ctx.websocket
+            .set_connect_gate(Some(day.clone().gate(broker.name())));
+        let state = Arc::new(OrderCatchUp::default());
+        let status = ctx.websocket.watch_status();
+        let session = CatchUpSession {
+            broker: broker.clone(),
+            auth: auth.clone(),
+            bus: ctx.bus.clone(),
+            generation,
+            current: Arc::new(move || day.current()),
+        };
+        Self::spawn(&self.tasks, catch_up_orders(state.clone(), status, session));
+        Some(state)
     }
 
     /// Stop everything the session runs. Idempotent.
@@ -448,17 +504,24 @@ async fn completed(broker: &dyn Broker, auth: &AuthToken, update: OrderUpdate) -
     }
 }
 
+/// The order updates `feed` decodes, completed by the broker and published
+/// as the session's; `remember` (the market feed's order catch-up) hears
+/// each first.
 async fn relay_socket_orders(
     mut rx: broadcast::Receiver<MarketEvent>,
     feed: Arc<WebSocketManager>,
     bus: Arc<EventBus>,
     (broker, auth, generation): (Arc<dyn Broker>, AuthToken, u64),
+    remember: Option<Arc<OrderCatchUp>>,
 ) {
     loop {
         match rx.recv().await {
             Ok(ev) => {
                 if let FeedEvent::OrderUpdate(u) = &*ev {
                     let u = completed(&*broker, &auth, u.clone()).await;
+                    if let Some(catch_up) = &remember {
+                        catch_up.remember(&u);
+                    }
                     bus.publish(order_event(&u, broker.id(), generation));
                 }
             }
