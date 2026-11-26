@@ -13,7 +13,7 @@
 
 use super::args::{fetch_chars, offset};
 use super::run_state::{bounded_text, Page};
-use super::{busy, failure, mark_used, or_list, stored_key, WebTool};
+use super::{busy, failure, keyed_in_order, mark_used, or_list, WebTool};
 use crate::agent::contract::json::dumps_capped_ordered;
 use crate::agent::contract::tool::{ToolCtx, ToolOutcome};
 use crate::agent::prompts::untrusted::wrap_web_result;
@@ -124,7 +124,7 @@ impl WebTool {
         if let Some(page) = self.shared.run.page(&url) {
             return slice(&page, &url, source, (size, start), &notices, true);
         }
-        let candidates = self.fetch_candidates(ctx, &config).await;
+        let candidates = keyed_in_order(&ctx.app, FETCH_PROVIDERS, config.fetch_provider).await;
         if candidates.is_empty() {
             tracing::info!("Web fetch refused before dispatch: no fetch provider has a key");
             return not_configured();
@@ -159,29 +159,6 @@ impl WebTool {
         };
         self.shared.run.keep(&url, &page);
         slice(&page, &url, source, (size, start), &notices, false)
-    }
-
-    /// The fetch providers that hold a key, the configured one first
-    /// (`_fetch_candidates`).
-    async fn fetch_candidates(
-        &self,
-        ctx: &ToolCtx,
-        config: &Config,
-    ) -> Vec<(&'static str, Secret)> {
-        let mut order = vec![config.fetch_provider];
-        order.extend(
-            FETCH_PROVIDERS
-                .iter()
-                .copied()
-                .filter(|p| *p != config.fetch_provider),
-        );
-        let mut found = Vec::new();
-        for name in order {
-            if let Some(key) = stored_key(&ctx.app, name).await {
-                found.push((name, key));
-            }
-        }
-        found
     }
 
     /// Ask each candidate in turn until one reads the page. A second

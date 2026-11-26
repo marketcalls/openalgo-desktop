@@ -3,7 +3,7 @@
 //! first (`preferred`).
 
 use super::args::{constrained, max_results, topic, Topic};
-use super::{blocked, busy, failure, json_text, mark_used, stored_key, WebTool};
+use super::{blocked, busy, failure, json_text, keyed_in_order, mark_used, WebTool};
 use crate::agent::contract::tool::{ToolCtx, ToolOutcome};
 use crate::agent::prompts::untrusted::wrap_web_result;
 use crate::agent::websearch::payloads::{Links, NotOk};
@@ -13,7 +13,6 @@ use crate::agent::websearch::taint::Constrained;
 use crate::agent::websearch::{
     duckduckgo, keyed, label, DUCKDUCKGO, KEYED_LINK_PROVIDERS, PERPLEXITY,
 };
-use crate::security::Secret;
 use serde_json::{Map, Value};
 
 impl WebTool {
@@ -126,15 +125,10 @@ impl WebTool {
         count: usize,
         notices: &mut Vec<String>,
     ) -> Outcome {
+        let chain = keyed_in_order(&ctx.app, KEYED_LINK_PROVIDERS, config.provider).await;
         let mut provider = config.provider;
         if provider == PERPLEXITY {
-            let mut borrowed = None;
-            for name in KEYED_LINK_PROVIDERS.iter().copied() {
-                if stored_key(&ctx.app, name).await.is_some() {
-                    borrowed = Some(name);
-                    break;
-                }
-            }
+            let borrowed = chain.first().map(|(name, _)| *name);
             let note = format!(
                 "The configured provider is Perplexity, which answers questions rather than returning links, so {} answered this search. Use web_research for a Perplexity answer.",
                 borrowed.map(label).unwrap_or("DuckDuckGo")
@@ -144,7 +138,6 @@ impl WebTool {
             }
             provider = borrowed.unwrap_or(DUCKDUCKGO);
         }
-        let chain = self.keyed_chain(ctx, provider).await;
         let configured_has_key = chain.first().is_some_and(|(n, _)| *n == provider);
         if KEYED_LINK_PROVIDERS.contains(&provider) && !configured_has_key {
             let name = label(provider);
@@ -178,22 +171,5 @@ impl WebTool {
             }
         }
         duckduckgo::search(&self.shared.net, text, count).await
-    }
-
-    /// The keyed link providers that hold a key, `first` at the head when it
-    /// is one of them.
-    async fn keyed_chain(&self, ctx: &ToolCtx, first: &'static str) -> Vec<(&'static str, Secret)> {
-        let mut order: Vec<&'static str> = Vec::new();
-        if KEYED_LINK_PROVIDERS.contains(&first) {
-            order.push(first);
-        }
-        order.extend(KEYED_LINK_PROVIDERS.iter().copied().filter(|n| *n != first));
-        let mut chain = Vec::new();
-        for name in order {
-            if let Some(key) = stored_key(&ctx.app, name).await {
-                chain.push((name, key));
-            }
-        }
-        chain
     }
 }

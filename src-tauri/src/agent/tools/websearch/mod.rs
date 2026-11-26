@@ -181,6 +181,32 @@ async fn stored_key(app: &Arc<AppState>, provider: &'static str) -> Option<Secre
         .flatten()
 }
 
+/// The providers of `list` whose key is stored, `first` at the head when it
+/// is one of them and the rest in the list's order, each key opened once,
+/// at the moment of use, on one pooled connection: the chain a link search
+/// falls through (`_link_outcome`) and the pages' candidates
+/// (`_fetch_candidates`).
+async fn keyed_in_order(
+    app: &Arc<AppState>,
+    list: &'static [&'static str],
+    first: &str,
+) -> Vec<(&'static str, Secret)> {
+    let order: Vec<&'static str> = list
+        .iter()
+        .copied()
+        .filter(|name| *name == first)
+        .chain(list.iter().copied().filter(|name| *name != first))
+        .collect();
+    app.blocking(move |c| {
+        Ok(order
+            .into_iter()
+            .filter_map(|name| settings::stored_key(c, name).map(|key| (name, key)))
+            .collect())
+    })
+    .await
+    .unwrap_or_default()
+}
+
 /// Record that a provider was handed its key.
 async fn mark_used(app: &Arc<AppState>, outcome: &Outcome) {
     if outcome.key_used {
