@@ -1206,6 +1206,93 @@ async fn flattrade_master_csvs() {
     assert_eq!(files.len(), 8, "{:?}", files);
 }
 
+/// Flattrade's NSE file with RELIANCE, which Shoonya's NSE file lists with
+/// a tick of 10 paise.
+const FLATTRADE_NSE_WITH_RELIANCE: &str =
+    "Exchange,Token,Lotsize,Symbol,Tradingsymbol,Instrument,Expiry,Strike,Optiontype\n\
+NSE,3045,1,SBIN,SBIN-EQ,EQ,,,\n\
+NSE,2885,1,RELIANCE,RELIANCE-EQ,EQ,,,\n\
+NSE,26000,,NIFTY,Nifty 50,INDEX,,,\n";
+
+fn tick_of(rows: &[SymbolData], symbol: &str, exchange: &str) -> f64 {
+    rows.iter()
+        .find(|r| r.symbol == symbol && r.exchange == exchange)
+        .unwrap_or_else(|| panic!("{exchange} {symbol} in the master"))
+        .tick_size
+}
+
+/// Web #2508 (702153110): Flattrade's files carry no tick size, so the
+/// download also reads Shoonya's six symbol files and takes each token's
+/// tick from them, matched on exchange and token: NIFTY's October future
+/// ticks in 0.10, and RELIANCE's 10 in Shoonya's NSE file is paise, 0.10
+/// (the web reads it as 10 rupees: a web defect not copied). A token
+/// Shoonya does not list (Flattrade's CRUDEOIL) keeps the fixed tick.
+#[tokio::test]
+async fn flattrade_takes_its_tick_sizes_from_shoonyas_symbol_files() {
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.bodies
+        .lock()
+        .push(("NSE_Equity.csv", FLATTRADE_NSE_WITH_RELIANCE));
+    let rows = b.download_master_contract(&auth).await.unwrap();
+    assert_eq!(tick_of(&rows, "NIFTY27OCT26FUT", "NFO"), 0.10);
+    assert_eq!(tick_of(&rows, "NIFTY27OCT2625000CE", "NFO"), 0.05);
+    assert_eq!(tick_of(&rows, "RELIANCE", "NSE"), 0.10);
+    assert_eq!(tick_of(&rows, "SBIN", "NSE"), 0.05);
+    assert_eq!(tick_of(&rows, "CRUDEOIL19OCT26FUT", "MCX"), 0.05);
+    let zips: Vec<String> = fake
+        .seen
+        .lock()
+        .iter()
+        .filter(|s| s.path.ends_with("_symbols.txt.zip"))
+        .map(|s| s.path.clone())
+        .collect();
+    assert_eq!(zips.len(), 6, "{:?}", zips);
+}
+
+/// Web #2508: Shoonya's files are a correction, never a reason to fail the
+/// download. A file that is down (NFO) or not a zip (MCX) leaves its
+/// segment at the fixed tick; the files that came still give theirs.
+#[tokio::test]
+async fn flattrade_keeps_the_fixed_tick_where_a_shoonya_file_fails() {
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.down.lock().push("NFO_symbols.txt.zip");
+    fake.bodies.lock().extend([
+        ("MCX_symbols.txt.zip", "not a zip"),
+        ("NSE_Equity.csv", FLATTRADE_NSE_WITH_RELIANCE),
+    ]);
+    let rows = b.download_master_contract(&auth).await.unwrap();
+    assert_eq!(tick_of(&rows, "NIFTY27OCT26FUT", "NFO"), 0.05);
+    assert_eq!(tick_of(&rows, "RELIANCE", "NSE"), 0.10);
+    for ex in ["NSE", "BSE", "NFO", "CDS", "MCX", "BFO"] {
+        assert!(rows.iter().any(|r| r.exchange == ex), "{}", ex);
+    }
+}
+
+/// Web #2508 changes Flattrade alone: Shoonya, Zebu and TradeSmart fetch
+/// their own six files and nothing more; Flattrade fetches its eight and
+/// Shoonya's six.
+#[tokio::test]
+async fn only_flattrade_reads_another_members_symbol_files() {
+    for cfg in [
+        shoonya::config(),
+        zebu::config(),
+        tradesmart::config(),
+        flattrade::config(),
+    ] {
+        let (b, fake, auth) = noren(cfg).await;
+        b.download_master_contract(&auth).await.unwrap();
+        let fetched: Vec<String> = fake.seen.lock().iter().map(|s| s.path.clone()).collect();
+        let shoonyas = if cfg.id == "flattrade" { 6 } else { 0 };
+        assert_eq!(
+            fetched.len(),
+            cfg.master_files.len() + shoonyas,
+            "{}: {:?}",
+            cfg.id,
+            fetched
+        );
+    }
+}
+
 /// Web #2198: a Flattrade master file that fails, comes back empty, or a
 /// segment that yields no rows refuses the whole download (the stored
 /// master is kept), naming the segment (the other members:
