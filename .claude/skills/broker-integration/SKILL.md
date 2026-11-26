@@ -452,20 +452,25 @@ seconds away.
 
 **Orders**
 
-- **A throttle code or text inside a reply does not prove a write was not
-  taken.** IIFL's fallback matched its generic EC003 error as a throttle,
-  so one order could go out four times; a timeout or a dropped connection
-  proves nothing either. Such a write is sent once and answered as not
-  confirmed (`AppError::uncertain`, as `iiflcapital/mod.rs` does). Check: a
-  fake that answers the place that way sees exactly one request.
-- **An HTTP 429 on a write is an open question.** CLAUDE.md ("Broker
-  request limits") reads a 429 as decided before the order was taken, and
-  Fyers repeats the write after the wait; Delta Exchange, Groww, Sahi,
-  Nubra and Dhan's sandbox do too, as their web adapters do. The web's
-  skill now says never to resend even that. Until the maintainer decides
-  (raised in the 1.0.10 sync), keep those adapters as they are, and give a
-  new adapter whose broker does not document its 429 as a refusal before
-  processing the IIFL treatment above.
+- **A throttle text or code the broker does not document as a refusal
+  before processing does not prove a write was not taken.** IIFL's
+  fallback matched its generic EC003 error ("try after some time") as a
+  throttle, so one order could go out four times; a timeout or a dropped
+  connection proves nothing either. Such a write is sent once and answered
+  as not confirmed (`AppError::uncertain`, as `iiflcapital/mod.rs` does).
+  Check: a fake that answers the place that way sees exactly one request.
+- **A documented throttle answer on a write is an open question**: an HTTP
+  429, or Fyers' code 429 in the body. CLAUDE.md ("Broker request limits")
+  reads both as decided before the order was taken, so Fyers repeats a
+  place, modify or cancel after the wait for either
+  (`fyers::FyersBroker::raw_in` with `is_throttle_body`; tests in
+  `tests/it/broker_fyers_adapter.rs`), and Delta Exchange, Groww, Sahi,
+  Nubra and Dhan's sandbox repeat an HTTP 429, as their web adapters do.
+  The web's skill now says never to resend even that. Until the maintainer
+  decides (raised in the 1.0.10 sync), keep those adapters as they are and
+  do not report their repeat as a defect; give a new adapter whose broker
+  does not document its throttle answer as a refusal before processing the
+  IIFL treatment above.
 - **A tag the broker treats as a client order id is unique per order.**
   Kotak refuses a reused `ig`, so a fixed tag placed only the first order
   of the day (#2178); `kotak::mapping::order_tag` adds a UUID. Check: two
@@ -480,9 +485,19 @@ seconds away.
   XTS digits only). The id in a cancel or modify is the API caller's text.
   Rupeezy's `OFPIM00001?:` cut the path and cancel answered "not found";
   XTS's 20-digit ids collapsed into one through a float (#2468).
-- **Cancel and cancel-all read the order book first.** A read that fails
-  is an error, never "nothing to cancel"; an id the book does not list is
-  `AppError::NotFound` and nothing is sent (`nuvama::orders::cancel_order`).
+- **A cancel-all or modify on an unreadable order book is an error, never
+  "nothing to cancel"** (Rupeezy on the web). Cancel-all reads the book;
+  a single cancel or modify reads it only where the broker's request needs
+  the row's fields (Nuvama and Paytm: `nuvama::orders::find_order`,
+  `paytm::orders::cancel_order`). A broker that cancels by id sends the
+  cancel at once, as its web adapter does (`zerodha::orders::cancel_order`,
+  `dhan::orders::cancel_order`), with no book read on the orders path.
+  Where the row is read, its failures stay apart: an id the book does not
+  list is `AppError::NotFound` (404) with nothing sent; a row no longer
+  working is refused naming its current status (`AppError::Validation`,
+  400, matched against the broker's whole status vocabulary, Paytm #2374);
+  a read that fails stays that read's error. Check: one test for each of
+  the three.
 
 **Books**
 
@@ -509,7 +524,12 @@ seconds away.
   takes every `... pending` but a trigger as open, and `zerodha::mapping`
   lists Kite's transient states (VALIDATION PENDING, MODIFY PENDING,
   CANCEL PENDING, AMO REQ RECEIVED). Check: a row with a modify or cancel
-  in flight reads `open` in the book and on the stream.
+  in flight reads `open` in the book and on the stream. The book presents
+  a state differently from the stream only where the web adapter does:
+  Kite's REST book shows `trigger pending` as `open` while its stream
+  keeps `trigger pending` (`zerodha::mapping::book_status` over
+  `map_status`, web #2185, pinned in `zerodha/tests.rs`). Do not merge the
+  two.
 - **Rows are matched on the id the master stores**: Kotak holdings by
   `exchangeIdentifier`, not `instrumentToken` (#2367); a position by its
   token, never the broker's display name (RMoney #2292). Read errors from
@@ -534,16 +554,21 @@ seconds away.
 
 **Master contract**
 
-- **`instrument_type` is `EQ`, `FUT`, `CE`, `PE` or empty.** Every
-  non-derivative row on a cash exchange is `EQ`: indices, G-secs, ETFs,
-  every series code. Trim the column; never store a series or a padded
-  value (Fyers `GB`, 5paisa `BE`, TradeSmart's series column, Kotak
-  `"  "`). Still open, against the web checklist's `EQ` (MC-04): Shoonya,
-  Zebu, TradeSmart, Firstock, Motilal, IIFL Capital, mStock, Samco, Nubra
-  and the XTS index lists type index rows `INDEX` here, and the XTS family
-  keeps BSE's series codes, as their web adapters do. Until the maintainer
-  decides (raised in the 1.0.10 sync), follow the web adapter, since
+- **On the Indian exchanges `instrument_type` is `EQ`, `FUT`, `CE`, `PE`
+  or empty.** Every non-derivative row on a cash exchange is `EQ`:
+  indices, G-secs, ETFs, every series code. Trim the column; never store a
+  series or a padded value (Fyers `GB`, 5paisa `BE`, TradeSmart's series
+  column, Kotak `"  "`). `CRYPTO` follows the web's
+  `docs/prompt/crypto-symbol-format.md` instead: `PERPFUT`, `SPOT` and the
+  other Delta contract types (`deltaexchange::master_contract::instrument_type`).
+  Still open, against the web checklist's `EQ` (MC-04): Shoonya, Zebu,
+  Firstock, Motilal, IIFL Capital, mStock, Samco, Nubra and the XTS index
+  lists type index rows `INDEX` here, and the XTS family keeps BSE's
+  series codes, as their web adapters do. Until the maintainer decides
+  (raised in the 1.0.10 sync), follow the web adapter, since
   `instrumenttype` reaches `/api/v1/search` and `/api/v1/instruments`.
+  TradeSmart is not among them: web #2475 types its index rows `EQ`, and
+  the 1.0.10 TradeSmart port follows it.
 - **An expiry sentinel (0, -1, the epoch) is no expiry** and clears the
   type with it: Kotak stored `GOLD01JAN70` (#2114); `kotak::master_contract`
   gives a row that never expires neither.
@@ -642,9 +667,9 @@ web")
 - [ ] `catalog.rs`: `ALL_BROKERS`, `auth_type`, authorize URL, `extract_code`, state carriage, `configured_account` / `CLIENT_ID_BROKERS`, form fields
 - [ ] Every book returns OpenAlgo symbols and web status strings
 - [ ] The broker's empty answer read as an empty book for each book (one test per book, and the same answer on a 5xx is an error); nothing above debug for an empty read
-- [ ] No write resent after a throttle code or text in a reply, a timeout or a dropped connection (one request in the fake; an HTTP 429 as section 11 says); order ids kept as text and percent-encoded or shape-checked in a path
-- [ ] One status map for the book and the stream; a pending modify or cancel reads `open`
-- [ ] `instrument_type` only `EQ`, `FUT`, `CE`, `PE` or empty (index rows as section 11 says); no expiry sentinel; `name` never blank; `lot_size` in units per row
+- [ ] No write resent after a throttle text or code the broker does not document as a refusal before processing, a timeout or a dropped connection (one request in the fake; an HTTP 429 or Fyers' body code 429 as section 11 says); order ids kept as text and percent-encoded or shape-checked in a path
+- [ ] One status map for the book and the stream (a book-only form only where the web adapter has one, as `zerodha::mapping::book_status`); a pending modify or cancel reads `open`
+- [ ] On the Indian exchanges `instrument_type` only `EQ`, `FUT`, `CE`, `PE` or empty (index rows as section 11 says; `CRYPTO` as the web's `crypto-symbol-format.md`); no expiry sentinel; `name` never blank; `lot_size` in units per row
 - [ ] History in IST, repaired, on the session grid, nothing outside the session; an empty window is a quick empty success
 - [ ] Master contract fills every `SymToken` column, expiry `DD-MMM-YY`
 - [ ] Nifty 500 check prints `NIFTY 500 COMPLETE`, on the parsed rows (`--rows-csv`) and on the stored master (`--db` of a dev_server data folder); NSE series suffixes stripped from `symbol`, kept in `brsymbol`
