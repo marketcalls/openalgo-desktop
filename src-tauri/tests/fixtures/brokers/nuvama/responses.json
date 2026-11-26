@@ -1,5 +1,5 @@
 {
-  "_note": "Shapes built from the web adapter's field names (openalgo ee123273b, broker/nuvama/**: api/auth_api.py, api/order_api.py, mapping/order_data.py, api/funds.py, api/data.py and the commit message); no live capture exists here. Account ids and tokens are placeholders.",
+  "_note": "Shapes built from the web adapter's field names (openalgo ee123273b, broker/nuvama/**: api/auth_api.py, api/order_api.py, mapping/order_data.py, api/funds.py, api/data.py and the commit message); no live capture exists here. Account ids and tokens are placeholders. The empty order book (ETRD0007) and its text follow web 498c356e5 (openalgo#2479); the empty trade book's code is the web's `_EMPTY_BOOK_CODES` entry, its text a stand-in.",
   "login_vendor": {"msg": "SOURCETOKEN1", "success": true},
   "login_data": {
     "data": {
@@ -38,6 +38,8 @@
     }
   },
   "positions_empty": {"error": {"actCd": "54", "errCd": "ETRD0004", "errMsg": "Seems like there are no positions in your account currently"}},
+  "order_book_empty": {"error": {"actCd": "54", "errCd": "ETRD0007", "errMsg": "Seems like there are no orders in your order book"}},
+  "trade_book_empty": {"error": {"actCd": "54", "errCd": "ETRD0002", "errMsg": "Seems like there are no trades in your trade book"}},
   "session_expired": {"error": {"actCd": "52", "errCd": "EGN0011", "errMsg": "Session Expired"}},
   "holdings": {
     "data": {

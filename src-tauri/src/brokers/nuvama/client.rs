@@ -16,8 +16,11 @@ use reqwest::Method;
 use serde_json::Value;
 use std::time::Duration;
 
-/// Nuvama's "nothing in this book" codes (web `_EMPTY_BOOK_CODES`).
-pub(crate) const EMPTY_BOOK_CODES: &[&str] = &["ETRD0002", "ETRD0004"];
+/// Nuvama's "nothing in this book" codes (web `_EMPTY_BOOK_CODES`):
+/// ETRD0007 orders, ETRD0002 trades, ETRD0004 positions. As on the web,
+/// any of them reads as empty on any book. Without ETRD0007 a flat
+/// account's order book was a refusal (web openalgo#2479).
+pub(crate) const EMPTY_BOOK_CODES: &[&str] = &["ETRD0002", "ETRD0004", "ETRD0007"];
 /// Nuvama's code for a session it no longer accepts.
 const SESSION_EXPIRED_CODES: &[&str] = &["EGN0011"];
 /// The status Nuvama answers refusals and empty books with.

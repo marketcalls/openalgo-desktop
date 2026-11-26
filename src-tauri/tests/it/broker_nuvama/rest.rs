@@ -191,6 +191,36 @@ async fn position_reads_follow_the_webs_failure_spec() {
         .is_err());
 }
 
+/// Web 498c356e5 (openalgo#2479), a flat account through the fake: the
+/// order book's 222 with ETRD0007 is no orders (it was "Failed to fetch
+/// orders"), so cancel-all has nothing to cancel and a cancel names the
+/// order as not found without sending one; the trade book's 222 with
+/// ETRD0002 is no trades.
+#[tokio::test]
+async fn an_empty_order_book_and_trade_book_are_no_rows() {
+    let (fake, b) = broker().await;
+    let book = "/order/book/ACC1/v1/";
+    fake.script("GET", book, 222, fixture("order_book_empty"));
+    fake.script(
+        "GET",
+        "/tradebook/v1/ACC1/",
+        222,
+        fixture("trade_book_empty"),
+    );
+    assert!(b.get_order_book(&auth()).await.unwrap().is_empty());
+    assert!(b.get_trade_book(&auth()).await.unwrap().is_empty());
+    let all = b.cancel_all_orders(&auth()).await.unwrap();
+    assert!(all.cancelled.is_empty() && all.failed.is_empty(), "{all:?}");
+    let e = b.cancel_order(&auth(), "ORD1").await.unwrap_err();
+    assert!(matches!(e, AppError::NotFound(_)), "{e:?}");
+    assert!(fake
+        .calls("PUT", "/edelmw-eq/eq/trade/canceltrade/v1/ACC1/")
+        .is_empty());
+    // The same code on a server error is not an empty book.
+    fake.script("GET", book, 503, fixture("order_book_empty"));
+    assert!(b.get_order_book(&auth()).await.is_err());
+}
+
 /// web `apply_market_protection`: MARKET goes as LIMIT off the LTP, SL-M as
 /// STOP_LIMIT off its trigger; three outcomes by Nuvama's answer.
 #[tokio::test]

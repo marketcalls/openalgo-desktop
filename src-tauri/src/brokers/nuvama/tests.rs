@@ -296,6 +296,45 @@ fn an_empty_book_is_only_nuvamas_empty_answer() {
         .contains("worse than the trigger"));
 }
 
+/// Web 498c356e5 (openalgo#2479): Nuvama answers an empty order book with
+/// HTTP 222 and ETRD0007, which is no orders, not "Failed to fetch
+/// orders"; the same code on a server error says nothing about the book.
+#[test]
+fn an_empty_order_book_is_no_orders() {
+    let empty = resp("order_book_empty");
+    assert!(
+        books::rows(&answer(222, empty.clone()), books::NuvamaBook::Orders)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(books::rows(&answer(503, empty), books::NuvamaBook::Orders).is_err());
+}
+
+/// Web `_book` reads each of `_EMPTY_BOOK_CODES` as no rows on every book:
+/// ETRD0002 (trades) and ETRD0004 (positions) were read before
+/// openalgo#2479; holdings have no code of their own on the web and take
+/// the same three. Any other refusal stays a refusal.
+#[test]
+fn every_book_reads_nuvamas_empty_codes_as_no_rows() {
+    use books::NuvamaBook as B;
+    for which in [B::Orders, B::Trades, B::Positions, B::Holdings] {
+        for code in ["ETRD0007", "ETRD0002", "ETRD0004"] {
+            let a = answer(
+                222,
+                json!({"error": {"actCd": "54", "errCd": code, "errMsg": "Nothing here"}}),
+            );
+            assert!(
+                books::rows(&a, which).unwrap().is_empty(),
+                "{which:?} {code}"
+            );
+        }
+        let refused = books::rows(&answer(222, resp("place_refused")), which);
+        assert!(refused.is_err(), "{which:?}");
+    }
+    let trades = books::rows(&answer(222, resp("trade_book_empty")), B::Trades);
+    assert!(trades.unwrap().is_empty());
+}
+
 #[test]
 fn trades_positions_and_holdings_are_openalgo_rows() {
     let m = master();

@@ -14,10 +14,12 @@ proves nothing about an adapter.
 The web's skill is the companion for broker *behaviour* (rate limits, history
 windows, order-type emulation, quirks per broker). Its references are in the
 read-only web checkout at `openalgo/.claude/skills/broker-integration/references/`
-(`cross-broker-reference.md`, `auth-and-login.md`, `master-contract.md`,
-`streaming.md`, `order-updates.md`, `history-data.md`, `rate-limiting.md`,
-`order-type-emulation.md`, `hardening-and-verification.md`). This skill is the
-desktop's *mechanics*: where each piece goes in Rust and how it is tested.
+(`cross-broker-reference.md`, `auth-and-login.md`, `data-and-account.md`,
+`master-contract.md`, `streaming.md`, `order-updates.md`, `history-data.md`,
+`rate-limiting.md`, `order-type-emulation.md`,
+`hardening-and-verification.md`). This skill is the desktop's *mechanics*:
+where each piece goes in Rust and how it is tested. Section 11 carries the
+defect classes the web's broker fixes found, written for the Rust code.
 
 ## 1. Pick the family first
 
@@ -435,6 +437,228 @@ Read the web code and its tests for behaviour, then reproduce shapes, not web
 bugs (`tests/fixtures/web/INDEX.md` lists the observed defects). Never edit
 the web checkout.
 
+## 11. Defect classes from the web's broker fixes
+
+The web reviewed its broker fixes of September to November 2026 (web
+7b253a907, marketcalls/openalgo#2483) and wrote the lessons into its skill
+and QA checklist. Many hold here by construction (the typed `PriceType`,
+the three placement outcomes, `book_read`, the feed corpus) or are already
+CLAUDE.md rules (feed parity, broker request limits). These are the ones a
+Rust adapter can still get wrong, each with the code that holds it and the
+check that proves it. The web's gthread section (pacers, executors and
+imports under its worker classes) has no desktop counterpart:
+`common::ratelimit::Pacer::acquire` already refuses a turn more than ten
+seconds away.
+
+**Orders**
+
+- **A throttle text or code the broker does not document as a refusal
+  before processing does not prove a write was not taken.** IIFL's
+  fallback matched its generic EC003 error ("try after some time") as a
+  throttle, so one order could go out four times; a timeout or a dropped
+  connection proves nothing either. Such a write is sent once and answered
+  as not confirmed (`AppError::uncertain`, as `iiflcapital/mod.rs` does).
+  Check: a fake that answers the place that way sees exactly one request.
+- **A documented throttle answer on a write is an open question**: an HTTP
+  429, or Fyers' code 429 in the body. CLAUDE.md ("Broker request limits")
+  reads both as decided before the order was taken, so Fyers repeats a
+  place, modify or cancel after the wait for either
+  (`fyers::FyersBroker::raw_in` with `is_throttle_body`; tests in
+  `tests/it/broker_fyers_adapter.rs`), and Delta Exchange, Groww, Sahi,
+  Nubra and Dhan's sandbox repeat an HTTP 429, as their web adapters do.
+  The web's skill now says never to resend even that. Until the maintainer
+  decides (raised in the 1.0.10 sync), keep those adapters as they are and
+  do not report their repeat as a defect; give a new adapter whose broker
+  does not document its throttle answer as a refusal before processing the
+  IIFL treatment above.
+- **A tag the broker treats as a client order id is unique per order.**
+  Kotak refuses a reused `ig`, so a fixed tag placed only the first order
+  of the day (#2178); `kotak::mapping::order_tag` adds a UUID. Check: two
+  placements carry different tags.
+- **Modify sends the trigger in the field the broker reads.** Angel reads
+  `triggerprice`; sending only `stoploss` answered success and left the
+  trigger unchanged (#2279; `angel::mapping` sends both). A success reply
+  proves nothing: certification reads the broker's book.
+- **An order id is text, percent-encoded in a URL path**
+  (`urlencoding::encode`, as Zerodha, Dhan and Rupeezy do), or checked
+  against the broker's id shape first (`iiflcapital::mapping::safe_order_id`,
+  XTS digits only). The id in a cancel or modify is the API caller's text.
+  Rupeezy's `OFPIM00001?:` cut the path and cancel answered "not found";
+  XTS's 20-digit ids collapsed into one through a float (#2468).
+- **A cancel-all or modify on an unreadable order book is an error, never
+  "nothing to cancel"** (Rupeezy on the web). Cancel-all reads the book;
+  a single cancel or modify reads it only where the broker's request needs
+  the row's fields (Nuvama and Paytm: `nuvama::orders::find_order`,
+  `paytm::orders::cancel_order`). A broker that cancels by id sends the
+  cancel at once, as its web adapter does (`zerodha::orders::cancel_order`,
+  `dhan::orders::cancel_order`), with no book read on the orders path.
+  Where the row is read, its failures stay apart: an id the book does not
+  list is `AppError::NotFound` (404) with nothing sent; where the adapter
+  checks the row's state, as Paytm does, a row no longer working is
+  refused naming its current status (`AppError::Validation`, 400, matched
+  against the broker's whole status vocabulary, Paytm #2374); a read that
+  fails stays that read's error. Check: one test for each failure the
+  adapter has.
+
+**Books**
+
+- **An empty-book answer is an empty book, for every book, and logs
+  nothing above debug.** The order reconciler reads the order book every
+  5 s while an owner holds an open order, and `common::order_poll` polls
+  every 5 s, so a warning per empty read floods the log and a refusal
+  stops cancel-all and the Orders page. Map the broker's own answer inside
+  its book read: a code (`nuvama::client::EMPTY_BOOK_CODES`: ETRD0007
+  orders, ETRD0002 trades, ETRD0004 positions; ETRD0007 was missing until
+  web #2479), or a short message through
+  `common::position_read::says_no_positions` with the broker's fields
+  (Samco, Kotak; Noren's `no data` through
+  `families::noren::transport::is_no_data`). Everything else stays an error
+  (`book_read`, BR-03), a server error carrying the code included. Check:
+  one test per book with the broker's empty answer, and the same answer on
+  a 5xx.
+- **A trade is counted by its own fill.** Noren repeats the order's `qty`
+  and running `avgprc` on every fill row; the fill is `flqty` at `flprc`
+  (Flattrade #2480).
+- **One status map per broker, shared by the book and the order stream,
+  exact values first.** A substring rule reads "cancel pending" as
+  cancelled (the web's Nuvama map); `nuvama::mapping::normalize_status`
+  takes every `... pending` but a trigger as open, and `zerodha::mapping`
+  lists Kite's transient states (VALIDATION PENDING, MODIFY PENDING,
+  CANCEL PENDING, AMO REQ RECEIVED). Check: a row with a modify or cancel
+  in flight reads `open` in the book and on the stream. The book presents
+  a state differently from the stream only where the web adapter does:
+  Kite's REST book shows `trigger pending` as `open` while its stream
+  keeps `trigger pending` (`zerodha::mapping::book_status` over
+  `map_status`, web #2185, pinned in `zerodha/tests.rs`). Do not merge the
+  two.
+- **Rows are matched on the id the master stores**: Kotak holdings by
+  `exchangeIdentifier`, not `instrumentToken` (#2367); a position by its
+  token, never the broker's display name (RMoney #2292). Read errors from
+  the field the broker's docs name (Kotak's is `emsg`).
+- **A carried position shows the traded average** (XTS
+  `ActualBuyAveragePrice` over `BuyAveragePrice`, #2468; Kotak's carried
+  CNC cost from holdings, `kotak::carry_cost`).
+- **Every price of a book is scaled by the unit the broker documents for
+  that field**, through one helper, never by a value threshold: Groww
+  divided prices above 1,000, so Rs 1,001 read as 10.01 (#2173). A field
+  whose unit is undocumented is left out.
+
+**Margin**
+
+- **Report the figure the basket endpoint means.** Flattrade's
+  `marginusedtrade` is post-hedge but includes margin already in use, so
+  `MarginApi::BasketLessInUse` subtracts `/Limits` `marginused` (#2156,
+  #2436); Kotak reports `ordMrgn`, not `reqdMrgn` (`kotak::funds`). A leg
+  that cannot be resolved fails the basket by name
+  (`market_data_service::margin`). Check: the same figure on a flat
+  account and on one with a working order.
+
+**Master contract**
+
+- **On the Indian exchanges `instrument_type` is `EQ`, `FUT`, `CE`, `PE`
+  or empty.** Every non-derivative row on a cash exchange is `EQ`:
+  indices, G-secs, ETFs, every series code. Trim the column; never store a
+  series or a padded value (Fyers `GB`, 5paisa `BE`, TradeSmart's series
+  column, Kotak `"  "`). `CRYPTO` follows the web's
+  `docs/prompt/crypto-symbol-format.md` instead: `PERPFUT`, `SPOT` and the
+  other Delta contract types (`deltaexchange::master_contract::instrument_type`).
+  Still open, against the web checklist's `EQ` (MC-04): Shoonya, Zebu,
+  Firstock, Motilal, IIFL Capital, mStock, Samco, Nubra and the XTS index
+  lists type index rows `INDEX` here, and the XTS family keeps BSE's
+  series codes, as their web adapters do. Until the maintainer decides
+  (raised in the 1.0.10 sync), follow the web adapter, since
+  `instrumenttype` reaches `/api/v1/search` and `/api/v1/instruments`.
+  TradeSmart is not among them: web #2475 types its index rows `EQ`, and
+  the 1.0.10 TradeSmart port follows it.
+- **An expiry sentinel (0, -1, the epoch) is no expiry** and clears the
+  type with it: Kotak stored `GOLD01JAN70` (#2114); `kotak::master_contract`
+  gives a row that never expires neither.
+- **`name` is never blank**: fall back to the trading symbol (Kite ships
+  about 8,200 cash rows with none, #2123).
+- **`lot_size` is units, per contract row**: MCX CRUDEOIL is 100, though
+  Kite counts contracts (`zerodha::master_contract` converts). A lot
+  revision applies to new expiries only, so one underlying can carry two.
+- **Derivative symbols are built from the columns**, never copied from the
+  broker's tradingsymbol (Groww ships `SENSEX26O2274900CE`, #2194). An
+  underlying keeps its digits, `&` and `-` (360ONE, M&M, BAJAJ-AUTO; never
+  SENSEX for SENSEX50): `common::underlying::extract_underlying`.
+- **One contract listed twice keeps its newest listing**, the highest
+  token (`fivepaisa::master_contract`). Rows OpenAlgo cannot place (no
+  OpenAlgo exchange, no symbol) are dropped, or they collide with real
+  ones.
+- **A failed or empty known segment fails the download.**
+  `download_master_contract` returns an error and the service keeps the
+  stored master; a segment skipped quietly returns a partial list, and the
+  swap installs it as complete. A segment the parser does not know may be
+  skipped (Tradejini's undocumented groups, #2341). When an auxiliary list
+  (an index endpoint) fails, carry the stored rows forward
+  (`Broker::carries_stored`, as Firstock does), never drop them.
+
+**History**
+
+- **Windows and stamps are IST** (`chrono_tz::Asia::Kolkata`), never the
+  host's zone: a daily candle at 18:30 the day before means a missing
+  +5:30.
+- **A chart refuses the whole series over one bad candle.** Repair through
+  `common::history::repair_candles` (Noren, Kotak, Tradejini); drop bars
+  after the close with `drop_bars_after_close` and the calendar (Dhan
+  #2308), and any bar outside the requested window (5paisa). Know a
+  pre-open bar by its shape (the day's first bar, flat, no volume, more
+  bars after it, #2475) or by the session's open in the market calendar
+  for that day, never by a fixed 09:15: on Muhurat 2026 (14:20) Noren's
+  TPSeries sent 14:05 to 14:19 bars that a 09:15 check let through
+  (Flattrade #2482). Never fabricate a candle.
+- **Intraday bars are stamped at their open on the session grid** (09:15
+  for NSE cash): `/trading` refuses a 45m or 2h series built from bars off
+  it (Nuvama #2461, `nuvama::data::bar_open`).
+- **Empty is not failed.** A window with no candles is an empty success,
+  passed at once; a refusal (bad symbol, rejected token) is an error and is
+  not retried; only a throttle or a dropped connection is retried, within
+  one budget (`fyers::data`, BRL-04, #2438). A range beyond the broker's
+  lookback returns what exists, not an error (Kotak #2094).
+- **Intraday volume is per bar**, not the day's running total (Groww
+  #2194), and a multi-day reply's last bar of each day equals the
+  single-day reply's (Shoonya #2360).
+- **Today's bar is patched by the OpenAlgo exchange**, not the broker code
+  the request used (Flattrade sent `BSE` for SENSEX, #2196); a history
+  endpoint may name indices its own way (TradeSmart, #2475).
+
+**Streaming and the order stream** (beyond CLAUDE.md "Feed parity with the
+web")
+
+- **Data silence is judged on market data alone**, once data has flowed
+  for a while, never on a frame count: a Noren session answered heartbeats
+  with no ticks all day (Flattrade #2089). `BrokerFeed::data_stalled`
+  carries it (Noren, XTS, Nuvama, Pocketful); the manager's 90 s stall
+  catches total silence only.
+- **A network outage is retried at the capped backoff for ever**; only an
+  auth refusal ends the manager. A broker that refuses with something
+  other than 401/403 (Tradejini's close 4001, #2477) is mapped to
+  `FeedEvent::AuthFailed` by its `parse` or `is_auth_failure`, or it
+  reconnects every minute.
+- **Prices are scaled per instrument** by the precision and multiplier
+  the feed or master gives (Fyers `value / (10^precision * multiplier)`,
+  Angel CDS 1e7), never a fixed /100. Check a CDS instrument against REST.
+- **Count the broker's sockets per account** before adding an order
+  socket: 5paisa allows one per session, so its orders are polled
+  (`common::order_poll`). And verify "no push feed" against the broker's
+  SDK before polling (Groww was polled for months, #2474).
+- **A quote served from the feed** uses a short-lived socket per call,
+  closed on every path, with a cap on reads at once (`motilal::data`,
+  eight). A shared socket needs a subscriber count per instrument, or the
+  first request to finish drops the tick another one waits for
+  (AliceBlue, Pocketful on the web).
+
+**Secrets**
+
+- **No slice of a secret is logged either.** A JainamXTS token's first and
+  last four characters passed the web's log filter (#2313). The secrets
+  tests (`clean` in `tests/it/broker_nuvama/secrets.rs`,
+  `brokers_direct_batch_b/secrets.rs`) look for the whole sentinel only;
+  for a new broker also assert that no four-character window of it
+  (`S.as_bytes().windows(4)`) appears, with a mixed-case sentinel whose
+  windows no ordinary log text contains.
+
 ## Checklist
 
 - [ ] Family chosen; family member = config + hooks only
@@ -443,6 +667,11 @@ the web checkout.
 - [ ] Registered in `BrokerRegistry::new()` and the registry test id list
 - [ ] `catalog.rs`: `ALL_BROKERS`, `auth_type`, authorize URL, `extract_code`, state carriage, `configured_account` / `CLIENT_ID_BROKERS`, form fields
 - [ ] Every book returns OpenAlgo symbols and web status strings
+- [ ] The broker's empty answer read as an empty book for each book (one test per book, and the same answer on a 5xx is an error); nothing above debug for an empty read
+- [ ] No write resent after a throttle text or code the broker does not document as a refusal before processing, a timeout or a dropped connection (one request in the fake; an HTTP 429 or Fyers' body code 429 as section 11 says); order ids kept as text and percent-encoded or shape-checked in a path
+- [ ] One status map for the book and the stream (a book-only form only where the web adapter has one, as `zerodha::mapping::book_status`); a pending modify or cancel reads `open`
+- [ ] On the Indian exchanges `instrument_type` only `EQ`, `FUT`, `CE`, `PE` or empty (index rows as section 11 says; `CRYPTO` as the web's `crypto-symbol-format.md`); no expiry sentinel; `name` never blank; `lot_size` in units per row
+- [ ] History in IST, repaired, on the session grid, nothing outside the session; an empty window is a quick empty success
 - [ ] Master contract fills every `SymToken` column, expiry `DD-MMM-YY`
 - [ ] Nifty 500 check prints `NIFTY 500 COMPLETE`, on the parsed rows (`--rows-csv`) and on the stored master (`--db` of a dev_server data folder); NSE series suffixes stripped from `symbol`, kept in `brsymbol`
 - [ ] Feeds via `BrokerFeed` on the shared manager (relay only for non-WebSocket transports); depth and order feeds as the broker offers
