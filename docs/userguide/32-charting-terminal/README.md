@@ -3,8 +3,8 @@
 ## Introduction
 
 The charting terminal at `/trading` is where you read a chart and trade from
-it. It uses `openalgo-charts` 2.7.3, the same charting engine as OpenAlgo web:
-19 chart types, 112 built-in indicators plus your own, and 90 drawing tools,
+it. It uses `openalgo-charts` 2.7.5, the same charting engine as OpenAlgo web:
+19 chart types, 113 built-in indicators plus your own, and 90 drawing tools,
 on the same broker session and market data feed as the rest of the app. It
 also runs OpenScript studies, backtests and live strategies.
 

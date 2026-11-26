@@ -1,0 +1,19 @@
+{
+  "_comment": "Written by hand. A web change to a tool's description that the desktop ships before the next capture by scripts/agent/capture_web_tools.py: specs.json and tests/fixtures/agent/tools.json stay the capture at their web_commit, untouched, and agent::tools::specs replaces each hunk's `from` with its `to` when it loads specs.json. A capture from a web commit that already has a hunk fails agent::tools::specs::tests until its entry is removed here.",
+  "hunks": [
+    {
+      "tool": "list_chart_indicators",
+      "web_commit": "501198289",
+      "why": "openalgo-charts 2.7.5 draws 113 indicators; the new pivot-points is pivot_points in openalgo.ta as well.",
+      "from": "library of 112 indicators",
+      "to": "library of 113 indicators"
+    },
+    {
+      "tool": "list_chart_indicators",
+      "web_commit": "501198289",
+      "why": "pivot-points makes 41 indicators in both libraries, five of them spelled with a hyphen in one and an underscore in the other.",
+      "from": "Only 40 indicators exist in both, four of them",
+      "to": "Only 41 indicators exist in both, five of them"
+    }
+  ]
+}

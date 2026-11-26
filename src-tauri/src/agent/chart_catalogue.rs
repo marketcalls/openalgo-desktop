@@ -95,7 +95,9 @@ mod tests {
     }
 
     /// The tier boundary the file exists for: drawable but not in
-    /// `openalgo.ta`, and the other way round.
+    /// `openalgo.ta`, and the other way round. `pivot-points` is the study
+    /// openalgo-charts 2.7.4 added (web 501198289), so the Agent can add it
+    /// to a chart once the bundled chart draws it.
     #[test]
     fn it_lists_what_the_chart_draws_and_nothing_else() {
         for id in [
@@ -104,6 +106,7 @@ mod tests {
             "bollinger",
             "parabolic-sar",
             "ema",
+            "pivot-points",
         ] {
             assert!(ids().contains(id), "{}", id);
         }
