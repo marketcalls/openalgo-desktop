@@ -1,6 +1,7 @@
-//! `web_search`: links from the configured provider, DuckDuckGo behind it.
-//! A search for company figures goes to the trader's preferred sources
-//! first (`preferred`).
+//! `web_search`: links from the configured provider, the other keyed
+//! providers that hold a key and DuckDuckGo behind it, or DuckDuckGo first
+//! when it is the one configured. A search for company figures goes to the
+//! trader's preferred sources first (`preferred`).
 
 use super::args::{constrained, max_results, topic, Topic};
 use super::{blocked, busy, failure, json_text, keyed_in_order, mark_used, WebTool};
@@ -13,6 +14,7 @@ use crate::agent::websearch::taint::Constrained;
 use crate::agent::websearch::{
     duckduckgo, keyed, label, DUCKDUCKGO, KEYED_LINK_PROVIDERS, PERPLEXITY,
 };
+use crate::security::Secret;
 use serde_json::{Map, Value};
 
 impl WebTool {
@@ -117,6 +119,14 @@ impl WebTool {
     /// rather than returning links, so with it configured the first keyed
     /// link provider that has a key is asked first. A busy gate is the answer
     /// as it is: the provider never failed, so nothing falls back.
+    ///
+    /// Desktop: with DuckDuckGo configured, DuckDuckGo is asked first and a
+    /// keyed provider only once it failed. The web's chain puts every keyed
+    /// provider that holds a key ahead of it, so a trader who kept the
+    /// keyless default and stored a Firecrawl key for `web_fetch` had every
+    /// search sent to Firecrawl's paid search, with no notice, while the
+    /// panel said searches run on DuckDuckGo (a web defect not copied:
+    /// `docs/web-sync/agent-fetch-boundary-2026-11-26.md`).
     pub(super) async fn link_outcome(
         &self,
         ctx: &ToolCtx,
@@ -126,42 +136,29 @@ impl WebTool {
         notices: &mut Vec<String>,
     ) -> Outcome {
         let chain = keyed_in_order(&ctx.app, KEYED_LINK_PROVIDERS, config.provider).await;
-        let mut provider = config.provider;
-        if provider == PERPLEXITY {
-            let borrowed = chain.first().map(|(name, _)| *name);
-            let note = format!(
-                "The configured provider is Perplexity, which answers questions rather than returning links, so {} answered this search. Use web_research for a Perplexity answer.",
-                borrowed.map(label).unwrap_or("DuckDuckGo")
-            );
-            if !notices.contains(&note) {
-                notices.push(note);
-            }
-            provider = borrowed.unwrap_or(DUCKDUCKGO);
+        let provider = link_provider(config.provider, &chain, notices);
+        if provider == DUCKDUCKGO {
+            return self
+                .duckduckgo_first(ctx, &chain, text, count, notices)
+                .await;
         }
         let configured_has_key = chain.first().is_some_and(|(n, _)| *n == provider);
         if KEYED_LINK_PROVIDERS.contains(&provider) && !configured_has_key {
             let name = label(provider);
             let instead = chain.first().map(|(n, _)| label(n)).unwrap_or("DuckDuckGo");
-            let message = format!(
-                "{} is the configured provider but no {} key is stored in the agent settings, so {} answered instead.",
-                name, name, instead
+            push_once(
+                notices,
+                format!(
+                    "{} is the configured provider but no {} key is stored in the agent settings, so {} answered instead.",
+                    name, name, instead
+                ),
             );
-            if !notices.contains(&message) {
-                notices.push(message);
-            }
         }
-        for (index, &(name, ref key)) in chain.iter().enumerate() {
-            let o = keyed::search_with(&self.shared.net, name, text, count, key).await;
-            mark_used(&ctx.app, &o).await;
-            if o.busy || o.ok {
-                return o;
-            }
-            self.shared.budget.record_attempt();
-            let following = chain
-                .get(index + 1)
-                .map(|(n, _)| label(n))
-                .unwrap_or("DuckDuckGo");
-            notices.push(format!("{} {} was tried instead.", o.error, following));
+        if let Some(answer) = self
+            .keyed_in_turn(ctx, &chain, (text, count), notices, Some("DuckDuckGo"))
+            .await
+        {
+            return answer;
         }
         // The last notice said "tried instead"; when DuckDuckGo is what
         // answers, it says so in the words the trader already knows.
@@ -171,5 +168,86 @@ impl WebTool {
             }
         }
         duckduckgo::search(&self.shared.net, text, count).await
+    }
+
+    /// DuckDuckGo first (configured, or Perplexity with no keyed provider
+    /// holding a key), and the keyed providers that hold a key only when it
+    /// failed (desktop, see [`Self::link_outcome`]).
+    async fn duckduckgo_first(
+        &self,
+        ctx: &ToolCtx,
+        chain: &[(&'static str, Secret)],
+        text: &str,
+        count: usize,
+        notices: &mut Vec<String>,
+    ) -> Outcome {
+        let o = duckduckgo::search(&self.shared.net, text, count).await;
+        let Some((next, _)) = chain.first().filter(|_| !o.ok && !o.busy) else {
+            return o;
+        };
+        self.shared.budget.record_attempt();
+        notices.push(format!("{} {} was tried instead.", o.error, label(next)));
+        self.keyed_in_turn(ctx, chain, (text, count), notices, None)
+            .await
+            .unwrap_or(o)
+    }
+
+    /// Ask the providers of `chain` in turn until one answers or its gate
+    /// is busy, which is the answer. A failure with something still to try
+    /// (the next provider, else `then`) is said in a notice naming it and
+    /// counts against the turn; the last failure, with nothing after it,
+    /// is the answer. `None` when every provider failed and `then` is next.
+    async fn keyed_in_turn(
+        &self,
+        ctx: &ToolCtx,
+        chain: &[(&'static str, Secret)],
+        (text, count): (&str, usize),
+        notices: &mut Vec<String>,
+        then: Option<&'static str>,
+    ) -> Option<Outcome> {
+        for (index, &(name, ref key)) in chain.iter().enumerate() {
+            let o = keyed::search_with(&self.shared.net, name, text, count, key).await;
+            mark_used(&ctx.app, &o).await;
+            if o.busy || o.ok {
+                return Some(o);
+            }
+            let following = chain.get(index + 1).map(|(n, _)| label(n)).or(then);
+            let Some(following) = following else {
+                return Some(o);
+            };
+            self.shared.budget.record_attempt();
+            notices.push(format!("{} {} was tried instead.", o.error, following));
+        }
+        None
+    }
+}
+
+/// The provider a link search starts from: Perplexity returns no links, so
+/// with it configured the first keyed link provider that holds a key, else
+/// DuckDuckGo, and the model is told which.
+fn link_provider(
+    configured: &'static str,
+    chain: &[(&'static str, Secret)],
+    notices: &mut Vec<String>,
+) -> &'static str {
+    if configured != PERPLEXITY {
+        return configured;
+    }
+    let borrowed = chain.first().map(|(name, _)| *name);
+    push_once(
+        notices,
+        format!(
+            "The configured provider is Perplexity, which answers questions rather than returning links, so {} answered this search. Use web_research for a Perplexity answer.",
+            borrowed.map(label).unwrap_or("DuckDuckGo")
+        ),
+    );
+    borrowed.unwrap_or(DUCKDUCKGO)
+}
+
+/// Add a notice unless the call already carries it (a fundamentals search
+/// asks once per source).
+fn push_once(notices: &mut Vec<String>, note: String) {
+    if !notices.contains(&note) {
+        notices.push(note);
     }
 }

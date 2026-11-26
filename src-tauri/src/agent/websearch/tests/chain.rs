@@ -1,9 +1,11 @@
 //! A failed link search falls through the other keyed providers before
 //! DuckDuckGo (web 5e19ce407, `test_agent_webfetch.py`): each request that
 //! went out and failed uses the turn's allowance, the daily cap counts only
-//! answers, and a busy gate falls through to nothing.
+//! answers, and a busy gate falls through to nothing. With DuckDuckGo
+//! configured it is asked first, and the keyed providers only after it
+//! failed (desktop).
 
-use super::fetch::{kit, usage, OPERATOR, SCREENER};
+use super::fetch::{kit, links, usage, OPERATOR, SCREENER};
 use super::tool::{configure, ddg, read};
 use super::*;
 use crate::agent::outbound::fake::Answer;
@@ -102,6 +104,86 @@ async fn duckduckgo_answers_only_after_every_keyed_provider_has_failed() {
             "TinyFish is having an outage (HTTP 503). DuckDuckGo answered instead."
         ])
     );
+}
+
+/// Desktop (review finding 1, a web 5e19ce407 defect not copied): the
+/// trader kept the keyless default and stored a Firecrawl key, which the
+/// panel asks for so web_fetch can open pages. Searches stay on DuckDuckGo,
+/// as the panel says; the web's chain sent every one to Firecrawl's paid
+/// search first, with no notice.
+#[tokio::test]
+async fn duckduckgo_configured_answers_first_though_a_keyed_provider_holds_a_key() {
+    let t = ctx();
+    let fake = FakeServer::start().await;
+    let _on = OnFake::new(&fake, 8);
+    ddg(&fake);
+    let k = kit(&t, OPERATOR, &["firecrawl"], 2);
+    configure(&t, json!({"provider": "duckduckgo"}));
+    let (_, body) = read(&k.search(query()).await);
+    assert_eq!(body["provider"], "duckduckgo");
+    assert_eq!(body["notices"], json!([]));
+    assert!(fake.seen_at(FIRECRAWL_SEARCH).is_empty(), "no paid search");
+    assert_eq!(usage(&t), 1);
+}
+
+/// Desktop: with DuckDuckGo configured, a search it failed goes on to the
+/// keyed providers that hold a key, and the model is told; DuckDuckGo's
+/// failed request counts against the turn.
+#[tokio::test]
+async fn duckduckgo_configured_hands_a_failed_search_to_a_keyed_provider() {
+    let t = ctx();
+    let fake = FakeServer::start().await;
+    let _on = OnFake::new(&fake, 8);
+    fake.script(DDG_HTML, vec![Answer::text(500, "text/html", "down")]);
+    fake.script(DDG_LITE, vec![Answer::text(500, "text/html", "down")]);
+    fake.script(FIRECRAWL_SEARCH, vec![links(&[SCREENER])]);
+    let k = kit(&t, OPERATOR, &["firecrawl"], 2);
+    configure(&t, json!({"provider": "duckduckgo"}));
+    let (_, body) = read(&k.search(query()).await);
+    let order: Vec<String> = fake.seen().iter().map(|s| s.path.clone()).collect();
+    assert_eq!(order, [DDG_HTML, DDG_LITE, FIRECRAWL_SEARCH]);
+    assert_eq!(body["provider"], "firecrawl");
+    assert_eq!(
+        body["notices"],
+        json!([
+            "DuckDuckGo did not answer. It rate limits under load. Firecrawl was tried instead."
+        ])
+    );
+    assert_eq!(usage(&t), 1);
+    let (_, next) = read(&k.search(query()).await);
+    assert_eq!(next["error"], "per_turn_budget_exhausted");
+}
+
+/// Desktop: when DuckDuckGo and every keyed provider failed, the last
+/// failure is the answer and the earlier ones are notices.
+#[tokio::test]
+async fn duckduckgo_configured_answers_with_the_last_failure_when_all_failed() {
+    let t = ctx();
+    let fake = FakeServer::start().await;
+    let _on = OnFake::new(&fake, 8);
+    fake.script(DDG_HTML, vec![Answer::text(500, "text/html", "down")]);
+    fake.script(DDG_LITE, vec![Answer::text(500, "text/html", "down")]);
+    fake.script(FIRECRAWL_SEARCH, vec![Answer::json(503, json!({}))]);
+    fake.script(TINYFISH_SEARCH, vec![Answer::json(429, json!({}))]);
+    let k = kit(&t, OPERATOR, &["firecrawl", "tinyfish"], 10);
+    configure(&t, json!({"provider": "duckduckgo"}));
+    let (open, body) = read(&k.search(query()).await);
+    assert_eq!(
+        open,
+        "<web_result provider=\"tinyfish\" trust=\"third-party\" kind=\"error\">"
+    );
+    assert_eq!(
+        (body["error"].clone(), body["provider"].clone()),
+        (json!("provider_failed"), json!("tinyfish"))
+    );
+    assert_eq!(
+        body["notices"],
+        json!([
+            "DuckDuckGo did not answer. It rate limits under load. Firecrawl was tried instead.",
+            "Firecrawl is having an outage (HTTP 503). TinyFish was tried instead."
+        ])
+    );
+    assert_eq!(usage(&t), 0);
 }
 
 /// Web `test_a_configured_provider_with_no_key_hands_over_to_one_that_has_a_key`.
