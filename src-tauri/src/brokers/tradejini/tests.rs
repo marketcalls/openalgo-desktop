@@ -27,6 +27,8 @@ macro_rules! fixture {
 
 /// Web test/test_tradejini_history_candles.py (openalgo#2341).
 mod history_candles;
+/// Web test/test_tradejini_order_adapter.py (openalgo#2477).
+mod order_adapter;
 /// Web test/test_tradejini_quote_feed.py (openalgo#2383).
 mod quote_feed;
 /// Web test/test_tradejini_stream_lifecycle.py (openalgo#2341).
@@ -942,7 +944,9 @@ fn adapter_identity_and_capabilities() {
     assert!(b.requires_totp());
     let c = b.capabilities();
     assert!(c.history && c.streaming && c.multiquotes_batch);
-    assert!(!c.margin && !c.gtt && !c.order_feed);
+    assert!(!c.margin && !c.gtt);
+    // Web openalgo#2477: order updates on a stream socket of their own.
+    assert!(c.order_feed);
     assert_eq!(b.timeframe_map(), TIMEFRAME_MAP);
     // Web openalgo#2341: the symbol store lists no BCD contract.
     assert!(!b.supported_exchanges().contains(&Exchange::Bcd));

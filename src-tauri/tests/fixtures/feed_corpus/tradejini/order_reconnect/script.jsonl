@@ -1,0 +1,11 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"json": {"type": "event", "action": "sub", "events": ["orders"]}}], "connection": 1}
+{"step": "push", "socket": "orders", "frame": "frames/auth_ok_and_order_open.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "drop_upstream", "socket": "orders", "note": "Tradejini drops the socket."}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"json": {"type": "event", "action": "sub", "events": ["orders"]}}], "connection": 2, "note": "The old socket was closed first; the new one asks for the order events again."}
+{"step": "upstream_connected", "socket": "orders", "connection": 2, "path": "/v2.1/stream?token=key:tok&version=3.1"}
+{"step": "push", "socket": "orders", "frame": "frames/order_complete.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
+{"step": "drop_upstream", "socket": "orders", "code": 4001, "reason": "Unauthorized Access"}
+{"step": "upstream_connections", "socket": "orders", "count": 2, "ms": 500, "note": "4001: the same token is refused again on every reconnect (12-websocket-sdks.md), so the feed stops until the next login, as the web adapter stands down."}

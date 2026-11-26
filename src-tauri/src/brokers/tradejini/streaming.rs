@@ -53,6 +53,17 @@ pub const HEARTBEAT: Duration = Duration::from_secs(30);
 /// 3000 instruments is well under 1 MB).
 const MAX_INFLATED: u64 = 8 * 1024 * 1024;
 
+/// The stream's address for a session: `base` (`STREAM_URL`; tests pass a
+/// local one) with the API key and access token that authenticate the
+/// socket, as `NxtradStream` builds it. It carries the token, so it is a
+/// `Secret` and never logged.
+pub(crate) fn stream_url(base: &str, api_key: &str, access_token: &str) -> Secret {
+    Secret::new(format!(
+        "{}?token={}:{}&version={}",
+        base, api_key, access_token, STREAM_VERSION
+    ))
+}
+
 /// `SEG_INFO`: segment id -> (exchange, divisor).
 pub fn segment(id: u8) -> Option<(&'static str, f64)> {
     Some(match id {
@@ -156,7 +167,10 @@ pub enum Packet {
     Auth(u8),
     /// Packet 16.
     Pong,
-    /// OHLC, market status, events, greeks: not used by OpenAlgo.
+    /// Packet 15: the event messages it carries, each a JSON object routed
+    /// by `evntType` (the order-update socket's; `order_feed`).
+    Events(Vec<String>),
+    /// OHLC, market status, greeks: not used by OpenAlgo.
     Other(i8),
 }
 
@@ -317,6 +331,43 @@ pub fn decode_l5(p: &[u8]) -> Option<L5> {
     Some(book)
 }
 
+/// An EVENTS packet's messages (web `tradejini_order_adapter.py`
+/// `decode_stream_frame`): field 56 gives the byte length of the message
+/// that follows as field 61 (100, the SDK spec's default, when none
+/// precedes it), and NUL padding after the text is dropped. Reading stops
+/// at any other key, whose width is unknown, and at a length field cut off
+/// by the end of the packet; the web drops the whole frame there, which
+/// would lose the good events of its other packets.
+fn event_messages(p: &[u8]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut len = EVENT_DEFAULT_LEN;
+    let mut idx = 3;
+    while idx < p.len() {
+        let key = p[idx];
+        idx += 1;
+        match key {
+            56 => {
+                let Some(&[lo, hi]) = p.get(idx..idx + 2) else {
+                    break;
+                };
+                len = usize::from(u16::from_le_bytes([lo, hi]));
+                idx += 2;
+            }
+            61 => {
+                let text = &p[idx..(idx + len).min(p.len())];
+                let end = text.iter().rposition(|b| *b != 0).map_or(0, |i| i + 1);
+                out.push(String::from_utf8_lossy(&text[..end]).into_owned());
+                idx += len;
+            }
+            _ => break,
+        }
+    }
+    out
+}
+
+/// A message's length when no field 56 gives it (`binaryspec-doc.md`).
+const EVENT_DEFAULT_LEN: usize = 100;
+
 /// Decode one packet slice (`__onsinglePacket`).
 pub fn decode_packet(p: &[u8]) -> Option<Packet> {
     if p.len() < 3 {
@@ -330,8 +381,9 @@ pub fn decode_packet(p: &[u8]) -> Option<Packet> {
             .into_iter()
             .find(|(k, _)| *k == 25)
             .map(|(_, v)| Packet::Auth(v[0])),
+        15 => Some(Packet::Events(event_messages(p))),
         16 => Some(Packet::Pong),
-        12 | 14 | 15 | 17 => Some(Packet::Other(t)),
+        12 | 14 | 17 => Some(Packet::Other(t)),
         _ => None,
     }
 }
@@ -425,10 +477,7 @@ impl TradejiniFeed {
     /// `base` is the stream endpoint (`STREAM_URL`; tests pass a local one).
     pub fn new(base: &str, api_key: &str, access_token: &str) -> Self {
         Self {
-            url: Secret::new(format!(
-                "{}?token={}:{}&version={}",
-                base, api_key, access_token, STREAM_VERSION
-            )),
+            url: stream_url(base, api_key, access_token),
             subs: BTreeMap::new(),
             l1: HashMap::new(),
             books: HashMap::new(),
@@ -549,7 +598,8 @@ impl TradejiniFeed {
                 Packet::Pong => out.push(FeedEvent::Heartbeat),
                 Packet::L1(d) => self.on_quote(&d, &mut out),
                 Packet::L5(book) => self.on_book(book, &mut out),
-                Packet::Other(_) => {}
+                // Events go to the order-update socket, which asks for them.
+                Packet::Events(_) | Packet::Other(_) => {}
             }
         }
         out

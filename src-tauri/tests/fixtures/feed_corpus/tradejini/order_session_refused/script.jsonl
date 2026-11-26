@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"json": {"type": "event", "action": "sub", "events": ["orders"]}}]}
+{"step": "push", "socket": "orders", "frame": "frames/order_open.hex"}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "push", "socket": "orders", "frame": "frames/refused_with_an_order.hex"}
+{"step": "silence", "client": "a", "note": "The refusal drops the frame's events, as the web's normalize_frame does."}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"close": null}], "note": "The feed closes the socket itself (the web adapter closes it in _stand_down_after_auth_failure)."}
+{"step": "upstream_connections", "socket": "orders", "count": 1, "ms": 500, "note": "No other connection until the trader logs in again."}

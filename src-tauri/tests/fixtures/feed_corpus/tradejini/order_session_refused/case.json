@@ -1,0 +1,47 @@
+{
+  "broker": "tradejini",
+  "summary": "An auth packet that refuses the session ends the order-update socket until the next login: the frame's order event is not sent, the feed closes the socket itself and opens no other.",
+  "scenarios": [
+    "order-open"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "EQT_RELIANCE_EQ_NSE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "EQT_SBIN_EQ_NSE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52168",
+      "brsymbol": "FUTIDX_NIFTY_NFO_2026-11-24",
+      "brexchange": "NFO",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX",
+      "expiry": "24-NOV-26"
+    }
+  ],
+  "provenance": {
+    "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradejini/streaming/tradejini_order_adapter.py::decode_stream_frame",
+      "broker/tradejini/streaming/tradejini_order_adapter.py::TradejiniOrderUpdateAdapter.normalize_frame",
+      "broker/tradejini/streaming/tradejini_order_adapter.py::TradejiniOrderUpdateAdapter.normalize_event",
+      "broker/tradejini/mapping/transform_data.py::reverse_map_order_type",
+      "broker/tradejini/mapping/transform_data.py::reverse_map_product_type",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

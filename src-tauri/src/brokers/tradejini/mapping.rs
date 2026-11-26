@@ -212,9 +212,10 @@ pub fn is_cancellable(status: &str) -> bool {
     matches!(status, "open" | "trigger pending" | "modified" | "pending")
 }
 
-/// OpenAlgo symbol for a book row: the master lookup of the symbol id on
-/// its exchange, else the broker's own symbol.
-fn resolve(symbols: &SymbolResolver, ids: &[&str], exchange: &str) -> Option<String> {
+/// OpenAlgo symbol for a book row or an order event: the master lookup of
+/// the first id it knows on the row's exchange; `None` sends the caller to
+/// the broker's own symbol.
+pub(super) fn resolve(symbols: &SymbolResolver, ids: &[&str], exchange: &str) -> Option<String> {
     ids.iter()
         .filter(|id| !id.is_empty())
         .find_map(|id| symbols.oa_symbol(id, exchange))
