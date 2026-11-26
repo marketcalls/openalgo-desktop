@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
+  "web_sha": "f83592a0b230459f3cb0ce845fe16c9c011f2043",
   "adapter": "aliceblue",
   "inputs_sha256": "24df6f144d8604e4a10d1b937790a87914edcb9e950a000dce0f5b40cfa520c1",
   "instruments": [

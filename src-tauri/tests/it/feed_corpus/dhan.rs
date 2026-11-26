@@ -27,6 +27,7 @@ corpus_cases!(
     [
         quote_previous_close,
         quote_before_previous_close,
+        quote_padding_after_the_packet,
         full_depth,
         depth_20_before_and_after_the_quote,
         reconnect_forgets_previous_close,

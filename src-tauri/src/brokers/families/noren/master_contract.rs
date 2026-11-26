@@ -3,7 +3,10 @@
 //! One file per exchange (`{host}/{EXCH}_symbols.txt.zip`, or flattrade's
 //! S3 CSVs, NFO/BFO split in two). Columns are read by header name, with
 //! both casings (`TradingSymbol`/`Tradingsymbol`, `StrikePrice`/`Strike`,
-//! `LotSize`/`Lotsize`, `OptionType`/`Optiontype`).
+//! `LotSize`/`Lotsize`, `OptionType`/`Optiontype`). A member whose files
+//! give no tick takes it from another member's (`tick_source`).
+
+mod tick_source;
 
 use super::{BfoNaming, BseIndices, IndexNaming, MasterFile, NorenBroker, NorenConfig, TickRule};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
@@ -489,39 +492,38 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
     out
 }
 
-/// One master file's text, or `None` when it could not be fetched (the
-/// reason is logged).
-async fn fetch_file(b: &NorenBroker, file: &MasterFile, url: &str) -> Option<String> {
-    let resp = match b.http.get(url).timeout(DOWNLOAD_TIMEOUT).send().await {
+/// One file's text, or `None` when it could not be fetched (the reason is
+/// logged under `label`, "Master file" or "Tick file"). Every file has
+/// `DOWNLOAD_TIMEOUT` in all; the shared client drops one that sends
+/// nothing for `common::http::READ_TIMEOUT`.
+async fn fetch_file(
+    http: &reqwest::Client,
+    broker: &str,
+    file: &MasterFile,
+    url: &str,
+    label: &str,
+) -> Option<String> {
+    let resp = match http.get(url).timeout(DOWNLOAD_TIMEOUT).send().await {
         Ok(r) if r.status().is_success() => r,
         Ok(r) => {
             tracing::warn!(
-                broker = b.cfg.id,
-                "Master file {} answered {}",
+                broker,
+                "{} {} answered {}",
+                label,
                 file.exchange,
                 r.status()
             );
             return None;
         }
         Err(e) => {
-            tracing::warn!(
-                broker = b.cfg.id,
-                "Master file {} failed: {}",
-                file.exchange,
-                e
-            );
+            tracing::warn!(broker, "{} {} failed: {}", label, file.exchange, e);
             return None;
         }
     };
     let bytes = match resp.bytes().await {
         Ok(b) => b,
         Err(e) => {
-            tracing::warn!(
-                broker = b.cfg.id,
-                "Master file {} failed: {}",
-                file.exchange,
-                e
-            );
+            tracing::warn!(broker, "{} {} failed: {}", label, file.exchange, e);
             return None;
         }
     };
@@ -529,11 +531,7 @@ async fn fetch_file(b: &NorenBroker, file: &MasterFile, url: &str) -> Option<Str
         match super::zip::first_entry(&bytes) {
             Ok(v) => v,
             Err(_) => {
-                tracing::warn!(
-                    broker = b.cfg.id,
-                    "Master file {} is not a readable zip",
-                    file.exchange
-                );
+                tracing::warn!(broker, "{} {} is not a readable zip", label, file.exchange);
                 return None;
             }
         }
@@ -559,20 +557,30 @@ fn unique<'a>(names: &[&'a str]) -> Vec<&'a str> {
     out
 }
 
+/// Download and parse the member's master, each row's tick corrected from
+/// its tick source where it has one (web #2508): the source's files are
+/// read beside the member's own and waited for once those are in, and a
+/// refused download drops them.
+pub async fn download(b: &NorenBroker) -> Result<Vec<SymToken>> {
+    let (mut rows, ticks) = tick_source::beside(b, own_files(b)).await?;
+    tick_source::apply(b.cfg, &mut rows, &ticks);
+    Ok(rows)
+}
+
 /// Download and parse every file of the member's set, all or nothing
 /// (web #2198 for Flattrade; MC-02 for Shoonya, Zebu and TradeSmart, whose
 /// web download fails too when a file is missing): a file that fails or
 /// comes back empty, or a segment that yields no rows, refuses the whole
 /// download, so the stored master is kept rather than replaced by a
 /// partial one.
-pub async fn download(b: &NorenBroker) -> Result<Vec<SymToken>> {
+async fn own_files(b: &NorenBroker) -> Result<Vec<SymToken>> {
     let mut rows = Vec::new();
     let mut failed: Vec<&str> = Vec::new();
     // Rows per segment, in file order (NFO and BFO add up over two files).
     let mut segments: Vec<(&str, usize)> = Vec::new();
     let mut bse_seen = false;
     for (file, url) in b.endpoints.master.iter().zip(&b.endpoints.master_urls) {
-        let Some(text) = fetch_file(b, file, url).await else {
+        let Some(text) = fetch_file(&b.http, b.cfg.id, file, url, "Master file").await else {
             failed.push(file.exchange);
             continue;
         };

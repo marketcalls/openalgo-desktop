@@ -141,8 +141,17 @@ fn endpoints_and_authorize_urls() {
     assert_eq!(r.rest, "http://127.0.0.1:9/NorenWClientAPI");
     assert_eq!(r.ws, "ws://127.0.0.1:8/NorenWSAPI/");
     assert_eq!(r.master_urls[0], "http://127.0.0.1:9/NSE_symbols.txt.zip");
+    assert!(e.tick_urls.is_empty() && r.tick_urls.is_empty());
     let f = NorenEndpoints::rebased(flattrade::config(), "http://h", "ws://w");
     assert_eq!(f.token, "http://h/trade/apitoken");
+    // Shoonya's six symbol files, for Flattrade's ticks (web #2508).
+    let from = NorenEndpoints::from_config(flattrade::config());
+    assert_eq!(from.tick_urls.len(), 6);
+    assert_eq!(
+        from.tick_urls[0],
+        "https://api.shoonya.com/NSE_symbols.txt.zip"
+    );
+    assert_eq!(f.tick_urls[0], "http://h/NSE_symbols.txt.zip");
 
     assert_eq!(
         authorize_url(shoonya::config(), "FA123:::FA123_U", "st"),

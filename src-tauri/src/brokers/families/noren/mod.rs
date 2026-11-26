@@ -92,7 +92,8 @@ pub enum TickRule {
     /// Stored as published (zebu; tradesmart, whose NSE and BSE files give
     /// rupees: RELIANCE 0.1, MRF 5, web #2475).
     Raw,
-    /// Not published: 0.05 everywhere, 0.0025 on CDS (flattrade).
+    /// Not published: 0.05 everywhere, 0.0025 on CDS (flattrade, which
+    /// then takes the tick of every token its `tick_source` lists).
     Fixed,
 }
 
@@ -271,6 +272,11 @@ pub struct NorenConfig {
     pub exchanges: &'static [Exchange],
     pub master_files: &'static [MasterFile],
     pub tick_rule: TickRule,
+    /// Another member whose master files carry the exchange tick per
+    /// token, read as that member reads them, for this member's rows where
+    /// its own files publish none (flattrade reads Shoonya's, web #2508;
+    /// `master_contract::tick_source`).
+    pub tick_source: Option<&'static NorenConfig>,
     pub index_naming: IndexNaming,
     pub bse_indices: BseIndices,
     /// `brexchange` of NSE index rows (`NSE_INDEX`, or `NSE` on zebu).
@@ -562,6 +568,9 @@ pub struct NorenEndpoints {
     pub master: Vec<MasterFile>,
     /// Master URLs, rebased (same order as `master`).
     pub master_urls: Vec<String>,
+    /// The tick source's master URLs, rebased (same order as its
+    /// `master_files`); empty without one.
+    pub tick_urls: Vec<String>,
 }
 
 impl NorenEndpoints {
@@ -576,6 +585,15 @@ impl NorenEndpoints {
             ws: cfg.ws_url.to_string(),
             master: cfg.master_files.to_vec(),
             master_urls: cfg.master_files.iter().map(|f| f.url.to_string()).collect(),
+            tick_urls: cfg
+                .tick_source
+                .map(|s| {
+                    s.master_files
+                        .iter()
+                        .map(|f| f.url.to_string())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default(),
         }
     }
 
@@ -586,6 +604,7 @@ impl NorenEndpoints {
         e.token = rebase(&e.token, host);
         e.ws = rebase(&e.ws, ws_host);
         e.master_urls = e.master_urls.iter().map(|u| rebase(u, host)).collect();
+        e.tick_urls = e.tick_urls.iter().map(|u| rebase(u, host)).collect();
         e
     }
 }

@@ -1,8 +1,9 @@
 //! Flattrade (PiConnect), a Noren member (web `broker/flattrade/`).
-//! jKey form dialect, `/trade/apitoken` login, S3 CSV masters with fixed
-//! tick sizes and BSE `UNDIND` indices (index rows typed `EQ`, stale BSE
-//! rows with no exchange dropped, every file required), hardened candle
-//! parsing, intraday bars that carry the pre-open (folded into each
+//! jKey form dialect, `/trade/apitoken` login, S3 CSV masters with no tick
+//! size (each token's tick from Shoonya's symbol files, a fixed tick where
+//! Shoonya lists none) and BSE `UNDIND` indices (index rows typed `EQ`,
+//! stale BSE rows with no exchange dropped, every file required), hardened
+//! candle parsing, intraday bars that carry the pre-open (folded into each
 //! session's open by the history service), the basket's own margin
 //! (`marginusedtrade` less what is in use), funds M2M from the position
 //! book, a dual rolling-window limiter, one socket per session (order
@@ -45,6 +46,9 @@ pub static CONFIG: NorenConfig = NorenConfig {
         MasterFile { exchange: "BFO", url: "https://flattrade.s3.ap-south-1.amazonaws.com/scripmaster/Bfo_Equity_Derivatives.csv", zipped: false },
     ],
     tick_rule: TickRule::Fixed,
+    // Flattrade's files publish no tick; Shoonya runs the same Noren OMS
+    // and publishes the exchange tick per token (web #2508).
+    tick_source: Some(&crate::brokers::shoonya::CONFIG),
     index_naming: IndexNaming::StripAndOverride,
     bse_indices: BseIndices::FromMaster,
     nse_index_brexchange: "NSE_INDEX",

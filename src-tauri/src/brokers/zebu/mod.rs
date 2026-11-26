@@ -70,6 +70,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
         },
     ],
     tick_rule: TickRule::Raw,
+    tick_source: None,
     index_naming: IndexNaming::ExactName,
     bse_indices: BseIndices::Absent,
     nse_index_brexchange: "NSE",
