@@ -1,14 +1,32 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
-  "adapter": "groww",
-  "inputs_sha256": "9b61f146b8d109ecb05157bbf3c05211e7d5974401575186ecf8be7b75b6a602",
+  "web_sha": "f83592a0b230459f3cb0ce845fe16c9c011f2043",
+  "adapter": "tradejini",
+  "inputs_sha256": "dd51bc1b9cecdd5fd9c6880fad6fba9b92e71bde92a3d41e8000880e24c7d306",
   "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "EQT_RELIANCE_EQ_NSE",
+      "brexchange": "NSE"
+    },
     {
       "symbol": "SBIN",
       "exchange": "NSE",
       "token": "3045",
-      "brsymbol": "SBIN"
+      "brsymbol": "EQT_SBIN_EQ_NSE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "52168",
+      "brsymbol": "FUTIDX_NIFTY_NFO_2026-11-24",
+      "brexchange": "NFO",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX",
+      "expiry": "24-NOV-26"
     }
   ],
   "uncompared": [],
@@ -28,16 +46,6 @@
   "pushes": [
     {
       "line": 3,
-      "published": [],
-      "deliveries": []
-    },
-    {
-      "line": 6,
-      "published": [],
-      "deliveries": []
-    },
-    {
-      "line": 7,
       "published": [
         {
           "kind": "order",
@@ -45,13 +53,13 @@
             "type": "order_update",
             "user_id": "<USER_ID>",
             "mode": "live",
-            "broker": "groww",
-            "orderid": "GMK1125110900001",
-            "symbol": "SBIN",
+            "broker": "tradejini",
+            "orderid": "25112500000301",
+            "symbol": "RELIANCE",
             "exchange": "NSE",
             "action": "BUY",
-            "quantity": 10,
-            "price": 812.0,
+            "quantity": 1,
+            "price": 2440.0,
             "trigger_price": 0.0,
             "pricetype": "LIMIT",
             "product": "CNC",
@@ -73,6 +81,11 @@
           ]
         }
       ]
+    },
+    {
+      "line": 5,
+      "published": [],
+      "deliveries": []
     }
   ]
 }

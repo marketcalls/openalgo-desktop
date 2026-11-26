@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
+  "web_sha": "f83592a0b230459f3cb0ce845fe16c9c011f2043",
   "adapter": "dhan",
   "inputs_sha256": "85bb50449725a89aae128f73fc23bf468aa9bf6f111865d39569d5935fbf2fe9",
   "instruments": [

@@ -1,0 +1,44 @@
+{
+  "broker": "dhan",
+  "summary": "A quote packet followed by zero padding in one binary frame (issue #2502): the padding reads as a header shorter than itself, so the parse stops after the packet, which is published alone (web f83592a0b).",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "f83592a0b230459f3cb0ce845fe16c9c011f2043",
+    "method": "web-test",
+    "sources": [
+      "broker/dhan/streaming/dhan_websocket.py::DhanWebSocket._parse_regular_message",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._on_data_5depth",
+      "broker/dhan/streaming/dhan_adapter.py::DhanWebSocketAdapter._normalize_5depth_data",
+      "test/test_dhan_quote_feed.py::test_trailing_zero_length_header_stops_parse"
+    ],
+    "notes": [
+      "Before web f83592a0b the web's parser never moved past the padding and its receive thread spun; the replay of this case needs the web at that commit or later."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends Dhan's trade time in epoch seconds as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt in ms and Dhan's last_trade_time in seconds, as the web does.",
+      "ref": "dhan_adapter.py:900; feed::dialect (Dhan last_trade_time in seconds, openalgo#2377)",
+      "approval": "zerodha-dhan-web-defects",
+      "allows": [
+        [
+          1761700000,
+          1761700000000
+        ]
+      ]
+    }
+  ]
+}

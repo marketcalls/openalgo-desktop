@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
+  "web_sha": "f83592a0b230459f3cb0ce845fe16c9c011f2043",
   "adapter": "rmoney",
   "inputs_sha256": "dc9c6c1c8a60a74064d74d849d25c097df2a749fd536255dda7f9b519be13fd7",
   "instruments": [

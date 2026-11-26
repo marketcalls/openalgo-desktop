@@ -1,0 +1,89 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "f83592a0b230459f3cb0ce845fe16c9c011f2043",
+  "adapter": "dhan",
+  "inputs_sha256": "7fe9fe3a151a35eea8f6b7da50a7dbe4ffcea1841250be05d8ded35f2c2c85fe",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe",
+          "status": "success",
+          "subscriptions": [
+            {
+              "symbol": "RELIANCE",
+              "exchange": "NSE",
+              "status": "success",
+              "mode": "Quote",
+              "depth": 5,
+              "broker": "dhan"
+            }
+          ],
+          "message": "Subscription processing complete",
+          "broker": "dhan"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 2,
+          "data": {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "timestamp": "<receipt_ms>",
+            "mode": 2,
+            "ltp": 1300.5,
+            "ltt": 1761700000,
+            "last_trade_time": 1761700000,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "last_quantity": 25,
+            "average_price": 1298.25,
+            "total_buy_quantity": 9000,
+            "total_sell_quantity": 7000,
+            "close": 1280.5
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "mode": 2,
+          "topic_mode": 2,
+          "broker": "dhan",
+          "serves": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

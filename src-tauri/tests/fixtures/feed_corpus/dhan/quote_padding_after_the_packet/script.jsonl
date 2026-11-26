@@ -1,0 +1,7 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Quote", "depth": 5, "broker": "dhan"}], "message": "Subscription processing complete", "broker": "dhan"}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 17, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}]}
+{"step": "push", "frame": "frames/prev_close.hex"}
+{"step": "silence", "client": "a", "note": "The previous close is stored, not published on its own."}
+{"step": "push", "frame": "frames/quote_then_padding.hex", "note": "The quote packet, then padding shorter than a header: the parse stops after the packet."}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "silence", "client": "a", "note": "Nothing more from the padding: no second frame, no heartbeat."}
