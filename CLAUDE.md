@@ -1504,11 +1504,13 @@ differences with their reasons):
   credentials changed" and no error frame, and keeps clients through a
   regenerated key or a password change. The wider close, its frame and
   4401 are a deliberate difference: the SDK and the /trading terminal
-  (openalgo-charts' `OpenAlgoWsFeed`) reconnect and replay their
-  subscriptions after any close, and `MarketDataManager` and the
-  WebSocket test pages, as the web's, reconnect after neither (a clean
-  close). Anything new that changes what the key reaches clears that
-  cache.
+  (openalgo-charts' `OpenAlgoWsFeed`) reconnect after any close, and
+  replay their subscriptions unaided only after a broker login or switch
+  (a regenerated key, a sign-out or a broker logout refuses the
+  reconnect's `authenticate`, after which the terminal stops retrying),
+  and `MarketDataManager` and the WebSocket test pages, as the web's,
+  reconnect after neither (a clean close). Anything new that changes what
+  the key reaches clears that cache.
 - A request without a signed-in session acts only on its own browser
   session. An anonymous `/auth/logout` once cleared every session, so
   anything that could reach the port, a tunnel included, kept the trader

@@ -133,11 +133,14 @@ switching brokers) or a new one starts, and when the API key is regenerated:
 }
 ```
 
-Connect again and authenticate. The Python SDK does this by itself
-(`auto_reconnect=True`, the default), and so does the `/trading` terminal.
-The web closes such connections only when the broker session changes, with
-code `1012` and no error frame, and keeps them open after a regenerated API
-key.
+Connect again and authenticate. The Python SDK (`auto_reconnect=True`, the
+default) and the `/trading` terminal connect again by themselves, but that
+authenticates and subscribes again only after a broker login or a broker
+switch. After a regenerated key, authenticate with the new key (restart the
+script with it, or reload the `/trading` page); after a sign-out or a broker
+logout, sign in to OpenAlgo and log in to the broker first. The web closes
+such connections only when the broker session changes, with code `1012` and
+no error frame, and keeps them open after a regenerated API key.
 
 ### Data modes
 
