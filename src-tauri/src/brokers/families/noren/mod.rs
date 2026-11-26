@@ -86,9 +86,11 @@ pub struct MasterFile {
 /// Tick-size column handling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickRule {
-    /// NSE/BSE tick sizes are paise (divide by 100); derivatives are rupees.
+    /// NSE/BSE tick sizes are paise (divide by 100); derivatives are rupees
+    /// (shoonya).
     CashInPaise,
-    /// Stored as published.
+    /// Stored as published (zebu; tradesmart, whose NSE and BSE files give
+    /// rupees: RELIANCE 0.1, MRF 5, web #2475).
     Raw,
     /// Not published: 0.05 everywhere, 0.0025 on CDS (flattrade).
     Fixed,
@@ -113,6 +115,24 @@ pub enum BseIndices {
     FromMaster,
     /// None (zebu).
     Absent,
+}
+
+/// Where a BFO row's underlying and option type come from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BfoNaming {
+    /// The `Symbol` and `OptionType` columns, as on every other segment
+    /// (flattrade).
+    Columns,
+    /// The leading letters of the trading symbol, the type from its
+    /// suffix (shoonya, zebu: web `re.match("[A-Za-z]+")`, so SENSEX50
+    /// reads SENSEX and M&M reads M).
+    LeadingLetters,
+    /// The trading symbol less its expiry, strike and type, anchored on
+    /// the expiry's year, the type from its suffix (tradesmart, web #2475):
+    /// its BFO `Symbol` column holds codes (`BSXOPT`, `SX50FUT`), and the
+    /// stem keeps SENSEX50, M&M, BAJAJ-AUTO and 360ONE whole
+    /// (`master_contract::bfo_stem`).
+    TradingSymbolStem,
 }
 
 /// Market Price Protection: Noren OMS rejects MKT / SL-MKT for API orders.
@@ -258,27 +278,48 @@ pub struct NorenConfig {
     /// `instrumenttype` of index rows: `INDEX`, or `EQ` where the web keeps
     /// index rows inside OpenAlgo's EQ/FUT/CE/PE vocabulary and lets the
     /// `NSE_INDEX` / `BSE_INDEX` exchange alone mark them (flattrade, web
-    /// #2198, QA MC-04).
+    /// #2198; tradesmart, web #2475; QA MC-04).
     pub index_instrument_type: &'static str,
+    /// Type every NSE cash row EQ (tradesmart, web #2475, QA MC-04): the
+    /// Noren `Instrument` column on NSE holds the series (EQ, BE, SG, N0,
+    /// GB, SM, MF), not a type. Off, a series other than EQ or BE is stored
+    /// as the type, as the other members' web code does.
+    pub nse_all_eq: bool,
     /// Drop BSE master rows whose `Exchange` is blank or NULL (flattrade,
     /// web #2198, QA MC-14): stale scrips the broker refuses, with no name,
     /// some repeating a live scrip under an old token.
     pub bse_drop_without_exchange: bool,
-    /// BFO rows take the underlying from the leading letters of the
-    /// trading symbol and the type from its suffix (shoonya, zebu).
-    pub bfo_from_tsym: bool,
+    /// Drop BSE master rows with no tick size (tradesmart, web #2475, QA
+    /// MC-03): placeholder rows (WEAL, MFLS2, MFLS3, INVE) that share the
+    /// trading symbol `12:`, which cannot be traded or addressed by symbol
+    /// and were stored as duplicates. A file without the `TickSize` column
+    /// keeps its rows (warned): every tick would read 0 and the drop would
+    /// take every BSE equity.
+    pub bse_drop_zero_tick: bool,
+    pub bfo_naming: BfoNaming,
     /// OpenAlgo interval -> Noren `intrv` (`D` is the EOD endpoint).
     pub timeframes: &'static [(&'static str, &'static str)],
     /// Per-request history window in seconds; `None` sends one request.
     pub history_window_secs: Option<fn(&str) -> i64>,
     /// `EODChartData` names for indices: ((exchange, symbol), name).
     pub eod_index_names: &'static [((&'static str, &'static str), &'static str)],
+    /// Daily history of an NSE_INDEX or BSE_INDEX row asks `/GetSecurityInfo`
+    /// for the name `/EODChartData` accepts, kept a day per (exchange,
+    /// token), the stored broker symbol when the lookup fails (tradesmart,
+    /// web #2475: the master's `NIFTY INDEX` is not the `Nifty 50` the
+    /// endpoint takes; `data::index_eod_name`).
+    pub eod_index_lookup: bool,
     /// Widen high/low to cover open/close and zero negative volume.
     pub history_repair: bool,
     /// Rebuild each day's last intraday bar (3m to 4h) from 1m bars: a
     /// TPSeries reply spanning several days folds the next day's first 1m
     /// bar into it (shoonya, web #2343; `data::day_end`).
     pub day_end_repair: bool,
+    /// Drop the bar intraday TPSeries opens an IST date with when it holds
+    /// the pre-open discovered price: flat, no volume, and more bars that
+    /// date (tradesmart, web #2475, QA HS-07; `data::flat_open_bar`).
+    /// Recognised by its shape, with no session time or calendar.
+    pub drop_flat_open_bar: bool,
     /// Widen the high/low of `EODChartData` rows to cover their open and
     /// close (flattrade: BSE index rows often carry a close outside the
     /// day's range, and a chart refuses the whole history on one such
@@ -596,6 +637,9 @@ pub struct NorenBroker {
     pub(crate) order_limiter: Arc<Limiter>,
     pub(crate) data_limiter: Arc<Limiter>,
     pub(crate) quote_limiter: Arc<Limiter>,
+    /// Index names daily history resolved (`eod_index_lookup`), cleared by
+    /// `on_logout`.
+    pub(crate) index_eod_names: data::IndexEodNames,
 }
 
 impl NorenBroker {
@@ -625,6 +669,7 @@ impl NorenBroker {
                 None => data.clone(),
             },
             data_limiter: data,
+            index_eod_names: data::IndexEodNames::default(),
         }
     }
 
@@ -771,6 +816,13 @@ impl Broker for NorenBroker {
 
     async fn download_master_contract(&self, _auth: &AuthToken) -> Result<Vec<SymbolData>> {
         master_contract::download(self).await
+    }
+
+    /// Forget the index names daily history resolved: the session that
+    /// asked for them has ended (logout, a broker switch, the daily
+    /// boundary).
+    async fn on_logout(&self) {
+        self.index_eod_names.clear();
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {

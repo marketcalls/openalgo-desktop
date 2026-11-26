@@ -5,7 +5,7 @@
 //! both casings (`TradingSymbol`/`Tradingsymbol`, `StrikePrice`/`Strike`,
 //! `LotSize`/`Lotsize`, `OptionType`/`Optiontype`).
 
-use super::{BseIndices, IndexNaming, MasterFile, NorenBroker, NorenConfig, TickRule};
+use super::{BfoNaming, BseIndices, IndexNaming, MasterFile, NorenBroker, NorenConfig, TickRule};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
     format_expiry, format_strike, future_symbol, option_symbol, split_csv_line, CsvHeader,
@@ -169,7 +169,8 @@ fn nse_row(cfg: &NorenConfig, t: &RowText, name_col: bool, base: SymToken) -> Op
     } else {
         SymToken {
             symbol: t.tsym.replace("-EQ", "").replace("-BE", ""),
-            instrument_type: if matches!(t.instrument.as_str(), "EQ" | "BE" | "") {
+            instrument_type: if cfg.nse_all_eq || matches!(t.instrument.as_str(), "EQ" | "BE" | "")
+            {
                 "EQ".into()
             } else {
                 t.instrument.clone()
@@ -202,6 +203,75 @@ fn bse_row(cfg: &NorenConfig, t: &RowText, base: SymToken) -> SymToken {
     }
 }
 
+/// The underlying of a derivative row: the `Symbol` column, or on BFO what
+/// the member's `BfoNaming` reads from the trading symbol (`exp` is the
+/// row's `DD-MMM-YY` expiry, blank when unreadable).
+fn underlying(cfg: &NorenConfig, exchange: &str, t: &RowText, exp: &str) -> String {
+    if exchange != "BFO" {
+        return t.name.clone();
+    }
+    match cfg.bfo_naming {
+        BfoNaming::Columns => t.name.clone(),
+        BfoNaming::LeadingLetters => t
+            .tsym
+            .chars()
+            .take_while(|c| c.is_ascii_alphabetic())
+            .collect(),
+        BfoNaming::TradingSymbolStem => bfo_stem(&t.tsym, exp).to_string(),
+    }
+}
+
+/// The underlying of a BFO trading symbol: the symbol less its expiry,
+/// strike and type, anchored on the expiry's two-digit year (web
+/// tradesmart `extract_name`, marketcalls/openalgo#2475, the pattern
+/// `^(.+?){yy}(?:[A-Z]{3}|[1-9OND]\d{2})(?:\d+(?:\.\d+)?)?(?:CE|PE|FUT)$`).
+/// Monthly `SENSEX5026NOVFUT` is SENSEX50, weekly `SENSEX26D0389500PE`
+/// SENSEX, `M&M26NOVFUT` M&M. Any two digits stand for the year when
+/// `expiry` is blank; a symbol without such a suffix is its own stem.
+fn bfo_stem<'a>(tsym: &'a str, expiry: &str) -> &'a str {
+    let year = (expiry.len() >= 2).then(|| &expiry.as_bytes()[expiry.len() - 2..]);
+    // The shortest stem whose rest is a contract suffix, as the pattern's
+    // lazy `.+?` takes; one character at least.
+    tsym.char_indices()
+        .skip(1)
+        .find(|&(at, _)| is_contract_suffix(&tsym.as_bytes()[at..], year))
+        .map_or(tsym, |(at, _)| &tsym[..at])
+}
+
+/// `{yy}(?:[A-Z]{3}|[1-9OND]\d{2})(?:\d+(?:\.\d+)?)?(?:CE|PE|FUT)`, the whole
+/// of `rest`: the year, a monthly (`NOV`) or weekly (`D03`) expiry, an
+/// optional strike and the type.
+fn is_contract_suffix(rest: &[u8], year: Option<&[u8]>) -> bool {
+    let Some((yy, rest)) = rest.split_at_checked(2) else {
+        return false;
+    };
+    let year_matches = match year {
+        Some(y) => yy == y,
+        None => yy.iter().all(u8::is_ascii_digit),
+    };
+    let Some((month, rest)) = rest.split_at_checked(3) else {
+        return false;
+    };
+    let monthly = month.iter().all(u8::is_ascii_uppercase);
+    let weekly = matches!(month[0], b'1'..=b'9' | b'O' | b'N' | b'D')
+        && month[1..].iter().all(u8::is_ascii_digit);
+    let kinds: [&[u8]; 3] = [b"CE", b"PE", b"FUT"];
+    let strike = kinds.iter().find_map(|kind| rest.strip_suffix(*kind));
+    year_matches && (monthly || weekly) && strike.is_some_and(is_strike_or_empty)
+}
+
+/// `(?:\d+(?:\.\d+)?)?`: nothing, or digits with an optional decimal part.
+fn is_strike_or_empty(s: &[u8]) -> bool {
+    let digits = |d: &[u8]| !d.is_empty() && d.iter().all(u8::is_ascii_digit);
+    if s.is_empty() {
+        return true;
+    }
+    match s.iter().position(|&c| c == b'.') {
+        Some(dot) => digits(&s[..dot]) && digits(&s[dot + 1..]),
+        None => digits(s),
+    }
+}
+
 /// A derivative row: its type from the option column (or, for BFO where
 /// the broker says so, from the trading symbol), and its OpenAlgo symbol.
 /// CDS tokens up to 100 are skipped where the broker's rule says so.
@@ -220,7 +290,7 @@ fn derivative_row(
     let exp = expiry(&t.expiry);
     let opt = &t.option;
     let tsym = &t.tsym;
-    let from_tsym = exchange == "BFO" && cfg.bfo_from_tsym;
+    let from_tsym = exchange == "BFO" && cfg.bfo_naming != BfoNaming::Columns;
     let itype = if from_tsym {
         if tsym.ends_with("FUT") {
             "FUT".to_string()
@@ -238,13 +308,7 @@ fn derivative_row(
     } else {
         t.instrument.clone()
     };
-    let underlying = if from_tsym {
-        tsym.chars()
-            .take_while(|c| c.is_ascii_alphabetic())
-            .collect::<String>()
-    } else {
-        t.name.clone()
-    };
+    let underlying = underlying(cfg, exchange, t, &exp);
     let strike = t.strike.parse::<f64>().unwrap_or(-1.0);
     let symbol = if itype == "FUT" {
         future_symbol(&underlying, &exp)
@@ -269,6 +333,90 @@ fn derivative_row(
     })
 }
 
+/// The columns every row of an exchange file shares, before the exchange's
+/// own rules (index, equity, derivative) fill in the rest.
+fn base_row(
+    cfg: &NorenConfig,
+    exchange: &str,
+    token: String,
+    t: &RowText,
+    lot: &str,
+    tick: &str,
+) -> SymToken {
+    let lot_default = if cfg.tick_rule == TickRule::Fixed && matches!(exchange, "NSE" | "BSE") {
+        1
+    } else {
+        0
+    };
+    SymToken {
+        symbol: String::new(),
+        brsymbol: t.tsym.clone(),
+        name: t.name.clone(),
+        exchange: exchange.to_string(),
+        brexchange: exchange.to_string(),
+        token,
+        expiry: String::new(),
+        strike: -1.0,
+        lot_size: lot.parse::<f64>().map(|v| v as i32).unwrap_or(lot_default),
+        instrument_type: String::new(),
+        tick_size: tick_size(cfg.tick_rule, exchange, tick),
+    }
+}
+
+/// SENSEX (token 1) and BANKEX (token 12), for members whose BSE file
+/// lists no index (`BseIndices::Manual`).
+fn manual_bse_indices(cfg: &NorenConfig) -> impl Iterator<Item = SymToken> + '_ {
+    [("SENSEX", "1"), ("BANKEX", "12")]
+        .into_iter()
+        .map(|(sym, token)| SymToken {
+            symbol: sym.into(),
+            brsymbol: sym.into(),
+            name: sym.into(),
+            exchange: "BSE_INDEX".into(),
+            brexchange: "BSE_INDEX".into(),
+            token: token.into(),
+            expiry: String::new(),
+            strike: -1.0,
+            lot_size: 1,
+            instrument_type: cfg.index_instrument_type.into(),
+            tick_size: 0.05,
+        })
+}
+
+/// Rows of a file that are not stored, counted for one log line each.
+#[derive(Default)]
+struct Dropped {
+    /// BSE rows with no exchange (`bse_drop_without_exchange`).
+    stale: usize,
+    /// BSE rows with no tick size (`bse_drop_zero_tick`).
+    untradable: usize,
+}
+
+impl Dropped {
+    fn log(&self, cfg: &NorenConfig) {
+        if self.stale > 0 {
+            tracing::info!(
+                broker = cfg.id,
+                "Dropped {} BSE master rows with no exchange",
+                self.stale
+            );
+        }
+        if self.untradable > 0 {
+            tracing::info!(
+                broker = cfg.id,
+                "Skipping {} BSE rows with zero tick size",
+                self.untradable
+            );
+        }
+    }
+}
+
+/// Does the row carry a tick size? (web tradesmart `tick > 0`: missing,
+/// zero and unreadable all fail.)
+fn has_tick(row: &SymToken) -> bool {
+    row.tick_size > 0.0
+}
+
 /// Parse one exchange file into SymToken rows.
 pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken> {
     let mut lines = text.lines();
@@ -283,7 +431,18 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
             "BSE master has no Exchange column; stale rows are kept"
         );
     }
-    let mut stale = 0usize;
+    // Without the column every tick reads as 0, so the drop would take
+    // every BSE equity and the download would still pass its MC-02 check
+    // on the two manual index rows; the rows are kept (tick 0, as before
+    // the drop and as every other file without the column) and warned.
+    let drop_untradable = exchange == "BSE" && cfg.bse_drop_zero_tick;
+    if drop_untradable && c.tick.is_none() {
+        tracing::warn!(
+            broker = cfg.id,
+            "BSE master has no TickSize column; rows without a tick size are kept"
+        );
+    }
+    let mut dropped = Dropped::default();
     let mut out = Vec::new();
     for line in lines {
         if line.trim().is_empty() {
@@ -308,31 +467,14 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
             continue;
         }
         if drop_stale && c.exchange.is_some() && is_na(&get(c.exchange)) {
-            stale += 1;
+            dropped.stale += 1;
             continue;
         }
-        let lot_raw = get(c.lot);
-        let lot = lot_raw.parse::<f64>().map(|v| v as i32).unwrap_or(
-            if cfg.tick_rule == TickRule::Fixed && matches!(exchange, "NSE" | "BSE") {
-                1
-            } else {
-                0
-            },
-        );
-        let tick = tick_size(cfg.tick_rule, exchange, &get(c.tick));
-        let base = SymToken {
-            symbol: String::new(),
-            brsymbol: t.tsym.clone(),
-            name: t.name.clone(),
-            exchange: exchange.to_string(),
-            brexchange: exchange.to_string(),
-            token,
-            expiry: String::new(),
-            strike: -1.0,
-            lot_size: lot,
-            instrument_type: String::new(),
-            tick_size: tick,
-        };
+        let base = base_row(cfg, exchange, token, &t, &get(c.lot), &get(c.tick));
+        if drop_untradable && c.tick.is_some() && !has_tick(&base) {
+            dropped.untradable += 1;
+            continue;
+        }
         let row = match exchange {
             "NSE" => nse_row(cfg, &t, c.name.is_some(), base),
             "BSE" => Some(bse_row(cfg, &t, base)),
@@ -341,29 +483,9 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
         out.extend(row);
     }
     if exchange == "BSE" && cfg.bse_indices == BseIndices::Manual {
-        for (sym, token) in [("SENSEX", "1"), ("BANKEX", "12")] {
-            out.push(SymToken {
-                symbol: sym.into(),
-                brsymbol: sym.into(),
-                name: sym.into(),
-                exchange: "BSE_INDEX".into(),
-                brexchange: "BSE_INDEX".into(),
-                token: token.into(),
-                expiry: String::new(),
-                strike: -1.0,
-                lot_size: 1,
-                instrument_type: cfg.index_instrument_type.into(),
-                tick_size: 0.05,
-            });
-        }
+        out.extend(manual_bse_indices(cfg));
     }
-    if stale > 0 {
-        tracing::info!(
-            broker = cfg.id,
-            "Dropped {} BSE master rows with no exchange",
-            stale
-        );
-    }
+    dropped.log(cfg);
     out
 }
 
@@ -494,3 +616,6 @@ pub async fn download(b: &NorenBroker) -> Result<Vec<SymToken>> {
     }
     Ok(rows)
 }
+
+#[cfg(test)]
+mod tests;

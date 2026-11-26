@@ -14,6 +14,10 @@ use chrono_tz::Asia::Kolkata;
 use serde_json::{json, Value};
 
 mod day_end;
+mod flat_open_bar;
+mod index_eod_name;
+
+pub(crate) use index_eod_name::IndexEodNames;
 
 fn lookup(b: &NorenBroker, key: &QuoteKey) -> Result<SymToken> {
     b.resolver().by_symbol(&key.exchange, &key.symbol).ok_or_else(|| {
@@ -400,13 +404,7 @@ pub async fn get_history(
     let daily = intrv == "D";
     let start_ts = ist_epoch(req.start, 0, 0, 0);
     let end_ts = ist_epoch(req.end, 23, 59, 59);
-    let eod_symbol = b
-        .cfg
-        .eod_index_names
-        .iter()
-        .find(|((e, sym), _)| *e == req.key.exchange && *sym == req.key.symbol)
-        .map(|(_, n)| n.to_string())
-        .unwrap_or_else(|| row.br_symbol().to_string());
+    let eod_symbol = index_eod_name::eod_symbol(b, &s, &req.key, &row, daily).await;
     let chart = Chart {
         exch: &exch,
         token: &row.token,
@@ -436,6 +434,9 @@ pub async fn get_history(
         }
     }
     let mut out = sort_dedupe_last(candles);
+    if b.cfg.drop_flat_open_bar && !daily {
+        out = flat_open_bar::without_flat_open_bars(b.cfg, out);
+    }
     if b.cfg.day_end_repair && !daily && req.interval != "1m" {
         day_end::repair(b, &s, &chart, &req.key, &mut out).await;
     }
