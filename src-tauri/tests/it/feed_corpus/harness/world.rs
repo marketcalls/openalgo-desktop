@@ -634,8 +634,9 @@ async fn completed(session: &Session, u: &OrderUpdate) -> OrderUpdate {
 
 /// The runtime's order catch-up for a broker whose market feed is its
 /// session's only stream (`Broker::single_session_stream`, Flattrade): one
-/// order-book read after each connect of the market feed, whose status it
-/// watches from before the feed starts (`broker_runtime::catch_up_orders`).
+/// order-book read after each session of the market feed has written its
+/// post-login frames, which it watches from before the feed starts
+/// (`WebSocketManager::watch_ready`, `broker_runtime::catch_up_orders`).
 /// Only in a case that asks for orders, or its reads would be requests no
 /// step expects. The session never reaches its daily boundary in a case.
 fn order_catch_up(
@@ -660,7 +661,7 @@ fn order_catch_up(
     };
     relays.spawn(catch_up_orders(
         state.clone(),
-        market.watch_status(),
+        market.watch_ready(),
         session,
     ));
     Some(state)

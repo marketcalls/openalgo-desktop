@@ -168,6 +168,7 @@ pub(super) fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender
         packets: Default::default(),
         session: Default::default(),
         status: watch::channel(FeedStatus::Disconnected).0,
+        ready: watch::channel(0).0,
         config,
         stats: Arc::default(),
         conn: 0,

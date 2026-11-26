@@ -518,3 +518,75 @@ async fn a_full_connections_flush_releases_before_it_subscribes() {
         "the whole set, then the flush in the web's order"
     );
 }
+
+/// What needs the broker to have a session's post-login frames first hears
+/// of the session only once they are written (`WebSocketManager::watch_ready`),
+/// though `Connected` is reported before them (review X3). Flattrade's
+/// order catch-up reads the order book on it, so the read follows its
+/// `t=o`, as the web reads only after `_subscribe_order_updates` sent it
+/// (web 73599f37c). A socket that never takes the `t=o` leaves the session
+/// unready; one that takes it makes it ready once.
+#[tokio::test(start_paused = true)]
+async fn a_session_is_ready_only_once_its_post_login_frames_are_written() {
+    use crate::brokers::common::symbols::SymbolResolver;
+    use crate::brokers::families::noren::streaming::NorenFeed;
+    use futures_util::StreamExt;
+    use tokio_tungstenite::tungstenite::Error as WsError;
+
+    // The held write ends at the 2 s write timeout; the session that took
+    // everything is looked at after a second.
+    for (take, ready, limit) in [(1, 0, 10), (100, 1, 1)] {
+        let feed = NorenFeed::new(
+            crate::brokers::flattrade::config(),
+            "ws://127.0.0.1:1",
+            "U1",
+            "tok",
+            SymbolResolver::new(),
+        );
+        let (mut sup, _cmd) = supervisor(Box::new(feed));
+        let status = sup.status.subscribe();
+        let sessions = sup.ready.subscribe();
+        let ak = Message::Text(r#"{"t":"ak","s":"OK"}"#.into());
+        let mut read = futures_util::stream::iter([Ok::<_, WsError>(ak)])
+            .chain(futures_util::stream::pending());
+        let sent: Arc<Mutex<Vec<(Duration, String)>>> = Arc::default();
+        let mut write = StuckSink {
+            sent: sent.clone(),
+            take,
+            start: Instant::now(),
+            pongs: None,
+        };
+        let end = tokio::time::timeout(
+            Duration::from_secs(limit),
+            sup.session("flattrade", &mut write, &mut read),
+        )
+        .await;
+        let kinds: Vec<String> = sent
+            .lock()
+            .iter()
+            .map(|(_, f)| {
+                serde_json::from_str::<serde_json::Value>(f).map_or_else(
+                    |_| f.clone(),
+                    |v| v["t"].as_str().unwrap_or_default().to_string(),
+                )
+            })
+            .collect();
+        assert!(
+            matches!(*status.borrow(), FeedStatus::Connected { .. }),
+            "take {}: {:?}",
+            take,
+            *status.borrow()
+        );
+        assert_eq!(*sessions.borrow(), ready, "take {}: {:?}", take, kinds);
+        if take == 1 {
+            assert!(
+                matches!(end, Ok(SessionEnd::Dropped(DropCause::NotTakingFrames))),
+                "the held t=o ends the session"
+            );
+            assert_eq!(kinds, ["a"], "the login went, the t=o did not");
+        } else {
+            assert!(end.is_err(), "the session goes on");
+            assert_eq!(kinds[..3], ["a", "o", "t"], "{:?}", kinds);
+        }
+    }
+}

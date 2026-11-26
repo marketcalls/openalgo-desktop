@@ -100,6 +100,9 @@ pub(super) struct Supervisor {
     /// task's numbers begin (`PacketOut::task_started`).
     pub(super) session: SessionId,
     pub(super) status: watch::Sender<FeedStatus>,
+    /// Moved once a session has written its post-login frames and whole
+    /// set (`WebSocketManager::watch_ready`).
+    pub(super) ready: watch::Sender<u64>,
     pub(super) config: FeedConfig,
     pub(super) stats: Arc<FeedStats>,
     /// Which of the manager's connections this is: it sends the
@@ -383,6 +386,9 @@ impl Supervisor {
     /// sends it unless the set already carries it (`Apply::seq`). Reported
     /// after the set, a change made while it went out reached nobody: too
     /// late for the set, and not queued for a session not yet connected.
+    /// Ready only once the post-login frames and the set are written (web
+    /// Flattrade's `_subscribe_order_updates` says ready only after its
+    /// `t=o` went out).
     async fn subscribe_all<S>(&mut self, broker: &str, write: &mut S) -> Sent
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
@@ -391,6 +397,7 @@ impl Supervisor {
             broker: broker.to_string(),
         });
         self.resubscribe(write).await?;
+        self.ready.send_modify(|sessions| *sessions += 1);
         self.stats.mark_connected();
         Ok(())
     }

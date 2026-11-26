@@ -193,6 +193,9 @@ pub struct WebSocketManager {
     /// The first connection's state: the feed's, for the UI and the feed
     /// server.
     status: watch::Sender<FeedStatus>,
+    /// How many of the first connection's sessions have sent their
+    /// post-login frames and whole set (`watch_ready`).
+    ready: watch::Sender<u64>,
     registry: Arc<Mutex<Registry>>,
     /// The broker connections, first one first; `None` where an extra one
     /// is not open.
@@ -235,10 +238,12 @@ impl WebSocketManager {
         let (events, _) = broadcast::channel(config.event_capacity.max(1));
         let packets = PacketOut::with_capacity(config.event_capacity);
         let (status, _) = watch::channel(FeedStatus::Disconnected);
+        let (ready, _) = watch::channel(0);
         Self {
             events,
             packets,
             status,
+            ready,
             registry: Arc::new(Mutex::new(Registry::with_limits(PoolLimits::single(
                 config.max_instruments,
             )))),
@@ -316,6 +321,16 @@ impl WebSocketManager {
     /// Status changes.
     pub fn watch_status(&self) -> watch::Receiver<FeedStatus> {
         self.status.subscribe()
+    }
+
+    /// Moves each time a session of the first connection has written what
+    /// the broker is sent once it accepts the login, its post-login frames
+    /// (`BrokerFeed::on_authenticated`) and the whole set: what needs the
+    /// broker to have them first (Flattrade's order catch-up after its
+    /// `t=o`) waits for it, not for `Connected`, which is reported before
+    /// they go (`supervisor::subscribe_all`, review X3).
+    pub fn watch_ready(&self) -> watch::Receiver<u64> {
+        self.ready.subscribe()
     }
 
     pub fn stats(&self) -> &FeedStats {

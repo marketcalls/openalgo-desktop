@@ -8,20 +8,21 @@
 //!
 //! * **catch-up** (`OrderCatchUp`, `catch_up_orders`): after each
 //!   (re)connect of the feed, once the login is accepted and the order
-//!   subscription has gone out, the order book is read once and every order
-//!   whose state differs from the last known one is published as an order
-//!   update; the first read only records (web `_catch_up`). An order's
-//!   state is its status as the book and the push feed both report it (the
-//!   book folds `trigger pending` into `open`, the push keeps it apart) and
-//!   its filled quantity, kept from the reads and from every update the
-//!   socket pushed, so an update already pushed is not published again
-//!   (web `_remember`). A push that comes while a read is on its way is
-//!   newer than that read's rows, so it is kept over its order's row, which
-//!   publishes nothing: the web lets the row overwrite it (`known.update`),
-//!   and so publishes the order's older state after the newer one and the
-//!   newer one again at the next read. The first read keeps every push
-//!   before it too (the web drops them, `_remember`), so the next read
-//!   publishes what the book has moved past since.
+//!   subscription has been written (`WebSocketManager::watch_ready`; the
+//!   web reads after its `t=o` went out too), the order book is read once
+//!   and every order whose state differs from the last known one is
+//!   published as an order update; the first read only records (web
+//!   `_catch_up`). An order's state is its status as the book and the push
+//!   feed both report it (the book folds `trigger pending` into `open`, the
+//!   push keeps it apart) and its filled quantity, kept from the reads and
+//!   from every update the socket pushed, so an update already pushed is
+//!   not published again (web `_remember`). A push that comes while a read
+//!   is on its way is newer than that read's rows, so it is kept over its
+//!   order's row, which publishes nothing: the web lets the row overwrite
+//!   it (`known.update`), and so publishes the order's older state after
+//!   the newer one and the newer one again at the next read. The first
+//!   read keeps every push before it too (the web drops them, `_remember`),
+//!   so the next read publishes what the book has moved past since.
 //! * **rollover** (`SessionDay`): once the session's daily boundary has
 //!   passed nothing is read, and the feed connects no more until the next
 //!   sign-in (web `_login_this_trading_session`), the same rule
@@ -43,7 +44,6 @@ use crate::clock::Clock;
 use crate::error::Result;
 use crate::events::EventBus;
 use crate::session::boundary::is_fresh;
-use crate::websocket::FeedStatus;
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use std::collections::HashMap;
@@ -222,13 +222,14 @@ pub struct CatchUpSession {
 }
 
 /// Read the session's order book once after each (re)connect of its market
-/// feed and publish what changed (see the module docs). `status` is the
-/// feed's, subscribed before the feed starts so its first connect is seen.
-/// Runs until the feed's manager goes; the runtime owns the task and aborts
-/// it at teardown. Public so the feed corpus runs it as a session does.
+/// feed and publish what changed (see the module docs). `ready` is the
+/// feed's (`WebSocketManager::watch_ready`), subscribed before the feed
+/// starts so its first session is seen. Runs until the feed's manager
+/// goes; the runtime owns the task and aborts it at teardown. Public so
+/// the feed corpus runs it as a session does.
 pub async fn catch_up_orders(
     state: Arc<OrderCatchUp>,
-    status: watch::Receiver<FeedStatus>,
+    ready: watch::Receiver<u64>,
     session: CatchUpSession,
 ) {
     let CatchUpSession {
@@ -246,14 +247,15 @@ pub async fn catch_up_orders(
     let publish = |u: OrderUpdate| {
         bus.publish(order_event(&u, id, generation));
     };
-    run(&state, status, id, (read, || current(), publish)).await;
+    run(&state, ready, id, (read, || current(), publish)).await;
 }
 
-/// The loop of `catch_up_orders`: `read` the book after each connect while
-/// `current` says so, and `publish` each change.
+/// The loop of `catch_up_orders`: `read` the book after each session that
+/// `ready` announces while `current` says so, and `publish` each change.
+/// Sessions announced while a read is on its way are read once after it.
 async fn run<R, F, C, P>(
     state: &OrderCatchUp,
-    mut status: watch::Receiver<FeedStatus>,
+    mut ready: watch::Receiver<u64>,
     broker: &'static str,
     (read, current, publish): (R, C, P),
 ) where
@@ -263,12 +265,9 @@ async fn run<R, F, C, P>(
     P: Fn(OrderUpdate),
 {
     loop {
-        if status.changed().await.is_err() {
+        // Marks every session announced so far as seen.
+        if ready.changed().await.is_err() {
             return;
-        }
-        let connected = matches!(*status.borrow_and_update(), FeedStatus::Connected { .. });
-        if !connected {
-            continue;
         }
         if !current() {
             tracing::info!(

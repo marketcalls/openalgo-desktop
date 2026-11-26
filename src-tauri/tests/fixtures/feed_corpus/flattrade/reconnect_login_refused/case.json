@@ -36,7 +36,7 @@
     ],
     "notes": [
       "Web 73599f37c (marketcalls/openalgo#2507, issue #2386): nothing connects or reads after the session rollover until the next broker login, and a refused token stands order updates down.",
-      "The desktop's feed stops at the refused login (FeedStatus::AuthFailed, held until the next sign-in), and its order catch-up reads only once a login is accepted; past the daily boundary the feed does not even connect (broker_runtime::SessionDay, unit tests). The web's market data adapter retries a refused token a few times first; the replay has no connections to compare."
+      "The desktop's feed stops at the refused login (FeedStatus::AuthFailed, held until the next sign-in), and its order catch-up reads only once a login is accepted and the order subscription has been written (WebSocketManager::watch_ready); past the daily boundary the feed does not even connect (broker_runtime::SessionDay, unit tests). The web's market data adapter retries a refused token a few times first; the replay has no connections to compare."
     ]
   },
   "deviations": []

@@ -51,11 +51,15 @@ impl WebSocketManager {
     /// status; the others their own (`connection_states`).
     pub(super) fn spawn(&self, conn: usize, feed: Box<dyn BrokerFeed>) -> Running {
         let (tx, rx) = mpsc::channel(self.config.command_capacity.max(1));
-        let (status, seen) = if conn == 0 {
-            (self.status.clone(), self.status.subscribe())
+        let (status, seen, ready) = if conn == 0 {
+            (
+                self.status.clone(),
+                self.status.subscribe(),
+                self.ready.clone(),
+            )
         } else {
             let (status, seen) = watch::channel(FeedStatus::Disconnected);
-            (status, seen)
+            (status, seen, watch::channel(0).0)
         };
         let answers = feed.answers_admissions();
         let (sets, set_seen) = watch::channel(None);
@@ -68,6 +72,7 @@ impl WebSocketManager {
                 packets: self.packets.clone(),
                 session: self.packets.task_started(conn),
                 status,
+                ready,
                 config: self.config.clone(),
                 stats: self.stats.clone(),
                 conn,

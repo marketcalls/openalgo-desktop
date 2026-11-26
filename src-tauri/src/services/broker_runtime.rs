@@ -225,7 +225,7 @@ impl BrokerRuntime {
     /// A broker whose market feed is its session's only stream
     /// (`Broker::single_session_stream`): the feed's connect gate for the
     /// session's day, and the order catch-up after each of its connects,
-    /// watching its status from before it starts. Returns the catch-up the
+    /// watching its sessions from before it starts. Returns the catch-up the
     /// market feed's order relay tells of every update it pushes.
     fn single_stream(
         &self,
@@ -248,7 +248,7 @@ impl BrokerRuntime {
         ctx.websocket
             .set_connect_gate(Some(day.clone().gate(broker.name())));
         let state = Arc::new(OrderCatchUp::default());
-        let status = ctx.websocket.watch_status();
+        let ready = ctx.websocket.watch_ready();
         let session = CatchUpSession {
             broker: broker.clone(),
             auth: auth.clone(),
@@ -256,7 +256,7 @@ impl BrokerRuntime {
             generation,
             current: Arc::new(move || day.current()),
         };
-        Self::spawn(&self.tasks, catch_up_orders(state.clone(), status, session));
+        Self::spawn(&self.tasks, catch_up_orders(state.clone(), ready, session));
         Some(state)
     }
 

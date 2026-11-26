@@ -158,21 +158,14 @@ fn a_push_while_any_read_is_on_its_way_is_kept_over_its_row() {
     );
 }
 
-fn connected() -> FeedStatus {
-    FeedStatus::Connected {
-        broker: "flattrade".into(),
-    }
+/// A session of the market socket has written its post-login frames
+/// (`WebSocketManager::watch_ready`), then the loop has its turns.
+async fn session_ready(ready: &watch::Sender<u64>) {
+    ready.send_modify(|sessions| *sessions += 1);
+    settle().await;
 }
 
-fn reconnecting() -> FeedStatus {
-    FeedStatus::Reconnecting {
-        broker: "flattrade".into(),
-        attempt: 1,
-        delay_ms: 5,
-    }
-}
-
-/// Turns for the catch-up loop to see a status and finish its read.
+/// Turns for the catch-up loop to see a session and finish its read.
 async fn settle() {
     for _ in 0..20 {
         tokio::task::yield_now().await;
@@ -219,13 +212,13 @@ fn update(id: &str, status: &str) -> (String, String) {
     (id.to_string(), status.to_string())
 }
 
-/// Run the catch-up loop over `script` on the feed status `rx` while
-/// `drive` moves it (and drops its sender, which ends the loop), `current`
-/// saying whether the session's day goes on.
+/// Run the catch-up loop over `script` on the feed's sessions `rx` while
+/// `drive` announces them (and drops its sender, which ends the loop),
+/// `current` saying whether the session's day goes on.
 async fn drive_run(
     script: &Script,
     current: bool,
-    rx: watch::Receiver<FeedStatus>,
+    rx: watch::Receiver<u64>,
     drive: impl std::future::Future<Output = ()>,
 ) {
     let state = OrderCatchUp::default();
@@ -247,34 +240,27 @@ async fn drive_run(
 }
 
 /// Web `test_ready_from_the_market_data_adapter_schedules_a_catch_up`:
-/// each connect of the feed reads the order book once (the first only
-/// records); a status on the way to it reads nothing.
+/// each session of the feed reads the order book once (the first only
+/// records), once its post-login frames have gone; nothing before.
 #[tokio::test]
 async fn each_connect_reads_the_order_book_once() {
     let script = Script::new(vec![
         Some(vec![order("1", "open", 0)]),
         Some(vec![order("1", "complete", 10)]),
     ]);
-    let (send, rx) = watch::channel(FeedStatus::Disconnected);
+    let (send, rx) = watch::channel(0);
     let drive = async {
-        send.send_replace(FeedStatus::Connecting {
-            broker: "flattrade".into(),
-            attempt: 0,
-        });
         settle().await;
-        assert_eq!(script.reads(), 0, "no read before the login is accepted");
-        send.send_replace(connected());
-        settle().await;
+        assert_eq!(script.reads(), 0, "no read before a session is ready");
+        session_ready(&send).await;
         assert_eq!(script.reads(), 1);
         assert!(
             script.published.lock().is_empty(),
             "the first read only records"
         );
-        send.send_replace(reconnecting());
         settle().await;
         assert_eq!(script.reads(), 1);
-        send.send_replace(connected());
-        settle().await;
+        session_ready(&send).await;
         assert_eq!(script.reads(), 2);
         drop(send);
     };
@@ -283,7 +269,7 @@ async fn each_connect_reads_the_order_book_once() {
 }
 
 /// A read that fails publishes nothing and keeps the state it had: the
-/// next connect's read publishes the change against it.
+/// next session's read publishes the change against it.
 #[tokio::test]
 async fn a_failed_read_publishes_nothing_and_keeps_the_state() {
     let script = Script::new(vec![
@@ -291,13 +277,10 @@ async fn a_failed_read_publishes_nothing_and_keeps_the_state() {
         None,
         Some(vec![order("1", "complete", 10)]),
     ]);
-    let (send, rx) = watch::channel(FeedStatus::Disconnected);
+    let (send, rx) = watch::channel(0);
     let drive = async {
         for _ in 0..3 {
-            send.send_replace(connected());
-            settle().await;
-            send.send_replace(reconnecting());
-            settle().await;
+            session_ready(&send).await;
         }
         assert_eq!(script.reads(), 3);
         drop(send);
@@ -318,13 +301,10 @@ async fn a_fill_pushed_while_a_reconnect_reads_is_published_once() {
         Some(vec![order("1", "complete", 10)]),
     ])
     .pushing_during(1, pushed("1", "complete", 10));
-    let (send, rx) = watch::channel(FeedStatus::Disconnected);
+    let (send, rx) = watch::channel(0);
     let drive = async {
         for _ in 0..3 {
-            send.send_replace(connected());
-            settle().await;
-            send.send_replace(reconnecting());
-            settle().await;
+            session_ready(&send).await;
         }
         assert_eq!(script.reads(), 3);
         drop(send);
@@ -334,17 +314,14 @@ async fn a_fill_pushed_while_a_reconnect_reads_is_published_once() {
 }
 
 /// Web `test_without_a_login_this_session_nothing_connects_or_reads`:
-/// once the session's day has ended, a connect reads nothing.
+/// once the session's day has ended, a session of the feed reads nothing.
 #[tokio::test]
 async fn after_the_daily_boundary_a_connect_reads_nothing() {
     let script = Script::new(vec![Some(vec![order("1", "open", 0)])]);
-    let (send, rx) = watch::channel(FeedStatus::Disconnected);
+    let (send, rx) = watch::channel(0);
     let drive = async {
         for _ in 0..3 {
-            send.send_replace(connected());
-            settle().await;
-            send.send_replace(reconnecting());
-            settle().await;
+            session_ready(&send).await;
         }
         drop(send);
     };

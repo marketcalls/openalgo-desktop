@@ -103,6 +103,7 @@ async fn session(
         packets: Default::default(),
         session: Default::default(),
         status: watch::channel(FeedStatus::Disconnected).0,
+        ready: watch::channel(0).0,
         config: FeedConfig::default(),
         stats: Arc::default(),
         conn: 0,
