@@ -1,6 +1,6 @@
 # Web sync checkpoints
 
-Next sync starts after f83592a0b230459f3cb0ce845fe16c9c011f2043 (OpenAlgo web main, 2026-11-26 14:40 IST) <!-- confirm after merge: unit late-fixes -->
+Next sync starts after f83592a0b230459f3cb0ce845fe16c9c011f2043 (OpenAlgo web main, 2026-11-26 14:40 IST)
 
 The desktop carries OpenAlgo web's commits about once a week (the
 `web-sync` skill). Each sync covers the web commits after the line above,
@@ -13,7 +13,7 @@ A web range is written as git reads it: `a..b` is every web commit after
 
 | Date | Web range | Desktop release | Record |
 | --- | --- | --- | --- |
-| 2026-11-26 | `b53816a76..f83592a0b` | 1.0.10 | [sync-2026-11-26.md](sync-2026-11-26.md) <!-- confirm after merge: unit late-fixes --> |
+| 2026-11-26 | `b53816a76..f83592a0b` | 1.0.10 | [sync-2026-11-26.md](sync-2026-11-26.md) |
 | 2026-11-17 | `a1b9e3250..b53816a76` | 1.0.8 and 1.0.9 | [sync-2026-11-17.md](sync-2026-11-17.md) |
 | 2026-11-08 | `a9370edf8..a1b9e3250` | 1.0.6 | message of desktop commit `e8d91272` |
 | 2026-10-31 | `8a2fbf1d0..a9370edf8` | 1.0.5 | message of desktop commit `4ec8f076` |
@@ -44,4 +44,4 @@ there (`scripts/feed_corpus/web_expected.py --web <private web tree>
 stay behind the sync line when the later web commits change no adapter.
 Pins so far: `a1b9e3250` (1.0.7 and 1.0.8), `ee123273b` (1.0.9),
 `3f4c71e0f`, `5749d4126` and `249916b27` (during the 1.0.10 sync), and
-`f83592a0b` for 1.0.10's release (`be38b42f` on `lane110/late-fixes`). <!-- confirm after merge: unit late-fixes -->
+`f83592a0b` for 1.0.10's release (`be38b42f`).

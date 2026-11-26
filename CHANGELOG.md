@@ -192,7 +192,7 @@ backup.
   offer prices Flattrade rejects (marketcalls/openalgo#2508, OpenAlgo web
   702153110). The download reads these tick sizes from Shoonya's public
   symbol files, as OpenAlgo web does; if they cannot be read, contracts keep
-  the fixed tick they had before. <!-- confirm after merge: unit late-fixes -->
+  the fixed tick they had before.
 - 5paisa XTS: the trade book shows each fill with its own quantity, price
   and time. Replaced and pending orders show as open, and Cancel All cancels
   them, except one already being cancelled. Cancel All also still cancels
@@ -254,7 +254,6 @@ backup.
   Dhan's live prices no longer freeze on a short message after a quote
   (marketcalls/openalgo#2509, OpenAlgo web f83592a0b). OpenAlgo Desktop
   already did all three; nothing changes here.
-  <!-- confirm after merge: unit late-fixes -->
 
 ### API
 
@@ -311,7 +310,6 @@ backup.
 - The Agent's OpenScript skill gains a worked multi-timeframe example, a
   5-minute study reading the 15-minute and hourly EMA, and notes on the
   mistakes such reads invite (OpenAlgo web 7a92a704c).
-  <!-- confirm after merge: unit openscript-followup -->
 
 ### Charts and OpenScript
 
@@ -360,7 +358,6 @@ backup.
   such as `"15m"` on an hourly chart (OpenAlgo web e44126d67). On a chart
   such a read still draws nothing on openalgo-script 0.9.0: write the
   minutes as a bare number (`"15"`) until the next release of the language.
-  <!-- confirm after merge: unit openscript-followup -->
 
 ### Fixes
 
