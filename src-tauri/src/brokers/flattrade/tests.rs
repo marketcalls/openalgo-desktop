@@ -617,6 +617,68 @@ fn only_flattrade_streams_its_orders_on_its_one_socket() {
     }
 }
 
+mod non_json_book {
+    //! An order-book read answered with a body that is not JSON, as
+    //! Flattrade answers a session the daily rollover ended (web
+    //! 73599f37c, issue #2386).
+
+    use crate::brokers::common::symbols::SymbolResolver;
+    use crate::brokers::families::noren::{NorenBroker, NorenEndpoints};
+    use crate::brokers::flattrade::config;
+    use crate::brokers::types::AuthToken;
+    use crate::brokers::Broker;
+    use axum::http::StatusCode;
+    use axum::routing::post;
+    use axum::Router;
+
+    /// A PiConnect answering every order-book read with `status` and
+    /// `body`; stopped with the handle.
+    async fn answering(
+        status: StatusCode,
+        body: &'static str,
+    ) -> (String, tokio::task::JoinHandle<()>) {
+        let app = Router::new().route(
+            "/PiConnectAPI/OrderBook",
+            post(move || async move { (status, body) }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (base, task)
+    }
+
+    /// Web `test_flattrade_issue_2386.py::test_a_non_json_answer_is_a_not_ok_not_an_exception`
+    /// (an empty body, an HTML page and plain text with HTTP 502; an HTML
+    /// page with 200 besides): the read fails with words for the trader,
+    /// never a panic and never an empty book. The web now hands its mapping
+    /// a Not_Ok there, which its order book shows as no orders; the desktop
+    /// keeps an unread book unread (BR-03), as for every failed read.
+    #[tokio::test]
+    async fn a_body_that_is_not_json_is_a_failed_read_not_an_empty_book() {
+        for (status, body) in [
+            (StatusCode::BAD_GATEWAY, ""),
+            (StatusCode::BAD_GATEWAY, "<html>Session Expired</html>"),
+            (StatusCode::BAD_GATEWAY, "not json"),
+            (StatusCode::OK, "<html>Session Expired</html>"),
+        ] {
+            let (base, task) = answering(status, body).await;
+            let endpoints = NorenEndpoints::rebased(config(), &base, "ws://127.0.0.1:9");
+            let flattrade = NorenBroker::with_endpoints(config(), SymbolResolver::new(), endpoints);
+            let read = flattrade
+                .get_order_book(&AuthToken::new("U1:::dead-token"))
+                .await;
+            task.abort();
+            let said = read
+                .expect_err("an unreadable answer is not an order book")
+                .client_message();
+            assert!(said.contains("Try again"), "{:?}: {}", body, said);
+            assert!(!said.contains("502"), "{}", said);
+        }
+    }
+}
+
 mod order_stream {
     //! Flattrade's order stream on its one PiConnect socket, through the
     //! runtime a session runs (web 73599f37c, marketcalls/openalgo#2507,
