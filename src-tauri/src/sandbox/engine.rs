@@ -7,7 +7,9 @@
 //!   resting orders and GTT legs and (throttled by `mtm_update_interval`)
 //!   marks its open positions to market;
 //! * engine commands from the order path (`Watch`, `Rebuild`,
-//!   `ConfigChanged`), on a bounded channel;
+//!   `ConfigChanged`), on a bounded channel; each acts on what the
+//!   database says when it is handled, since a command can arrive after
+//!   one sent for a later commit (a `Watch` is checked again);
 //! * a one-second clock that runs the day schedule's due jobs;
 //! * the polling fallback every `order_check_interval` seconds, which
 //!   quotes only the symbols whose own feed is stale: no usable tick for
@@ -274,6 +276,27 @@ async fn rebuild(core: &Arc<Core>, state: &mut State, ticks: &dyn TickSource) {
     }
 }
 
+/// The order path's `Watch`: watch the symbol if it still needs ticks now.
+/// A place reads its order as resting and only then sends the command, and
+/// nothing stops a cancel from committing in between: `orders::cancel`
+/// (cancel all among its callers) takes no position lock and sends its
+/// `Rebuild` ahead of the `Watch`, and the auto square-off cancels inside
+/// this task. Acting on the stale `Watch` then left the symbol watched and
+/// subscribed with nothing needing it until the next maintenance rebuild
+/// (web 398f614cc: never the symbol left subscribed). Read here, after
+/// every command sent before this one was handled, the answer is current:
+/// a cancel committed after this read sends a `Rebuild` that comes next.
+async fn watch_if_needed(
+    core: &Arc<Core>,
+    state: &mut State,
+    ticks: &dyn TickSource,
+    key: SymbolKey,
+) {
+    if !state.watched.contains(&key) && still_needed(core, &key).await {
+        state.watch(ticks, &key);
+    }
+}
+
 async fn on_tick(core: &Arc<Core>, state: &mut State, ticks: &dyn TickSource, tick: Tick) {
     let key = tick.key();
     if !state.watched.contains(&key) || tick.ltp <= rust_decimal::Decimal::ZERO {
@@ -384,7 +407,7 @@ async fn run(
                 }
             }
             Some(cmd) = cmds.recv() => match cmd {
-                EngineCmd::Watch(k) => state.watch(ticks.as_ref(), &k),
+                EngineCmd::Watch(k) => watch_if_needed(&core, &mut state, ticks.as_ref(), k).await,
                 EngineCmd::Rebuild => rebuild(&core, &mut state, ticks.as_ref()).await,
                 EngineCmd::ConfigChanged => {
                     if let Some(i) = inner.upgrade() {
@@ -429,3 +452,6 @@ async fn run(
     *core.engine_tx.write() = None;
     tracing::info!("Sandbox engine stopped");
 }
+
+#[cfg(test)]
+mod tests;

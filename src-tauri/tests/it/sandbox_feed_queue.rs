@@ -12,6 +12,10 @@
 //! does not answer, for up to the manager's 10 s step deadline), and its
 //! let-go hook records every release. The adapter is the production
 //! `FeedTicks`.
+//!
+//! A cancel racing a place (web ::test_a_cancel_racing_a_place_is_queued_after_it)
+//! is in `sandbox::engine`'s unit tests: the race falls between two
+//! statements of the order path, which only the crate can stand between.
 
 use crate::sandbox_support::*;
 use futures_util::FutureExt;
