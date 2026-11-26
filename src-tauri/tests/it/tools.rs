@@ -990,7 +990,8 @@ async fn oi_profile_shows_no_change_where_the_previous_day_is_unknown() {
     );
 
     // One daily candle: no previous day in it, so no change either; a
-    // real previous OI of zero is a reading (the whole OI is new).
+    // real previous OI of zero, in a history whose bars carry OI, is a
+    // reading (the whole OI is new).
     let h = H::new(true);
     let one = Candle {
         timestamp: ist(5, 9, 15).timestamp(),
@@ -1008,10 +1009,48 @@ async fn oi_profile_shows_no_change_where_the_previous_day_is_unknown() {
         timestamp: ist(2, 15, 29).timestamp(),
         ..one
     };
-    *h.mock.history.lock() = Some(Ok(vec![zero_before, one]));
+    let today = Candle { oi: 1000, ..one };
+    *h.mock.history.lock() = Some(Ok(vec![zero_before, today]));
     let (_, v) = h.post("/oiprofile/api/profile-data", b).await;
     assert_eq!(v["oi_chain"][0]["ce_oi_change"], json!(1000.0));
     assert!(v.get("oi_change_failed").is_none());
+}
+
+/// TOOLS-14 (review finding, pocketful-data): a daily history whose bars
+/// all carry OI 0 has no open interest in it. Pocketful's chart candles
+/// are such a history (for BFO and MCX options, and whenever its NFO
+/// endpoint falls back), so the previous day's OI is not read from it:
+/// the change is null and counted, never the whole OI as one day's
+/// build-up.
+#[tokio::test]
+async fn oi_profile_reads_no_previous_day_from_a_history_without_oi() {
+    let h = H::new(true);
+    let daily = |d: u32| Candle {
+        timestamp: ist(d, 0, 0).timestamp(),
+        open: 1.0,
+        high: 1.0,
+        low: 1.0,
+        close: 1.0,
+        volume: 1,
+        oi: 0,
+    };
+    *h.mock.history.lock() = Some(Ok(vec![daily(1), daily(2), daily(5)]));
+    let mut b = nifty();
+    b["interval"] = json!("1m");
+    b["days"] = json!(1);
+    let (s, v) = h.post("/oiprofile/api/profile-data", b).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(
+        v["oi_chain"][0],
+        json!({"strike": 24800.0, "ce_oi": 1000, "pe_oi": 5000, "ce_oi_change": null, "pe_oi_change": null})
+    );
+    assert_eq!(v["oi_change_loaded"], 0);
+    assert_eq!(v["oi_change_requested"], 10);
+    assert_eq!(v["oi_change_failed"], 10);
+    assert_eq!(
+        v["message"],
+        "The daily OI change is shown for 0 of 10 option contracts: the broker's history did not give the previous day for 10. The others show no change rather than a guess. Refresh in a minute to try again."
+    );
 }
 
 #[tokio::test]

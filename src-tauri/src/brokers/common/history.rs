@@ -6,7 +6,8 @@
 //! `current_end = min(current_start + chunk_days - 1, end)` loop.
 
 use crate::brokers::types::Candle;
-use chrono::NaiveDate;
+use crate::clock::IST_OFFSET_SECS;
+use chrono::{NaiveDate, NaiveTime};
 
 /// Inclusive date ranges of at most `max_days` days covering `[start, end]`.
 pub fn chunks(start: NaiveDate, end: NaiveDate, max_days: i64) -> Vec<(NaiveDate, NaiveDate)> {
@@ -30,6 +31,55 @@ pub fn sort_dedupe(mut candles: Vec<Candle>) -> Vec<Candle> {
     candles.sort_by_key(|c| c.timestamp);
     candles.dedup_by_key(|c| c.timestamp);
     candles
+}
+
+/// Merge time-ordered candles that fall in the same bar into that bar, as
+/// the web's pandas `agg` does: open first, high max, low min, close last,
+/// volume summed, OI last. Each bar is stamped with the time `bar_of`
+/// gives its candles, and a candle it gives none for is dropped. A bar no
+/// candle fell in does not appear (pandas drops empty bins).
+pub fn merge_bars(
+    candles: impl IntoIterator<Item = Candle>,
+    bar_of: impl Fn(i64) -> Option<i64>,
+) -> Vec<Candle> {
+    let mut out: Vec<Candle> = Vec::new();
+    for c in candles {
+        let Some(at) = bar_of(c.timestamp) else {
+            continue;
+        };
+        match out.last_mut() {
+            Some(bar) if bar.timestamp == at => {
+                bar.high = bar.high.max(c.high);
+                bar.low = bar.low.min(c.low);
+                bar.close = c.close;
+                bar.volume = bar.volume.saturating_add(c.volume);
+                bar.oi = c.oi;
+            }
+            _ => out.push(Candle { timestamp: at, ..c }),
+        }
+    }
+    out
+}
+
+/// `minutes`-minute bars from time-ordered candles: pandas
+/// `resample(f"{minutes}min", origin="start_day", offset=f"{offset}min",
+/// closed="left", label="left")` on IST times. Bins are counted from the
+/// IST midnight of the first candle's day plus `offset_minutes` (a session
+/// open: 15 puts NSE's bars at 09:15, 10:15, ...), and each bar is
+/// [`merge_bars`]. One minute or less leaves the candles as they are.
+pub fn resample(candles: Vec<Candle>, minutes: i64, offset_minutes: i64) -> Vec<Candle> {
+    if minutes <= 1 {
+        return candles;
+    }
+    let Some(first_day) = candles.first().and_then(|c| ist_day(c.timestamp)) else {
+        return candles;
+    };
+    let origin = first_day.and_time(NaiveTime::MIN).and_utc().timestamp() - IST_OFFSET_SECS
+        + offset_minutes * 60;
+    let span = minutes * 60;
+    merge_bars(candles, |t| {
+        Some(origin + (t - origin).div_euclid(span) * span)
+    })
 }
 
 /// The bar length of an OpenAlgo intraday interval Nuvama's chart serves,
@@ -292,6 +342,118 @@ mod tests {
         let out = sort_dedupe(vec![c(3), c(1), c(3), c(2)]);
         let ts: Vec<i64> = out.iter().map(|c| c.timestamp).collect();
         assert_eq!(ts, [1, 2, 3]);
+    }
+
+    /// A one-minute candle at an IST time: open `p`, high `p + 1`, low
+    /// `p - 1`, close `p + 0.5`, volume 10, OI `p`.
+    fn minute(at: i64, p: f64) -> Candle {
+        Candle {
+            timestamp: at,
+            open: p,
+            high: p + 1.0,
+            low: p - 1.0,
+            close: p + 0.5,
+            volume: 10,
+            oi: p as i64,
+        }
+    }
+
+    fn times(bars: &[Candle]) -> Vec<i64> {
+        bars.iter().map(|c| c.timestamp).collect()
+    }
+
+    /// pandas `resample("5min", origin="start_day", offset="15min")`:
+    /// bins from 09:15, open first, high max, low min, close last, volume
+    /// summed, OI last, and an empty bin (09:25) left out.
+    #[test]
+    fn resampled_bars_count_from_the_offset_and_drop_empty_bins() {
+        let candles = vec![
+            minute(ist(2026, 10, 27, 9, 15), 100.0),
+            minute(ist(2026, 10, 27, 9, 16), 103.0),
+            minute(ist(2026, 10, 27, 9, 19), 98.0),
+            minute(ist(2026, 10, 27, 9, 20), 101.0),
+            minute(ist(2026, 10, 27, 9, 31), 105.0),
+        ];
+        let bars = resample(candles, 5, 15);
+        assert_eq!(
+            times(&bars),
+            vec![
+                ist(2026, 10, 27, 9, 15),
+                ist(2026, 10, 27, 9, 20),
+                ist(2026, 10, 27, 9, 30)
+            ]
+        );
+        let first = bars[0];
+        assert_eq!(
+            (first.open, first.high, first.low, first.close),
+            (100.0, 104.0, 97.0, 98.5)
+        );
+        assert_eq!((first.volume, first.oi), (30, 98));
+    }
+
+    /// Hourly bars sit on the session open: 09:15 and 10:15 on NSE (offset
+    /// 15), 09:00 on MCX (offset 0), and the grid carries into the next day.
+    #[test]
+    fn hourly_bars_start_at_the_session_open_every_day() {
+        let candles = || {
+            vec![
+                minute(ist(2026, 10, 27, 9, 15), 1.0),
+                minute(ist(2026, 10, 27, 10, 14), 2.0),
+                minute(ist(2026, 10, 27, 10, 15), 3.0),
+                minute(ist(2026, 10, 28, 9, 20), 4.0),
+            ]
+        };
+        assert_eq!(
+            times(&resample(candles(), 60, 15)),
+            vec![
+                ist(2026, 10, 27, 9, 15),
+                ist(2026, 10, 27, 10, 15),
+                ist(2026, 10, 28, 9, 15)
+            ]
+        );
+        assert_eq!(
+            times(&resample(candles(), 60, 0)),
+            vec![
+                ist(2026, 10, 27, 9, 0),
+                ist(2026, 10, 27, 10, 0),
+                ist(2026, 10, 28, 9, 0)
+            ]
+        );
+    }
+
+    /// pandas counts back from the origin too: with bins from 00:15, a
+    /// candle at 00:05 falls in the bin of 23:45 the day before.
+    #[test]
+    fn a_candle_before_the_offset_falls_in_the_bin_before_it() {
+        let bars = resample(vec![minute(ist(2026, 10, 27, 0, 5), 1.0)], 30, 15);
+        assert_eq!(times(&bars), vec![ist(2026, 10, 26, 23, 45)]);
+    }
+
+    #[test]
+    fn one_minute_bars_and_no_candles_are_left_as_they_are() {
+        let candles = vec![
+            minute(ist(2026, 10, 27, 9, 15), 1.0),
+            minute(ist(2026, 10, 27, 9, 16), 2.0),
+        ];
+        assert_eq!(resample(candles.clone(), 1, 15), candles);
+        assert!(resample(Vec::new(), 5, 15).is_empty());
+    }
+
+    /// A candle `bar_of` places nowhere is dropped; the rest merge by key.
+    #[test]
+    fn merged_bars_take_the_key_bar_of_gives() {
+        let candles = vec![
+            minute(1_000, 1.0),
+            minute(1_060, 2.0),
+            minute(1_120, 3.0),
+            minute(5_000, 4.0),
+        ];
+        let bars = merge_bars(candles, |t| (t != 1_120).then_some(t - t % 1_000));
+        assert_eq!(times(&bars), vec![1_000, 5_000]);
+        assert_eq!(
+            (bars[0].open, bars[0].close, bars[0].volume),
+            (1.0, 2.5, 20)
+        );
     }
 
     #[test]

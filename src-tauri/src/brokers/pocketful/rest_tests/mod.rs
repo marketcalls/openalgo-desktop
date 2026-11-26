@@ -5,6 +5,7 @@
 
 mod auth;
 mod client;
+mod data;
 mod funds_margin;
 mod gtt;
 mod master;
