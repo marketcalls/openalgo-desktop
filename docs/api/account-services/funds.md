@@ -53,7 +53,9 @@ curl -X POST http://127.0.0.1:5000/api/v1/funds \
     "m2mrealized": 0.0,
     "m2munrealized": 0.0,
     "reset_count": 0,
+    "today_charges": 0.0,
     "today_realized_pnl": 0.0,
+    "total_charges": 0.0,
     "total_realized_pnl": 0.0,
     "totalpnl": 0.0,
     "utiliseddebits": 333371.21
@@ -92,10 +94,12 @@ curl -X POST http://127.0.0.1:5000/api/v1/funds \
 | total_realized_pnl | number | Analyzer mode only: realized P&L since the last sandbox reset |
 | last_reset | string | Analyzer mode only: time of the last sandbox reset, `YYYY-MM-DD HH:MM:SS` |
 | reset_count | number | Analyzer mode only: how many times the sandbox was reset |
+| today_charges | number | Analyzer mode only: brokerage and statutory charges paid since the 03:00 IST reset |
+| total_charges | number | Analyzer mode only: brokerage and statutory charges paid since the last sandbox reset |
 
 ## Analyzer Mode
 
-The sandbox answers with its own account: 1 crore starting capital (set on the Sandbox page), every value a JSON number, plus the analyzer-only fields above. Margin is blocked when an order is placed and released when it is cancelled or its position is closed. See [Sandbox mode](../../user/sandbox.md).
+The sandbox answers with its own account: 1 crore starting capital (set on the Sandbox page), every value a JSON number, plus the analyzer-only fields above. Margin is blocked when an order is placed and released when it is cancelled or its position is closed. Each fill's brokerage and statutory charges come out of `availablecash` and are added to `today_charges` and `total_charges`; the P&L fields and the margin in use do not move with them. See [Sandbox mode](../../user/sandbox.md).
 
 ## Errors
 

@@ -30,7 +30,7 @@ See [Moving from OpenAlgo web](../user/moving-from-openalgo-web.md) and [Another
    }
    ```
 
-2. **Log in to your broker.** Most endpoints need a live broker session. Without one they answer 403 `Invalid openalgo apikey`, as on the web. These need only a valid API key: `/search`, `/expiry`, `/instruments`, `/pnl/symbols`, `/chart`, `/market/holidays`, `/market/timings`, `/strategy/*`, `/telegram/*`, `/whatsapp/notify`, and `/history` with `source: "db"` (Historify).
+2. **Log in to your broker.** Most endpoints need a live broker session. Without one they answer 403 `Invalid openalgo apikey`, as on the web. These need only a valid API key: `/search`, `/expiry`, `/instruments`, `/pnl/symbols`, `/charges`, `/chart`, `/market/holidays`, `/market/timings`, `/strategy/*`, `/telegram/*`, `/whatsapp/notify`, and `/history` with `source: "db"` (Historify).
 
 3. **Use the desktop's API key.** Copy it from the **API Key** page. A key from OpenAlgo web does not work here.
 
@@ -52,7 +52,7 @@ Never put broker credentials or broker tokens in these requests. The API key rea
 
 ## Endpoint Index
 
-The desktop serves **68 method/path pairs**: every one OpenAlgo web documents except the six portfolio and SIP backtester endpoints ([below](#not-in-the-desktop)). A resource with both GET and POST counts twice. All paths are under `/api/v1`.
+The desktop serves **69 method/path pairs**: every one OpenAlgo web documents except the six portfolio and SIP backtester endpoints ([below](#not-in-the-desktop)). A resource with both GET and POST counts twice. All paths are under `/api/v1`.
 
 ### Order Management
 
@@ -86,6 +86,7 @@ The desktop serves **68 method/path pairs**: every one OpenAlgo web documents ex
 |---|---|---|
 | POST | `/funds` | [Funds](./account-services/funds.md) |
 | POST | `/margin` | [Margin](./account-services/margin.md) |
+| POST | `/charges` | [Charges](./account-services/charges.md) |
 | POST | `/orderbook` | [Order book](./account-services/orderbook.md) |
 | POST | `/tradebook` | [Trade book](./account-services/tradebook.md) |
 | POST | `/positionbook` | [Position book](./account-services/positionbook.md) |

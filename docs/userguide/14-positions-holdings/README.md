@@ -208,7 +208,9 @@ Positions and holdings come from the sandbox, not your broker:
 - a CNC buy moves to sandbox holdings at 00:00 IST the next calendar day,
   weekends and holidays included;
 - closed positions leave the position book;
-- sandbox P&L is before costs (no brokerage or taxes).
+- sandbox P&L is shown before charges; brokerage and statutory charges
+  (on a crypto venue, only the venue fee you set) are taken from the
+  sandbox balance at each fill and shown beside it.
 
 See [Sandbox mode](../../user/sandbox.md).
 

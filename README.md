@@ -668,14 +668,17 @@ next day and squares off MIS positions at the exchange cut-off times. Its data
 is kept in a separate database, apart from live trading.
 
 - **Sandbox** (in the profile menu): Sandbox Configuration, with capital,
-  leverage and square-off times, and a link to **My P&L History**.
+  leverage and square-off times, and links to **My P&L History**, **Charges**
+  (your brokerage plan and what trades have cost) and the brokerage
+  **Calculator**.
 - **Logs**, then **Sandbox Logs**: the Sandbox Request Monitor, listing every
   request made while analyzer mode was on.
 
 Market data still comes from your connected broker, so connect a broker before
-using sandbox mode. Fills are all or nothing and P&L is before costs; see
-[Sandbox mode](docs/user/sandbox.md) for how orders fill and the limits of
-the simulation.
+using sandbox mode. Fills are all or nothing, and every fill pays brokerage
+and statutory charges from the sandbox balance while P&L is shown before
+them; see [Sandbox mode](docs/user/sandbox.md) for how orders fill and the
+limits of the simulation.
 
 ## Ports
 
