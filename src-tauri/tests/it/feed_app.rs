@@ -74,19 +74,7 @@ fn broker_session(broker: &str, token: &str) -> BrokerSession {
 async fn app_auth_uses_the_stored_api_key_and_broker_session() {
     let dir = tempfile::tempdir().unwrap();
     let ctx = open_ctx(&dir);
-    {
-        let conn = ctx.sqlite.conn().unwrap();
-        user::insert(
-            &conn,
-            &ctx.security,
-            "alice",
-            "alice@example.com",
-            "not-a-real-hash",
-            "JBSWY3DPEHPK3PXP",
-        )
-        .unwrap();
-    }
-    let key = ApiKeyService::regenerate(&ctx, "alice").unwrap();
+    let key = trader_with_key(&ctx);
     set_ws_port(&ctx, free_port().await);
 
     let feed = FeedService::new(ctx.clone());
@@ -121,14 +109,7 @@ async fn app_auth_uses_the_stored_api_key_and_broker_session() {
         json!({"status": "error", "code": "BROKER_ERROR", "message": "Broker adapter not found", "request_id": 7})
     );
 
-    ctx.set_broker_session(Some(BrokerSession {
-        broker_id: "zerodha".into(),
-        auth_token: Secret::new("t"),
-        feed_token: None,
-        user_id: "AB1234".into(),
-        user_name: None,
-        authenticated_at: chrono::Utc::now(),
-    }));
+    ctx.set_broker_session(Some(broker_session("zerodha", "t")));
     let v = c
         .request(json!({"action": "auth", "apikey": key.expose()}))
         .await;
@@ -175,19 +156,7 @@ async fn authenticated_clients_are_closed_when_their_authentication_ends() {
 
     let dir = tempfile::tempdir().unwrap();
     let ctx = open_ctx(&dir);
-    {
-        let conn = ctx.sqlite.conn().unwrap();
-        user::insert(
-            &conn,
-            &ctx.security,
-            "alice",
-            "alice@example.com",
-            "not-a-real-hash",
-            "JBSWY3DPEHPK3PXP",
-        )
-        .unwrap();
-    }
-    let key = ApiKeyService::regenerate(&ctx, "alice").unwrap();
+    let key = trader_with_key(&ctx);
     // Pinned, not just set: a broker sign-in reloads the settings, which
     // would otherwise move the feed back to its stored port.
     ctx.pin_listener_ports(free_port().await, free_port().await);
@@ -222,14 +191,7 @@ async fn authenticated_clients_are_closed_when_their_authentication_ends() {
     assert_eq!(v["type"], "pong", "{}", v);
 
     // 2. A broker session starts, then the trader signs out.
-    let session = BrokerSession {
-        broker_id: "zerodha".into(),
-        auth_token: Secret::new("t"),
-        feed_token: None,
-        user_id: "AB1234".into(),
-        user_name: None,
-        authenticated_at: chrono::Utc::now(),
-    };
+    let session = broker_session("zerodha", "t");
     let mut before_sign_in = Client::connect(&url).await;
     before_sign_in
         .request(json!({"action": "authenticate", "api_key": key.expose()}))
@@ -467,20 +429,7 @@ async fn failed_feed_keys_are_counted_like_api_keys() {
     use openalgo_desktop_lib::server::ratelimit::Bucket;
     let dir = tempfile::tempdir().unwrap();
     let ctx = open_ctx(&dir);
-    {
-        let conn = ctx.sqlite.conn().unwrap();
-        user::insert(
-            &conn,
-            &ctx.security,
-            "alice",
-            "alice@example.com",
-            "not-a-real-hash",
-            "JBSWY3DPEHPK3PXP",
-        )
-        .unwrap();
-    }
-    let key = ApiKeyService::regenerate(&ctx, "alice").unwrap();
-    let key = key.expose().to_string();
+    let key = trader_with_key(&ctx).expose().to_string();
     set_ws_port(&ctx, free_port().await);
     let feed = FeedService::new(ctx.clone());
     assert!(matches!(feed.start().await, ServerStatus::Running { .. }));
