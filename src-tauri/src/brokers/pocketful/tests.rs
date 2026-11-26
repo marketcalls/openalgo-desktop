@@ -7,10 +7,8 @@ use super::master_contract::{
     leading_letters, parse_archive, parse_bse, parse_derivatives, parse_expiry, parse_nse,
     parse_nse_indices, Segment,
 };
-use super::orders::market_protection;
 use super::streaming::*;
 use super::*;
-use crate::brokers::common::mapping::{Action, PriceType};
 use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -208,11 +206,15 @@ fn expiry_encodings() {
 
 #[test]
 fn enum_maps_match_web() {
-    assert_eq!(order_type(PriceType::SlM), "SLM");
-    assert_eq!(order_type(PriceType::Market), "MARKET");
     assert_eq!(oa_pricetype("SLM"), "SL-M");
     assert_eq!(oa_pricetype("LIMIT"), "LIMIT");
     assert_eq!(oa_product("nrml"), "NRML");
+    // The annexure's product names read back as OpenAlgo's (web
+    // test_pocketful_orders.py::test_the_annexures_product_names_read_back_as_openalgos).
+    assert_eq!(oa_product("INTRADAY"), "MIS");
+    assert_eq!(oa_product("MARGIN"), "NRML");
+    assert_eq!(openalgo_product("CO"), None);
+    assert_eq!(oa_product("co"), "CO");
     for (ex, code) in [
         ("NSE", 1),
         ("NFO", 2),
@@ -244,213 +246,9 @@ fn status_map_follows_web_order() {
     assert_eq!(map_status("EXPIRED", ""), "expired");
 }
 
-fn order(symbol: &str, exchange: &str, pricetype: &str, side: &str) -> ResolvedOrder {
-    let req = OrderRequest {
-        symbol: symbol.into(),
-        exchange: exchange.into(),
-        side: side.into(),
-        quantity: 75,
-        price: 0.0,
-        order_type: pricetype.into(),
-        product: "NRML".into(),
-        validity: "DAY".into(),
-        trigger_price: Some(0.0),
-        disclosed_quantity: None,
-        amo: false,
-    };
-    ResolvedOrder::resolve(&req, &master()).unwrap()
-}
-
-#[test]
-fn place_payload_matches_transform_data() {
-    let o = order("NIFTY06OCT2625000CE", "NFO", "SL-M", "SELL");
-    let v = place_payload(&o, "<USER_ID>", order_type(o.pricetype), o.price);
-    assert_eq!(
-        v,
-        json!({
-            "exchange": "NFO",
-            "instrument_token": 41918,
-            "client_id": "<USER_ID>",
-            "order_type": "SLM",
-            "amo": false,
-            "price": 0.0,
-            "quantity": 75,
-            "disclosed_quantity": 0,
-            "validity": "DAY",
-            "product": "NRML",
-            "order_side": "SELL",
-            "device": "WEB",
-            "user_order_id": 1,
-            "trigger_price": 0.0,
-            "execution_type": "REGULAR",
-        })
-    );
-}
-
-#[test]
-fn modify_payload_carries_order_id() {
-    let m = ModifyOrderRequest {
-        symbol: "SBIN".into(),
-        exchange: "NSE".into(),
-        action: "BUY".into(),
-        product: "MIS".into(),
-        pricetype: "LIMIT".into(),
-        quantity: 10,
-        price: 811.0,
-        trigger_price: 0.0,
-        disclosed_quantity: 0,
-    };
-    let r = ResolvedModify::resolve("260930000000104", &m, &master()).unwrap();
-    let v = modify_payload(&r, "<USER_ID>");
-    assert_eq!(v["oms_order_id"], "260930000000104");
-    assert_eq!(v["instrument_token"], 3045);
-    assert_eq!(v["order_type"], "LIMIT");
-    assert_eq!(v["price"], 811.0);
-    assert_eq!(v["execution_type"], "REGULAR");
-}
-
-#[test]
-fn market_orders_become_protected_limits() {
-    let buy = order("NIFTY06OCT2625000CE", "NFO", "MARKET", "BUY");
-    // Option at 120: 2% slab, tick 0.05.
-    assert_eq!(
-        market_protection(&buy, Some(120.0)).unwrap(),
-        ("LIMIT", 122.4)
-    );
-    let sell = order("NIFTY27OCT26FUT", "NFO", "MARKET", "SELL");
-    // Future above 500: 0.5% slab, tick 0.1.
-    assert_eq!(
-        market_protection(&sell, Some(25000.0)).unwrap(),
-        ("LIMIT", 24875.0)
-    );
-    assert_eq!(market_protection(&buy, None).unwrap(), ("MARKET", 0.0));
-    assert_eq!(market_protection(&buy, Some(0.0)).unwrap(), ("MARKET", 0.0));
-    // Web #2052: an infinite live price is refused, never sent as a limit.
-    assert!(market_protection(&buy, Some(f64::INFINITY)).is_err());
-    let limit = order("SBIN", "NSE", "LIMIT", "BUY");
-    assert_eq!(
-        market_protection(&limit, Some(800.0)).unwrap(),
-        ("LIMIT", 0.0)
-    );
-    assert_eq!(buy.action, Action::Buy);
-}
-
 // ---------------------------------------------------------------------------
 // Books
 // ---------------------------------------------------------------------------
-
-#[test]
-fn order_book_merges_and_normalises() {
-    let r = master();
-    let mut rows = list_at(&json(fixture!("orders_completed.json")), "orders")
-        .unwrap()
-        .to_vec();
-    rows.extend(
-        list_at(&json(fixture!("orders_pending.json")), "orders")
-            .unwrap()
-            .to_vec(),
-    );
-    let orders = map_orders(&rows, &r);
-    assert_eq!(orders.len(), 6);
-    let o = &orders[0];
-    assert_eq!(o.symbol, "SBIN");
-    assert_eq!(o.status, "complete");
-    assert_eq!(o.exchange_order_id.as_deref(), Some("1100000012345678"));
-    assert_eq!(o.average_price, 812.35);
-    assert_eq!(o.order_timestamp, "2026-09-30 09:21:04");
-    let rej = &orders[1];
-    assert_eq!(rej.symbol, "NIFTY06OCT2625000CE");
-    assert_eq!(rej.status, "rejected");
-    assert_eq!(rej.quantity, 75);
-    assert_eq!(rej.rejection_reason.as_deref(), Some("RMS: Margin Exceeds"));
-    assert_eq!(orders[2].status, "cancelled");
-    assert_eq!(orders[3].status, "trigger pending");
-    assert_eq!(orders[3].order_type, "SL-M");
-    assert_eq!(orders[3].trigger_price, 805.0);
-    assert_eq!(orders[4].symbol, "CRUDEOIL19OCT26FUT");
-    assert_eq!(orders[4].pending_quantity, 100);
-    assert_eq!(orders[5].status, "open");
-}
-
-#[test]
-fn cancellable_rows_and_ids() {
-    let rows = list_at(&json(fixture!("orders_pending.json")), "orders")
-        .unwrap()
-        .to_vec();
-    assert!(rows.iter().all(is_cancellable));
-    assert_eq!(order_id_of(&rows[0]), "260930000000104");
-    assert!(!is_cancellable(&json!({"status": "COMPLETE"})));
-    assert!(is_cancellable(&json!({"status": "PENDING_1"})));
-    assert!(is_cancellable(&json!({"order_status": "VALIDATED"})));
-    assert_eq!(order_id_of(&json!({"nnf_id": 7})), "7");
-}
-
-#[test]
-fn trade_book_reads_both_field_sets() {
-    let r = master();
-    let trades = map_trades(
-        list_at(&json(fixture!("trades.json")), "trades").unwrap(),
-        &r,
-    );
-    assert_eq!(trades.len(), 2);
-    assert_eq!(trades[0].symbol, "SBIN");
-    assert!((trades[0].trade_value - 8123.5).abs() < 1e-6);
-    let t = &trades[1];
-    assert_eq!(t.symbol, "NIFTY27OCT26FUT");
-    assert_eq!(t.side, "SELL");
-    assert_eq!(t.quantity, 75);
-    assert_eq!(t.average_price, 25110.5);
-    assert_eq!(t.trade_id, "50001299");
-    assert_eq!(t.order_id, "260930000000110");
-    assert_eq!(t.timestamp, "2026-09-30 11:00:00");
-}
-
-#[test]
-fn positions_compute_pnl_like_the_web() {
-    let r = master();
-    let p = map_positions(
-        list_at(&json(fixture!("positions.json")), "positions").unwrap(),
-        &r,
-    );
-    assert_eq!(p.len(), 3);
-    assert_eq!(p[0].symbol, "SBIN");
-    assert_eq!(p[0].quantity, 10);
-    assert_eq!(p[0].average_price, 812.35);
-    assert!((p[0].pnl - 26.5).abs() < 1e-6);
-    assert_eq!(p[1].symbol, "NIFTY27OCT26FUT");
-    assert_eq!(p[1].quantity, -75);
-    assert_eq!(p[1].average_price, 25110.5);
-    assert!((p[1].pnl - 750.0).abs() < 1e-6);
-    assert_eq!(p[2].quantity, 0);
-    // `data.positions` shape reads the same.
-    let nested = json!({"status": "success", "data": {"positions": [{"trading_symbol": "SBIN-EQ", "exchange": "NSE", "quantity": "3", "product": "CNC"}]}});
-    let p = map_positions(list_at(&nested, "positions").unwrap(), &r);
-    assert_eq!((p[0].quantity, p[0].product.as_str()), (3, "CNC"));
-}
-
-#[test]
-fn holdings_use_fallback_fields() {
-    let r = master();
-    let h = map_holdings(
-        list_at(&json(fixture!("holdings.json")), "holdings").unwrap(),
-        &r,
-    );
-    // The row without any symbol is skipped (web `continue`).
-    assert_eq!(h.len(), 2);
-    assert_eq!(h[0].symbol, "SBIN");
-    assert_eq!(h[0].exchange, "NSE");
-    assert_eq!(h[0].pnl, 2300.0);
-    assert_eq!(h[0].pnl_percentage, 16.43);
-    assert_eq!(h[0].isin.as_deref(), Some("INE062A01020"));
-    assert_eq!(h[0].close_price, 810.0);
-    assert_eq!(h[1].symbol, "RELIANCE");
-    assert_eq!(h[1].exchange, "BSE");
-    assert_eq!(h[1].quantity, 4);
-    assert_eq!(h[1].average_price, 1300.5);
-    assert_eq!(h[1].pnl, 419.0);
-    assert_eq!(h[1].pnl_percentage, 8.05);
-    assert!(h.iter().all(|x| x.product == "CNC"));
-}
 
 #[test]
 fn funds_read_label_value_pairs() {
@@ -470,16 +268,7 @@ fn loose_readers() {
     assert_eq!(text(&v, "b"), "");
     assert_eq!(text(&v, "c"), "7");
     assert_eq!(int(&v, "a"), 1);
-    assert_eq!(
-        list_at(&json!({"data": {"x": [1, 2]}}), "orders").map(<[_]>::len),
-        Some(2)
-    );
-    // BR-03: no list is not an empty book.
-    assert!(list_at(&json!({"data": null}), "orders").is_none());
-    assert_eq!(
-        list_at(&json!({"data": []}), "orders").map(<[_]>::len),
-        Some(0)
-    );
+    assert_eq!(num_any(&v, &["b", "c"]), Some(7.0));
 }
 
 // ---------------------------------------------------------------------------
@@ -783,14 +572,6 @@ fn broker_identity_and_capabilities() {
         .is_ok());
 }
 
-#[test]
-fn auth_helpers() {
-    assert_eq!(auth::basic_auth("id", "sec"), "Basic aWQ6c2Vj");
-    let f = auth::token_form("c1", "http://127.0.0.1:5000/pocketful/callback");
-    assert_eq!(f[0], ("grant_type", "authorization_code".to_string()));
-    assert_eq!(f[1].1, "c1");
-}
-
 // ---------------------------------------------------------------------------
 // Secrets stay out of logged errors
 // ---------------------------------------------------------------------------
@@ -918,15 +699,6 @@ mod data_watchdog {
         assert!(!w.stalled(at(o, 10_000)));
         assert!(!DataWatchdog::new(o).stalled(at(o, 10_000)));
     }
-}
-
-/// KEY-01: the client id cached under a session's token goes at logout.
-#[tokio::test]
-async fn logout_clears_the_client_id_cache() {
-    let b = PocketfulBroker::new(SymbolResolver::new());
-    *b.client_id_cache.lock() = Some(([1u8; 32], "C1".into()));
-    b.on_logout().await;
-    assert!(b.client_id_cache.lock().is_none());
 }
 
 /// Nothing listens here: a request that went out fails to connect.

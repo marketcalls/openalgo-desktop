@@ -335,12 +335,11 @@ fn authorize_url_string(
             enc(api_key),
             enc(state)
         )),
-        // OAuth2 code flow; the code exchange repeats this redirect.
-        "pocketful" => Some(format!(
-            "https://trade.pocketful.in/oauth2/auth?client_id={}&redirect_uri={}&response_type=code&scope=orders%20holdings&state={}",
-            enc(api_key),
-            enc(redirect_url),
-            enc(state)
+        // OAuth 2.0 on Pocketful's API host (web openalgo#2467).
+        "pocketful" => Some(crate::brokers::pocketful::auth::authorize_url(
+            api_key,
+            redirect_url,
+            state,
         )),
         // Paytm Money returns `requestToken` and echoes `state`.
         "paytm" => Some(format!(
@@ -643,6 +642,18 @@ pub fn extract_code(broker: &str, params: &HashMap<String, String>) -> Option<St
     }
 }
 
+/// The trader's sentence for a callback the broker sent back without a
+/// usable code (an OAuth `error`, a blank code), for a broker whose web
+/// login reads them (Pocketful, web openalgo#2467); `None` elsewhere, and
+/// for a callback that carries its code. Asked only after the callback's
+/// `state` matched a sign-in started here.
+pub fn callback_refusal(broker: &str, params: &HashMap<String, String>) -> Option<&'static str> {
+    match broker {
+        "pocketful" => crate::brokers::pocketful::auth::callback_refusal(params),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -839,9 +850,32 @@ mod tests {
         )
         .unwrap()
         .url;
-        assert!(u.starts_with("https://trade.pocketful.in/oauth2/auth?client_id=cid-1&"));
-        assert!(u.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fpocketful%2Fcallback"));
-        assert!(u.contains("response_type=code&scope=orders%20holdings&state=st7"));
+        // Web test_pocketful_auth.py::test_the_sign_in_starts_on_the_new_host_as_pocketfuls_portal_opens_it
+        assert_eq!(
+            u,
+            "https://algo.pocketful.in/oauth2/auth?client_id=cid-1&redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fpocketful%2Fcallback&response_type=code&scope=orders%20holdings&state=st7"
+        );
+        // ::test_a_value_that_could_add_a_parameter_is_encoded
+        let evil = authorize_url(
+            "pocketful",
+            "A&state=evil",
+            "http://127.0.0.1:5000/pocketful/callback",
+            "st-2",
+        )
+        .unwrap()
+        .url;
+        let pairs: Vec<(String, String)> = url::Url::parse(&evil)
+            .unwrap()
+            .query_pairs()
+            .into_owned()
+            .collect();
+        assert!(pairs.contains(&("client_id".into(), "A&state=evil".into())));
+        assert_eq!(
+            pairs.iter().filter(|(k, _)| k == "state").count(),
+            1,
+            "{}",
+            evil
+        );
         let a = authorize_url(
             "pocketful",
             "cid-1",

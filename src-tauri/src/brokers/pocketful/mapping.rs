@@ -1,11 +1,12 @@
-//! OpenAlgo <-> Pocketful translation (web `mapping/transform_data.py`,
-//! `mapping/order_data.py`, `streaming/pocketful_mapping.py`).
+//! OpenAlgo <-> Pocketful translation (web `mapping/transform_data.py` and
+//! `mapping/order_data.py`, marketcalls/openalgo#2467; the feed's own maps
+//! in `streaming/pocketful_mapping.py`).
 //!
-//! Pocketful answers are read as loose JSON: the web reads every field with
-//! fallbacks (`trading_symbol` or `tradingsymbol`, `quantity` or
-//! `net_quantity`), and numbers arrive as numbers or strings.
+//! Pocketful answers are read as loose JSON: numbers arrive as numbers or
+//! strings, and a missing field reads as empty or zero, as the web reads
+//! them. Every book returns OpenAlgo symbols.
 
-use crate::brokers::common::mapping::{PriceType, Product};
+use super::pricing::Priced;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use serde_json::{json, Value};
@@ -37,6 +38,7 @@ fn as_f64(v: &Value) -> Option<f64> {
         Value::String(s) => s.trim().parse::<f64>().ok(),
         _ => None,
     }
+    .filter(|n| n.is_finite())
 }
 
 /// Number field (numeric strings accepted; 0 when absent or unreadable).
@@ -62,51 +64,32 @@ fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
 
-/// A list at `data`, `data.<key>` or the first list inside `data`, as the
-/// web's book readers accept. BR-03: `None` when there is none: a reply
-/// without its list is a book that was not read, never an empty one
-/// (Pocketful sends `data: []` for an empty book).
-pub fn list_at<'a>(body: &'a Value, key: &str) -> Option<&'a [Value]> {
-    let data = &body["data"];
-    if let Some(a) = data.as_array() {
-        return Some(a);
-    }
-    if let Some(a) = data.get(key).and_then(Value::as_array) {
-        return Some(a);
-    }
-    data.as_object()?
-        .values()
-        .find_map(Value::as_array)
-        .map(Vec::as_slice)
-}
-
-/// Whether a position row carries its quantity (`quantity`, else
-/// `net_quantity`, as the decisions read it); a row without it is not flat
-/// (BR-03).
-pub fn has_quantity(p: &Value) -> bool {
-    let key = if p.get("quantity").is_some() {
-        "quantity"
-    } else {
-        "net_quantity"
-    };
-    crate::brokers::common::book_read::quantity(p, key).is_some()
-}
-
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-/// web `map_order_type`: only `SL-M` differs.
-pub fn order_type(p: PriceType) -> &'static str {
-    match p {
-        PriceType::Market => "MARKET",
-        PriceType::Limit => "LIMIT",
-        PriceType::Sl => "SL",
-        PriceType::SlM => "SLM",
+/// Pocketful product -> OpenAlgo product (web `reverse_map_product_type`):
+/// the order pages' CNC, MIS and NRML, and the annexure's INTRADAY and
+/// MARGIN for the same two; `None` for one OpenAlgo does not trade (CO,
+/// BO).
+pub fn openalgo_product(s: &str) -> Option<&'static str> {
+    match s.trim().to_ascii_uppercase().as_str() {
+        "CNC" => Some("CNC"),
+        "NRML" | "MARGIN" => Some("NRML"),
+        "MIS" | "INTRADAY" => Some("MIS"),
+        _ => None,
     }
 }
 
-/// Pocketful order type -> OpenAlgo price type.
+/// A book row's product: OpenAlgo's when it has one, else Pocketful's own.
+pub fn oa_product(s: &str) -> String {
+    openalgo_product(s)
+        .map(str::to_string)
+        .unwrap_or_else(|| s.trim().to_ascii_uppercase())
+}
+
+/// Pocketful order type -> OpenAlgo price type (web
+/// `reverse_map_order_type`; an unknown one is kept as it is).
 pub fn oa_pricetype(s: &str) -> String {
     match s.trim().to_ascii_uppercase().as_str() {
         "SLM" | "SL-M" => "SL-M".into(),
@@ -117,18 +100,8 @@ pub fn oa_pricetype(s: &str) -> String {
     }
 }
 
-/// web `map_product_type`: identical names.
-pub fn product(p: Product) -> &'static str {
-    p.as_str()
-}
-
-/// web `reverse_map_product_type` (identity on CNC/NRML/MIS).
-pub fn oa_product(s: &str) -> String {
-    s.trim().to_ascii_uppercase()
-}
-
-/// Feed exchange codes (web `data.py:190`, `pocketful_mapping.py:9-18`);
-/// unknown exchanges default to NSE (1) like the web.
+/// Feed exchange codes (web `pocketful_mapping.py`); unknown exchanges
+/// default to NSE (1) like the web.
 pub fn exchange_code(exchange: &str) -> u8 {
     match exchange {
         "NSE" | "NSE_INDEX" => 1,
@@ -141,8 +114,9 @@ pub fn exchange_code(exchange: &str) -> u8 {
     }
 }
 
-/// Order status (web `transform_order_data`): substring tests on the upper
-/// `order_status`, in the web's order, with `mode == NEW` meaning open.
+/// An order update's status (the feed's `transform_order_data`): substring
+/// tests on the upper `order_status`, in the web's order, with `mode ==
+/// NEW` meaning open.
 pub fn map_status(status: &str, mode: &str) -> String {
     let s = status.trim().to_ascii_uppercase();
     let mode = mode.trim().to_ascii_uppercase();
@@ -170,311 +144,407 @@ pub fn map_status(status: &str, mode: &str) -> String {
     }
 }
 
-/// Whether a pending-book row is cancellable (web `cancel_all_orders_api`).
-pub fn is_cancellable(order: &Value) -> bool {
-    const VALID: &[&str] = &[
-        "OPEN",
-        "PENDING",
-        "TRIGGER PENDING",
-        "NEW",
-        "RECEIVED",
-        "PLACED",
-        "VALIDATED",
-        "PENDING_0",
-        "PENDING_1",
-        "PENDING_2",
-        "ACCEPTED",
-    ];
-    let status = text_any(order, &["status", "order_status"]).to_ascii_uppercase();
-    VALID.contains(&status.as_str())
-        || status.contains("PEND")
-        || status.contains("OPEN")
-        || status.contains("NEW")
-        || text(order, "mode").eq_ignore_ascii_case("NEW")
-}
-
-/// The id a cancel uses (web tries these fields in order).
-pub fn order_id_of(order: &Value) -> String {
-    text_any(
-        order,
-        &[
-            "oms_order_id",
-            "order_id",
-            "id",
-            "orderId",
-            "nnf_id",
-            "exchangeOrderId",
-        ],
-    )
-}
-
 // ---------------------------------------------------------------------------
-// Order payloads
+// Order bodies (place-regular-order.md, modify-regular-order.md)
 // ---------------------------------------------------------------------------
 
-/// Instrument token as the integer Pocketful expects (string when not
-/// numeric, so the broker reports the problem rather than a silent 0).
-fn token_value(token: &str) -> Value {
-    match token.trim().parse::<i64>() {
-        Ok(t) => json!(t),
-        Err(_) => json!(token.trim()),
+/// What place and modify send about the instrument and the size.
+struct OrderFields<'a> {
+    exchange: &'a str,
+    token: &'a str,
+    quantity: i64,
+    disclosed_quantity: i64,
+    product: &'a str,
+    side: &'a str,
+}
+
+/// The fields place and modify share (web `_order_body`). `user_order_id`
+/// is the docs' example value, which every example and the web send.
+fn order_body(
+    f: OrderFields<'_>,
+    client_id: &str,
+    priced: &Priced,
+) -> serde_json::Map<String, Value> {
+    let v = json!({
+        "exchange": f.exchange,
+        "instrument_token": f.token.trim(),
+        "client_id": client_id,
+        "order_type": priced.order_type,
+        "price": priced.price,
+        "quantity": f.quantity,
+        "disclosed_quantity": f.disclosed_quantity,
+        "validity": "DAY",
+        "product": f.product,
+        "order_side": f.side,
+        "device": "WEB",
+        "user_order_id": 1,
+        "trigger_price": priced.trigger_price,
+        "execution_type": "REGULAR",
+    });
+    match v {
+        Value::Object(m) => m,
+        _ => serde_json::Map::new(),
     }
 }
 
-/// web `transform_data`. `price` and `order_type` are the final values (a
-/// MARKET order already converted to a protected LIMIT by the caller).
-pub fn place_payload(o: &ResolvedOrder, client_id: &str, order_type: &str, price: f64) -> Value {
-    json!({
-        "exchange": o.exchange.as_str(),
-        "instrument_token": token_value(o.token()),
-        "client_id": client_id,
-        "order_type": order_type,
-        "amo": false,
-        "price": price,
-        "quantity": o.quantity,
-        "disclosed_quantity": o.disclosed_quantity,
-        "validity": "DAY",
-        "product": product(o.product),
-        "order_side": o.action.as_str(),
-        "device": "WEB",
-        "user_order_id": 1,
-        "trigger_price": o.trigger_price,
-        "execution_type": "REGULAR",
-    })
+/// Body for `POST /api/v1/orders` (web `transform_data`).
+pub(crate) fn place_body(o: &ResolvedOrder, client_id: &str, priced: &Priced) -> Value {
+    let fields = OrderFields {
+        exchange: o.exchange.as_str(),
+        token: o.token(),
+        quantity: o.quantity,
+        disclosed_quantity: o.disclosed_quantity,
+        product: o.product.as_str(),
+        side: o.action.as_str(),
+    };
+    let mut body = order_body(fields, client_id, priced);
+    body.insert("amo".into(), json!(false));
+    Value::Object(body)
 }
 
-/// web `transform_modify_order_data`.
-pub fn modify_payload(m: &ResolvedModify, client_id: &str) -> Value {
-    json!({
-        "exchange": m.exchange.as_str(),
-        "instrument_token": token_value(m.token()),
-        "client_id": client_id,
-        "order_type": order_type(m.pricetype),
-        "price": m.price,
-        "quantity": m.quantity,
-        "disclosed_quantity": m.disclosed_quantity,
-        "validity": "DAY",
-        "product": product(m.product),
-        "order_side": m.action.as_str(),
-        "device": "WEB",
-        "user_order_id": 1,
-        "trigger_price": m.trigger_price,
-        "oms_order_id": m.order_id,
-        "execution_type": "REGULAR",
-    })
+/// Body for `PUT /api/v1/orders` (web `transform_modify_order_data`; the
+/// modify page's packet has no `amo`).
+pub(crate) fn modify_body(m: &ResolvedModify, client_id: &str, priced: &Priced) -> Value {
+    let fields = OrderFields {
+        exchange: m.exchange.as_str(),
+        token: m.token(),
+        quantity: m.quantity,
+        disclosed_quantity: m.disclosed_quantity,
+        product: m.product.as_str(),
+        side: m.action.as_str(),
+    };
+    let mut body = order_body(fields, client_id, priced);
+    body.insert("oms_order_id".into(), json!(m.order_id));
+    Value::Object(body)
 }
 
 // ---------------------------------------------------------------------------
-// Books
+// Books (fetch-pending-orders.md, fetch-completed-orders.md, trade-book.md,
+// fetch-position-netwise.md, fetch-demat-holdings.md)
 // ---------------------------------------------------------------------------
 
-/// Broker symbol -> OpenAlgo symbol (web `get_oa_symbol`, original kept
-/// when the master has no row).
-fn oa_symbol(symbols: &SymbolResolver, brsymbol: &str, exchange: &str) -> String {
-    if brsymbol.is_empty() || exchange.is_empty() {
-        return brsymbol.to_string();
+/// The OpenAlgo symbol of a Pocketful row (web `order_data.oa_symbol`): by
+/// its trading symbol, then by its instrument token, else the trading
+/// symbol as Pocketful sent it, so a row missing from the master never
+/// shows up blank.
+pub fn row_symbol(symbols: &SymbolResolver, brsymbol: &str, token: &str, exchange: &str) -> String {
+    if !exchange.is_empty() {
+        if !brsymbol.is_empty() {
+            if let Some(s) = symbols.oa_symbol(brsymbol, exchange) {
+                return s;
+            }
+        }
+        if !token.is_empty() {
+            if let Some(r) = symbols.by_token(exchange, token) {
+                return r.symbol;
+            }
+        }
     }
-    symbols.oa_symbol_or_raw(brsymbol, exchange)
+    brsymbol.to_string()
+}
+
+/// Which of Pocketful's two order lists a row came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OrderList {
+    Pending,
+    Completed,
+}
+
+/// OpenAlgo's status for one order row (web `order_data.order_status`).
+/// The docs name only some statuses, so the list decides what the words
+/// cannot: a pending row is still working whatever its word ("trigger
+/// pending" when it mentions a trigger), and a completed row is finished:
+/// complete, rejected or cancelled from its word, complete when it filled
+/// in full, else Pocketful's own word.
+pub(crate) fn order_status(o: &Value, list: OrderList) -> String {
+    let status = text(o, "order_status").to_ascii_uppercase();
+    if list == OrderList::Pending {
+        return if status.contains("TRIGGER") {
+            "trigger pending"
+        } else {
+            "open"
+        }
+        .into();
+    }
+    if status.contains("COMPLETE") {
+        "complete".into()
+    } else if status.contains("REJECT") {
+        "rejected".into()
+    } else if status.contains("CANCEL") {
+        "cancelled".into()
+    } else {
+        let quantity = int(o, "quantity");
+        if quantity > 0 && int(o, "filled_quantity") >= quantity {
+            "complete".into()
+        } else if status.is_empty() {
+            "unknown".into()
+        } else {
+            status.to_lowercase()
+        }
+    }
+}
+
+/// Pocketful's epoch seconds (`order_entry_time`, `exchange_time`) as IST
+/// `DD-MM-YYYY HH:MM:SS` (web `_ist_text`); empty for none.
+pub(crate) fn ist_text(v: &Value, key: &str) -> String {
+    let seconds = num(v, key);
+    if seconds <= 0.0 {
+        return String::new();
+    }
+    chrono::DateTime::from_timestamp(seconds as i64, 0)
+        .map(|t| {
+            t.with_timezone(&crate::clock::ist_offset())
+                .format("%d-%m-%Y %H:%M:%S")
+                .to_string()
+        })
+        .unwrap_or_default()
 }
 
 fn side(v: &Value) -> String {
-    text_any(v, &["order_side", "transaction_type"]).to_ascii_uppercase()
+    text(v, "order_side").to_ascii_uppercase()
 }
 
-/// web `transform_order_data` over the merged completed + pending books.
-pub fn map_orders(rows: &[Value], symbols: &SymbolResolver) -> Vec<Order> {
-    rows.iter()
-        .filter(|o| o.is_object())
-        .map(|o| {
-            let exchange = text(o, "exchange");
-            let br = text_any(o, &["trading_symbol", "tradingsymbol"]);
-            let status = map_status(&text(o, "order_status"), &text(o, "mode"));
-            let average = num_any(o, &["average_price"])
-                .filter(|v| *v != 0.0)
-                .or_else(|| num_any(o, &["average_trade_price"]))
-                .unwrap_or(0.0);
-            let reason = text_any(o, &["rejection_reason", "reject_reason", "reason"]);
-            let exchange_order_id = text_any(o, &["exchange_order_id", "exchangeOrderId"]);
-            Order {
-                order_tag: None,
-                order_id: text_any(o, &["oms_order_id", "order_id"]),
-                exchange_order_id: (!exchange_order_id.is_empty()).then_some(exchange_order_id),
-                symbol: oa_symbol(symbols, &br, &exchange),
-                exchange,
-                side: side(o),
-                quantity: i32_of(int(o, "quantity")),
-                filled_quantity: i32_of(int(o, "filled_quantity")),
-                pending_quantity: i32_of(int(o, "remaining_quantity")),
-                price: num(o, "price"),
-                trigger_price: num(o, "trigger_price"),
-                average_price: average,
-                order_type: oa_pricetype(&text(o, "order_type")),
-                product: oa_product(&text(o, "product")),
-                rejection_reason: (status == "rejected" && !reason.is_empty()).then_some(reason),
-                status,
-                validity: {
-                    let v = text(o, "validity");
-                    if v.is_empty() {
-                        "DAY".into()
-                    } else {
-                        v
-                    }
-                },
-                order_timestamp: text_any(o, &["order_entry_time", "order_timestamp"]),
-                exchange_timestamp: None,
-            }
-        })
+/// One order row (web `map_order_data` + `transform_order_data`).
+fn map_order(o: &Value, list: OrderList, symbols: &SymbolResolver) -> Order {
+    let exchange = text(o, "exchange");
+    let symbol = row_symbol(
+        symbols,
+        &text(o, "trading_symbol"),
+        &text(o, "instrument_token"),
+        &exchange,
+    );
+    let status = order_status(o, list);
+    let average = match num(o, "average_trade_price") {
+        a if a != 0.0 => a,
+        _ => num(o, "average_price"),
+    };
+    let reason = text(o, "rejection_reason");
+    let exchange_order_id = text(o, "exchange_order_id");
+    let exchange_time = ist_text(o, "exchange_time");
+    let mut timestamp = ist_text(o, "order_entry_time");
+    if timestamp.is_empty() {
+        timestamp = exchange_time.clone();
+    }
+    Order {
+        order_id: text(o, "oms_order_id"),
+        exchange_order_id: (!exchange_order_id.is_empty()).then_some(exchange_order_id),
+        symbol,
+        exchange,
+        side: side(o),
+        quantity: i32_of(int(o, "quantity")),
+        filled_quantity: i32_of(int(o, "filled_quantity")),
+        pending_quantity: i32_of(int(o, "remaining_quantity")),
+        price: num(o, "price"),
+        trigger_price: num(o, "trigger_price"),
+        average_price: average,
+        order_type: oa_pricetype(&text(o, "order_type")),
+        product: oa_product(&text(o, "product")),
+        rejection_reason: (status == "rejected" && !reason.is_empty()).then_some(reason),
+        status,
+        validity: match text(o, "validity") {
+            v if v.is_empty() => "DAY".into(),
+            v => v,
+        },
+        order_timestamp: timestamp,
+        exchange_timestamp: (!exchange_time.is_empty()).then_some(exchange_time),
+        order_tag: None,
+    }
+}
+
+/// The order book from the two lists (web `get_order_book`): pending first,
+/// then completed. An order that finished between the two reads shows up
+/// in both; the completed row, the newer one, is kept.
+pub(crate) fn map_orders(
+    pending: &[Value],
+    completed: &[Value],
+    symbols: &SymbolResolver,
+) -> Vec<Order> {
+    let finished: std::collections::HashSet<String> = completed
+        .iter()
+        .map(|o| text(o, "oms_order_id"))
+        .filter(|id| !id.is_empty())
+        .collect();
+    pending
+        .iter()
+        .filter(|o| !finished.contains(&text(o, "oms_order_id")))
+        .map(|o| map_order(o, OrderList::Pending, symbols))
+        .chain(
+            completed
+                .iter()
+                .map(|o| map_order(o, OrderList::Completed, symbols)),
+        )
         .collect()
 }
 
-/// web `map_trade_data` + `transform_tradebook_data`.
-pub fn map_trades(rows: &[Value], symbols: &SymbolResolver) -> Vec<Trade> {
+/// The quantity a trade row filled: `filled_quantity`, else `quantity`
+/// (the trade-book page's only example has a fill quantity of 0).
+fn trade_quantity(t: &Value) -> i64 {
+    match int(t, "filled_quantity") {
+        0 => int(t, "quantity"),
+        q => q,
+    }
+}
+
+/// The price a trade row filled at: `trade_price`, else the order's average
+/// trade price, else its average.
+fn trade_price(t: &Value) -> f64 {
+    ["trade_price", "average_trade_price", "average_price"]
+        .iter()
+        .map(|k| num(t, k))
+        .find(|p| *p > 0.0)
+        .unwrap_or(0.0)
+}
+
+/// Trade rows (web `map_trade_data` + `transform_tradebook_data`).
+pub(crate) fn map_trades(rows: &[Value], symbols: &SymbolResolver) -> Vec<Trade> {
     rows.iter()
-        .filter(|t| t.is_object())
         .map(|t| {
             let exchange = text(t, "exchange");
-            let br = text_any(t, &["trading_symbol", "tradingsymbol"]);
-            let quantity = num_any(t, &["fill_quantity", "trade_quantity"]).unwrap_or(0.0) as i64;
-            let average = num_any(t, &["avg_price", "trade_price"]).unwrap_or(0.0);
+            let quantity = trade_quantity(t);
+            let price = trade_price(t);
+            let mut timestamp = ist_text(t, "exchange_time");
+            if timestamp.is_empty() {
+                timestamp = ist_text(t, "order_entry_time");
+            }
             Trade {
-                order_tag: None,
-                order_id: text_any(t, &["order_id", "oms_order_id"]),
+                order_id: text(t, "oms_order_id"),
                 trade_id: text_any(t, &["trade_id", "trade_number"]),
-                symbol: oa_symbol(symbols, &br, &exchange),
+                symbol: row_symbol(
+                    symbols,
+                    &text(t, "trading_symbol"),
+                    &text(t, "instrument_token"),
+                    &exchange,
+                ),
                 exchange,
                 product: oa_product(&text(t, "product")),
                 side: side(t),
                 quantity: i32_of(quantity),
-                average_price: average,
-                trade_value: if quantity > 0 && average > 0.0 {
-                    quantity as f64 * average
-                } else {
-                    0.0
-                },
-                timestamp: text_any(t, &["fill_timestamp", "trade_time"]),
+                average_price: price,
+                trade_value: round2(quantity as f64 * price),
+                timestamp,
+                order_tag: None,
             }
         })
         .collect()
 }
 
-/// Net quantity of a position row (`net_quantity` first, like
-/// `map_position_data`; the smart-order reader takes `quantity` first).
-pub fn position_qty(p: &Value) -> i64 {
-    num_any(p, &["net_quantity", "quantity"]).unwrap_or(0.0) as i64
+/// A position's whole P&L (web `_position_pnl`): the net amount of its buys
+/// and sells plus the open quantity at the LTP. `net_amount` is "Net amount
+/// considering buy and sell transactions"; without it, sells less buys.
+pub fn position_pnl(p: &Value) -> f64 {
+    let multiplier = match num(p, "multiplier") {
+        m if m != 0.0 => m,
+        _ => 1.0,
+    };
+    let net_amount = match p.get("net_amount") {
+        Some(v) if !v.is_null() => num(p, "net_amount"),
+        _ => num(p, "sell_amount") - num(p, "buy_amount"),
+    };
+    net_amount + int(p, "net_quantity") as f64 * num(p, "ltp") * multiplier
 }
 
-/// web `map_position_data` + `transform_positions_data`.
-pub fn map_positions(rows: &[Value], symbols: &SymbolResolver) -> Vec<Position> {
+/// (realised, unrealised) for one position row; they add up to its P&L
+/// (web `position_pnl_split`). Realised is the matched quantity at the
+/// row's own average sell less its average buy; the rest is open. A
+/// position closed in part carries both. `realized_mtm` is not used: the
+/// docs' own example shows 0 on a closed, profitable position.
+pub fn position_pnl_split(p: &Value) -> (f64, f64) {
+    let total = position_pnl(p);
+    let (bought, sold) = (num(p, "buy_quantity"), num(p, "sell_quantity"));
+    let matched = bought.min(sold);
+    if matched <= 0.0 {
+        return (0.0, total);
+    }
+    let realised = matched * (num(p, "sell_amount") / sold - num(p, "buy_amount") / bought);
+    (realised, total - realised)
+}
+
+/// Net position rows (web `map_position_data` + `transform_positions_data`).
+pub(crate) fn map_positions(rows: &[Value], symbols: &SymbolResolver) -> Vec<Position> {
     rows.iter()
-        .filter(|p| p.is_object())
         .map(|p| {
             let exchange = text(p, "exchange");
-            let br = text_any(p, &["trading_symbol", "tradingsymbol"]);
-            let qty = position_qty(p);
-            let buy_avg = num(p, "average_buy_price");
-            let sell_avg = num(p, "average_sell_price");
-            let average = if buy_avg > 0.0 {
-                buy_avg
-            } else if sell_avg > 0.0 {
-                sell_avg
+            let net = int(p, "net_quantity");
+            // The average of the open side: a long carries the buy
+            // average, a short the sell average.
+            let open_side = match net {
+                n if n > 0 => num(p, "average_buy_price"),
+                n if n < 0 => num(p, "average_sell_price"),
+                _ => 0.0,
+            };
+            let average = if open_side != 0.0 {
+                open_side
             } else {
                 num(p, "average_price")
             };
-            let ltp = num_any(p, &["ltp", "last_price"]).unwrap_or(0.0);
-            let pnl = if p.get("ltp").is_some() && qty > 0 && p.get("average_buy_price").is_some() {
-                (ltp - buy_avg) * qty as f64
-            } else if p.get("ltp").is_some() && qty < 0 && p.get("average_sell_price").is_some() {
-                (sell_avg - ltp) * qty.unsigned_abs() as f64
-            } else {
-                num(p, "pnl")
-            };
-            let buy_qty = int(p, "buy_quantity");
-            let sell_qty = int(p, "sell_quantity");
+            let (realised, unrealised) = position_pnl_split(p);
             Position {
-                symbol: oa_symbol(symbols, &br, &exchange),
+                symbol: row_symbol(
+                    symbols,
+                    &text(p, "trading_symbol"),
+                    &text(p, "instrument_token"),
+                    &exchange,
+                ),
                 exchange,
                 product: oa_product(&text(p, "product")),
-                quantity: i32_of(qty),
-                average_price_basis: None,
-                overnight_quantity: i32_of(int(p, "previous_quantity")),
+                quantity: i32_of(net),
+                overnight_quantity: i32_of(int(p, "cf_buy_quantity") - int(p, "cf_sell_quantity")),
                 average_price: round2(average),
-                ltp,
-                pnl,
-                realized_pnl: num_any(p, &["realized_pnl", "realised_pnl", "realized_mtm"])
-                    .unwrap_or(0.0),
-                unrealized_pnl: num_any(p, &["unrealized_pnl", "unrealised_pnl", "unrealized_mtm"])
-                    .unwrap_or(pnl),
-                buy_quantity: i32_of(buy_qty),
-                buy_value: buy_qty as f64 * buy_avg,
-                sell_quantity: i32_of(sell_qty),
-                sell_value: sell_qty as f64 * sell_avg,
+                ltp: round2(num(p, "ltp")),
+                pnl: round2(position_pnl(p)),
+                realized_pnl: round2(realised),
+                unrealized_pnl: round2(unrealised),
+                buy_quantity: i32_of(int(p, "buy_quantity")),
+                buy_value: num(p, "buy_amount"),
+                sell_quantity: i32_of(int(p, "sell_quantity")),
+                sell_value: num(p, "sell_amount"),
+                average_price_basis: None,
             }
         })
         .collect()
 }
 
-/// web `transform_holdings_data`.
-pub fn map_holdings(rows: &[Value], symbols: &SymbolResolver) -> Vec<Holding> {
+/// Demat holdings (web `map_portfolio_data` + `transform_holdings_data`).
+/// The row's own `trading_symbol` is the bare name ("SBIN"); the broker
+/// symbol the master stores ("SBIN-EQ") is in
+/// `instrument_details.trading_symbol`.
+pub(crate) fn map_holdings(rows: &[Value], symbols: &SymbolResolver) -> Vec<Holding> {
     rows.iter()
-        .filter(|h| h.is_object())
-        .filter_map(|h| {
-            let mut br = text_any(h, &["tradingsymbol", "trading_symbol", "symbol"]);
-            if br.is_empty() {
-                let d = &h["instrument_details"];
-                br = text_any(d, &["trading_symbol", "symbol"]);
-            }
-            if br.is_empty() {
-                return None;
-            }
-            let exchange = {
-                let e = text(h, "exchange");
-                if e.is_empty() {
-                    "NSE".to_string()
-                } else {
-                    e
-                }
+        .map(|h| {
+            let exchange = text(h, "exchange");
+            let details = &h["instrument_details"];
+            let brsymbol = match text(details, "trading_symbol") {
+                s if s.is_empty() => text(h, "trading_symbol"),
+                s => s,
             };
-            // The master keeps the `-EQ` series on NSE brsymbols; the web
-            // strips it and looks the clean name up (falling back to it).
-            let symbol = symbols
-                .oa_symbol(&br, &exchange)
-                .or_else(|| {
-                    let clean = br.strip_suffix("-EQ").unwrap_or(&br);
-                    symbols.oa_symbol(clean, &exchange)
-                })
-                .unwrap_or_else(|| br.strip_suffix("-EQ").unwrap_or(&br).to_string());
-            let quantity = num_any(h, &["quantity", "free_quantity", "qty"]).unwrap_or(0.0) as i64;
-            let average =
-                num_any(h, &["average_price", "buy_avg", "avg_price", "buy_price"]).unwrap_or(0.0);
-            let ltp =
-                num_any(h, &["last_price", "ltp", "current_price", "market_price"]).unwrap_or(0.0);
-            let computed = if quantity > 0 && average > 0.0 {
-                (ltp - average) * quantity as f64
-            } else {
-                0.0
+            let token = match text(h, "token") {
+                t if t.is_empty() => text(details, "instrument_token"),
+                t => t,
             };
-            let pnl = num_any(h, &["pnl"]).unwrap_or(computed);
-            let pct_computed = if average > 0.0 {
+            let quantity = int(h, "quantity");
+            let average = num(h, "buy_avg");
+            let ltp = num(h, "ltp");
+            let pnl_pct = if average != 0.0 {
                 (ltp - average) / average * 100.0
             } else {
                 0.0
             };
-            let pnl_pct = num_any(h, &["pnl_percent", "pnl_percentage"]).unwrap_or(pct_computed);
             let isin = text(h, "isin");
-            Some(Holding {
-                symbol,
+            Holding {
+                symbol: row_symbol(symbols, &brsymbol, &token, &exchange),
                 exchange,
+                // Demat holdings are delivery holdings.
                 product: "CNC".into(),
                 isin: (!isin.is_empty()).then_some(isin),
                 quantity: i32_of(quantity),
                 t1_quantity: i32_of(int(h, "t1_quantity")),
                 average_price: round2(average),
                 ltp: round2(ltp),
-                close_price: num_any(h, &["close_price", "previous_close"]).unwrap_or(0.0),
-                pnl: round2(pnl),
+                close_price: num(h, "previous_close"),
+                pnl: round2((ltp - average) * quantity as f64),
                 pnl_percentage: round2(pnl_pct),
                 current_value: round2(ltp * quantity as f64),
-            })
+            }
         })
         .collect()
 }

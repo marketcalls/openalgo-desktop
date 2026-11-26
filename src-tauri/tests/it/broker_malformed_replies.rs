@@ -651,9 +651,10 @@ async fn pocketful() {
             ),
         ],
         empty: r#"{"status":"success","data":[]}"#,
-        row: r#"{"status":"success","data":[{"tradingsymbol":"SBIN-EQ","exchange":"NSE","product":"MIS","quantity":5}]}"#,
-        no_quantity: r#"{"status":"success","data":[{"tradingsymbol":"SBIN-EQ","exchange":"NSE","product":"MIS"}]}"#,
-        bad_quantity: r#"{"status":"success","data":[{"tradingsymbol":"SBIN-EQ","exchange":"NSE","product":"MIS","quantity":"abc"}]}"#,
+        // fetch-position-netwise.md rows (web openalgo#2467).
+        row: r#"{"status":"success","data":[{"trading_symbol":"SBIN-EQ","instrument_token":3045,"exchange":"NSE","product":"MIS","net_quantity":5}]}"#,
+        no_quantity: r#"{"status":"success","data":[{"trading_symbol":"SBIN-EQ","instrument_token":3045,"exchange":"NSE","product":"MIS"}]}"#,
+        bad_quantity: r#"{"status":"success","data":[{"trading_symbol":"SBIN-EQ","instrument_token":3045,"exchange":"NSE","product":"MIS","net_quantity":"abc"}]}"#,
         exempt: &[],
     };
     let auth = AuthToken::new("acc-pf-1").with_user_id("<USER_ID>");

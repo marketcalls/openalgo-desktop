@@ -9,7 +9,7 @@ use crate::error::Result;
 use reqwest::Method;
 
 pub async fn get_funds(b: &PocketfulBroker, auth: &AuthToken) -> Result<Funds> {
-    let client_id = b.client_id(auth).await?;
+    let client_id = b.client_id(auth)?;
     let v = b
         .call(
             Method::GET,

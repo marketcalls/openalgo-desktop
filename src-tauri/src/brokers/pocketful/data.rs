@@ -94,8 +94,8 @@ async fn packets(
     wait: Duration,
     after_book: Option<Duration>,
 ) -> Result<HashMap<(u32, u8), Packet>> {
-    let client_id = b.client_id(auth).await?;
-    let token = PocketfulBroker::token(auth)?;
+    let client_id = b.client_id(auth)?;
+    let token = PocketfulBroker::access_token(auth)?;
     let url = feed_url(&b.urls.ws, &client_id, token);
     let mut got: HashMap<(u32, u8), Packet> = HashMap::new();
     if instruments.is_empty() {
@@ -386,17 +386,4 @@ pub async fn get_multiquotes(
         }
     }
     Ok(out)
-}
-
-/// Last price for price protection, `None` when the feed has none.
-pub(crate) async fn ltp(b: &PocketfulBroker, auth: &AuthToken, row: &SymToken) -> Option<f64> {
-    let inst = instrument(row)?;
-    let got = snapshot(b, auth, &[inst], MODE_DETAILED, QUOTE_WAIT)
-        .await
-        .map_err(|e| tracing::warn!("Pocketful price lookup failed: {}", e.code()))
-        .ok()?;
-    match got.get(&inst.1) {
-        Some(Packet::Detailed(d)) if d.ltp > 0.0 => Some(d.ltp),
-        _ => None,
-    }
 }
