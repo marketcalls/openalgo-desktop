@@ -8,8 +8,9 @@
 //!   (`rate_limiter.rs`, web #2194).
 //! * The stored session token is the raw Groww access token (no prefix).
 //! * Market data streams over NATS-on-WebSocket with protobuf payloads
-//!   (`streaming.rs`, on the shared feed manager); order updates are a REST
-//!   poll of the order book (`common::order_poll`), as on the web.
+//!   (`streaming.rs`, on the shared feed manager); order updates come from
+//!   the order subjects of the same NATS server on a second connection
+//!   (`order_feed.rs`, `order_push.rs`), as on the web since openalgo#2474.
 
 mod auth;
 mod data;
@@ -17,6 +18,8 @@ mod funds;
 pub mod mapping;
 pub mod master_contract;
 pub mod nkeys;
+mod order_feed;
+mod order_push;
 mod orders;
 pub mod proto;
 pub mod rate_limiter;
@@ -26,7 +29,6 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
-use crate::brokers::common::order_poll;
 use crate::brokers::common::redact::url_safe_error;
 use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
 use crate::brokers::common::symbols::SymbolResolver;
@@ -37,8 +39,6 @@ use async_trait::async_trait;
 use reqwest::Method;
 use serde_json::Value;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc;
 
 pub const BASE_URL: &str = "https://api.groww.in";
 
@@ -71,8 +71,7 @@ pub const TIMEFRAME_MAP: &[(&str, &str)] = &[
 pub(crate) use rate_limiter::ApiType as Category;
 use rate_limiter::{paced, Attempt, GrowwLimiter};
 
-/// Everything a call needs; cheap to clone so the order poller task can own
-/// one.
+/// Everything a call needs; cheap to clone.
 #[derive(Clone)]
 pub(crate) struct GrowwCore {
     pub(crate) http: reqwest::Client,
@@ -327,8 +326,9 @@ pub(crate) fn groww_error(r: &Reply) -> AppError {
 
 pub struct GrowwBroker {
     core: GrowwCore,
+    /// The socket-token endpoint and NATS server of both feeds: the order
+    /// subjects are on the market feed's server.
     feed: streaming::FeedEndpoints,
-    poller: parking_lot::Mutex<Option<order_poll::OrderPoller>>,
 }
 
 impl GrowwBroker {
@@ -341,54 +341,17 @@ impl GrowwBroker {
         Self {
             core: GrowwCore::new(symbols, base_url.as_ref()),
             feed: streaming::FeedEndpoints::default(),
-            poller: parking_lot::Mutex::new(None),
         }
     }
 
-    /// Override the socket-token and NATS socket addresses (tests).
+    /// Override the socket-token and NATS socket addresses of both feeds
+    /// (tests).
     pub fn with_feed_endpoints(mut self, socket_token_url: &str, ws_url: &str) -> Self {
         self.feed = streaming::FeedEndpoints {
             socket_token_url: socket_token_url.to_string(),
             ws_url: ws_url.to_string(),
         };
         self
-    }
-
-    /// Start polling the order book for order updates (web
-    /// `PollingOrderUpdateAdapter`; Groww has no order socket). Replaces a
-    /// running poller. The interval is clamped to 1..=60 s.
-    pub fn start_order_updates(
-        &self,
-        auth: &AuthToken,
-        interval: Duration,
-    ) -> Result<mpsc::Receiver<OrderUpdate>> {
-        let core = self.core.clone();
-        let auth = auth.clone();
-        let (poller, rx) = order_poll::OrderPoller::start(
-            "groww",
-            interval,
-            move || {
-                let (core, auth) = (core.clone(), auth.clone());
-                async move { orders::get_order_book(&core, &auth).await }
-            },
-            order_poll::session_ends_on_auth,
-        )?;
-        // Dropping the old poller aborts its task.
-        *self.poller.lock() = Some(poller);
-        Ok(rx)
-    }
-
-    /// Stop the order-update poller (`Broker::on_logout` calls this on
-    /// broker logout, session revocation and app shutdown; dropping the
-    /// broker also stops it).
-    pub fn stop_order_updates(&self) {
-        if let Some(p) = self.poller.lock().take() {
-            p.stop();
-        }
-    }
-
-    pub fn order_updates_running(&self) -> bool {
-        self.poller.lock().as_ref().is_some_and(|p| p.is_running())
     }
 }
 
@@ -429,7 +392,7 @@ impl Broker for GrowwBroker {
             margin: true,
             gtt: false,
             streaming: true,
-            // Order updates come from the REST poller, not a socket.
+            // Order updates come from the NATS order subjects.
             order_feed: true,
             depth_levels: &[5],
         }
@@ -550,18 +513,25 @@ impl Broker for GrowwBroker {
         streaming::refusal(exchange)
     }
 
-    /// The order-book poller (web `PollingOrderUpdateAdapter`, 5 s); it
-    /// replaces a running one and stops in `on_logout`.
+    /// The order subjects of Groww's NATS feed on a connection of their
+    /// own (web `GrowwOrderUpdateAdapter`, openalgo#2474).
     fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
         if auth.raw().trim().is_empty() {
             return Err(session_expired());
         }
-        Ok(OrderFeed::Stream(
-            self.start_order_updates(auth, order_poll::DEFAULT_INTERVAL)?,
-        ))
+        Ok(OrderFeed::Socket(Box::new(
+            order_feed::GrowwOrderFeed::new(
+                self.core.http.clone(),
+                auth.raw(),
+                self.feed.clone(),
+                self.core.symbols.clone(),
+            ),
+        )))
     }
 
-    async fn on_logout(&self) {
-        self.stop_order_updates();
+    /// A push carries no symbol for equity and no prices Groww gives a unit
+    /// for: the order's own record supplies them (web `_order_detail`).
+    async fn complete_order_update(&self, auth: &AuthToken, update: OrderUpdate) -> OrderUpdate {
+        order_feed::complete(&self.core, auth, update).await
     }
 }

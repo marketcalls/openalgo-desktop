@@ -1,0 +1,12 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
+{"step": "upstream_connected", "socket": "orders", "connection": 1, "headers": {"authorization": "Bearer t", "user-agent": "openalgo-sahi/1.0"}}
+{"step": "push", "socket": "orders", "frame": "frames/first_open.json"}
+{"step": "receive", "client": "a", "frame": "expected/first_open.json"}
+{"step": "push", "socket": "orders", "frame": "frames/first_complete.json"}
+{"step": "receive", "client": "a", "frame": "expected/first_complete.json"}
+{"step": "drop_upstream", "socket": "orders", "note": "Sahi drops the order stream."}
+{"step": "upstream_connected", "socket": "orders", "connection": 2, "headers": {"authorization": "Bearer t", "user-agent": "openalgo-sahi/1.0"}, "note": "The feed connects again with the same token; nothing is sent on either connection."}
+{"step": "push", "socket": "orders", "frame": "frames/first_complete.json", "note": "Sahi may repeat an update after a restart on its side; it is relayed again, as on the web (the docs leave deduplication to the consumer)."}
+{"step": "receive", "client": "a", "frame": "expected/first_complete.json"}
+{"step": "push", "socket": "orders", "frame": "frames/second_open.json"}
+{"step": "receive", "client": "a", "frame": "expected/second_open.json"}

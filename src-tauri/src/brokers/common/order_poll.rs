@@ -1,7 +1,7 @@
 //! Order updates by polling the order book, shared by brokers without an
 //! order socket (web `websocket_proxy/order_adapter.py`
-//! `PollingOrderUpdateAdapter` and `_POLLING_BROKERS`: Groww, 5paisa,
-//! Samco).
+//! `PollingOrderUpdateAdapter` and `_POLLING_BROKERS`: 5paisa and Samco;
+//! Groww left it for its order subjects in openalgo#2474).
 //!
 //! `OrderPoller` is the one polling loop: one owned task reads the order
 //! book every `interval` (clamped to 1..=60 s, web default 5 s). The first

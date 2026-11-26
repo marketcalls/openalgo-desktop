@@ -1,0 +1,22 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
+{"step": "upstream_connected", "socket": "orders", "connection": 2, "headers": {"authorization": "Bearer socket-jwt", "x-subscription-id": "sub-1"}, "note": "Connection 1 asked for the nats subprotocol, which the fake does not echo; the feed retried without it, with a socket token of its own."}
+{"step": "push", "socket": "orders", "connection": 2, "frame": {"text": "INFO {\"server_id\":\"corpus\",\"version\":\"2.10.18\",\"headers\":true,\"max_payload\":1048576}\r\n"}, "note": "The NATS server's INFO opens the session."}
+{"step": "upstream_receives", "socket": "orders", "connection": 2, "frames": [{"text": "CONNECT {\"verbose\": false, \"pedantic\": false, \"tls_required\": true, \"jwt\": \"socket-jwt\", \"protocol\": 1, \"version\": \"2.10.18\", \"lang\": \"python3\", \"name\": \"nats.py\", \"headers\": true, \"no_responders\": true}\r\nSUB stocks/order/updates.apex.sub-1 1\r\nSUB stocks_fo/order/updates.apex.sub-1 2\r\nPING\r\n"}], "note": "One frame answers the first INFO, as the web's _send_handshake writes it: CONNECT with the socket token, both order subjects (equity sid 1, F&O sid 2), PING."}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/detail/GMK2511250001?segment=CASH", "body": "frames/detail_sbin_open.json", "note": "The order's detail, which the next push reads."}
+{"step": "push", "socket": "orders", "frame": "frames/sbin_open.hex", "note": "An equity push names SBIN by ISIN; the detail gives the symbol and the prices."}
+{"step": "receive", "client": "a", "frame": "expected/sbin_open.json"}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/detail/GMK2511250001?segment=CASH", "body": "frames/detail_sbin_partial.json", "note": "The order's detail, which the next push reads."}
+{"step": "push", "socket": "orders", "frame": "frames/sbin_partial.hex", "note": "A partial fill: the push's filled and remaining quantities, the detail's average."}
+{"step": "receive", "client": "a", "frame": "expected/sbin_partial.json"}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/detail/GMK2511250001?segment=CASH", "body": "frames/detail_sbin_complete.json", "note": "The order's detail, which the next push reads."}
+{"step": "push", "socket": "orders", "frame": "frames/sbin_complete.hex"}
+{"step": "receive", "client": "a", "frame": "expected/sbin_complete.json"}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/detail/GMKFO2511250002?segment=FNO", "body": "frames/detail_nifty_rejected.json", "note": "The order's detail, which the next push reads."}
+{"step": "push", "socket": "orders", "frame": "frames/nifty_rejected.hex", "note": "Groww's remark is the rejection reason."}
+{"step": "receive", "client": "a", "frame": "expected/nifty_rejected.json"}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/detail/GMKFO2511250003?segment=FNO", "body": "frames/detail_nifty_trigger_pending.json", "note": "The order's detail, which the next push reads."}
+{"step": "push", "socket": "orders", "frame": "frames/nifty_trigger_pending.hex"}
+{"step": "receive", "client": "a", "frame": "expected/nifty_trigger_pending.json"}
+{"step": "http_serve", "method": "GET", "path": "/v1/order/detail/GMKFO2511250003?segment=FNO", "body": "frames/detail_nifty_cancelled.json", "note": "The order's detail, which the next push reads."}
+{"step": "push", "socket": "orders", "frame": "frames/nifty_cancelled.hex"}
+{"step": "receive", "client": "a", "frame": "expected/nifty_cancelled.json"}

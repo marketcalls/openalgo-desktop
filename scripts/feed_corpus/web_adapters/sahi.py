@@ -6,8 +6,13 @@ path, with the subscription state test/test_sahi_streaming_codec.py's
 `from . import sahi_proto as pb`, a package import the lift does not run:
 the codec is lifted first, on its own, and handed to them as `pb`.
 
-Sahi has no order-update stream on the web (no adapter in
-`services/order_update_service.py`), so the glue has none.
+Order updates: the web's order adapter on `/v1/stream/orders`
+(`sahi_order_adapter.py`, openalgo#2474): its `normalize` and
+`normalize_order`, through the order book's own mapping
+(`mapping/order_data.py` `map_order_data`, with `transform_data.py`'s
+reverse maps and `from_paise`). The base class's `_handle_message` is run
+as its steps: normalise (a frame whose normalising raises is dropped),
+relay what comes back. Stand-in: the master lookup (`get_oa_symbol`).
 """
 
 import types
@@ -48,6 +53,21 @@ class Sahi(Glue):
         Source("broker/sahi/streaming/sahi_mapping.py", "SahiExchangeMapper"),
         Source("broker/sahi/streaming/sahi_adapter.py", "_Sub"),
         Source("broker/sahi/streaming/sahi_adapter.py", "SahiWebSocketAdapter", ["_on_message", "_handle_tick"]),
+        Source(
+            "broker/sahi/mapping/transform_data.py",
+            None,
+            [
+                "REVERSE_PRODUCT_MAP", "REVERSE_PRICETYPE_MAP", "REVERSE_ACTION_MAP", "from_paise",
+                "reverse_map_product_type", "reverse_map_order_type", "reverse_map_action",
+            ],
+        ),
+        Source(
+            "broker/sahi/mapping/order_data.py",
+            None,
+            ["IST", "ORDER_STATUS_MAP", "map_order_status", "format_timestamp", "_oa_symbol", "_rows", "map_order_data"],
+        ),
+        Source("broker/sahi/streaming/sahi_order_adapter.py", None, ["normalize_order"]),
+        Source("broker/sahi/streaming/sahi_order_adapter.py", "SahiOrderUpdateAdapter", ["normalize"]),
     ]
 
     def __init__(self, web_root, case):
@@ -56,10 +76,17 @@ class Sahi(Glue):
         super().__init__(web_root, case)
 
     def stubs(self):
-        return {"pb": self.pb}
+        def get_oa_symbol(brsymbol, exchange):
+            row = self.master.by_brsymbol(brsymbol, exchange)
+            return row["symbol"] if row else None
+
+        return {"pb": self.pb, "get_oa_symbol": get_oa_symbol}
 
     def start(self):
         self.ad = self.new("SahiWebSocketAdapter", _subs={}, _keys={}, publish_market_data=self.publish)
+        self.orders = self.new(
+            "SahiOrderUpdateAdapter", broker_name="sahi", user_id="<USER_ID>", access_token="t"
+        )
 
     def subscribe(self, row, mode, depth):
         # sahi_adapter.py subscribe: an exchange Sahi does not stream is
@@ -86,5 +113,14 @@ class Sahi(Glue):
             del self.ad._keys[(row["symbol"], row["exchange"])]
 
     def push(self, socket, frame):
+        if socket == "orders":
+            # BaseOrderUpdateAdapter._handle_message.
+            try:
+                fields = self.orders.normalize(frame)
+            except Exception:  # noqa: BLE001 (the web catches every error here)
+                return
+            if fields:
+                self.order(fields)
+            return
         if isinstance(frame, bytes):
             self.ad._on_message(frame)

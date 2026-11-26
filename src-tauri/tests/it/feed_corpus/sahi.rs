@@ -1,7 +1,8 @@
 //! Sahi: the protobuf market data stream (`brokers::sahi::streaming::SahiFeed`),
 //! built by the broker as a session builds it, so the broker's feed
-//! refusal answers subscribes on an exchange Sahi does not stream. Sahi
-//! streams no order updates, on the web or here.
+//! refusal answers subscribes on an exchange Sahi does not stream, and the
+//! order stream (`SahiOrderFeed`, web openalgo#2474) from
+//! `Broker::create_order_feed`, pointed at the `orders` socket.
 
 use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::sahi::SahiBroker;
@@ -12,25 +13,34 @@ use std::sync::Arc;
 fn feeds(env: &Env) -> Feeds {
     let (symbols, http) = (env.symbols(), env.http_url());
     let at = move |url: &str| {
-        Arc::new(SahiBroker::with_urls(
+        SahiBroker::with_urls(
             symbols.clone(),
             http.clone(),
             http.clone(),
             format!("{}/master", http),
             url.to_string(),
-        ))
+        )
     };
-    let broker = at(&env.url("main"));
+    let broker = Arc::new(at(&env.url("main")));
     let auth = AuthToken::new("t");
     let feed = broker.create_feed(&auth).expect("Sahi's market feed");
     let pool_auth = auth.clone();
-    Feeds::boxed(feed)
+    let pool = at.clone();
+    let feeds = Feeds::boxed(feed)
         .with_pool(move |url| {
-            at(url)
+            pool(url)
                 .create_feed(&pool_auth)
                 .expect("Sahi's market feed for another connection")
         })
-        .with_broker(broker, &auth)
+        .with_broker(broker, &auth);
+    if !env.orders() {
+        return feeds;
+    }
+    let orders = at(&env.url("main"))
+        .with_order_stream_url(env.url("orders"))
+        .create_order_feed(&auth)
+        .expect("Sahi's order stream");
+    feeds.with_order_feed(orders)
 }
 
 corpus_cases!(
@@ -50,5 +60,7 @@ corpus_cases!(
         close_rate_limited_upgrade_waits,
         close_ping_timeout_reconnects,
         unsupported_exchange,
+        order_lifecycle,
+        order_stream_reconnects,
     ]
 );

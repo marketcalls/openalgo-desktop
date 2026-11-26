@@ -1,0 +1,22 @@
+# Groww NATS MSG on the F&O order subject (sid 2): NIFTY 26000 CE, a MARKET buy of 75 (NRML) filled (EXECUTED).
+# The push's integer prices have no stated unit; neither side reads them.
+4d 53 47 20 73 74 6f 63 6b 73 5f 66 6f 2f 6f 72 64 65 72 2f 75 70 64 61 74 65 73 2e 61 70 65 78 2e 73 75 62 2d 31 20 32 20 38 37 0d 0a  # "MSG stocks_fo/order/updates.apex.sub-1 2 87" CRLF
+                                                                                                                                        # protobuf OrderDetailsBroadCastDto, 87 bytes
+0a 0e                                                                                                                                   # stage (1), 14 bytes
+12 0c                                                                                                                                   #   (2), 12 bytes
+4f 52 44 45 52 5f 50 4c 41 43 45 44                                                                                                     #     "ORDER_PLACED"
+12 45                                                                                                                                   # order update (2), 69 bytes
+08 4b                                                                                                                                   #   qty (1) = 75
+20 4b                                                                                                                                   #   filledQty (4) = 75
+30 a9 67                                                                                                                                #   avgFillPrice (6) = 13225
+3a 0f                                                                                                                                   #   growwOrderId (7), 15 bytes
+47 4d 4b 46 4f 32 35 31 31 32 35 30 30 30 36                                                                                            #     "GMKFO2511250006"
+48 06                                                                                                                                   #   orderStatus (9) = 6 (EXECUTED)
+58 01                                                                                                                                   #   exchange (11) = 1 (NSE)
+60 01                                                                                                                                   #   segment (12) = 1 (FNO)
+68 04                                                                                                                                   #   product (13) = 4 (NRML)
+82 01 0e                                                                                                                                #   remark (16), 14 bytes
+4f 72 64 65 72 20 65 78 65 63 75 74 65 64                                                                                               #     "Order executed"
+b2 01 11                                                                                                                                #   contractId (22), 17 bytes
+4e 49 46 54 59 32 36 44 45 43 32 36 30 30 30 43 45                                                                                      #     "NIFTY26DEC26000CE"
+0d 0a                                                                                                                                   # CRLF ending the message

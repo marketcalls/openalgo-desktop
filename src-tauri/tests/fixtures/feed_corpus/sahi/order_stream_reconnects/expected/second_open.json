@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "sahi",
+  "orderid": "26112500100000000012",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "SELL",
+  "quantity": 20,
+  "price": 2510.0,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "MIS",
+  "order_status": "open",
+  "filled_quantity": 0,
+  "pending_quantity": 20,
+  "average_price": 0.0,
+  "rejection_reason": ""
+}

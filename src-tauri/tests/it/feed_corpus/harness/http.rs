@@ -1,7 +1,8 @@
 //! The fake broker REST API, on an ephemeral loopback port, for what a feed
 //! or an order poller reads over HTTP: Upstox's authorize call before every
-//! connect, Groww's socket token, the order book 5paisa, Samco and Groww
-//! poll for order updates, XTS's REST subscriptions.
+//! connect, Groww's socket token and the order detail that completes its
+//! order push, the order book 5paisa and Samco poll for order updates,
+//! XTS's REST subscriptions.
 //!
 //! A path answers with its route's current answer: one fixed answer
 //! (`Env::serve_json`, or a route in `case.json`), or a scripted sequence,

@@ -19,7 +19,7 @@
 //! `teardown`: every task above is owned by one `JoinSet` and aborted; the
 //! three managers are disconnected (sockets closed, subscriptions cleared);
 //! the bridge forgets what it applied; the broker's `on_logout` stops what
-//! the adapter runs itself (Groww's poller).
+//! the adapter runs itself (the 5paisa and Samco pollers).
 
 use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedMode, FeedRefusal, FeedSubscription, MarketEvent, OrderFeed,
@@ -58,7 +58,7 @@ pub enum OrderSource {
     /// The market data feed carries them (Kite, the Noren family).
     MarketFeed,
     /// The adapter reads them itself, from its order book or a stream of
-    /// its own (Groww, 5paisa, Samco).
+    /// its own (5paisa, Samco).
     Adapter,
     /// The broker has an order feed, and it did not start.
     NotStarted,

@@ -18,6 +18,10 @@
 //! * Sahi's CloudFront refuses requests without a User-Agent, so every call
 //!   names itself.
 //!
+//! * Order updates stream from `/v1/stream/orders` on the API host's
+//!   socket address, authorised like the market data stream
+//!   (`streaming::SahiOrderFeed`, web openalgo#2474).
+//!
 //! The scrip master also lists MCX and NCOM contracts, but Sahi rejects
 //! commodity orders and its tick stream has no commodity segment, so only
 //! NSE, BSE, NFO and BFO are loaded (as on the web).
@@ -34,7 +38,7 @@ pub mod streaming;
 mod tests;
 
 use crate::brokers::common::mapping::{Exchange, Product};
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::common::{http, outcome};
 use crate::brokers::types::*;
@@ -50,6 +54,7 @@ use tokio::time::Instant;
 pub const AUTH_BASE_URL: &str = "https://apis.sahi.com";
 pub const API_BASE_URL: &str = "https://direct.sahi.com";
 pub const WS_URL: &str = "wss://direct.sahi.com/v1/stream/marketdata";
+pub const ORDER_WS_URL: &str = "wss://direct.sahi.com/v1/stream/orders";
 pub const SCRIP_MASTER_URL: &str = "https://assets.sahi.com/external/instruments.csv";
 
 /// What every call names itself as (CloudFront answers 403 without one).
@@ -99,6 +104,7 @@ pub struct SahiBroker {
     auth_url: String,
     master_url: String,
     ws_url: String,
+    order_ws_url: String,
     symbols: SymbolResolver,
     limiter: SahiLimiter,
 }
@@ -128,9 +134,16 @@ impl SahiBroker {
             auth_url: auth_url.into(),
             master_url: master_url.into(),
             ws_url: ws_url.into(),
+            order_ws_url: ORDER_WS_URL.into(),
             symbols,
             limiter: SahiLimiter::default(),
         }
+    }
+
+    /// Point the order stream at a local fake (tests).
+    pub fn with_order_stream_url(mut self, url: impl Into<String>) -> Self {
+        self.order_ws_url = url.into();
+        self
     }
 
     /// Other request limits (tests run a fake at full speed).
@@ -353,7 +366,7 @@ impl Broker for SahiBroker {
             margin: true,
             gtt: false,
             streaming: true,
-            order_feed: false,
+            order_feed: true,
             depth_levels: &[5],
         }
     }
@@ -466,5 +479,19 @@ impl Broker for SahiBroker {
 
     fn feed_refusal(&self, exchange: &str) -> Option<String> {
         streaming::refusal(exchange)
+    }
+
+    /// Sahi's order stream, authorised by the session's token (web
+    /// `create_sahi_order_adapter`, openalgo#2474).
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        let token = auth.raw().trim();
+        if token.is_empty() {
+            return Err(session_expired());
+        }
+        Ok(OrderFeed::Socket(Box::new(streaming::SahiOrderFeed::new(
+            token,
+            self.symbols.clone(),
+            self.order_ws_url.clone(),
+        ))))
     }
 }

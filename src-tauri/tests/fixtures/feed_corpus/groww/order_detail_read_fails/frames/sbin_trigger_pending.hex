@@ -1,0 +1,23 @@
+# Groww NATS MSG on the equity order subject (sid 1): SBIN, an SL-M sell of 5 (MIS) waiting for its trigger.
+# The push's integer prices have no stated unit; neither side reads them.
+4d 53 47 20 73 74 6f 63 6b 73 2f 6f 72 64 65 72 2f 75 70 64 61 74 65 73 2e 61 70 65 78 2e 73 75 62 2d 31 20 31 20 39 34 0d 0a  # "MSG stocks/order/updates.apex.sub-1 1 94" CRLF
+                                                                                                                               # protobuf OrderDetailsBroadCastDto, 94 bytes
+0a 0e                                                                                                                          # stage (1), 14 bytes
+12 0c                                                                                                                          #   (2), 12 bytes
+4f 52 44 45 52 5f 50 4c 41 43 45 44                                                                                            #     "ORDER_PLACED"
+12 4c                                                                                                                          # order update (2), 76 bytes
+08 05                                                                                                                          #   qty (1) = 5
+18 80 f1 04                                                                                                                    #   triggerPrice (3) = 80000
+28 05                                                                                                                          #   remainingQty (5) = 5
+3a 0d                                                                                                                          #   growwOrderId (7), 13 bytes
+47 4d 4b 32 35 31 31 32 35 30 30 30 34                                                                                         #     "GMK2511250004"
+48 02                                                                                                                          #   orderStatus (9) = 2 (TRIGGER_PENDING)
+58 01                                                                                                                          #   exchange (11) = 1 (NSE)
+68 01                                                                                                                          #   product (13) = 1 (MIS)
+70 03                                                                                                                          #   orderType (14) = 3 (SL_M)
+78 01                                                                                                                          #   transactionType (15) = 1 (SELL)
+82 01 19                                                                                                                       #   remark (16), 25 bytes
+4f 72 64 65 72 20 70 6c 61 63 65 64 20 73 75 63 63 65 73 73 66 75 6c 6c 79                                                     #     "Order placed successfully"
+b2 01 0c                                                                                                                       #   contractId (22), 12 bytes
+49 4e 45 30 36 32 41 30 31 30 32 30                                                                                            #     "INE062A01020"
+0d 0a                                                                                                                          # CRLF ending the message

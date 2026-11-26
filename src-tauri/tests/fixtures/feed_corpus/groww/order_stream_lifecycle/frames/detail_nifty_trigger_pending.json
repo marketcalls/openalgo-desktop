@@ -1,0 +1,27 @@
+{
+  "status": "SUCCESS",
+  "payload": {
+    "groww_order_id": "GMKFO2511250003",
+    "trading_symbol": "NIFTY26DEC26000CE",
+    "order_status": "TRIGGER_PENDING",
+    "remark": "",
+    "quantity": 75,
+    "price": 120.5,
+    "trigger_price": 120.0,
+    "filled_quantity": 0,
+    "remaining_quantity": 75,
+    "average_fill_price": 0,
+    "deliverable_quantity": 0,
+    "amo_status": "NA",
+    "validity": "DAY",
+    "exchange": "NSE",
+    "order_type": "SL",
+    "transaction_type": "BUY",
+    "segment": "FNO",
+    "product": "NRML",
+    "created_at": "2026-11-25T09:20:11",
+    "exchange_time": "2026-11-25T09:20:12",
+    "trade_date": "2026-11-25T00:00:00",
+    "order_reference_id": ""
+  }
+}

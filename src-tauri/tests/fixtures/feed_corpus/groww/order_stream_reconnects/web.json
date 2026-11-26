@@ -1,0 +1,138 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
+  "adapter": "groww",
+  "inputs_sha256": "2edf6370b5bae457ce1e93e9bc512be31d2a1f7f3c2c9f1fa5a3ef892ff52989",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN"
+    },
+    {
+      "symbol": "NIFTY29DEC2626000CE",
+      "exchange": "NFO",
+      "token": "54321",
+      "brsymbol": "NIFTY26DEC26000CE",
+      "name": "NIFTY",
+      "expiry": "29-DEC-26",
+      "strike": 26000.0,
+      "lotsize": 75,
+      "instrumenttype": "CE",
+      "tick_size": 0.05
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 1,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "groww",
+            "orderid": "GMKFO2511250006",
+            "symbol": "NIFTY29DEC2626000CE",
+            "exchange": "NFO",
+            "action": "BUY",
+            "quantity": 75,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "MARKET",
+            "product": "NRML",
+            "order_status": "complete",
+            "filled_quantity": 75,
+            "pending_quantity": 0,
+            "average_price": 132.25,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 10,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 12,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "groww",
+            "orderid": "GMK2511250007",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "MARKET",
+            "product": "MIS",
+            "order_status": "complete",
+            "filled_quantity": 10,
+            "pending_quantity": 0,
+            "average_price": 812.75,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    }
+  ]
+}

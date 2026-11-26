@@ -658,12 +658,12 @@ Where the updates come from in the desktop:
 
 - the broker's own order-update socket, for brokers that have one (for
   example Dhan, Fyers, Upstox, Angel, AliceBlue, Kotak, Definedge, IndMoney,
-  Arrow, IIFL Capital, Motilal, Nubra);
+  Arrow, IIFL Capital, Motilal, Nubra, Groww, Sahi);
 - the market data socket, for brokers that send order updates on it (for
   example Zerodha, Pocketful and the Shoonya, Flattrade, Zebu and TradeSmart
   family);
-- polling the order book, for brokers without a push channel (for example
-  Groww, Samco and 5paisa);
+- polling the order book, for brokers without a push channel (Samco and
+  5paisa);
 - the sandbox engine, in analyzer mode.
 
 In the desktop there is no `/postback/<broker>` webhook receiver; that is a

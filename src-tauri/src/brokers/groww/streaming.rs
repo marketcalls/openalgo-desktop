@@ -168,15 +168,83 @@ pub fn connect_frame(jwt: &str, nkey: Option<&str>, sig: Option<&str>) -> String
     format!("CONNECT {}}}\r\n", o)
 }
 
+/// The `CONNECT` answering a server `INFO`, as both Groww sockets send it:
+/// with the key pair's public key and its signature over the server's
+/// nonce when there are both, unsigned otherwise.
+pub(super) fn signed_connect(jwt: &str, key: Option<&KeyPair>, info: &Value) -> String {
+    let nonce = info.get("nonce").and_then(Value::as_str).unwrap_or("");
+    let (nkey, sig) = match (key, nonce.is_empty()) {
+        (Some(k), false) => (Some(k.public_key()), Some(k.sign_nonce(nonce))),
+        _ => (None, None),
+    };
+    connect_frame(jwt, nkey.as_deref(), sig.as_deref())
+}
+
+/// A Groww socket's NATS reader, for both feeds: an op may span frames and
+/// a frame may hold several, so a partial op waits for the rest of it (web
+/// `groww_nats.py` `parse_message`, `groww_order_adapter.py`
+/// `_split_frames`). One bigger than `MAX_PENDING_BYTES` is a broken
+/// stream and is dropped.
+pub(super) struct NatsReader {
+    /// The feed reading, as its log names it.
+    feed: &'static str,
+    buf: Vec<u8>,
+}
+
+impl NatsReader {
+    pub(super) fn new(feed: &'static str) -> Self {
+        Self {
+            feed,
+            buf: Vec::new(),
+        }
+    }
+
+    /// Every op that `data` completes, in the order the server sent them.
+    pub(super) fn ops(&mut self, data: &[u8]) -> Vec<Op> {
+        self.buf.extend_from_slice(data);
+        if self.buf.len() > MAX_PENDING_BYTES {
+            tracing::warn!("{} sent an oversized frame; dropping it", self.feed);
+            self.buf.clear();
+            return Vec::new();
+        }
+        let mut ops = Vec::new();
+        let mut used = 0;
+        while let Some((op, n)) = next_op(&self.buf[used..]) {
+            used += n;
+            ops.push(op);
+        }
+        self.buf.drain(..used);
+        ops
+    }
+
+    /// A new connection starts with nothing buffered.
+    pub(super) fn clear(&mut self) {
+        self.buf.clear();
+    }
+}
+
+/// For both feeds: the upgrade failed because the server did not echo the
+/// `nats` subprotocol the request asked for, so the next try goes without
+/// it, until the next `prepare` asks again. Answers whether to retry at
+/// once. The web sends the same header, as a plain header its
+/// websocket-client does not check the echo of; tungstenite checks it.
+pub(super) fn retry_without_subprotocol(with_protocol: &mut bool, error: &str) -> bool {
+    if *with_protocol && error.to_ascii_lowercase().contains("subprotocol") {
+        *with_protocol = false;
+        return true;
+    }
+    false
+}
+
 // ---------------------------------------------------------------------------
 // Connect: socket token and handshake request
 // ---------------------------------------------------------------------------
 
 /// Credentials minted by one `prepare` for the connection that follows.
 pub struct Minted {
-    jwt: Secret,
-    subscription: String,
-    key: Option<KeyPair>,
+    pub(super) jwt: Secret,
+    pub(super) subscription: String,
+    pub(super) key: Option<KeyPair>,
 }
 
 /// What the trader reads when Groww refuses the socket-token request: the
@@ -184,14 +252,35 @@ pub struct Minted {
 pub const LOGIN_EXPIRED: &str =
     "Your Groww login has expired, so live market data stopped. Log in to Groww again.";
 
+/// Who asks Groww for a socket token. The web's market data client
+/// (`nats_websocket.py`) and its order adapter (`groww_order_adapter.py`,
+/// openalgo#2474) name different SDK versions, and only the order adapter
+/// needs the subscription id, which its order subjects carry.
+pub(super) struct TokenAsk {
+    /// `x-client-platform-version`.
+    pub(super) platform_version: &'static str,
+    /// What the trader reads when Groww refuses the request.
+    pub(super) expired: &'static str,
+    /// An answer without a `subscriptionId` is no token.
+    pub(super) needs_subscription: bool,
+}
+
+/// The market data feed's ask (nats_websocket.py:228-238).
+const MARKET_DATA: TokenAsk = TokenAsk {
+    platform_version: "0.0.8",
+    expired: LOGIN_EXPIRED,
+    needs_subscription: false,
+};
+
 /// Socket token for a fresh key pair (web `_generate_socket_token`). Groww's
 /// NATS server accepts only a socket token, so there is no fallback to the
 /// login token (web openalgo#2312): a 401 or 403 means the login expired and
 /// stops the feed; any other failure is retried with backoff.
-async fn socket_token(
+pub(super) async fn socket_token(
     http: &reqwest::Client,
     url: &str,
     auth: &str,
+    ask: &TokenAsk,
 ) -> std::result::Result<Minted, PrepareError> {
     let key = KeyPair::generate();
     let resp = http
@@ -202,7 +291,7 @@ async fn socket_token(
         .header("Content-Type", "application/json")
         .header("x-client-id", "growwapi")
         .header("x-client-platform", "growwapi-python-client")
-        .header("x-client-platform-version", "0.0.8")
+        .header("x-client-platform-version", ask.platform_version)
         .header("x-api-version", "1.0")
         .json(&json!({"socketKey": key.public_key()}))
         .send()
@@ -223,7 +312,7 @@ async fn socket_token(
             status = status.as_u16(),
             "Groww refused the socket token request; the login has expired"
         );
-        return Err(PrepareError::AuthFailed(LOGIN_EXPIRED.into()));
+        return Err(PrepareError::AuthFailed(ask.expired.into()));
     }
     if status.is_success() {
         if let Ok(v) = r.json::<Value>().await {
@@ -232,7 +321,7 @@ async fn socket_token(
                 .get("subscriptionId")
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            if !token.is_empty() {
+            if !token.is_empty() && !(ask.needs_subscription && sub.is_empty()) {
                 return Ok(Minted {
                     jwt: Secret::new(token),
                     subscription: sub.to_string(),
@@ -335,8 +424,7 @@ pub struct GrowwFeed {
     /// Ask for the `nats` subprotocol (dropped when the server does not
     /// echo it).
     with_protocol: bool,
-    /// Bytes of a partial NATS op (bounded by `MAX_PENDING_BYTES`).
-    buf: Vec<u8>,
+    reader: NatsReader,
     connect_sent: bool,
     next_sid: u64,
     instruments: HashMap<Key, Inst>,
@@ -580,7 +668,7 @@ impl GrowwFeed {
             endpoints,
             minted: None,
             with_protocol: true,
-            buf: Vec::new(),
+            reader: NatsReader::new("Groww feed"),
             connect_sent: false,
             next_sid: 1,
             instruments: HashMap::new(),
@@ -652,31 +740,16 @@ impl GrowwFeed {
 
     /// The `CONNECT` reply to the server's `INFO`, signed over its nonce.
     fn connect_reply(&self, info: &Value) -> String {
-        let nonce = info.get("nonce").and_then(Value::as_str).unwrap_or("");
-        let (jwt, key) = match &self.minted {
-            Some(m) => (m.jwt.expose().to_string(), m.key.as_ref()),
-            None => (self.auth_token.expose().to_string(), None),
-        };
-        let (nkey, sig) = match (key, nonce.is_empty()) {
-            (Some(k), false) => (Some(k.public_key()), Some(k.sign_nonce(nonce))),
-            _ => (None, None),
-        };
-        connect_frame(&jwt, nkey.as_deref(), sig.as_deref())
+        match &self.minted {
+            Some(m) => signed_connect(m.jwt.expose(), m.key.as_ref(), info),
+            None => signed_connect(self.auth_token.expose(), None, info),
+        }
     }
 
     /// Buffer one frame and handle every complete NATS op in it.
     fn parse_ops(&mut self, data: &[u8]) -> Vec<FeedEvent> {
-        self.buf.extend_from_slice(data);
-        if self.buf.len() > MAX_PENDING_BYTES {
-            tracing::warn!("Groww feed sent an oversized frame; dropping it");
-            self.buf.clear();
-            return Vec::new();
-        }
-        let buf = std::mem::take(&mut self.buf);
         let mut out = Vec::new();
-        let mut used = 0;
-        while let Some((op, n)) = next_op(&buf[used..]) {
-            used += n;
+        for op in self.reader.ops(data) {
             match op {
                 // Only the first INFO of a connection is the handshake: the
                 // server sends another after CONNECT, and a second CONNECT
@@ -711,8 +784,6 @@ impl GrowwFeed {
                 Op::Other(line) => tracing::debug!("Groww feed op ignored: {}", line),
             }
         }
-        self.buf = buf;
-        self.buf.drain(..used);
         out
     }
 }
@@ -732,6 +803,7 @@ impl BrokerFeed for GrowwFeed {
                 &self.http,
                 &self.endpoints.socket_token_url,
                 self.auth_token.expose(),
+                &MARKET_DATA,
             )
             .await?,
         );
@@ -759,12 +831,7 @@ impl BrokerFeed for GrowwFeed {
     }
 
     fn on_connect_failed(&mut self, error: &str) -> bool {
-        // The server did not echo the `nats` subprotocol: retry without it.
-        if self.with_protocol && error.to_ascii_lowercase().contains("subprotocol") {
-            self.with_protocol = false;
-            return true;
-        }
-        false
+        retry_without_subprotocol(&mut self.with_protocol, error)
     }
 
     fn on_connected(&mut self) -> Vec<Message> {
@@ -773,7 +840,7 @@ impl BrokerFeed for GrowwFeed {
         self.instruments.clear();
         self.sids.clear();
         self.next_sid = 1;
-        self.buf.clear();
+        self.reader.clear();
         self.connect_sent = false;
         Vec::new()
     }

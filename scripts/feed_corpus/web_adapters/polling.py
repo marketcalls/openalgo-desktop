@@ -1,6 +1,6 @@
 """Order updates from polling the order book, for the brokers the web has
 no order stream for (`services/order_update_service.py` _POLLING_BROKERS:
-5paisa, Samco, Groww): the web's own `PollingOrderUpdateAdapter._poll_loop`
+5paisa and Samco): the web's own `PollingOrderUpdateAdapter._poll_loop`
 runs, on a thread of its own, through `services/orderbook_service.py`
 (`get_orderbook`, `get_orderbook_with_auth`, `format_order_data`,
 `format_statistics`) and the broker's `broker/<name>/mapping/order_data.py`
@@ -19,8 +19,8 @@ A broker's glue: `class Broker(Polling, Glue)`, its sources plus
 POLLING_SOURCES and its mapping functions, `order_book_path` and
 `empty_book` set, and `polling_stubs()` merged into its `stubs()`. Where
 the broker's own `get_order_book` does work the web runs before mapping
-(Groww reads two segments over REST and resolves each order's symbol), the
-glue lifts it too and answers each poll from it (`order_book_reply`).
+(reading the book over REST, resolving each order's symbol), the glue
+lifts it too and answers each poll from it (`order_book_reply`).
 """
 
 import json

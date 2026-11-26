@@ -1,0 +1,27 @@
+{
+  "status": "SUCCESS",
+  "payload": {
+    "groww_order_id": "GMK2511250007",
+    "trading_symbol": "SBIN",
+    "order_status": "EXECUTED",
+    "remark": "",
+    "quantity": 10,
+    "price": 0,
+    "trigger_price": 0,
+    "filled_quantity": 10,
+    "remaining_quantity": 0,
+    "average_fill_price": 812.75,
+    "deliverable_quantity": 0,
+    "amo_status": "NA",
+    "validity": "DAY",
+    "exchange": "NSE",
+    "order_type": "MARKET",
+    "transaction_type": "BUY",
+    "segment": "CASH",
+    "product": "MIS",
+    "created_at": "2026-11-25T09:20:11",
+    "exchange_time": "2026-11-25T09:20:12",
+    "trade_date": "2026-11-25T00:00:00",
+    "order_reference_id": ""
+  }
+}

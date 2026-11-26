@@ -1,0 +1,27 @@
+{
+  "status": "SUCCESS",
+  "payload": {
+    "groww_order_id": "GMKFO2511250002",
+    "trading_symbol": "NIFTY26DEC26000CE",
+    "order_status": "REJECTED",
+    "remark": "RMS: margin shortfall, required 52,000.00, available 12,000.00",
+    "quantity": 75,
+    "price": 145.5,
+    "trigger_price": 0,
+    "filled_quantity": 0,
+    "remaining_quantity": 0,
+    "average_fill_price": 0,
+    "deliverable_quantity": 0,
+    "amo_status": "NA",
+    "validity": "DAY",
+    "exchange": "NSE",
+    "order_type": "LIMIT",
+    "transaction_type": "SELL",
+    "segment": "FNO",
+    "product": "NRML",
+    "created_at": "2026-11-25T09:20:11",
+    "exchange_time": "2026-11-25T09:20:12",
+    "trade_date": "2026-11-25T00:00:00",
+    "order_reference_id": ""
+  }
+}
