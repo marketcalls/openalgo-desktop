@@ -1,6 +1,6 @@
 {
   "_comment": "Captured from the web's services/agent/tools by scripts/agent/capture_web_tools.py with agno building each toolkit as a web run does. Regenerate only from the web; the desktop's tool specs must match this file.",
-  "web_commit": "a2ae9f1f",
+  "web_commit": "348b7edf",
   "agno_version": "3.0.5",
   "capabilities": [
     "mcp_enabled",

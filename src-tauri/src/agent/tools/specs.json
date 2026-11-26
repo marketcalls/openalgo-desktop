@@ -1,6 +1,6 @@
 {
   "_comment": "Generated from the web by scripts/agent/capture_web_tools.py: what the model is sent for each Agent tool. Never edit by hand.",
-  "web_commit": "a2ae9f1f",
+  "web_commit": "348b7edf",
   "tools": {
     "read_chart": {
       "description": "Report what is on the chart right now. Draws nothing, fetches nothing.\nEverything here came with the operator's message, so this call is free\nand instant. Use it before commenting on the operator's own drawings,\nbefore deciding whether your markup is still on screen, and whenever you\nneed the exact indicator settings or the drawing anchors, which the\nsession summary does not carry.\n\nReach for it only when you need those lists. The instrument, the\ninterval, the viewport and the last price are already stated in your\nRIGHT NOW instructions.",
