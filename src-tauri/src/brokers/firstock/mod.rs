@@ -16,6 +16,8 @@ pub mod data;
 pub mod mapping;
 pub mod master_contract;
 pub mod orders;
+#[cfg(test)]
+mod slm_tests;
 pub mod streaming;
 #[cfg(test)]
 mod tests;

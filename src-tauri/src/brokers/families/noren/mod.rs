@@ -21,6 +21,8 @@ pub mod funds;
 pub mod mapping;
 pub mod master_contract;
 pub mod orders;
+#[cfg(test)]
+mod slm_tests;
 pub mod streaming;
 #[cfg(test)]
 mod tests;
@@ -116,8 +118,9 @@ pub enum BseIndices {
 /// Market Price Protection: Noren OMS rejects MKT / SL-MKT for API orders.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MppScope {
-    /// MARKET and SL-M convert when a quote is available; SL-M without a
-    /// quote still goes as SL-LMT priced off the trigger (shoonya, flattrade).
+    /// MARKET converts off the LTP when a quote is available; SL-M always
+    /// goes as SL-LMT priced off its trigger (`mapping::slm_limit`, web
+    /// #2390) and is refused without one (shoonya, flattrade).
     MarketAndStop,
     /// MARKET only; SL-M is sent as SL-MKT (zebu).
     MarketOnly,
