@@ -23,6 +23,7 @@ use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedSubscription, Message, OrderUpdate, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
+use crate::brokers::pocketful::mapping::text_of;
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -237,15 +238,6 @@ fn product(product: &str) -> String {
         "INTRADAY" => "MIS".to_string(),
         "MARGIN" => "NRML".to_string(),
         other => other.to_string(),
-    }
-}
-
-/// web `_text`: a string trimmed, a number as written, nothing for null.
-fn text_of(v: Option<&Value>) -> String {
-    match v {
-        None | Some(Value::Null) => String::new(),
-        Some(Value::String(s)) => s.trim().to_string(),
-        Some(other) => other.to_string(),
     }
 }
 

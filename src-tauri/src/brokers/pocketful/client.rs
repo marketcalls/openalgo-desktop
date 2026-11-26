@@ -20,6 +20,7 @@
 //!   backoff (1 s, 2 s) and then refuses as busy; nothing else is ever sent
 //!   twice.
 
+use super::mapping::text_of;
 use super::PocketfulBroker;
 use crate::brokers::common::outcome;
 use crate::brokers::types::AuthToken;
@@ -128,11 +129,7 @@ impl Answer {
 
     /// Pocketful's own message (for the log, and a refusal's reason).
     pub fn message(&self) -> String {
-        match self.body.as_ref().and_then(|b| b.get("message")) {
-            Some(Value::String(s)) => s.trim().to_string(),
-            Some(Value::Null) | None => String::new(),
-            Some(other) => other.to_string(),
-        }
+        text_of(self.body.as_ref().and_then(|b| b.get("message")))
     }
 
     /// The body carries Pocketful's explicit failure marker (`status:

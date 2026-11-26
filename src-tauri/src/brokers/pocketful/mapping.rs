@@ -6,6 +6,7 @@
 //! strings, and a missing field reads as empty or zero, as the web reads
 //! them. Every book returns OpenAlgo symbols.
 
+use super::market::number;
 use super::pricing::Priced;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -17,7 +18,13 @@ use serde_json::{json, Value};
 
 /// String field (numbers are printed; null and absent are empty).
 pub fn text(v: &Value, key: &str) -> String {
-    match v.get(key) {
+    text_of(v.get(key))
+}
+
+/// A value as text (web `_text`): a string trimmed, a number as written,
+/// nothing for null or absent.
+pub(crate) fn text_of(v: Option<&Value>) -> String {
+    match v {
         Some(Value::String(s)) => s.trim().to_string(),
         Some(Value::Null) | None => String::new(),
         Some(other) => other.to_string(),
@@ -43,7 +50,7 @@ fn as_f64(v: &Value) -> Option<f64> {
 
 /// Number field (numeric strings accepted; 0 when absent or unreadable).
 pub fn num(v: &Value, key: &str) -> f64 {
-    v.get(key).and_then(as_f64).unwrap_or(0.0)
+    v.get(key).map(number).unwrap_or(0.0)
 }
 
 /// The first of `keys` that is present and numeric.
