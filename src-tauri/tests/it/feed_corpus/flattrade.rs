@@ -1,6 +1,8 @@
 //! Flattrade: the Noren market data socket as a Flattrade session makes it
 //! (`noren_family::feeds`), carrying the `om` order updates too after
-//! `{"t":"o"}` (PiConnect allows one session per user).
+//! `{"t":"o"}` (PiConnect allows one session per user), with the session's
+//! order catch-up after each connect (`World`'s `order_catch_up`, web
+//! #2507).
 
 use super::harness::{corpus_cases, Env, Feeds};
 use openalgo_desktop_lib::brokers::flattrade;
@@ -22,5 +24,8 @@ corpus_cases!(
         new_price_without_times,
         reconnect_starts_afresh,
         quote_without_order_flow,
+        order_catch_up,
+        reconnect_login_refused,
+        login_refused,
     ]
 );

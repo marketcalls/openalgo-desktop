@@ -6,7 +6,7 @@
     "depth": [
       5
     ],
-    "orders": "REST order-book polling by default (issue #1806); om frames after {\"t\":\"o\"} with FLATTRADE_ORDER_WS (the desktop reads them from the market data socket)"
+    "orders": "om frames after {\"t\":\"o\"} on the market data socket (since 73599f37c, #2507); an order socket of its own only while no market data connection is open; one order-book read after each new stream"
   },
   "sources": [
     "broker/flattrade/streaming/flattrade_adapter.py",
@@ -16,6 +16,7 @@
   ],
   "notes": [
     "Noren streams five levels. A Depth 20, 30 or 50 subscribe is acknowledged with the depth asked for and streams five, as on the web (the adapter's success response names no actual_depth; feed::dialect, DepthAck::Echo).",
-    "PiConnect allows one session per uid, so the web polls the order book (a dedicated order socket evicts the market data one, issue #1806) and names multiplexing t=o on the market socket as the real fix; the desktop does that. The corpus compares the om frames with the normaliser the web's dedicated socket uses."
+    "PiConnect allows one session per uid (issue #1806). Since 73599f37c (marketcalls/openalgo#2507, issue #2386) the web multiplexes t=o on its market data socket and relays the om frames to its order adapter, which reads the order book once after each new stream for what a handover missed; the desktop reads them off the same socket and catches up the same way after each reconnect (broker_runtime::catch_up_orders).",
+    "The desktop sends t=o after the login acknowledgement (ak), as Flattrade's handshake (09-websocket.md) and the web's own order socket do; the web's market data adapter sends it right after the t=a login frame, before the ak (_on_open, from flattrade_websocket.py's on_open callback). Declared in order_updates."
   ]
 }

@@ -24,7 +24,9 @@ use openalgo_desktop_lib::feed::auth::StaticAuth;
 use openalgo_desktop_lib::feed::bridge::BrokerBridge;
 use openalgo_desktop_lib::feed::orders::OrderRelay;
 use openalgo_desktop_lib::feed::{start, FeedConfig, FeedDeps, FeedHandle};
-use openalgo_desktop_lib::services::broker_runtime::{self, order_event};
+use openalgo_desktop_lib::services::broker_runtime::{
+    self, catch_up_orders, order_event, CatchUpSession, OrderCatchUp,
+};
 use openalgo_desktop_lib::websocket::{
     FeedConfig as ManagerConfig, FeedFactory, PoolLimits, WebSocketManager,
 };
@@ -350,9 +352,15 @@ impl World {
         let relay = OrderRelay::register(&bus);
         let generation = bus.begin_session();
         let mut relays = JoinSet::new();
+        let catch_up = order_catch_up(case, &feeds, &market, &bus, generation, &mut relays);
         for m in [&market, &orders] {
             let session = (case.broker.clone(), feeds.broker.clone(), generation);
-            relay_orders(&mut relays, m, bus.clone(), session);
+            let remember = if Arc::ptr_eq(m, &market) {
+                catch_up.clone()
+            } else {
+                None
+            };
+            relay_orders(&mut relays, m, bus.clone(), session, remember);
         }
 
         bridge.start();
@@ -624,14 +632,56 @@ async fn completed(session: &Session, u: &OrderUpdate) -> OrderUpdate {
         .unwrap_or_else(|_| u.clone())
 }
 
+/// The runtime's order catch-up for a broker whose market feed is its
+/// session's only stream (`Broker::single_session_stream`, Flattrade): one
+/// order-book read after each session of the market feed has written its
+/// post-login frames, which it watches from before the feed starts
+/// (`WebSocketManager::watch_ready`, `broker_runtime::catch_up_orders`).
+/// Only in a case that asks for orders, or its reads would be requests no
+/// step expects. The session never reaches its daily boundary in a case.
+fn order_catch_up(
+    case: &Case,
+    feeds: &Feeds,
+    market: &WebSocketManager,
+    bus: &Arc<EventBus>,
+    generation: u64,
+    relays: &mut JoinSet<()>,
+) -> Option<Arc<OrderCatchUp>> {
+    let (broker, auth) = feeds.broker.as_ref()?;
+    if !(broker.single_session_stream() && case.orders) {
+        return None;
+    }
+    let state = Arc::new(OrderCatchUp::default());
+    let session = CatchUpSession {
+        broker: broker.clone(),
+        auth: auth.clone(),
+        bus: bus.clone(),
+        generation,
+        current: Arc::new(within_the_day),
+    };
+    relays.spawn(catch_up_orders(
+        state.clone(),
+        market.watch_ready(),
+        session,
+    ));
+    Some(state)
+}
+
+/// A corpus session never reaches its daily boundary.
+fn within_the_day() -> bool {
+    true
+}
+
 /// `services::broker_runtime`'s socket order relay: every order update a
 /// feed decodes is completed by the broker and goes on the bus as the
-/// runtime's `order_event`.
+/// runtime's `order_event`, the market feed's told to its order catch-up
+/// first (`remember`).
 fn relay_orders(
     set: &mut JoinSet<()>,
     feed: &WebSocketManager,
     bus: Arc<EventBus>,
     (broker, session, generation): (String, Session, u64),
+    remember: Option<Arc<OrderCatchUp>>,
 ) {
     let mut rx = feed.subscribe_ticks();
     set.spawn(async move {
@@ -640,6 +690,9 @@ fn relay_orders(
                 Ok(ev) => {
                     if let FeedEvent::OrderUpdate(u) = &*ev {
                         let u = completed(&session, u).await;
+                        if let Some(catch_up) = &remember {
+                            catch_up.remember(&u);
+                        }
                         bus.publish(order_event(&u, &broker, generation));
                     }
                 }

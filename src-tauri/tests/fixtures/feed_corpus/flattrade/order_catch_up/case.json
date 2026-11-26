@@ -1,0 +1,63 @@
+{
+  "broker": "flattrade",
+  "summary": "Flattrade's order updates ride the market data socket; after it reconnects the order book is read once and the orders that changed while it was down are published, the first read and orders the socket already pushed (a trigger-pending stop the book shows as open) publishing nothing.",
+  "scenarios": [
+    "order-open",
+    "order-complete",
+    "order-rejected",
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "http": [
+    {
+      "method": "POST",
+      "path": "/PiConnectAPI/OrderBook",
+      "body": "frames/book_seed.json"
+    }
+  ],
+  "provenance": {
+    "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
+    "method": "web-script",
+    "sources": [
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._on_message",
+      "broker/flattrade/streaming/flattrade_order_adapter.py::FlattradeEventOrderAdapter._catch_up",
+      "broker/flattrade/streaming/flattrade_order_adapter.py::normalize_order_frame",
+      "services/orderbook_service.py::get_orderbook",
+      "broker/flattrade/mapping/order_data.py::transform_order_data",
+      "test/test_flattrade_issue_2386.py::test_the_first_read_records_and_a_later_one_publishes_the_gap",
+      "test/test_flattrade_issue_2386.py::test_an_update_already_pushed_is_not_published_again",
+      "test/test_flattrade_issue_2386.py::test_trigger_pending_and_open_are_the_same_state_to_the_catch_up"
+    ],
+    "notes": [
+      "Web 73599f37c (marketcalls/openalgo#2507, issue #2386): one order-book read after each new order stream, the first only recording it; the web runs it on its supervisor's next tick, the replay after the login answer.",
+      "The desktop reads it once the reconnect's login is accepted and its order subscription has been written (WebSocketManager::watch_ready, broker_runtime::catch_up_orders), as the web reads only after _subscribe_order_updates sent t=o, through the session's own order book read.",
+      "A push that comes while a read is on its way (the first read: any push before it) is kept over that read's row of the order, which publishes nothing; the next read settles it. The web's _catch_up lets the row overwrite it (known.update after _remember, which before the first read drops the push), so an update pushed meanwhile is published again, and after a later read the order's older state goes out after the newer one: a web defect not copied (stale data). This case pushes nothing while a read is on its way; services::broker_runtime::catch_up's unit tests do."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "rejection_reason",
+      "kind": "web-defect",
+      "reason": "The web's catch-up publishes Flattrade's order-book rows, and its order book carries no rejection reason (transform_order_data leaves rejreason out), so a rejection the gap missed goes out with an empty reason; the desktop sends Flattrade's RMS text, as the pushed update and the desktop's order book carry it. Lost data on the web.",
+      "ref": "broker/flattrade/mapping/order_data.py::transform_order_data; broker/flattrade/streaming/flattrade_order_adapter.py::FlattradeEventOrderAdapter._publish_book_order",
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "",
+          "RMS:Margin Exceeds,Required:7475000.00, Available:250000.00"
+        ]
+      ]
+    }
+  ]
+}

@@ -25,8 +25,8 @@
 //! is a bounded broadcast whose slow receivers see `Lagged` and skip ahead.
 
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedHeld, FeedLetGo, FeedRefusal, FeedSubscription, MarketEvent, Presubscribe,
-    StopKind,
+    BrokerFeed, ConnectGate, FeedHeld, FeedLetGo, FeedRefusal, FeedSubscription, MarketEvent,
+    Presubscribe, StopKind,
 };
 use crate::error::{AppError, Result};
 use parking_lot::Mutex;
@@ -193,6 +193,9 @@ pub struct WebSocketManager {
     /// The first connection's state: the feed's, for the UI and the feed
     /// server.
     status: watch::Sender<FeedStatus>,
+    /// How many of the first connection's sessions have sent their
+    /// post-login frames and whole set (`watch_ready`).
+    ready: watch::Sender<u64>,
     registry: Arc<Mutex<Registry>>,
     /// The broker connections, first one first; `None` where an extra one
     /// is not open.
@@ -215,6 +218,9 @@ pub struct WebSocketManager {
     /// The broker's own words for a subscribe past the room, where its web
     /// adapter refuses before the pool does (`set_room_refusal`).
     room_refusal: Mutex<Option<&'static str>>,
+    /// Asked before each connection's every connect (`set_connect_gate`);
+    /// shared with the socket tasks.
+    gate: Arc<Mutex<Option<ConnectGate>>>,
 }
 
 impl Default for WebSocketManager {
@@ -232,10 +238,12 @@ impl WebSocketManager {
         let (events, _) = broadcast::channel(config.event_capacity.max(1));
         let packets = PacketOut::with_capacity(config.event_capacity);
         let (status, _) = watch::channel(FeedStatus::Disconnected);
+        let (ready, _) = watch::channel(0);
         Self {
             events,
             packets,
             status,
+            ready,
             registry: Arc::new(Mutex::new(Registry::with_limits(PoolLimits::single(
                 config.max_instruments,
             )))),
@@ -249,6 +257,7 @@ impl WebSocketManager {
             let_go: Mutex::new(None),
             held: Mutex::new(None),
             room_refusal: Mutex::new(None),
+            gate: Arc::default(),
         }
     }
 
@@ -312,6 +321,16 @@ impl WebSocketManager {
     /// Status changes.
     pub fn watch_status(&self) -> watch::Receiver<FeedStatus> {
         self.status.subscribe()
+    }
+
+    /// Moves each time a session of the first connection has written what
+    /// the broker is sent once it accepts the login, its post-login frames
+    /// (`BrokerFeed::on_authenticated`) and the whole set: what needs the
+    /// broker to have them first (Flattrade's order catch-up after its
+    /// `t=o`) waits for it, not for `Connected`, which is reported before
+    /// they go (`supervisor::subscribe_all`, review X3).
+    pub fn watch_ready(&self) -> watch::Receiver<u64> {
+        self.ready.subscribe()
     }
 
     pub fn stats(&self) -> &FeedStats {
@@ -440,6 +459,7 @@ impl WebSocketManager {
         *self.let_go.lock() = None;
         *self.held.lock() = None;
         *self.room_refusal.lock() = None;
+        *self.gate.lock() = None;
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
     }
@@ -449,6 +469,14 @@ impl WebSocketManager {
         for r in all {
             pool::stop(r).await;
         }
+    }
+
+    /// Whether the session may still connect, asked before every connect
+    /// and reconnect of each connection: a refusal stops that connection as
+    /// a refused login does (`FeedStatus::AuthFailed`, until the next
+    /// sign-in). None (the default; a disconnect clears it) always connects.
+    pub fn set_connect_gate(&self, gate: Option<ConnectGate>) {
+        *self.gate.lock() = gate;
     }
 
     /// The broker's words for a subscribe past this feed's room, where its

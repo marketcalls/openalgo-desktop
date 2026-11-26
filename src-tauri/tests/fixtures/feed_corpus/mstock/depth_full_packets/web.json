@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
   "adapter": "mstock",
   "inputs_sha256": "d90fdf0e95bd6d1b609a8e3336a5c679d882b438e9587467a4fc3ace638b233e",
   "instruments": [

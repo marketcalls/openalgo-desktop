@@ -1,0 +1,186 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
+  "adapter": "flattrade",
+  "inputs_sha256": "169d8ee397b58551ccdd22a5408b7529b50ce671cefb86364093910fd783a640",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 5,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "flattrade",
+            "orderid": "26112600000201",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 10,
+            "price": 0.0,
+            "trigger_price": 0.0,
+            "pricetype": "MARKET",
+            "product": "MIS",
+            "order_status": "complete",
+            "filled_quantity": 10,
+            "pending_quantity": 0,
+            "average_price": 1480.5,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "flattrade",
+            "orderid": "26112600000202",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 5,
+            "price": 1490.0,
+            "trigger_price": 1495.0,
+            "pricetype": "SL",
+            "product": "MIS",
+            "order_status": "trigger pending",
+            "filled_quantity": 0,
+            "pending_quantity": 5,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [],
+      "deliveries": []
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "flattrade",
+            "orderid": "26112600000203",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "BUY",
+            "quantity": 2,
+            "price": 1478.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "MIS",
+            "order_status": "complete",
+            "filled_quantity": 2,
+            "pending_quantity": 0,
+            "average_price": 1478.0,
+            "rejection_reason": ""
+          }
+        },
+        {
+          "kind": "order",
+          "frame": {
+            "type": "order_update",
+            "user_id": "<USER_ID>",
+            "mode": "live",
+            "broker": "flattrade",
+            "orderid": "26112600000204",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "action": "SELL",
+            "quantity": 5000,
+            "price": 1495.0,
+            "trigger_price": 0.0,
+            "pricetype": "LIMIT",
+            "product": "MIS",
+            "order_status": "rejected",
+            "filled_quantity": 0,
+            "pending_quantity": 5000,
+            "average_price": 0.0,
+            "rejection_reason": ""
+          }
+        }
+      ],
+      "deliveries": [
+        {
+          "client": "a",
+          "publication": 0,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        },
+        {
+          "client": "a",
+          "publication": 1,
+          "order": true,
+          "serves": [
+            "order"
+          ]
+        }
+      ]
+    }
+  ]
+}

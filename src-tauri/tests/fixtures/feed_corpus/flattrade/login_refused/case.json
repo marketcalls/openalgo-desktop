@@ -1,0 +1,46 @@
+{
+  "broker": "flattrade",
+  "summary": "The market data socket's login is refused: the desktop sends no order subscription, reads no order book and does not connect again with the refused token; the web publishes nothing.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "http": [
+    {
+      "method": "POST",
+      "path": "/PiConnectAPI/OrderBook",
+      "body": {
+        "json": {
+          "stat": "Not_Ok",
+          "emsg": "no data"
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
+    "method": "web-script",
+    "sources": [
+      "broker/flattrade/streaming/flattrade_websocket.py::FlattradeWebSocket._handle_auth_response",
+      "test/test_flattrade_issue_2386.py::test_a_refused_token_stands_the_adapter_down",
+      "test/test_flattrade_issue_2386.py::test_a_refused_connect_ack_closes_and_stands_down"
+    ],
+    "notes": [
+      "Web 73599f37c (marketcalls/openalgo#2507, issue #2386): a refused token stands order updates down until the next broker login.",
+      "The desktop reports the refusal (FeedStatus::AuthFailed) and waits for a new login; its order catch-up reads only once a login is accepted."
+    ]
+  },
+  "deviations": []
+}

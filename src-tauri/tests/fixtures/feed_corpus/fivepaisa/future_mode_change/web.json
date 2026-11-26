@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
   "adapter": "fivepaisa",
   "inputs_sha256": "469e52c3eab05179ff1db64c9dd600564ce7115526e1ced7b1fb8acfc620b2b6",
   "instruments": [

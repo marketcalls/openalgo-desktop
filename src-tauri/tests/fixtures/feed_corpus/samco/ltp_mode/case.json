@@ -15,7 +15,7 @@
     }
   ],
   "provenance": {
-    "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+    "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
     "method": "web-script",
     "sources": [
       "broker/samco/streaming/samco_adapter.py::SamcoWebSocketAdapter._on_data",

@@ -31,16 +31,31 @@
   "upstream_ignore": [
     "{\"t\":\"h\"}"
   ],
+  "http": [
+    {
+      "method": "POST",
+      "path": "/PiConnectAPI/OrderBook",
+      "body": {
+        "json": {
+          "stat": "Not_Ok",
+          "emsg": "no data"
+        }
+      }
+    }
+  ],
   "provenance": {
-    "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+    "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
     "method": "web-script",
     "sources": [
-      "broker/flattrade/streaming/flattrade_order_adapter.py::FlattradeOrderUpdateAdapter.normalize",
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._on_message",
+      "broker/flattrade/streaming/flattrade_order_adapter.py::FlattradeEventOrderAdapter._publish_frame",
+      "broker/flattrade/streaming/flattrade_order_adapter.py::normalize_order_frame",
       "subscribers/wsproxy_subscriber.py::on_order_update"
     ],
     "notes": [
-      "Flattrade's order updates ride the market data socket as om frames after {\"t\":\"o\"}.",
-      "The web's default Flattrade order stream is REST order-book polling (issue #1806: one PiConnect session per uid); the om frames are compared with the normaliser its dedicated socket uses."
+      "Flattrade's order updates ride the market data socket as om frames after {\"t\":\"o\"}, on the web since 73599f37c (marketcalls/openalgo#2507, issue #2386) and on the desktop: the web's market data adapter relays each om frame verbatim to its order adapter, which normalises it (normalize_order_frame).",
+      "Where the two send t=o on that socket differs. The desktop sends it after PiConnect's login acknowledgement (ak), with its other post-login frames (NorenFeed::on_authenticated), the handshake Flattrade documents (09-websocket.md: connect, wait for the ak, then t=o, as quoted in flattrade_order_adapter.py's module docs) and the order the web's own order socket keeps (FlattradeOrderUpdateAdapter sends t=o on the ak). The web's market data adapter sends it from its on_open callback (FlattradeWebSocketAdapter._on_open: _resubscribe_all, then _subscribe_order_updates), which flattrade_websocket.py calls right after the t=a login frame, before the ak. New with 73599f37c: until then the web's only t=o went out on its order socket, after the ak. The cases here script the desktop's order (t=o after the ak push); the web replay sends no upstream frames to compare.",
+      "The order book is served empty: the order catch-up's first read, at the login, only records it."
     ]
   }
 }

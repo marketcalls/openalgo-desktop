@@ -1,0 +1,18 @@
+{"step": "upstream_receives", "frames": [{"json": {"t": "a", "uid": "U1", "actid": "U1", "source": "API", "accesstoken": "tok"}}], "note": "The market data socket's login."}
+{"step": "push", "frame": {"json": {"t": "ak", "uid": "U1", "s": "OK"}}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "o", "actid": "U1"}}], "note": "Order updates ride this socket (PiConnect allows one session per uid)."}
+{"step": "http_polled", "path": "/PiConnectAPI/OrderBook", "note": "The first order-book read only records the book: the market order is open."}
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}, "reply": {"type": "subscribe_orders", "status": "success", "message": "Subscribed to order updates"}}
+{"step": "push", "frame": "frames/om_market_filled.json", "note": "The market order fills, pushed on the socket."}
+{"step": "receive", "client": "a", "frame": "expected/pushed_filled.json"}
+{"step": "push", "frame": "frames/om_stop_loss_placed.json", "note": "A stop-loss order is placed: the push says trigger pending."}
+{"step": "receive", "client": "a", "frame": "expected/pushed_stop_loss.json"}
+{"step": "http_serve", "method": "POST", "path": "/PiConnectAPI/OrderBook", "body": "frames/book_gap.json", "note": "While the socket is down a limit order fills and another is rejected; the book shows the pushed fill and the stop (as open), unchanged."}
+{"step": "drop_upstream", "note": "The socket drops and reconnects."}
+{"step": "upstream_receives", "frames": [{"json": {"t": "a", "uid": "U1", "actid": "U1", "source": "API", "accesstoken": "tok"}}]}
+{"step": "push", "frame": {"json": {"t": "ak", "uid": "U1", "s": "OK"}}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "o", "actid": "U1"}}]}
+{"step": "http_polled", "path": "/PiConnectAPI/OrderBook", "note": "One read after the reconnect."}
+{"step": "receive", "client": "a", "frame": "expected/caught_up_filled.json", "note": "The fill the gap missed."}
+{"step": "receive", "client": "a", "frame": "expected/caught_up_rejected.json", "note": "The rejection the gap missed; nothing for the orders the socket already pushed."}
+{"step": "silence", "client": "a"}

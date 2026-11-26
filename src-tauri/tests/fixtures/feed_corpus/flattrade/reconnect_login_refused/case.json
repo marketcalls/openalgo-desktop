@@ -1,0 +1,43 @@
+{
+  "broker": "flattrade",
+  "summary": "The broker ends the session at the daily rollover: the socket drops and the reconnect's login with the old token is refused. The desktop sends no order subscription, reads no order book and does not connect again until the next login; the web publishes nothing either.",
+  "scenarios": [
+    "reconnect",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "http": [
+    {
+      "method": "POST",
+      "path": "/PiConnectAPI/OrderBook",
+      "body": "frames/book.json",
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
+    "method": "web-script",
+    "sources": [
+      "broker/flattrade/streaming/flattrade_adapter.py::FlattradeWebSocketAdapter._handle_auth_failure",
+      "broker/flattrade/streaming/flattrade_order_adapter.py::FlattradeEventOrderAdapter._tick",
+      "test/test_flattrade_issue_2386.py::test_giving_up_on_a_refused_token_releases_the_session",
+      "test/test_flattrade_issue_2386.py::test_without_a_login_this_session_nothing_connects_or_reads"
+    ],
+    "notes": [
+      "Web 73599f37c (marketcalls/openalgo#2507, issue #2386): nothing connects or reads after the session rollover until the next broker login, and a refused token stands order updates down.",
+      "The desktop's feed stops at the refused login (FeedStatus::AuthFailed, held until the next sign-in), and its order catch-up reads only once a login is accepted and the order subscription has been written (WebSocketManager::watch_ready); past the daily boundary the feed does not even connect (broker_runtime::SessionDay, unit tests). The web's market data adapter retries a refused token a few times first; the replay has no connections to compare."
+    ]
+  },
+  "deviations": []
+}

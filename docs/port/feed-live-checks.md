@@ -108,6 +108,11 @@ broker, symbol, time and the frame text.
   carry the exchange; real `toi` and `oi` values on an NFO contract; on a
   busy symbol, a new `lp` without `ft` or `ltt` is within about a second of
   the last time sent.
+- **Flattrade order stream (web #2507):** an order that fills or is rejected
+  while the market data socket is down reaches order-update clients once
+  it reconnects (one order-book read after the login answer); an update the
+  socket already pushed is not sent twice; past 03:00 IST the feed does not
+  reconnect with the old session, and a new login brings both back.
 - **XTS (CompositEdge, 5paisa XTS, IBulls, IIFL, Jainam, RMoney, Wisdom):**
   which shape a 1501 has; whether Depth 20 carries 20 levels; whether 1510
   and 1505 arrive unasked; whole prices as JSON integers; compressed binary

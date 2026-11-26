@@ -103,6 +103,7 @@ async fn session(
         packets: Default::default(),
         session: Default::default(),
         status: watch::channel(FeedStatus::Disconnected).0,
+        ready: watch::channel(0).0,
         config: FeedConfig::default(),
         stats: Arc::default(),
         conn: 0,
@@ -110,6 +111,7 @@ async fn session(
         sets: watch::channel(None).0,
         set_answer: None,
         generation: 0,
+        gate: Arc::default(),
     };
     let sent: Arc<Mutex<Vec<String>>> = Arc::default();
     let mut write = Socket {

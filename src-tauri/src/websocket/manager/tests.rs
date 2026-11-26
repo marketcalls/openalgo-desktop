@@ -860,3 +860,60 @@ async fn admit_takes_what_fits_and_refuses_the_rest() {
         .is_err_and(|why| why.contains("= 3 symbols. Currently subscribed to 3 symbols.")));
     assert_eq!(m.instrument_count(), 3);
 }
+
+/// Web #2507 (issue #2386): nothing connects once the session's day has
+/// ended. The connect gate is asked before every connect: it let the first
+/// through, and refusing the reconnect stops the connection as a refused
+/// login does, in its words, before any socket is opened.
+#[tokio::test]
+async fn a_connect_gate_refusal_stops_the_reconnect_before_it_connects() {
+    let (url, seen, srv) = server(|i| (Vec::new(), i == 0)).await;
+    let m = WebSocketManager::with_config(fast());
+    m.subscribe(vec![sub("SBIN", FeedMode::Quote)])
+        .await
+        .unwrap();
+    let asked = Arc::new(AtomicU64::new(0));
+    let count = asked.clone();
+    m.set_connect_gate(Some(Arc::new(move || {
+        (count.fetch_add(1, Ordering::SeqCst) > 0)
+            .then(|| "Your session ended. Log in again.".to_string())
+    })));
+    m.connect(Box::new(MockFeed::new(url))).await.unwrap();
+    wait_for(|| matches!(m.status(), FeedStatus::AuthFailed { .. })).await;
+    assert_eq!(
+        m.status(),
+        FeedStatus::AuthFailed {
+            broker: "mock".into(),
+            message: "Your session ended. Log in again.".into(),
+        }
+    );
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let frames = seen.lock().clone();
+    assert!(
+        frames.iter().any(|(i, _)| *i == 0),
+        "the first connect went through: {:?}",
+        frames
+    );
+    assert!(
+        frames.iter().all(|(i, _)| *i == 0),
+        "nothing connected after the refusal: {:?}",
+        frames
+    );
+    assert_eq!(asked.load(Ordering::SeqCst), 2);
+    m.disconnect().await.unwrap();
+    srv.abort();
+}
+
+/// A disconnect (the session's teardown) forgets the gate: the next
+/// session's feed connects.
+#[tokio::test]
+async fn a_disconnect_forgets_the_connect_gate() {
+    let (url, _seen, srv) = server(|_| (Vec::new(), false)).await;
+    let m = WebSocketManager::with_config(fast());
+    m.set_connect_gate(Some(Arc::new(|| Some("ended".to_string()))));
+    m.disconnect().await.unwrap();
+    m.connect(Box::new(MockFeed::new(url))).await.unwrap();
+    wait_for(|| m.is_connected()).await;
+    m.disconnect().await.unwrap();
+    srv.abort();
+}

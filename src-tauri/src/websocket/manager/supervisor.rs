@@ -14,8 +14,8 @@ use super::{Apply, Command, FeedConfig, FeedStatus};
 use crate::brokers::common::ratelimit::backoff_delay;
 use crate::brokers::common::redact::{url_safe_error, ws_error_kind};
 use crate::brokers::common::streaming::{
-    normalize_request, BrokerFeed, Ended, FeedEvent, FeedSubscription, MarketEvent, Message,
-    PrepareError, Reconnect, ReleaseAnswer, ReleaseRefusals, StopKind,
+    normalize_request, BrokerFeed, ConnectGate, Ended, FeedEvent, FeedSubscription, MarketEvent,
+    Message, PrepareError, Reconnect, ReleaseAnswer, ReleaseRefusals, StopKind,
 };
 use futures_util::{FutureExt, SinkExt, StreamExt};
 use parking_lot::Mutex;
@@ -100,6 +100,9 @@ pub(super) struct Supervisor {
     /// task's numbers begin (`PacketOut::task_started`).
     pub(super) session: SessionId,
     pub(super) status: watch::Sender<FeedStatus>,
+    /// Moved once a session has written its post-login frames and whole
+    /// set (`WebSocketManager::watch_ready`).
+    pub(super) ready: watch::Sender<u64>,
     pub(super) config: FeedConfig,
     pub(super) stats: Arc<FeedStats>,
     /// Which of the manager's connections this is: it sends the
@@ -120,6 +123,8 @@ pub(super) struct Supervisor {
     pub(super) set_answer: Option<SetAnswer>,
     /// How many sets the connection has sent.
     pub(super) generation: u64,
+    /// The manager's connect gate (`WebSocketManager::set_connect_gate`).
+    pub(super) gate: Arc<Mutex<Option<ConnectGate>>>,
 }
 
 impl Supervisor {
@@ -243,6 +248,15 @@ impl Supervisor {
     }
 
     async fn connect_once(&mut self, broker: &str) -> SessionEnd {
+        // Cloned out of the lock: the gate is called with nothing held.
+        let gate = self.gate.lock().clone();
+        if let Some(message) = gate.and_then(|may_connect| may_connect()) {
+            tracing::info!(
+                broker,
+                "Market data feed not connected: the session has ended"
+            );
+            return SessionEnd::AuthFailed(message);
+        }
         match tokio::time::timeout(self.config.connect_timeout, self.feed.prepare()).await {
             Ok(Ok(())) => {}
             Ok(Err(PrepareError::AuthFailed(message))) => return SessionEnd::AuthFailed(message),
@@ -372,6 +386,9 @@ impl Supervisor {
     /// sends it unless the set already carries it (`Apply::seq`). Reported
     /// after the set, a change made while it went out reached nobody: too
     /// late for the set, and not queued for a session not yet connected.
+    /// Ready only once the post-login frames and the set are written (web
+    /// Flattrade's `_subscribe_order_updates` says ready only after its
+    /// `t=o` went out).
     async fn subscribe_all<S>(&mut self, broker: &str, write: &mut S) -> Sent
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
@@ -380,6 +397,7 @@ impl Supervisor {
             broker: broker.to_string(),
         });
         self.resubscribe(write).await?;
+        self.ready.send_modify(|sessions| *sessions += 1);
         self.stats.mark_connected();
         Ok(())
     }

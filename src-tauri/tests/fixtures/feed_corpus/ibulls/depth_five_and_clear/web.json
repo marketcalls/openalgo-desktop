@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
   "adapter": "ibulls",
   "inputs_sha256": "e79344d882c105f2398bf4942863b6a2d970991cc127b1b01376bbe9b39fc51c",
   "instruments": [

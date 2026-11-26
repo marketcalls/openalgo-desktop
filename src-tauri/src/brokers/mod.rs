@@ -593,6 +593,17 @@ pub trait Broker: Send + Sync {
         Err(AppError::Unsupported("order_feed"))
     }
 
+    /// The market feed is the session's only stream, its order updates
+    /// included: Flattrade allows one socket per login (web issue #1806).
+    /// The runtime then reads the order book once after each (re)connect
+    /// of that feed and publishes what changed while it was down, and the
+    /// feed connects no more once the session's daily boundary has passed,
+    /// until the next sign-in (web marketcalls/openalgo#2507, issue #2386;
+    /// `broker_runtime::catch_up`). Default: no.
+    fn single_session_stream(&self) -> bool {
+        false
+    }
+
     /// A separate socket for books deeper than the market feed's (Fyers 50
     /// levels, Dhan 20). Subscriptions asking for `levels` go to it.
     fn create_depth_feed(&self, _auth: &AuthToken, _levels: u8) -> Result<Box<dyn BrokerFeed>> {

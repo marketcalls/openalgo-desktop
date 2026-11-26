@@ -1,0 +1,36 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
+  "adapter": "flattrade",
+  "inputs_sha256": "123bb4b10eb339f7318ae1390740624b200cb3c7b783a1c3dcc65cccb656cf7f",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "uncompared": [],
+  "replies": [
+    {
+      "line": 2,
+      "frames": [
+        {
+          "type": "subscribe_orders",
+          "status": "success",
+          "message": "Subscribed to order updates"
+        }
+      ],
+      "from_adapter": true
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [],
+      "deliveries": []
+    }
+  ]
+}
