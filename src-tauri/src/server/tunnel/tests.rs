@@ -82,6 +82,9 @@ fn only_the_public_routes_are_reachable_by_their_exact_shape() {
     for p in [
         "/api/v1/placeorder",
         "/api/v1/placesmartorder/",
+        // The charges of an order (openalgo#2496): an API-key read like
+        // /api/v1/margin, reachable as every /api/v1 route is.
+        "/api/v1/charges",
         "/api/v1",
         "/strategy/webhook/abc123",
         "/chartink/webhook/0b9c-uuid",
@@ -136,6 +139,11 @@ fn only_the_public_routes_are_reachable_by_their_exact_shape() {
         "/flow/api/monitor/status",
         "/flow",
         "/flow/editor/1",
+        // The brokerage plan and the cost report belong to the signed-in
+        // page, never the tunnel.
+        "/sandbox/commissions/api/settings",
+        "/sandbox/commissions/export",
+        "/sandbox/calculator/api/estimate",
     ] {
         assert_eq!(reach(p), Reach::Refused, "{}", p);
     }

@@ -311,6 +311,10 @@ pub struct FundsData {
     pub m2mrealized: f64,
     pub total_realized_pnl: f64,
     pub today_realized_pnl: f64,
+    /// Brokerage and statutory charges (web openalgo#2496). `availablecash`
+    /// is already net of them; the P&L figures are gross, as a broker's are.
+    pub today_charges: f64,
+    pub total_charges: f64,
     pub utiliseddebits: f64,
     pub grossexposure: f64,
     pub totalpnl: f64,
@@ -402,6 +406,12 @@ pub struct MyPnlSummary {
     pub holdings_unrealized_pnl: f64,
     pub total_unrealized_pnl: f64,
     pub today_total_mtm: f64,
+    /// Brokerage and statutory charges (web openalgo#2496); every P&L
+    /// figure here is gross, as a broker's position book is.
+    pub today_charges: f64,
+    pub total_charges: f64,
+    pub today_net_mtm: f64,
+    pub all_time_net_realized_pnl: f64,
     pub total_pnl: f64,
     pub available_balance: f64,
     pub total_capital: f64,
@@ -415,6 +425,8 @@ pub struct MyPnlDaily {
     pub holdings_unrealized: f64,
     pub total_unrealized: f64,
     pub total_mtm: f64,
+    pub charges: f64,
+    pub net_mtm: f64,
     pub portfolio_value: f64,
 }
 
@@ -455,6 +467,7 @@ pub struct MyPnlTrade {
     pub quantity: i64,
     pub price: f64,
     pub product: String,
+    pub charges: f64,
     pub timestamp: String,
 }
 

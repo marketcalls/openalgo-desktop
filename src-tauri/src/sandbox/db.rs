@@ -11,6 +11,7 @@
 //!
 //! Schema changes ship as numbered, idempotent migrations in [`MIGRATIONS`].
 
+use super::charges::Charges;
 use super::types::{dec_from_db, Action, OrderStatus, PriceType, Product};
 use parking_lot::Mutex;
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
@@ -18,9 +19,50 @@ use rust_decimal::Decimal;
 use std::path::Path;
 use std::time::Duration;
 
+/// One schema step: a batch of statements, or a function for a change
+/// SQLite cannot write idempotently (`ADD COLUMN` has no `IF NOT EXISTS`).
+pub enum Migration {
+    Sql(&'static str),
+    Run(fn(&Transaction) -> rusqlite::Result<()>),
+}
+
 /// Numbered migrations. Each runs once, in order, inside a transaction, and
-/// is written to be safe to re-run (`IF NOT EXISTS`, `INSERT OR IGNORE`).
-pub const MIGRATIONS: &[(i64, &str)] = &[(1, SCHEMA_V1)];
+/// is written to be safe to re-run (`IF NOT EXISTS`, `INSERT OR IGNORE`, a
+/// column added only when it is missing).
+pub const MIGRATIONS: &[(i64, Migration)] = &[
+    (1, Migration::Sql(SCHEMA_V1)),
+    (2, Migration::Run(add_charge_columns)),
+];
+
+/// Schema 2: what every fill was charged (web `upgrade/migrate_sandbox_charges.py`,
+/// marketcalls/openalgo#2496). Money is exact decimal text, like every other
+/// amount here. Rows that already exist read 0, which is what they paid: no
+/// trade before this version was charged and no balance had a charge taken
+/// from it, so nothing is backfilled.
+pub const CHARGE_COLUMNS_BY_TABLE: &[(&str, &[&str])] = &[
+    ("sandbox_trades", &super::charges::CHARGE_COLUMNS),
+    ("sandbox_funds", &["total_charges", "today_charges"]),
+    ("sandbox_daily_pnl", &["charges"]),
+];
+
+fn add_charge_columns(tx: &Transaction) -> rusqlite::Result<()> {
+    for (table, columns) in CHARGE_COLUMNS_BY_TABLE {
+        let existing: Vec<String> = {
+            let mut stmt = tx.prepare(&format!("PRAGMA table_info({table})"))?;
+            let rows = stmt.query_map([], |r| r.get::<_, String>(1))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+        if existing.is_empty() {
+            continue;
+        }
+        for column in columns.iter().filter(|c| !existing.iter().any(|e| e == *c)) {
+            tx.execute_batch(&format!(
+                "ALTER TABLE {table} ADD COLUMN {column} TEXT NOT NULL DEFAULT '0'"
+            ))?;
+        }
+    }
+    Ok(())
+}
 
 const SCHEMA_V1: &str = r#"
 CREATE TABLE IF NOT EXISTS sandbox_orders (
@@ -228,7 +270,7 @@ impl SandboxDb {
             "CREATE TABLE IF NOT EXISTS sandbox_schema_migrations (
                version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')));",
         )?;
-        for (version, sql) in MIGRATIONS {
+        for (version, step) in MIGRATIONS {
             let done: Option<i64> = conn
                 .query_row(
                     "SELECT version FROM sandbox_schema_migrations WHERE version = ?1",
@@ -240,7 +282,10 @@ impl SandboxDb {
                 continue;
             }
             let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            tx.execute_batch(sql)?;
+            match step {
+                Migration::Sql(sql) => tx.execute_batch(sql)?,
+                Migration::Run(run) => run(&tx)?,
+            }
             tx.execute(
                 "INSERT INTO sandbox_schema_migrations (version) VALUES (?1)",
                 [version],
@@ -252,12 +297,15 @@ impl SandboxDb {
             .with_timezone(&super::clock::IST)
             .naive_local();
         let now = super::clock::ts(now);
+        let seed = "INSERT OR IGNORE INTO sandbox_config (config_key, config_value, description, updated_at)
+                    VALUES (?1, ?2, ?3, ?4)";
         for (k, v, d) in super::config::DEFAULTS {
-            conn.execute(
-                "INSERT OR IGNORE INTO sandbox_config (config_key, config_value, description, updated_at)
-                 VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![k, v, d, now],
-            )?;
+            conn.execute(seed, rusqlite::params![k, v, d, now])?;
+        }
+        // The brokerage plan and the charges switch, from the module that
+        // applies them, so the seed cannot drift from the calculation.
+        for (k, v, d) in super::charges::default_config_rows() {
+            conn.execute(seed, rusqlite::params![k, v, d, now])?;
         }
         Ok(())
     }
@@ -401,12 +449,15 @@ pub struct TradeRow {
     pub product: String,
     pub strategy: Option<String>,
     pub trade_timestamp: String,
+    /// What the fill was charged (zero for trades before schema 2).
+    pub charges: Charges,
 }
 
 impl TradeRow {
     pub const COLUMNS: &'static str =
         "id, tradeid, orderid, user_id, symbol, exchange, action, quantity, price, \
-        product, strategy, trade_timestamp";
+        product, strategy, trade_timestamp, brokerage, stt, exchange_charges, sebi_charges, \
+        stamp_duty, gst";
 
     pub fn from_row(r: &Row) -> rusqlite::Result<Self> {
         Ok(Self {
@@ -422,6 +473,14 @@ impl TradeRow {
             product: r.get("product")?,
             strategy: r.get("strategy")?,
             trade_timestamp: r.get("trade_timestamp")?,
+            charges: Charges {
+                brokerage: dec_col(r, "brokerage")?,
+                stt: dec_col(r, "stt")?,
+                exchange_charges: dec_col(r, "exchange_charges")?,
+                sebi_charges: dec_col(r, "sebi_charges")?,
+                stamp_duty: dec_col(r, "stamp_duty")?,
+                gst: dec_col(r, "gst")?,
+            },
         })
     }
 }
@@ -521,6 +580,9 @@ pub struct DailyPnlRow {
     pub positions_unrealized_pnl: Decimal,
     pub holdings_unrealized_pnl: Decimal,
     pub total_mtm: Decimal,
+    /// The day's charges; `total_mtm` is gross, the day's net is the two
+    /// apart.
+    pub charges: Decimal,
     pub available_balance: Decimal,
     pub used_margin: Decimal,
     pub portfolio_value: Decimal,
@@ -535,6 +597,7 @@ impl DailyPnlRow {
             positions_unrealized_pnl: dec_col(r, "positions_unrealized_pnl")?,
             holdings_unrealized_pnl: dec_col(r, "holdings_unrealized_pnl")?,
             total_mtm: dec_col(r, "total_mtm")?,
+            charges: dec_col(r, "charges")?,
             available_balance: dec_col(r, "available_balance")?,
             used_margin: dec_col(r, "used_margin")?,
             portfolio_value: dec_col(r, "portfolio_value")?,
@@ -549,13 +612,131 @@ mod tests {
     #[test]
     fn migrations_are_recorded_and_rerun_safely() {
         let db = SandboxDb::open_in_memory().unwrap();
-        assert_eq!(db.applied_migrations().unwrap(), vec![1]);
+        assert_eq!(db.applied_migrations().unwrap(), vec![1, 2]);
         db.migrate().unwrap();
-        assert_eq!(db.applied_migrations().unwrap(), vec![1]);
+        assert_eq!(db.applied_migrations().unwrap(), vec![1, 2]);
         let n: i64 = db
             .with_conn(|c| c.query_row("SELECT COUNT(*) FROM sandbox_config", [], |r| r.get(0)))
             .unwrap();
-        assert_eq!(n, 22);
+        // The web's 22 settings, the charges switch and two per segment.
+        assert_eq!(n, 22 + 1 + 2 * 10);
+    }
+
+    fn columns(conn: &Connection, table: &str) -> Vec<String> {
+        let mut stmt = conn
+            .prepare(&format!("PRAGMA table_info({table})"))
+            .unwrap();
+        let rows = stmt.query_map([], |r| r.get::<_, String>(1)).unwrap();
+        rows.map(Result::unwrap).collect()
+    }
+
+    fn text(conn: &Connection, sql: &str) -> String {
+        conn.query_row(sql, [], |r| r.get(0)).unwrap()
+    }
+
+    /// A schema-1 `sandbox.db` from an earlier version, in use: a trade, a
+    /// funds row, a day's P&L, and a brokerage value the trader saved
+    /// before (as the web's test does, a plan key already present).
+    fn schema_one_database(path: &Path) {
+        let conn = Connection::open(path).unwrap();
+        conn.execute_batch(SCHEMA_V1).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE sandbox_schema_migrations (
+               version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')));
+             INSERT INTO sandbox_schema_migrations (version) VALUES (1);
+             INSERT INTO sandbox_trades (tradeid, orderid, user_id, symbol, exchange, action,
+               quantity, price, product, strategy, trade_timestamp)
+             VALUES ('TRADE-1', '1', 'u', 'SBIN', 'NSE', 'BUY', 10, '800', 'CNC', 's',
+               '2026-11-20 10:00:00.000000');
+             INSERT INTO sandbox_funds (user_id, total_capital, available_balance, used_margin,
+               realized_pnl, today_realized_pnl, unrealized_pnl, total_pnl, last_reset_date,
+               reset_count, created_at, updated_at)
+             VALUES ('u', '10000000', '9992000', '8000', '150', '0', '0', '150',
+               '2026-11-01 09:00:00', 0, '2026-11-01 09:00:00', '2026-11-20 10:00:00');
+             INSERT INTO sandbox_daily_pnl (user_id, date, realized_pnl, total_mtm, created_at)
+             VALUES ('u', '2026-11-19', '150', '150', '2026-11-19 23:59:00');
+             INSERT INTO sandbox_config (config_key, config_value, description, updated_at)
+             VALUES ('brokerage_fno_options_flat', '15', 'saved', '2026-11-20 10:00:00'),
+                    ('equity_mis_leverage', '3', 'saved', '2026-11-20 10:00:00');",
+        )
+        .unwrap();
+    }
+
+    /// Web test_migrate_sandbox_charges.py: every column added, the rows
+    /// already there read as uncharged, the default plan seeded without
+    /// overwriting a value the trader saved or any other setting, and a
+    /// second open changes nothing.
+    #[test]
+    fn schema_two_upgrades_a_database_in_use_and_overwrites_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sandbox.db");
+        schema_one_database(&path);
+        let db = SandboxDb::open(&path).unwrap();
+        assert_eq!(db.applied_migrations().unwrap(), vec![1, 2]);
+        db.with_conn(|c| -> rusqlite::Result<()> {
+            for (table, added) in CHARGE_COLUMNS_BY_TABLE {
+                let have = columns(c, table);
+                for col in added.iter() {
+                    assert!(have.iter().any(|h| h == col), "{table}.{col}");
+                }
+            }
+            let trade: TradeRow = c.query_row(
+                &format!("SELECT {} FROM sandbox_trades", TradeRow::COLUMNS),
+                [],
+                TradeRow::from_row,
+            )?;
+            assert_eq!(trade.charges, Charges::default());
+            assert_eq!(trade.price, Decimal::from(800));
+            assert_eq!(text(c, "SELECT total_charges FROM sandbox_trades"), "0");
+            assert_eq!(
+                text(c, "SELECT total_charges || '/' || today_charges || '/' || available_balance FROM sandbox_funds"),
+                "0/0/9992000"
+            );
+            assert_eq!(text(c, "SELECT charges FROM sandbox_daily_pnl"), "0");
+            let get = |k: &str| {
+                text(
+                    c,
+                    &format!("SELECT config_value FROM sandbox_config WHERE config_key = '{k}'"),
+                )
+            };
+            assert_eq!(get("brokerage_fno_options_flat"), "15");
+            assert_eq!(get("equity_mis_leverage"), "3");
+            assert_eq!(get("charges_enabled"), "true");
+            assert_eq!(get("brokerage_equity_delivery_percent"), "2.5");
+            Ok(())
+        })
+        .unwrap();
+        drop(db);
+        // Opened again: nothing new to apply, nothing changed.
+        let db = SandboxDb::open(&path).unwrap();
+        assert_eq!(db.applied_migrations().unwrap(), vec![1, 2]);
+        let n: i64 = db
+            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM sandbox_config", [], |r| r.get(0)))
+            .unwrap();
+        assert_eq!(n, 22 + 1 + 2 * 10);
+    }
+
+    /// Web test_migrate_sandbox_charges.py::test_a_database_with_only_some_tables_gets_only_their_columns:
+    /// a step that finds a column already there (a run cut short after
+    /// one `ALTER`) adds only the missing ones.
+    #[test]
+    fn a_column_already_added_is_not_added_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sandbox.db");
+        schema_one_database(&path);
+        Connection::open(&path)
+            .unwrap()
+            .execute_batch(
+                "ALTER TABLE sandbox_funds ADD COLUMN total_charges TEXT NOT NULL DEFAULT '0'",
+            )
+            .unwrap();
+        let db = SandboxDb::open(&path).unwrap();
+        assert_eq!(db.applied_migrations().unwrap(), vec![1, 2]);
+        let have = db
+            .with_conn(|c| Ok::<_, rusqlite::Error>(columns(c, "sandbox_funds")))
+            .unwrap();
+        assert_eq!(have.iter().filter(|c| *c == "total_charges").count(), 1);
+        assert!(have.iter().any(|c| c == "today_charges"));
     }
 
     #[test]

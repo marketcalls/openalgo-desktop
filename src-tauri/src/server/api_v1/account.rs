@@ -1,5 +1,5 @@
 //! Account endpoints: ping, analyzer, funds, books, orderstatus,
-//! openposition, pnl/symbols.
+//! openposition, pnl/symbols, charges.
 
 use super::{load, send, Auth, Style};
 use crate::server::envelope::{json_response, read_json_object};
@@ -154,4 +154,14 @@ pub async fn pnl_symbols(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) 
         );
     }
     send(account::pnl_symbols(&ctx).await)
+}
+
+/// POST /api/v1/charges: brokerage and statutory charges for one order
+/// before it is placed (web `restx_api/charges.py`, openalgo#2496). A valid
+/// key alone: no broker is called, in live or analyzer mode.
+pub async fn charges(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
+    match load(&ctx, ip, req, schemas::charges(), Style::Py, Auth::KeyOnly).await {
+        Ok(order) => send(crate::services::charges_service::calculate(&ctx, &order).await),
+        Err(r) => *r,
+    }
 }

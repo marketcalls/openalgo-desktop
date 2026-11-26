@@ -103,6 +103,7 @@ pub const GROUPS: &[Group] = &[
             ep("HOLDINGS", "Holdings", &["holdings"]),
             ep("FUNDS", "Funds", &["funds"]),
             ep("MARGIN", "Margin", &["margin"]),
+            ep("CHARGES", "Charges", &["charges"]),
             ep("GTT_ORDERBOOK", "GTT order book", &["gttorderbook"]),
         ],
     },

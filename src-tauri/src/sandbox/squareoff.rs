@@ -220,12 +220,14 @@ pub(crate) async fn sweep(core: &Arc<Core>) -> SbResult<SweepReport> {
 // Daily jobs
 // ---------------------------------------------------------------------------
 
-/// Zero today's realized P&L on every funds row and position (03:00 job).
-/// Positions keep their `updated_at`, so yesterday's closed rows stay
-/// hidden.
+/// Zero today's realized P&L on every funds row and position (03:00 job),
+/// and today's charges with it: the two are one day's figures and are read
+/// together (web openalgo#2496). Positions keep their `updated_at`, so
+/// yesterday's closed rows stay hidden.
 pub(crate) fn reset_daily_pnl(conn: &Connection, now: &str) -> rusqlite::Result<(usize, usize)> {
     let f = conn.execute(
-        "UPDATE sandbox_funds SET today_realized_pnl = '0', updated_at = ?1 WHERE today_realized_pnl != '0'",
+        "UPDATE sandbox_funds SET today_realized_pnl = '0', today_charges = '0', updated_at = ?1
+         WHERE today_realized_pnl != '0' OR today_charges != '0'",
         params![now],
     )?;
     let p = conn.execute(
@@ -303,14 +305,17 @@ pub(crate) fn capture_daily_snapshot(
         let realized = f.today_realized_pnl;
         let total_mtm = realized + pos_unrealized + hold_unrealized;
         let portfolio = f.available_balance + f.used_margin;
+        // The P&L figures stay gross; the day's net is total_mtm - charges.
         conn.execute(
             "INSERT INTO sandbox_daily_pnl (user_id, date, realized_pnl, positions_unrealized_pnl,
-               holdings_unrealized_pnl, total_mtm, available_balance, used_margin, portfolio_value, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+               holdings_unrealized_pnl, total_mtm, charges, available_balance, used_margin,
+               portfolio_value, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(user_id, date) DO UPDATE SET realized_pnl = excluded.realized_pnl,
                positions_unrealized_pnl = excluded.positions_unrealized_pnl,
                holdings_unrealized_pnl = excluded.holdings_unrealized_pnl,
-               total_mtm = excluded.total_mtm, available_balance = excluded.available_balance,
+               total_mtm = excluded.total_mtm, charges = excluded.charges,
+               available_balance = excluded.available_balance,
                used_margin = excluded.used_margin, portfolio_value = excluded.portfolio_value",
             params![
                 user,
@@ -319,6 +324,7 @@ pub(crate) fn capture_daily_snapshot(
                 dec_to_db(pos_unrealized),
                 dec_to_db(hold_unrealized),
                 dec_to_db(total_mtm),
+                dec_to_db(f.today_charges),
                 dec_to_db(f.available_balance),
                 dec_to_db(f.used_margin),
                 dec_to_db(portfolio),

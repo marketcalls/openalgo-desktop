@@ -1208,8 +1208,9 @@ async fn sandbox_settings_reset_and_pnl() {
         .unwrap()
         .contains("sandbox_trades_"));
     let csv = String::from_utf8(b).unwrap();
+    // The web's trade export ends in the fill's charges (openalgo#2496).
     assert!(csv.starts_with(
-        "Trade ID,Order ID,Symbol,Exchange,Action,Quantity,Price,Product,Strategy,Timestamp\r\n"
+        "Trade ID,Order ID,Symbol,Exchange,Action,Quantity,Price,Product,Strategy,Timestamp,Charges\r\n"
     ));
     assert!(csv.contains(",SBIN,NSE,BUY,1,100.0,MIS,test,"), "{}", csv);
     let (s, _) = h.get("/sandbox/mypnl/export/positions").await;
@@ -1615,4 +1616,275 @@ async fn dashboard_funds() {
     let (s, v) = h.get("/auth/dashboard-data").await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(v["data"]["availablecash"], 10000000.0);
+}
+
+// ------------------------------------------------------------------ sandbox charges
+
+/// The routes behind /sandbox/commissions and /sandbox/calculator, with
+/// the web's codes, envelopes and sentences (web blueprints/sandbox.py,
+/// test_sandbox_charges_api.py; openalgo#2496).
+#[tokio::test]
+async fn sandbox_charge_pages_answer_as_the_web() {
+    let h = H::new(true).await;
+    let (s, v) = h.get("/sandbox/commissions/api/settings").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(keys(&v), set(&["status", "data"]));
+    assert_eq!(v["data"]["market"], "indian");
+    assert_eq!(v["data"]["segments"].as_array().unwrap().len(), 8);
+
+    let bad = json!({"segments": {"equity_intraday": {"flat": "20", "percent": "20"}}});
+    let (s, v) = h.post("/sandbox/commissions/api/settings", bad).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        v,
+        json!({"status": "error", "message":
+            "Equity Intraday: the percentage cannot be more than 5. Enter 0.03 for 0.03%, not 3."})
+    );
+    let mut req = h.build(
+        Method::POST,
+        "/sandbox/commissions/api/settings",
+        None,
+        Some(&h.cookie),
+        Some(&h.csrf),
+    );
+    *req.body_mut() = Body::from("not json");
+    let (s, _, b) = h.raw(req).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let v: Value = serde_json::from_slice(&b).unwrap();
+    assert_eq!(
+        v["message"],
+        "Nothing was saved: the settings could not be read."
+    );
+    let good =
+        json!({"enabled": true, "segments": {"equity_intraday": {"flat": "10", "percent": "0.1"}}});
+    let (s, v) = h.post("/sandbox/commissions/api/settings", good).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(
+        v["message"],
+        "Charges saved. They apply from the next trade."
+    );
+    assert_eq!(v["data"]["segments"][1]["flat"], "10");
+    let (s, v) = h.post("/sandbox/commissions/api/reset", json!({})).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        v["message"],
+        "Charges are back to the defaults. They apply from the next trade."
+    );
+    assert_eq!(v["data"]["segments"][1]["flat"], "20");
+
+    let trade = json!({"segment": "equity_intraday", "exchange": "NSE", "buy_price": "1000",
+        "sell_price": "1100", "quantity": "400", "flat": "20", "percent": "0.03"});
+    let (s, v) = h.post("/sandbox/calculator/api/estimate", trade).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(v["data"]["total"]["total_charges"], 200.62);
+    let crypto = json!({"segment": "crypto_futures", "exchange": "CRYPTO", "buy_price": "1",
+        "sell_price": "2", "quantity": "1"});
+    let (s, v) = h.post("/sandbox/calculator/api/estimate", crypto).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        v["message"],
+        "Crypto Futures and Spot is not traded with the broker you are logged in to."
+    );
+
+    let (s, v) = h.get("/sandbox/commissions/api/report").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(v["data"]["trades_total"], 0);
+    assert_eq!(v["data"]["to"], "2026-10-05");
+    let (s, v) = h.get("/sandbox/commissions/api/report?from=5-Oct").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        v["message"],
+        "Dates must look like 2026-11-23 (year, month, day)."
+    );
+    let (s, v) = h.get("/sandbox/commissions/export").await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    assert_eq!(
+        v,
+        json!({"status": "error", "message": "There are no trades between those dates."})
+    );
+
+    // One sandbox fill: SBIN MIS 1 at 100 pays brokerage 0.10 (0.1% is
+    // lower than 20) and GST 0.02 on it; every other line rounds to nothing.
+    h.analyze(true);
+    let (s, v) = h.api("/api/v1/placeorder", place_body()).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let (_, v) = h.get("/sandbox/commissions/api/report").await;
+    assert_eq!(v["data"]["trades_total"], 1);
+    assert_eq!(v["data"]["totals"]["total_charges"], 0.12);
+    assert_eq!(v["data"]["by_segment"][0]["segment"], "equity_intraday");
+    let (_, v) = h.api("/api/v1/funds", json!({})).await;
+    assert_eq!(v["data"]["today_charges"], 0.12);
+    assert_eq!(v["data"]["total_charges"], 0.12);
+    let req = h.build(
+        Method::GET,
+        "/sandbox/commissions/export",
+        None,
+        Some(&h.cookie),
+        None,
+    );
+    let (s, hd, b) = h.raw(req).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(hd[header::CONTENT_TYPE], "text/csv");
+    assert!(hd[header::CONTENT_DISPOSITION]
+        .to_str()
+        .unwrap()
+        .ends_with("filename=sandbox_transaction_costs_2026-09-06_to_2026-10-05.csv"));
+    let csv = String::from_utf8(b).unwrap();
+    assert!(
+        csv.starts_with("Timestamp,Trade ID,Order ID,Symbol,"),
+        "{csv}"
+    );
+    assert!(
+        csv.contains(",SBIN,NSE,MIS,Equity Intraday,BUY,1,100.0,100.0,0.1,0.0,0.0,0.0,0.0,0.02,0.12,test\r\n"),
+        "{csv}"
+    );
+}
+
+fn charges_order(changes: Value) -> Value {
+    let mut body = json!({"symbol": "SBIN", "exchange": "NSE", "action": "BUY",
+        "product": "CNC", "quantity": 50, "price": 2500});
+    for (k, v) in changes.as_object().unwrap() {
+        body[k] = v.clone();
+    }
+    body
+}
+
+/// POST /api/v1/charges field for field with the web (restx_api/charges.py,
+/// services/charges_service.py; web test/test_charges_api.py).
+#[tokio::test]
+async fn api_v1_charges_answers_as_the_web() {
+    let h = H::new(true).await;
+    // Web test_charges_api.py::test_a_delivery_buy_line_by_line
+    let (s, v) = h.api("/api/v1/charges", charges_order(json!({}))).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        v,
+        json!({"status": "success", "data": {
+            "symbol": "SBIN", "exchange": "NSE", "product": "CNC", "action": "BUY",
+            "quantity": 50, "price": 2500.0, "segment": "Equity Delivery",
+            "trade_value": 125000.0,
+            "charges": {
+                "total": 172.28, "brokerage": 20.0,
+                "taxes": {"gst": 4.31, "stt": 125.0, "stamp_duty": 19.0},
+                "other_charges": {"transaction": 3.71, "clearing": 0.0, "ipft": 0.13,
+                                  "sebi_turnover": 0.13}
+            }
+        }})
+    );
+    // ::test_the_exchange_levy_is_listed_apart_and_not_charged_twice
+    let (_, v) = h
+        .api(
+            "/api/v1/charges",
+            charges_order(json!({"symbol": "NIFTY27OCT2622000CE", "exchange": "NFO",
+                "product": "NRML", "action": "sell", "quantity": 10000, "price": 100})),
+        )
+        .await;
+    assert_eq!(v["data"]["action"], "SELL");
+    assert_eq!(v["data"]["segment"], "F&O Options");
+    assert_eq!(v["data"]["charges"]["other_charges"]["transaction"], 350.3);
+    assert_eq!(v["data"]["charges"]["other_charges"]["ipft"], 5.0);
+    // ::test_an_exchange_with_no_levy_reports_none
+    let (_, v) = h
+        .api("/api/v1/charges", charges_order(json!({"exchange": "BSE"})))
+        .await;
+    assert_eq!(v["data"]["charges"]["other_charges"]["ipft"], 0.0);
+    assert_eq!(v["data"]["charges"]["other_charges"]["transaction"], 4.69);
+    // ::test_intraday_and_delivery_are_told_apart_by_the_product
+    let (_, v) = h
+        .api("/api/v1/charges", charges_order(json!({"product": "MIS"})))
+        .await;
+    assert_eq!(v["data"]["segment"], "Equity Intraday");
+    assert_eq!(v["data"]["charges"]["taxes"]["stt"], 0.0);
+    assert_eq!(v["data"]["charges"]["taxes"]["stamp_duty"], 4.0);
+
+    // ::test_the_endpoint_refuses_a_malformed_request (the schema's shape)
+    let (s, v) = h
+        .api("/api/v1/charges", charges_order(json!({"price": 0})))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        v,
+        json!({"status": "error", "message": "{'price': ['Price must be a positive number.']}"})
+    );
+    for (change, fragment) in [
+        (json!({"quantity": 1.5}), "Fractional quantity"),
+        (json!({"exchange": "LSE"}), "exchange"),
+        (
+            json!({"symbol": "X".repeat(51)}),
+            "Symbol must be between 1 and 50 characters.",
+        ),
+    ] {
+        let (s, v) = h
+            .api("/api/v1/charges", charges_order(change.clone()))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{change}");
+        assert!(v["message"].as_str().unwrap().contains(fragment), "{v}");
+    }
+    let req = h.build(
+        Method::POST,
+        "/api/v1/charges",
+        Some(charges_order(json!({}))),
+        None,
+        None,
+    );
+    let (s, _, b) = h.raw(req).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert!(String::from_utf8(b).unwrap().contains("apikey"));
+    // ::test_a_request_that_cannot_be_priced_is_refused_with_the_reason
+    let (s, v) = h
+        .api("/api/v1/charges", charges_order(json!({"symbol": "  "})))
+        .await;
+    assert_eq!(
+        (s, v["message"].as_str()),
+        (
+            StatusCode::BAD_REQUEST,
+            Some("Symbol must be between 1 and 50 characters")
+        )
+    );
+    // ::test_a_symbol_that_is_not_in_the_master_contract_is_refused
+    let (s, v) = h
+        .api(
+            "/api/v1/charges",
+            charges_order(json!({"symbol": "NOSUCHSCRIP"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        v,
+        json!({"status": "error", "message": "Symbol NOSUCHSCRIP not found on NSE"})
+    );
+    // ::test_an_index_cannot_be_ordered_so_it_has_no_charges
+    let (_, v) = h
+        .api(
+            "/api/v1/charges",
+            charges_order(json!({"symbol": "NIFTY", "exchange": "NSE_INDEX", "product": "MIS"})),
+        )
+        .await;
+    assert_eq!(
+        v["message"],
+        "Orders cannot be placed on NSE_INDEX, so no charges apply to it"
+    );
+    // ::test_the_endpoint_passes_on_a_refused_key
+    let mut body = charges_order(json!({}));
+    body["apikey"] = json!("not-a-key");
+    let req = h.build(Method::POST, "/api/v1/charges", Some(body), None, None);
+    let (s, _, b) = h.raw(req).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&b).unwrap(),
+        json!({"status": "error", "message": "Invalid openalgo apikey"})
+    );
+}
+
+/// The charges of an order need a valid key and no broker: the web's
+/// `verify_api_key` path, the same in live and analyzer mode.
+#[tokio::test]
+async fn api_v1_charges_needs_no_broker_session() {
+    let h = H::new(false).await;
+    let (s, v) = h.api("/api/v1/charges", charges_order(json!({}))).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["data"]["charges"]["total"], 172.28);
+    h.analyze(true);
+    let (_, w) = h.api("/api/v1/charges", charges_order(json!({}))).await;
+    assert_eq!(w, v);
 }

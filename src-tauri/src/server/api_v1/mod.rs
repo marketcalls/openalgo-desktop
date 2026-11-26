@@ -10,7 +10,7 @@
 //! | File | Endpoints |
 //! |---|---|
 //! | `orders.rs` | placeorder, placesmartorder, modifyorder, cancelorder, cancelallorder, closeposition, basketorder, splitorder, optionsorder, optionsmultiorder |
-//! | `account.rs` | ping, analyzer, analyzer/toggle, funds, orderbook, tradebook, positionbook, holdings, orderstatus, openposition, pnl/symbols |
+//! | `account.rs` | ping, analyzer, analyzer/toggle, funds, orderbook, tradebook, positionbook, holdings, orderstatus, openposition, pnl/symbols, charges |
 //! | `data.rs` | quotes, multiquotes, depth, history, intervals, ticker, symbol, search, expiry, instruments, margin |
 //! | `options.rs` | optionsymbol, optionchain, syntheticfuture, optiongreeks, multioptiongreeks |
 //! | `gtt.rs` | placegttorder, modifygttorder, cancelgttorder, gttorderbook |
@@ -326,6 +326,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/v1/orderstatus", post(account::orderstatus))
         .route("/api/v1/openposition", post(account::openposition))
         .route("/api/v1/pnl/symbols", post(account::pnl_symbols))
+        .route("/api/v1/charges", post(account::charges))
         // orders
         .route("/api/v1/placeorder", post(orders::placeorder))
         .route("/api/v1/placesmartorder", post(orders::placesmartorder))

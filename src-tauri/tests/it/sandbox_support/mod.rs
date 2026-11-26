@@ -214,6 +214,11 @@ impl Env {
             Some(d) => Sandbox::open(&d.path().join("sandbox.db"), deps, opts).unwrap(),
             None => Sandbox::in_memory(deps, opts).unwrap(),
         };
+        // These suites assert balances to the paisa, so they run with
+        // brokerage and statutory charges off, as the web's margin and race
+        // suites do (`prepare_databases`, openalgo#2496); a test that wants
+        // them calls `charges(true)`.
+        set_charges(&sb, false);
         Self {
             sb,
             clock,
@@ -222,6 +227,11 @@ impl Env {
             rec,
             dir,
         }
+    }
+
+    /// Brokerage and statutory charges on or off for the next fill.
+    pub fn charges(&self, on: bool) {
+        set_charges(&self.sb, on);
     }
 
     pub fn set_time(&self, ist: &str) {
@@ -288,6 +298,20 @@ impl Env {
         self.sb.shutdown().await;
         self.bus.shutdown(Duration::from_secs(1)).await;
     }
+}
+
+/// The charges switch, written as the settings page writes it.
+pub fn set_charges(sb: &Sandbox, on: bool) {
+    sb.db()
+        .with_conn(|c| {
+            openalgo_desktop_lib::sandbox::config::set_raw(
+                c,
+                "charges_enabled",
+                if on { "true" } else { "false" },
+                "2026-01-01 00:00:00.000000",
+            )
+        })
+        .unwrap();
 }
 
 /// Build an order request.

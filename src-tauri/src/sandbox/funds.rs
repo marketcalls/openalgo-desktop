@@ -2,9 +2,14 @@
 //!
 //! One funds row per user, created lazily at the configured starting capital
 //! (1 crore by default). Every balance change is a compare-and-set against a
-//! fresh read of all seven money columns, retried up to five times, exactly as
+//! fresh read of all nine money columns, retried up to five times, exactly as
 //! the web does; inside the engine's single-writer transactions it always
 //! lands on the first attempt.
+//!
+//! Brokerage and statutory charges (web openalgo#2496) come out of the
+//! available balance into their own two totals ([`charge`]); realized P&L
+//! and used margin are never touched by them, so P&L stays gross and margin
+//! reconciliation still compares used margin with what the books hold.
 //!
 //! Margin is `notional / leverage`, where the notional of a crypto contract
 //! includes its contract value (0.001 BTC per BTCUSD contract), the same
@@ -43,6 +48,11 @@ pub struct FundsRow {
     pub today_realized_pnl: Decimal,
     pub unrealized_pnl: Decimal,
     pub total_pnl: Decimal,
+    /// Charges paid since the last funds reset; already out of
+    /// `available_balance`.
+    pub total_charges: Decimal,
+    /// Charges paid today; resets with `today_realized_pnl`.
+    pub today_charges: Decimal,
     pub last_reset_date: String,
     pub reset_count: i64,
     pub updated_at: String,
@@ -59,13 +69,15 @@ impl FundsRow {
             today_realized_pnl: dec_col(r, "today_realized_pnl")?,
             unrealized_pnl: dec_col(r, "unrealized_pnl")?,
             total_pnl: dec_col(r, "total_pnl")?,
+            total_charges: dec_col(r, "total_charges")?,
+            today_charges: dec_col(r, "today_charges")?,
             last_reset_date: r.get("last_reset_date")?,
             reset_count: r.get("reset_count")?,
             updated_at: r.get("updated_at")?,
         })
     }
 
-    fn money(&self) -> [Decimal; 7] {
+    fn money(&self) -> [Decimal; 9] {
         [
             self.total_capital,
             self.available_balance,
@@ -74,6 +86,8 @@ impl FundsRow {
             self.today_realized_pnl,
             self.unrealized_pnl,
             self.total_pnl,
+            self.total_charges,
+            self.today_charges,
         ]
     }
 }
@@ -118,6 +132,8 @@ pub fn ensure(
         today_realized_pnl: Decimal::ZERO,
         unrealized_pnl: Decimal::ZERO,
         total_pnl: Decimal::ZERO,
+        total_charges: Decimal::ZERO,
+        today_charges: Decimal::ZERO,
         last_reset_date: now.to_string(),
         reset_count: 0,
         updated_at: now.to_string(),
@@ -136,10 +152,11 @@ fn write_if_unchanged(
     let changed = conn.execute(
         "UPDATE sandbox_funds SET total_capital = ?1, available_balance = ?2, used_margin = ?3,
            realized_pnl = ?4, today_realized_pnl = ?5, unrealized_pnl = ?6, total_pnl = ?7,
-           updated_at = ?8
-         WHERE user_id = ?9 AND total_capital = ?10 AND available_balance = ?11
-           AND used_margin = ?12 AND realized_pnl = ?13 AND today_realized_pnl = ?14
-           AND unrealized_pnl = ?15 AND total_pnl = ?16",
+           total_charges = ?8, today_charges = ?9, updated_at = ?10
+         WHERE user_id = ?11 AND total_capital = ?12 AND available_balance = ?13
+           AND used_margin = ?14 AND realized_pnl = ?15 AND today_realized_pnl = ?16
+           AND unrealized_pnl = ?17 AND total_pnl = ?18 AND total_charges = ?19
+           AND today_charges = ?20",
         params![
             n[0],
             n[1],
@@ -148,6 +165,8 @@ fn write_if_unchanged(
             n[4],
             n[5],
             n[6],
+            n[7],
+            n[8],
             now,
             old.user_id,
             o[0],
@@ -156,7 +175,9 @@ fn write_if_unchanged(
             o[3],
             o[4],
             o[5],
-            o[6]
+            o[6],
+            o[7],
+            o[8]
         ],
     )?;
     Ok(changed == 1)
@@ -334,6 +355,25 @@ pub fn margin_delta(f: &FundsRow, delta: Decimal) -> Result<FundsRow, FundsRefus
     Ok(n)
 }
 
+/// A fill's charges out of the balance (web `FundManager.stage_charges`):
+/// `available -= amount; total_charges += amount; today_charges += amount`.
+/// A balance that cannot cover it goes below zero, as a broker's ledger
+/// does: the order has filled and the charge is owed. A negative amount is
+/// refused (a credit wearing the wrong name).
+pub fn charge(f: &FundsRow, amount: Decimal) -> Result<FundsRow, FundsRefusal> {
+    if amount < Decimal::ZERO {
+        return Err(FundsRefusal(format!(
+            "Charges cannot be negative, got {}",
+            rupees(amount)
+        )));
+    }
+    let mut n = f.clone();
+    n.available_balance -= amount;
+    n.total_charges += amount;
+    n.today_charges += amount;
+    Ok(n)
+}
+
 /// MTM: `unrealized = x; total = realized + x`.
 pub fn set_unrealized(f: &FundsRow, unrealized: Decimal) -> FundsRow {
     let mut n = f.clone();
@@ -342,11 +382,13 @@ pub fn set_unrealized(f: &FundsRow, unrealized: Decimal) -> FundsRow {
     n
 }
 
-/// Starting capital changed: `total = new; available = new - used + total_pnl`.
+/// Starting capital changed: `total = new; available = new - used +
+/// total_pnl - total_charges` (charges already paid stay paid: total_pnl is
+/// gross).
 pub fn rebased(f: &FundsRow, capital: Decimal) -> FundsRow {
     let mut n = f.clone();
     n.total_capital = capital;
-    n.available_balance = capital - f.used_margin + f.total_pnl;
+    n.available_balance = capital - f.used_margin + f.total_pnl - f.total_charges;
     n
 }
 
@@ -362,6 +404,7 @@ pub fn reset_row(
     conn.execute(
         "UPDATE sandbox_funds SET total_capital = ?1, available_balance = ?1, used_margin = '0',
            realized_pnl = '0', today_realized_pnl = '0', unrealized_pnl = '0', total_pnl = '0',
+           total_charges = '0', today_charges = '0',
            last_reset_date = ?2, reset_count = reset_count + 1, updated_at = ?2
          WHERE user_id = ?3",
         params![c, now, user_id],
@@ -506,6 +549,8 @@ mod tests {
             today_realized_pnl: Decimal::ZERO,
             unrealized_pnl: Decimal::ZERO,
             total_pnl: Decimal::ZERO,
+            total_charges: Decimal::ZERO,
+            today_charges: Decimal::ZERO,
             last_reset_date: String::new(),
             reset_count: 0,
             updated_at: String::new(),
@@ -622,6 +667,28 @@ mod tests {
         assert!(margin_delta(&f, dec!(-100.01)).is_err());
         assert!(margin_delta(&f, dec!(1000.01)).is_err());
         assert_eq!(margin_delta(&f, dec!(-100)).unwrap().used_margin, dec!(0));
+    }
+
+    /// Web test_gthread_sandbox_charges.py: a charge leaves the balance into
+    /// its own totals, never the P&L or used margin, and may take the
+    /// balance below zero.
+    #[test]
+    fn a_charge_leaves_pnl_and_margin_alone() {
+        let mut f = row(dec!(100), dec!(50));
+        f.realized_pnl = dec!(7);
+        let n = charge(&f, dec!(120.5)).unwrap();
+        assert_eq!(n.available_balance, dec!(-20.5));
+        assert_eq!(
+            (n.total_charges, n.today_charges),
+            (dec!(120.5), dec!(120.5))
+        );
+        assert_eq!((n.used_margin, n.realized_pnl), (dec!(50), dec!(7)));
+        assert!(charge(&f, dec!(-1)).is_err());
+        let r = rebased(&n, dec!(1000));
+        assert_eq!(
+            r.available_balance,
+            dec!(1000) - dec!(50) + dec!(0) - dec!(120.5)
+        );
     }
 
     #[test]

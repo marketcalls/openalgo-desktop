@@ -115,6 +115,7 @@ const ENDPOINTS: &[(&str, ApiRate)] = &[
     ("expiry", ApiRate::Api),
     ("instruments", ApiRate::Api),
     ("margin", ApiRate::Api),
+    ("charges", ApiRate::Api),
     ("optionsymbol", ApiRate::Api),
     ("optionchain", ApiRate::Api),
     ("syntheticfuture", ApiRate::Api),

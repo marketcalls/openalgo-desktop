@@ -129,8 +129,10 @@ pub(crate) fn settle_stale_mis(
     Ok(n)
 }
 
-/// Zero `today_realized_pnl` written before the last boundary (web
-/// `catch_up_daily_pnl_reset`).
+/// Zero `today_realized_pnl` and `today_charges` written before the last
+/// boundary (web `catch_up_daily_pnl_reset`). A funds row is stale when
+/// either is still set: a day of buying only (delivery, or a position
+/// carried overnight) pays charges and realizes nothing.
 pub(crate) fn reset_stale_daily_pnl(conn: &Connection, core: &Core) -> rusqlite::Result<usize> {
     let boundary = ts(session::last_session_expiry(
         core.now(),
@@ -142,8 +144,8 @@ pub(crate) fn reset_stale_daily_pnl(conn: &Connection, core: &Core) -> rusqlite:
         params![boundary],
     )?;
     let f = conn.execute(
-        "UPDATE sandbox_funds SET today_realized_pnl = '0'
-         WHERE today_realized_pnl != '0' AND updated_at < ?1",
+        "UPDATE sandbox_funds SET today_realized_pnl = '0', today_charges = '0'
+         WHERE (today_realized_pnl != '0' OR today_charges != '0') AND updated_at < ?1",
         params![boundary],
     )?;
     Ok(p + f)
@@ -180,17 +182,25 @@ pub(crate) fn backfill_snapshot(conn: &Connection, core: &Core) -> rusqlite::Res
             continue;
         };
         let yesterday_realized = f.realized_pnl - f.today_realized_pnl;
-        if yesterday_realized == Decimal::ZERO && f.realized_pnl == Decimal::ZERO {
+        // Charges need no reconstruction: every trade carries what it paid.
+        let yesterday_charges = charges_on(conn, &user, &d)?;
+        // A day of buying only realizes nothing and still paid charges.
+        if yesterday_realized == Decimal::ZERO
+            && f.realized_pnl == Decimal::ZERO
+            && yesterday_charges == Decimal::ZERO
+        {
             continue;
         }
         conn.execute(
             "INSERT INTO sandbox_daily_pnl (user_id, date, realized_pnl, positions_unrealized_pnl,
-               holdings_unrealized_pnl, total_mtm, available_balance, used_margin, portfolio_value, created_at)
-             VALUES (?1, ?2, ?3, '0', '0', ?3, ?4, ?5, ?6, ?7)",
+               holdings_unrealized_pnl, total_mtm, charges, available_balance, used_margin,
+               portfolio_value, created_at)
+             VALUES (?1, ?2, ?3, '0', '0', ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 user,
                 d,
                 dec_to_db(yesterday_realized),
+                dec_to_db(yesterday_charges),
                 dec_to_db(f.available_balance),
                 dec_to_db(f.used_margin),
                 dec_to_db(f.available_balance + f.used_margin),
@@ -200,6 +210,20 @@ pub(crate) fn backfill_snapshot(conn: &Connection, core: &Core) -> rusqlite::Res
         any = true;
     }
     Ok(any)
+}
+
+/// What `user`'s trades on the IST day `day` (`YYYY-MM-DD`) paid.
+fn charges_on(conn: &Connection, user: &str, day: &str) -> rusqlite::Result<Decimal> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT total_charges FROM sandbox_trades
+         WHERE user_id = ?1 AND substr(trade_timestamp, 1, 10) = ?2",
+    )?;
+    let rows = stmt.query_map(params![user, day], |r| r.get::<_, String>(0))?;
+    let mut sum = Decimal::ZERO;
+    for v in rows {
+        sum += super::types::dec_from_db(&v?);
+    }
+    Ok(sum)
 }
 
 /// Run every catch-up step. Returns `None` when another run is in progress.

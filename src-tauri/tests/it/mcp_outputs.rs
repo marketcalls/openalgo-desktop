@@ -10,7 +10,7 @@
 //! HTTP transport, which calls the tool function with the raw arguments
 //! (`blueprints/mcp_http.py`, `fn(**arguments)`).
 
-use crate::api_v1_support::{fixture, same_shape};
+use crate::api_v1_support::{fixture, same_shape, without_later_fields};
 use crate::mcp_support::M;
 use openalgo_desktop_lib::mcp::store::TokenScope;
 use serde_json::{json, Value};
@@ -53,7 +53,10 @@ async fn read_tools_return_the_recorded_api_shape() {
         let (status, own) = m.h.post(path, m.h.with_key(req["body"].clone())).await;
         assert_eq!(status.as_u16(), 200, "{} {}", path, own);
         assert_eq!(data, &own, "{}: the tool's data is the /api/v1 body", tool);
-        if let Err(e) = same_shape(&recorded["response"]["body"], data) {
+        let mut data = data.clone();
+        if let Err(e) = without_later_fields(rel, &recorded["response"]["body"], &mut data)
+            .and_then(|()| same_shape(&recorded["response"]["body"], &data))
+        {
             panic!("{} against {}: {}", tool, rel, e);
         }
     }

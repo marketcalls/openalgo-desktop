@@ -410,7 +410,7 @@ async fn replay(h: &H, rel: &str, ids: &mut Ids) -> Result<(), String> {
         .unwrap_or("")
         .to_string();
     let want = &f["response"]["body"];
-    let got: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    let mut got: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     if let Some((d, _why)) = divergent(rel) {
         return match d {
             Divergent::Error(st, prefix) => {
@@ -508,6 +508,7 @@ async fn replay(h: &H, rel: &str, ids: &mut Ids) -> Result<(), String> {
             | "gttorderbook/final.json"
             | "intervals/default.json"
     );
+    api_v1_support::without_later_fields(rel, want, &mut got)?;
     api_v1_support::STRICT_ARRAYS.with(|c| c.set(!lenient));
     let r = same_shape(want, &got);
     api_v1_support::STRICT_ARRAYS.with(|c| c.set(false));
@@ -1020,6 +1021,13 @@ async fn replay_rate_limit(h: &H, rel: &str) -> Result<(), String> {
 async fn every_web_fixture_replays_against_the_desktop() {
     let h = H::new().await;
     h.analyze(true);
+    // The recording predates sandbox charges (web 4bce67c35, openalgo#2496):
+    // its fills paid nothing, as fills do with charges switched off.
+    h.ctx
+        .sandbox
+        .update_config("charges_enabled", "false")
+        .await
+        .unwrap();
     // The web held two analyzer entries before the recording
     // (`analyzer/status_before_mutations`); the replay starts from the same.
     for _ in 0..2 {
