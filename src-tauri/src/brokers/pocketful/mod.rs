@@ -353,16 +353,12 @@ impl Broker for PocketfulBroker {
         &self,
         auth: &AuthToken,
     ) -> Result<crate::brokers::common::streaming::OrderFeed> {
-        let token = Self::token(auth)?;
-        let client_id = auth
-            .user_id()
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-            .ok_or_else(session_expired)?;
+        let token = Self::access_token(auth)?;
+        let client_id = self.client_id(auth)?;
         Ok(crate::brokers::common::streaming::OrderFeed::Socket(
             Box::new(streaming::order_feed::PocketfulOrderFeed::new(
                 &self.urls.ws,
-                client_id,
+                &client_id,
                 token,
                 self.symbols.clone(),
             )),
