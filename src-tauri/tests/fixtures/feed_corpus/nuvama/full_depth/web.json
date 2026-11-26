@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
   "adapter": "nuvama",
   "inputs_sha256": "bccbc6bca05e67eda713adb4a6020e9e8cd08cbf913c807da8e81dd2da71d9c1",
   "instruments": [

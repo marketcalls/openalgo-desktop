@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
   "adapter": "upstox",
   "inputs_sha256": "4e0d220f581818a3f4d5ef8dfc6f297b15a9f3b665d8f88103e396fb323c679c",
   "instruments": [

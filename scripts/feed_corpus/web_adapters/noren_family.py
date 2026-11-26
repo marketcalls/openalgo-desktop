@@ -80,11 +80,16 @@ class NorenGlue(Glue):
             publish_market_data=self.publish,
             **self.adapter_state(),
         )
-        self.orders = self.new(self.order_class, _ws=None)
+        self.orders = self.order_adapter()
 
     def adapter_state(self) -> dict:
         """What else the member's adapter reads on the frame path."""
         return {}
+
+    def order_adapter(self):
+        """The member's order adapter, whose `normalize` reads the `om`
+        frames (Flattrade's carries them over its relay instead)."""
+        return self.new(self.order_class, _ws=None)
 
     def subscription(self, row, mode, depth):
         token_info = {"token": str(row["token"]), "brexchange": row["brexchange"]}

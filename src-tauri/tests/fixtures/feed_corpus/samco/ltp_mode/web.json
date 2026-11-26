@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
   "adapter": "samco",
   "inputs_sha256": "88b7793d285d569c1d4119597e1b6b6f7f5bebaffd1aff831e279baa3d89d798",
   "instruments": [

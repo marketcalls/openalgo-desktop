@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/feed_corpus/web_expected.py",
-  "web_sha": "5749d412635162181a4d60e3b5249c2ca9a0ad95",
+  "web_sha": "249916b27f615d29f9a9c41a81c1064e4fc231c5",
   "adapter": "kotak",
   "inputs_sha256": "3d01f5fc7c5d62a1f8d6a2c4ee2c948ba05c3dd9f81dd829c1f7d39e1b56b813",
   "instruments": [
