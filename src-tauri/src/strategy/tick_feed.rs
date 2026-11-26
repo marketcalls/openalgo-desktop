@@ -18,7 +18,10 @@
 //!   does miss is counted for health;
 //! * the **evaluator** acts on what was decided (`pending`), run by run in
 //!   the order they decided, and polls stale symbols every 2 s (stale after
-//!   10 s without a streamed tick).
+//!   10 s without a streamed tick);
+//! * the **renewer** takes again, every 2 s, what the price source holds
+//!   from a broker session that ended (`keep_renewed`; the scalping monitor
+//!   runs one over its own source).
 
 pub(crate) mod pending;
 
@@ -32,6 +35,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 pub const STALE_AFTER: Duration = Duration::from_secs(10);
 pub const POLL_EVERY: Duration = Duration::from_secs(2);
@@ -54,6 +58,12 @@ pub trait PriceSource: Send + Sync {
     /// The reader fell behind the ticks and skipped `n` (health counts it
     /// against the feed, NEW-REL-05).
     fn note_skipped(&self, _n: u64) {}
+    /// Take again, in the broker session running now, what this source
+    /// holds from one that ended: the feed forgot those references when it
+    /// ended. Web 9512aa5fe (marketcalls/openalgo#2277): the internal
+    /// client the web's strategies and scalping stops read restores its
+    /// subscriptions once it has authenticated again.
+    async fn renew(&self) {}
 }
 
 #[derive(Default)]
@@ -231,13 +241,30 @@ impl TickFeed {
     }
 }
 
-/// Start the owned reader and evaluator (a no-op without a price source).
+/// Start the owned reader, evaluator and renewer (a no-op without a price
+/// source).
 pub fn start(module: &Arc<StrategyModule>) {
     let Some(source) = module.feed.source.clone() else {
         return;
     };
     spawn_reader(module, source.clone());
-    spawn_evaluator(module, source);
+    spawn_evaluator(module, source.clone());
+    module.spawn(keep_renewed(source, module.shutdown_token()));
+}
+
+/// Take again, every `POLL_EVERY` until `stop`, what `source` holds from a
+/// broker session that ended (`PriceSource::renew`). A task of its own, so
+/// a broker slow to answer a subscribe holds neither the ticks nor the
+/// exits.
+pub(crate) async fn keep_renewed(source: Arc<dyn PriceSource>, stop: CancellationToken) {
+    let mut every = tokio::time::interval(POLL_EVERY);
+    every.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        tokio::select! {
+            _ = stop.cancelled() => break,
+            _ = every.tick() => source.renew().await,
+        }
+    }
 }
 
 /// Read every tick as it comes and decide the held ones; nothing here
@@ -306,11 +333,27 @@ fn spawn_evaluator(module: &Arc<StrategyModule>, source: Arc<dyn PriceSource>) {
 }
 
 /// The production source: the market-data feed and broker multiquotes.
+///
+/// A reference belongs to the broker session that took it (the bus's
+/// session generation, as Flow's do, `flow::triggers::feed`). When a
+/// session ends the feed forgets every reference
+/// (`WebSocketManager::disconnect`), so one taken in an ended session is
+/// never given back, where it would take another holder's in its place
+/// (an 8765 client, a Flow node, the other of the strategies and the
+/// scalping stops), and `renew` takes it again in the session running now.
+/// The session is read before the feed is asked, so a reference taken
+/// while sessions change counts as the old one's and is taken again: such
+/// an instrument may stream on one reference too many until the next
+/// session change.
 pub struct FeedPrices {
     ctx: Weak<AppState>,
     feed: Arc<crate::websocket::WebSocketManager>,
     /// Who reads these prices, for the feed's skip counts.
     reader: crate::websocket::Reader,
+    /// What this source holds, with the broker session each was taken in.
+    held: Mutex<HashMap<Key, u64>>,
+    /// One renewal at a time.
+    renewing: tokio::sync::Mutex<()>,
 }
 
 impl FeedPrices {
@@ -319,7 +362,47 @@ impl FeedPrices {
         feed: Arc<crate::websocket::WebSocketManager>,
         reader: crate::websocket::Reader,
     ) -> Self {
-        Self { ctx, feed, reader }
+        Self {
+            ctx,
+            feed,
+            reader,
+            held: Mutex::new(HashMap::new()),
+            renewing: tokio::sync::Mutex::new(()),
+        }
+    }
+
+    /// The broker session the feed counts references in now.
+    fn session(&self) -> Option<u64> {
+        self.ctx.upgrade().map(|ctx| ctx.bus.session_generation())
+    }
+
+    /// The same, only while a broker is logged in: nothing streams before.
+    fn live_session(&self) -> Option<u64> {
+        let ctx = self.ctx.upgrade()?;
+        ctx.get_broker_session()
+            .map(|_| ctx.bus.session_generation())
+    }
+
+    /// Ask the feed for `keys`: each one the master resolves, with the
+    /// feed's answer.
+    async fn admit(&self, keys: &[Key]) -> Vec<(Key, Result<(), String>)> {
+        let subs = self.subscriptions(keys);
+        if subs.is_empty() {
+            return Vec::new();
+        }
+        let asked: Vec<Key> = subs
+            .iter()
+            .map(|s| (s.symbol.clone(), s.exchange.clone()))
+            .collect();
+        asked.into_iter().zip(self.feed.admit(subs).await).collect()
+    }
+
+    /// Give the feed back references it counts for this source.
+    async fn release(&self, keys: &[Key]) {
+        let subs = self.subscriptions(keys);
+        if !subs.is_empty() {
+            let _ = self.feed.unsubscribe(subs).await;
+        }
     }
 
     fn subscriptions(&self, keys: &[Key]) -> Vec<FeedSubscription> {
@@ -346,31 +429,91 @@ impl FeedPrices {
 #[async_trait]
 impl PriceSource for FeedPrices {
     async fn subscribe(&self, keys: &[Key]) -> Vec<Key> {
-        let subs = self.subscriptions(keys);
-        if subs.is_empty() {
+        let Some(session) = self.session() else {
             return Vec::new();
-        }
-        let answers = self.feed.admit(subs.clone()).await;
-        let mut taken = Vec::with_capacity(subs.len());
-        for (s, answer) in subs.into_iter().zip(answers) {
+        };
+        let mut taken = Vec::with_capacity(keys.len());
+        for (key, answer) in self.admit(keys).await {
             match answer {
-                Ok(()) => taken.push((s.symbol, s.exchange)),
+                Ok(()) => taken.push(key),
                 // The REST fallback keeps the run priced.
                 Err(why) => tracing::warn!(
                     "{} on {} could not be streamed for a strategy: {}",
-                    s.symbol,
-                    s.exchange,
+                    key.0,
+                    key.1,
                     why
                 ),
             }
         }
+        let mut held = self.held.lock();
+        for k in &taken {
+            held.insert(k.clone(), session);
+        }
         taken
     }
 
+    /// Only what this session counts for this source goes back: the feed
+    /// forgot a reference of an ended session, and giving one back would
+    /// take another holder's (the web's old-socket cleanup reaching the
+    /// adapter built for new credentials, 9512aa5fe).
     async fn unsubscribe(&self, keys: &[Key]) {
-        let subs = self.subscriptions(keys);
-        if !subs.is_empty() {
-            let _ = self.feed.unsubscribe(subs).await;
+        let Some(session) = self.session() else {
+            return;
+        };
+        let ours: Vec<Key> = {
+            let mut held = self.held.lock();
+            keys.iter()
+                .filter(|k| held.remove(*k) == Some(session))
+                .cloned()
+                .collect()
+        };
+        self.release(&ours).await;
+    }
+
+    async fn renew(&self) {
+        let Ok(_alone) = self.renewing.try_lock() else {
+            return;
+        };
+        let Some(session) = self.live_session() else {
+            return;
+        };
+        let lapsed: Vec<Key> = self
+            .held
+            .lock()
+            .iter()
+            .filter(|(_, taken_in)| **taken_in != session)
+            .map(|(k, _)| k.clone())
+            .collect();
+        if lapsed.is_empty() {
+            return;
+        }
+        let (mut renewed, mut extra) = (0usize, Vec::new());
+        for (key, answer) in self.admit(&lapsed).await {
+            if let Err(why) = answer {
+                // Kept as it is: the next renewal asks again.
+                tracing::debug!("{} on {} not streamed again yet: {}", key.0, key.1, why);
+                continue;
+            }
+            let mut held = self.held.lock();
+            match held.get_mut(&key) {
+                Some(taken_in) if *taken_in != session => {
+                    *taken_in = session;
+                    renewed += 1;
+                }
+                // Given back while it was asked for, or already taken in
+                // this session: one reference too many.
+                _ => extra.push(key),
+            }
+        }
+        if !extra.is_empty() && self.session() == Some(session) {
+            self.release(&extra).await;
+        }
+        if renewed > 0 {
+            tracing::info!(
+                "{} instrument(s) the {:?} reader follows were subscribed again in the new broker session",
+                renewed,
+                self.reader
+            );
         }
     }
 

@@ -263,9 +263,19 @@ wrong API key counts against that caller's failure budget.
 - **Sign-outs close the feed.** When the API key cache is cleared (a new API
   key, a broker session that ended or started, a logout), every
   authenticated client gets the web's `AUTHENTICATION_ERROR` frame and close
-  4401, and connects and authenticates again. The web keeps such clients
-  connected; the desktop does not, so a key from before a sign-out cannot
-  keep streaming.
+  4401, and connects and authenticates again. The web closes such clients
+  only when the broker token changes (a broker sign-in with a new token, a
+  logout, the session's end), with close 1012 and no error frame, and keeps
+  them through a new API key; the desktop closes them on every change, so a
+  key from before a sign-out or a key change cannot keep streaming. The
+  Python SDK and the `/trading` terminal (openalgo-charts' `OpenAlgoWsFeed`)
+  connect again after any close, which authenticates and subscribes again
+  without help only after a broker login or a broker switch: after a new
+  key the one they hold is refused, after a sign-out the feed is locked and
+  after a broker logout there is no broker, so the script needs the new key
+  and a restart, and the page a reload (the terminal stops retrying after a
+  refused `authenticate`). `MarketDataManager`, as on the web, does not
+  reconnect after a clean close.
 - **Locked keys.** After OpenAlgo starts, and after a logout, `authenticate`
   answers with the error frame "Sign in to OpenAlgo..." until you sign in.
 - **Sleep and wake.** When the computer wakes, OpenAlgo reconnects the broker
@@ -287,7 +297,7 @@ wrong API key counts against that caller's failure budget.
 | Strategy readers | A 10,000-tick FIFO that sheds | Every price decided on arrival; only the actions wait, with missed prices counted |
 | Losses | Logged | Counted and shown in health (PR #178) |
 | Client limits | None | Message size, message budget, connection pools, handshake checks |
-| After a sign-out or new key | Clients stay connected | Clients are closed with 4401 |
+| After a sign-out, a broker change or a new key | Closed with 1012 when the broker token changes; kept through a new API key | Closed with the error frame and 4401 on each |
 
 ## Developer reference
 

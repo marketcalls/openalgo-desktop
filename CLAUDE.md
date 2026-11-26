@@ -1302,6 +1302,17 @@ differences with their reasons):
 - **A retry joins the release already in flight** and answers with its
   outcome: asking again while the broker has not answered never reports
   success.
+- **A reference to the market-data manager belongs to the broker session
+  that took it.** `WebSocketManager::disconnect` forgets every reference
+  when a session ends, a new sign-in for the same broker included. A
+  consumer that keeps its own record of what it holds ties each entry to
+  the bus's session generation, never gives back one from an ended
+  session (it would take another holder's: the strategies' and scalping
+  stops' prices did), and takes it again in the new session, as the web's
+  internal client does once it has authenticated again (9512aa5fe): the
+  8765 clients through `bridge.resync`, Flow at its next read
+  (`flow::triggers::feed`), strategies and scalping stops every 2 s
+  (`tick_feed::FeedPrices::renew`).
 - Adding or changing a broker's feed means corpus cases for every mode it
   offers, its order stream, a reconnect and a book clear, with `web.json`
   computed by its glue, before the change is done.
@@ -1496,11 +1507,21 @@ differences with their reasons):
   all pass the check.
 - An authenticated market data feed client (8765) is closed, with the
   web's `AUTHENTICATION_ERROR` frame and then 4401, whenever the API-key
-  cache is cleared (`ApiKeyCache::clear`: a regenerated key, a broker
-  session that ended or started), so a client keyed before a sign-out or
-  key change cannot keep streaming. The web keeps such clients connected;
-  this is a deliberate difference. Anything new that changes what the key
-  reaches clears that cache.
+  cache is cleared (`ApiKeyCache::clear`: a regenerated key, a password
+  change, a broker session that ended or started), so a client keyed
+  before a sign-out or key change cannot keep streaming. The web
+  (openalgo#2277) closes only when the broker token changes (a sign-in
+  with a new token, a logout, the session's end), with 1012 "Broker
+  credentials changed" and no error frame, and keeps clients through a
+  regenerated key or a password change. The wider close, its frame and
+  4401 are a deliberate difference: the SDK and the /trading terminal
+  (openalgo-charts' `OpenAlgoWsFeed`) reconnect after any close, and
+  replay their subscriptions unaided only after a broker login or switch
+  (a regenerated key, a sign-out or a broker logout refuses the
+  reconnect's `authenticate`, after which the terminal stops retrying),
+  and `MarketDataManager` and the WebSocket test pages, as the web's,
+  reconnect after neither (a clean close). Anything new that changes what
+  the key reaches clears that cache.
 - A request without a signed-in session acts only on its own browser
   session. An anonymous `/auth/logout` once cleared every session, so
   anything that could reach the port, a tunnel included, kept the trader

@@ -160,8 +160,13 @@ differently, it is on purpose:
   is not running.
 - **Sign-outs close the feed.** A client that authenticated before you
   signed out, switched brokers or made a new API key is closed (code
-  4401) and connects and authenticates again. The web keeps it
-  connected.
+  4401) and connects and authenticates again. The web closes it too when
+  the broker session changes (code 1012), but keeps it connected after a
+  new API key. The Python SDK and the `/trading` terminal connect again by
+  themselves, and pick up where they were after a broker login or a broker
+  switch. After a new API key, restart your script with the new key, or
+  reload the `/trading` page; after a sign-out or a broker logout, sign in
+  and log in to your broker first, then do the same.
 - **Depth answers.** A Depth subscribe is answered as the web answers it
   for your broker (maintainer decision 2026-10-16: echo like the web).
   Where the web's adapter repeats the depth asked for (Zerodha, Fyers,

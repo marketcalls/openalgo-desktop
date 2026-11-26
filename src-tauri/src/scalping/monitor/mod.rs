@@ -438,7 +438,10 @@ impl RiskMonitor {
     // ------------------------------------------------------------ lifecycle
 
     /// Start the owned consumer (idempotent) and reconcile with the stored
-    /// stops.
+    /// stops. Beside it, what the stops' prices held from a broker session
+    /// that ended is taken again (`tick_feed::keep_renewed`): a new session
+    /// for the same broker does not end this one's run, so the sync alone
+    /// would never ask for them again.
     pub fn start(self: &Arc<Self>) {
         {
             let mut running = self.running.lock();
@@ -454,8 +457,14 @@ impl RiskMonitor {
                 Arc::downgrade(self),
                 self.prices.clone(),
                 ticks,
-                token,
+                token.clone(),
             ));
+            if let Some(prices) = &self.prices {
+                self.spawn(crate::strategy::tick_feed::keep_renewed(
+                    prices.clone(),
+                    token,
+                ));
+            }
         }
         self.sync_wanted.notify_one();
     }
