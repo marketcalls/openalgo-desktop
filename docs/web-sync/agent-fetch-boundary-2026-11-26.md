@@ -33,8 +33,12 @@ So `evil.com/x` is refused in `notevil.com/x`, `x.evil.com/x`,
 `evil.com/xyz`, `evil.com/x.html` and `evil.com:8443/x`, and still
 accepted in `(https://www.evil.com/x)`, `evil.com/x?` and `evil.com/x/y`
 (tests in `src-tauri/src/agent/websearch/tests/fetch_url.rs`). The desktop
-also refuses a requested address with white space or a control character
-in it, which `urlsplit` would otherwise read in pieces.
+also refuses an address with white space, a control character or an
+invisible format character in it, the one requested and the one sent
+alike: `urlsplit` drops a tab, a line break and a leading control
+character, so a URL a search returned with one inside matches the model's
+clean spelling through `url_key`, and the web then sends the search's text
+as it came.
 
 A Python form of the same rule:
 

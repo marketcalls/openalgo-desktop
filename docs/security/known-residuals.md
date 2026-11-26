@@ -271,8 +271,9 @@ at a path, query or fragment boundary, so `evil.com/x` is not found in
 `docs/web-sync/agent-fetch-boundary-2026-11-26.md`). A run with no
 message of its own fetches nothing an earlier message named. What is sent
 is that text, never the model's spelling of it. Refused whatever its
-source: white space or a control character in the address, another
-scheme, a login part, a port other than 80
+source, the address asked for and the one sent (a search's URL included)
+alike: white space, a control character or an invisible character in the
+address, another scheme, a login part, a port other than 80
 and 443 (so never the app's own ports), a name with no dot, `localhost`,
 `.local`, `.internal`, `.lan`, and a private, loopback, link-local or
 reserved address as either Python's or a WHATWG reader sees the host. A

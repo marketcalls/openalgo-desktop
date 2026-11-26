@@ -448,3 +448,46 @@ fn an_address_with_white_space_or_a_control_character_is_refused() {
         );
     }
 }
+
+/// Desktop (security review, 2026-11-26): an invisible character (zero
+/// width, a direction override, a byte-order mark, a soft hyphen) is
+/// refused like white space, even where the trader's text holds it.
+#[test]
+fn an_address_with_an_invisible_character_is_refused() {
+    for requested in [
+        "https://evil.com/x\u{200b}y",
+        "https://evil.com/\u{202e}x",
+        "https://evil.com/x\u{feff}",
+        "https://evil.com/x\u{ad}y",
+    ] {
+        let message = format!("read {} please", requested);
+        let c = checked(requested, &message, &[requested]);
+        assert_eq!(
+            c,
+            Check::Refused("That is not a valid web address.".into()),
+            "{:?}",
+            requested
+        );
+    }
+}
+
+/// Desktop (security review, 2026-11-26): the address that is sent is held
+/// to the same characters as the one asked for. Python's reading drops a
+/// tab, a line break and a leading control character, so a search's URL
+/// holding one matched the model's clean spelling and went out as returned.
+#[test]
+fn a_returned_address_with_a_character_python_drops_is_not_sent() {
+    for returned in [
+        "https://www.screener.in/company/RELIANCE/con\tsolidated/",
+        "https://www.screener.in/company/RELI\nANCE/consolidated/",
+        "\u{1}https://www.screener.in/company/RELIANCE/consolidated/",
+    ] {
+        let c = checked(SCREENER, OPERATOR, &[returned]);
+        assert_eq!(
+            c,
+            Check::Refused("That is not a valid web address.".into()),
+            "{:?} was sent",
+            returned
+        );
+    }
+}

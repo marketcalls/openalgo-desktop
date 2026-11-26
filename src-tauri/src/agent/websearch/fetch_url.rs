@@ -39,9 +39,13 @@
 //!   fragment boundary, so a host inside a longer one (`evil.com` in
 //!   `notevil.com`) is not the trader's; the web searches for the text
 //!   anywhere in the message (security review, 2026-11-25);
-//! - an address with white space or a control character in it is refused.
+//! - an address with white space (U+00A0 included), a control character or
+//!   an invisible format character in it is refused before it is read, the
+//!   one asked for and the one sent alike: Python's reading drops a tab or
+//!   a leading control character, so a search's URL holding one matched a
+//!   clean request and went out as returned.
 
-use crate::agent::words::{split, strip_edges};
+use crate::agent::words::{printable, split, strip_edges};
 use crate::flow::nodes::http::guard::{is_refused, same_host};
 use crate::flow::nodes::http::url::{urlsplit, Split};
 use regex::Regex;
@@ -160,9 +164,20 @@ fn not_fetched(why: &str) -> String {
     format!("That address is not fetched because {}.", why)
 }
 
+/// A character no page address carries as text: white space, a control
+/// character, or one that is invisible when shown.
+fn unseen(c: char) -> bool {
+    c.is_whitespace() || !printable(c)
+}
+
 /// The checks every address passes, the one asked for and the one sent:
-/// its parts, or the sentence that refuses it.
+/// its parts, or the sentence that refuses it. The characters are checked
+/// first, on the text as it would go out, since both readings below drop
+/// some of them silently.
 fn vet(text: &str) -> Result<Split, String> {
+    if text.chars().any(unseen) {
+        return Err(INVALID.into());
+    }
     let parts = urlsplit(text).map_err(|_| INVALID.to_string())?;
     let port = parts.port().map_err(|_| INVALID.to_string())?;
     if parts.scheme != "http" && parts.scheme != "https" {
@@ -339,9 +354,6 @@ pub fn check(
     }
     if text.chars().count() > MAX_URL_CHARS {
         return Check::Refused("That URL is too long to be a page address.".into());
-    }
-    if text.chars().any(|c| c.is_whitespace() || c.is_control()) {
-        return Check::Refused(INVALID.into());
     }
     let text = if text.contains("://") {
         text.to_string()
