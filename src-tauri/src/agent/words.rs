@@ -3,7 +3,8 @@
 //! data argument): the web's `_EDGE_PUNCTUATION` comes off each end of a
 //! word before it is compared, and a message splits as Python's
 //! `str.split()` splits it. One list, so the two boundaries cannot drift
-//! apart on what a word is.
+//! apart on what a word is. Python's `str.isprintable` lives here too, for
+//! the chart contract's bounded text.
 
 /// Stripped from a word's ends before it is compared (the web's
 /// `_EDGE_PUNCTUATION`).
@@ -26,6 +27,21 @@ pub fn is_space(c: char) -> bool {
 /// `str.split()`: runs of white space, none empty.
 pub fn split(text: &str) -> impl Iterator<Item = &str> {
     text.split(is_space).filter(|t| !t.is_empty())
+}
+
+/// Python's `str.isprintable` for one character, as near as the standard
+/// library allows: control, format and separator characters (other than
+/// the ASCII space) are not printable.
+pub fn printable(c: char) -> bool {
+    if c == ' ' {
+        return true;
+    }
+    let format = matches!(c,
+        '\u{00AD}' | '\u{0600}'..='\u{0605}' | '\u{061C}' | '\u{06DD}' | '\u{070F}'
+        | '\u{180E}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}'
+        | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{206F}' | '\u{FEFF}'
+        | '\u{FFF9}'..='\u{FFFB}' | '\u{E000}'..='\u{F8FF}');
+    !(c.is_control() || c.is_whitespace() || format)
 }
 
 #[cfg(test)]
