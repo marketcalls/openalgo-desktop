@@ -1302,6 +1302,17 @@ differences with their reasons):
 - **A retry joins the release already in flight** and answers with its
   outcome: asking again while the broker has not answered never reports
   success.
+- **A reference to the market-data manager belongs to the broker session
+  that took it.** `WebSocketManager::disconnect` forgets every reference
+  when a session ends, a new sign-in for the same broker included. A
+  consumer that keeps its own record of what it holds ties each entry to
+  the bus's session generation, never gives back one from an ended
+  session (it would take another holder's: the strategies' and scalping
+  stops' prices did), and takes it again in the new session, as the web's
+  internal client does once it has authenticated again (9512aa5fe): the
+  8765 clients through `bridge.resync`, Flow at its next read
+  (`flow::triggers::feed`), strategies and scalping stops every 2 s
+  (`tick_feed::FeedPrices::renew`).
 - Adding or changing a broker's feed means corpus cases for every mode it
   offers, its order stream, a reconnect and a book clear, with `web.json`
   computed by its glue, before the change is done.

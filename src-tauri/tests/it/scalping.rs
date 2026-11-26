@@ -1792,7 +1792,8 @@ async fn ticks_flow_through_the_owned_task_and_stop_releases_everything() {
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
     assert_eq!(m.prices.held.lock().len(), 1);
-    assert_eq!(m.mon.task_count(), 1);
+    // The consumer, and the renewer of what an ended broker session held.
+    assert_eq!(m.mon.task_count(), 2);
     // A tick on the source drives the exit.
     let tick = openalgo_desktop_lib::brokers::common::streaming::NormalizedTick {
         symbol: OPT.into(),
