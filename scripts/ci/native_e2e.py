@@ -105,6 +105,7 @@ def main(argv: list[str]) -> int:
         print("native_e2e.py binds the shipped ports 5000 and 8765 and 4444; it runs only in CI.")
         return 2
     from selenium import webdriver
+    from selenium.common.exceptions import StaleElementReferenceException
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.options import ArgOptions
     from selenium.webdriver.support import expected_conditions as ec
@@ -155,9 +156,17 @@ def main(argv: list[str]) -> int:
             return session.current_url.split("127.0.0.1:5000", 1)[-1].split("?", 1)[0]
 
         def field(element_id: str, value: str) -> None:
-            el = wait.until(ec.element_to_be_clickable((By.ID, element_id)))
-            el.clear()
-            el.send_keys(value)
+            # A field the page replaced while it was being typed into is
+            # found again and typed into afresh.
+            for attempt in range(3):
+                el = wait.until(ec.element_to_be_clickable((By.ID, element_id)))
+                try:
+                    el.clear()
+                    el.send_keys(value)
+                    return
+                except StaleElementReferenceException:
+                    if attempt == 2:
+                        raise
 
         def submit() -> None:
             wait.until(ec.element_to_be_clickable((By.CSS_SELECTOR, "button[type=submit]"))).click()
@@ -170,8 +179,14 @@ def main(argv: list[str]) -> int:
         field("email", "trader@example.com")
         field("password", password)
         field("confirmPassword", password)
+        setup_form = session.find_element(By.ID, "confirmPassword")
         submit()
+        # The address reads /login while the setup page is still shown: the
+        # router keeps it until the lazily loaded sign-in page is ready, and
+        # both pages have a #username field. Typing into the setup page's
+        # failed on Linux (master runs of 1d8ff5b03); wait for it to go.
         wait.until(lambda d: path() == "/login")
+        wait.until(ec.staleness_of(setup_form))
         print("setup: account created, on /login")
 
         # 2. A wrong password is refused.
