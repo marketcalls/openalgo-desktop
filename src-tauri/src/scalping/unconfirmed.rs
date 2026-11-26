@@ -385,7 +385,8 @@ impl OrderOwner for ScalpingOrders {
                             let (row, at) = (p.id, book.read_at);
                             let settled = ctx
                                 .blocking(move |c| {
-                                    settle(&c.sqlite.conn()?, row, "not_placed", None, at)
+                                    let conn = c.sqlite.conn()?;
+                                    settle(&conn, row, "not_placed", None, at)
                                 })
                                 .await;
                             match settled {
@@ -514,7 +515,12 @@ impl ScalpingOrders {
         });
         let written = ctx
             .blocking(move |c| {
-                if !settle(&c.sqlite.conn()?, row, "placed", Some(&order), at)? {
+                // The connection goes back before the list takes its own.
+                let settled = {
+                    let conn = c.sqlite.conn()?;
+                    settle(&conn, row, "placed", Some(&order), at)?
+                };
+                if !settled {
                     return Ok(None);
                 }
                 let tracked = entry.map(|(symbol, exchange, product, mode)| {
