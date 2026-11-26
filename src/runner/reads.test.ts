@@ -193,9 +193,11 @@ describe('a live run reads another timeframe as its chart and backtest do', () =
     expect(coarser.loaded).toBe(false)
     expect(coarser.values).toEqual([])
     expect(coarser.ended).toHaveLength(1)
-    expect(coarser.ended[0]).toContain('reads.oscript could not be loaded: OS6015')
-    expect(coarser.ended[0]).toContain('15')
-    expect(coarser.ended[0]).toContain('10m')
+    // The engine's sentence, whole: '15' alone is inside the code 'OS6015'
+    // and would pass with the read left out of the log.
+    expect(coarser.ended[0]).toBe(
+      'reads.oscript could not be loaded: OS6015 15 is not a whole multiple of 10m.'
+    )
 
     const finer = await run(
       compile('three.oscript', study('Three', 'req.timeframe("3", close)')),
@@ -204,8 +206,9 @@ describe('a live run reads another timeframe as its chart and backtest do', () =
       facts
     )
     expect(finer.loaded).toBe(false)
-    expect(finer.ended[0]).toContain('reads.oscript could not be loaded: OS6002')
-    expect(finer.ended[0]).toContain('10m')
+    expect(finer.ended).toEqual([
+      'reads.oscript could not be loaded: OS6002 The chart is 10m and the request asks for 3.',
+    ])
 
     // A whole multiple of the run's interval still folds from its own bars.
     const twenty = await run(
