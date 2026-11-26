@@ -19,7 +19,8 @@
 use super::{HdfcSkyBroker, USER_AGENT};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
-    expiry_compact, format_expiry, format_strike, split_csv_line, CsvHeader,
+    expiry_compact, format_expiry, format_strike, split_csv_line, underlying_before_expiry,
+    CsvHeader,
 };
 use crate::brokers::common::symbols::SymToken;
 use crate::error::{AppError, Result};
@@ -93,10 +94,6 @@ pub fn classify_index(display: &str, exchange: &str) -> String {
         .unwrap_or(key)
 }
 
-const MONTHS: [&str; 12] = [
-    "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
-];
-
 fn bad_format() -> AppError {
     AppError::Broker(
         "The HDFC Sky instrument list has an unexpected format. Try downloading the master contract again later."
@@ -152,36 +149,6 @@ fn parse_expiry(s: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(s, "%d-%b-%Y")
         .ok()
         .filter(|d| d.year() > 1900)
-}
-
-/// The underlying of a derivative's trading symbol: the symbol without the
-/// broker's expiry and strike suffix (`<YY><MON><tail>`, or the weekly
-/// `<YY><month digit or O/N/D><DD><tail>`). `None` when no suffix matches.
-fn underlying_of(ts: &str, d: NaiveDate, expiry: &str, tail: String) -> Option<String> {
-    let yy = &expiry[7..9];
-    let mon = MONTHS[d.month0() as usize];
-    let day = &expiry[0..2];
-    let digit = if d.month() <= 9 {
-        d.month().to_string()
-    } else {
-        String::new()
-    };
-    let letter = match d.month() {
-        10 => "O",
-        11 => "N",
-        12 => "D",
-        _ => "",
-    };
-    let mut suffixes = vec![format!("{}{}{}", yy, mon, tail)];
-    if !digit.is_empty() {
-        suffixes.push(format!("{}{}{}{}", yy, digit, day, tail));
-    }
-    if !letter.is_empty() {
-        suffixes.push(format!("{}{}{}{}", yy, letter, day, tail));
-    }
-    suffixes
-        .iter()
-        .find_map(|suf| ts.strip_suffix(suf.as_str()).map(str::to_string))
 }
 
 /// One `CompactScrip.csv` row, as the file has it.
@@ -255,9 +222,9 @@ fn parse_row(raw: RawRow<'_>) -> Option<SymToken> {
     };
     let underlying = expiry_date
         .filter(|_| is_deriv)
-        .and_then(|d| underlying_of(ts, d, &expiry, tail))
-        .filter(|u| !u.is_empty())
-        .unwrap_or_else(|| company.to_string());
+        .and_then(|d| underlying_before_expiry(ts, d, &tail))
+        .unwrap_or(company)
+        .to_string();
 
     let mut symbol = cash_symbol(ts, &brex, seg);
     if is_future {

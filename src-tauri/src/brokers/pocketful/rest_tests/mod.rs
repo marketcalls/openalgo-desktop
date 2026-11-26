@@ -7,6 +7,7 @@ mod auth;
 mod client;
 mod funds_margin;
 mod gtt;
+mod master;
 mod orders;
 
 use super::PocketfulBroker;
@@ -58,6 +59,8 @@ pub(super) enum Reply {
     Json(u16, Value),
     /// A status and a body that is not JSON.
     Text(u16, &'static str),
+    /// A status and a binary body (the contract archive).
+    Binary(u16, Vec<u8>),
     /// Headers, then the connection breaks inside the body: a request that
     /// was sent and whose answer was lost.
     Cut,
@@ -94,6 +97,9 @@ fn respond(reply: Reply) -> Response {
         )
             .into_response(),
         Reply::Text(status, body) => (StatusCode::from_u16(status).unwrap(), body).into_response(),
+        Reply::Binary(status, body) => {
+            (StatusCode::from_u16(status).unwrap(), body).into_response()
+        }
         Reply::Cut => {
             let broken = futures_util::stream::once(async {
                 Err::<Bytes, std::io::Error>(std::io::Error::other("connection cut"))

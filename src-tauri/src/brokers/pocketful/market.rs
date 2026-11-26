@@ -33,11 +33,20 @@ pub fn path(exchange: &str) -> Option<String> {
 /// A finite number from a number or numeric text, else 0 (web `_num`: a
 /// boolean is not a price).
 pub fn number(v: &Value) -> f64 {
-    let n = match v {
-        Value::Number(n) => n.as_f64().unwrap_or(0.0),
-        Value::String(s) => s.trim().parse::<f64>().unwrap_or(0.0),
+    match v {
+        Value::Number(n) => finite(n.as_f64().unwrap_or(0.0)),
+        Value::String(s) => number_text(s),
         _ => 0.0,
-    };
+    }
+}
+
+/// Numeric text as a finite number, else 0: web `_num` on text, and
+/// `pd.to_numeric(errors="coerce").fillna(0)` on a contract file's column.
+pub(crate) fn number_text(s: &str) -> f64 {
+    finite(s.trim().parse::<f64>().unwrap_or(0.0))
+}
+
+fn finite(n: f64) -> f64 {
     if n.is_finite() {
         n
     } else {
