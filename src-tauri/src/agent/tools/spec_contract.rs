@@ -15,7 +15,7 @@
 use crate::agent::contract::tool::{
     AgentTool, Capabilities, Capability, Surface, ToolCtx, ToolGroup, ToolSpec,
 };
-use crate::agent::tools::TOOLKITS;
+use crate::agent::tools::{specs, TOOLKITS};
 use serde_json::Value;
 use std::sync::{Arc, LazyLock};
 
@@ -58,13 +58,14 @@ fn capability_name(c: Capability) -> &'static str {
 
 const SURFACES: [Surface; 3] = [Surface::Chat, Surface::Chart, Surface::Voice];
 
-/// One tool's spec equals the web's: name, description, the arguments as
-/// the model reads them (property order included) and the approval flag.
+/// One tool's spec equals the web's: name, description (with what
+/// `carried.json` carries onto the capture, `specs::carry`), the arguments
+/// as the model reads them (property order included) and the approval flag.
 pub fn assert_tool(spec: &ToolSpec) {
     let web = tool(spec.name);
     assert_eq!(
         spec.description.as_ref(),
-        web["description"].as_str().unwrap_or_default(),
+        specs::carry(spec.name, web["description"].as_str().unwrap_or_default()),
         "description of {}",
         spec.name
     );

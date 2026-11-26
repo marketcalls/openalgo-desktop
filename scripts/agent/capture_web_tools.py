@@ -25,7 +25,11 @@ pandas, numpy, pytz and their pinned dependencies):
 
     /path/to/scratch/venv/bin/python -I -B scripts/agent/capture_web_tools.py /path/to/openalgo
 
-Regenerate only from the web; never edit the fixture by hand.
+Regenerate only from the web; never edit the fixture by hand. A web change to a
+description that the desktop ships before the next capture is a hunk in
+`src-tauri/src/agent/tools/carried.json`, which this script never writes; after
+a capture, remove each hunk the capture already has (the
+`agent::tools::specs` tests name them).
 """
 
 from __future__ import annotations
