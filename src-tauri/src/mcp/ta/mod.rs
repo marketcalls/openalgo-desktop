@@ -443,6 +443,6 @@ mod tests {
         for n in supported() {
             assert!(WEB_TA_FUNCTIONS.contains(&n), "{}", n);
         }
-        assert_eq!(WEB_TA_FUNCTIONS.len(), 127);
+        assert_eq!(WEB_TA_FUNCTIONS.len(), 128);
     }
 }

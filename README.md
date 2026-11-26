@@ -68,7 +68,7 @@ Moving over from OpenAlgo web? See
 | **Charting Terminal and OpenScript** | `/trading` | Traders who trade from the chart: a full-screen terminal with an order dock, custom indicators, and OpenScript studies and strategies that are backtested and run live on the same engine. |
 | **Scalping Terminal** | `/scalping` | Fast intraday trades in options, futures and equity from the keyboard, with stop-loss, target and trailing protection that OpenAlgo watches for you. |
 | **Options Trading Suite** | `/tools` | Options traders: seventeen tools (Strategy Builder with payoff diagrams and live Greeks, Strategy Portfolio, Sector Rotation, Option Chain, Option Greeks, OI Tracker, OI Range, Max Pain, Straddle Chart, Straddle PnL, Vol Surface, GEX Dashboard, Strike Profile, Gamma Density, IV Smile, OI Profile, Arbitrage). Each one uses your connected broker's data. |
-| **AI Agent** | `/agent` | Traders who would rather ask: a chat, also a panel beside the `/trading` chart, that reads your own account and market data through OpenAlgo, draws charts, computes 127 indicators and marks up your chart. It places an order only after you approve that order. Bring a model from OpenAI, Anthropic, Gemini and others, a ChatGPT Plus or Pro plan, or a local model through Ollama. |
+| **AI Agent** | `/agent` | Traders who would rather ask: a chat, also a panel beside the `/trading` chart, that reads your own account and market data through OpenAlgo, draws charts, computes 128 indicators and marks up your chart. It places an order only after you approve that order. Bring a model from OpenAI, Anthropic, Gemini and others, a ChatGPT Plus or Pro plan, or a local model through Ollama. |
 
 Every one of them can run in sandbox mode (analyzer mode) first: while it is
 on, every order from the app, the API, webhooks and MCP clients goes to the
@@ -399,8 +399,11 @@ A built-in agent, on its own page and as the Assistant panel beside the
   OpenAlgo's own services, and in analyzer mode your sandbox account
 - Draws price, open interest, gamma exposure, volatility surface and payoff
   charts in the chat, and marks levels, trend lines and zones on your chart
-- Computes 127 indicators with the same results as OpenAlgo web's
-  `openalgo.ta`, and writes OpenScript studies and strategies
+- Computes 128 indicators, the ones OpenAlgo web's `openalgo.ta` offers,
+  with the numbers of openalgo 2.0.5 (and 2.4.1's `rvi_volatility`).
+  OpenAlgo web runs 2.4.1, so its `psar`, `vwap`, `pivot_points` and where a
+  few indicators start giving values can differ from the desktop's
+- Writes OpenScript studies and strategies
 - **Every order pauses for your approval**, with a kill switch and risk
   limits on Agent Config that are checked again after you approve
 - Models from OpenAI, Anthropic, Gemini and other providers, a ChatGPT Plus

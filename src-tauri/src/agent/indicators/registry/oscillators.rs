@@ -114,7 +114,7 @@ pub(super) const SPECS: &[IndicatorSpec] = &[
         outputs: &["rvi", "signal"],
         params: &[ParamSpec::int("period", 10)],
         warmup: 15,
-        note: "TRAP: this is the Relative VIGOR Index and needs full OHLC. The volatility doc's ta.rvi(df['close']) raises TypeError. The Relative Volatility Index is imported as VolatilityRVI and never exposed on ta.",
+        note: "TRAP: this is the Relative VIGOR Index and needs full OHLC, so ta.rvi(df['close']) raises TypeError. The Relative Volatility Index is ta.rvi_volatility.",
         series_args: &["open_prices", "high", "low", "close"],
         ..IndicatorSpec::BASE
     },

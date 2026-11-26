@@ -1,4 +1,4 @@
-//! Indicator tools: the 127 `openalgo.ta` indicators behind five tools
+//! Indicator tools: the 128 `openalgo.ta` indicators behind five tools
 //! (the web's `services/agent/tools/indicators.py`, toolkit `indicators`).
 //!
 //! The model picks an indicator by name, found with `list_indicators` and
@@ -61,7 +61,7 @@ pub const GROUP: ToolGroup = ToolGroup {
     surfaces: Surfaces::ALL,
     requires: &[],
     order: 25,
-    description: "Compute any of the 127 openalgo.ta indicators over real candles, several in \
+    description: "Compute any of the 128 openalgo.ta indicators over real candles, several in \
                   one call, or screen a list of instruments for one condition.",
     build,
 };

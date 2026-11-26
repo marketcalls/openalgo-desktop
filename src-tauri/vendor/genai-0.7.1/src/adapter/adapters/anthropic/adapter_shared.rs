@@ -829,7 +829,10 @@ pub(in crate::adapter) struct AnthropicRequestParts {
 /// Convert CacheControl to Anthropic JSON format.
 ///
 /// See: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#1-hour-cache-duration
-fn cache_control_to_json(cache_control: &CacheControl) -> Value {
+///
+/// OpenAlgo Desktop (VENDORED.md, change 4): also what the OpenAI-format adapter
+/// sends OpenRouter, which passes it through to a Claude model.
+pub(in crate::adapter::adapters) fn cache_control_to_json(cache_control: &CacheControl) -> Value {
 	match cache_control {
 		CacheControl::Ephemeral => {
 			json!({"type": "ephemeral"})

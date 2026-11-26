@@ -10,10 +10,10 @@ use super::output::FrameOut;
 use super::usage::{Totals, UsageMeter};
 use crate::agent::contract::frames::{ErrorKind, Frame};
 use crate::agent::contract::model::ResolvedModel;
+use crate::agent::providers::prompt_cache;
 use futures_util::StreamExt;
 use genai::chat::{
-    ChatMessage, ChatRequest, ChatStreamEvent, MessageContent, StreamEnd, Tool, ToolCall,
-    ToolResponse,
+    ChatMessage, ChatStreamEvent, MessageContent, StreamEnd, Tool, ToolCall, ToolResponse,
 };
 
 /// How a turn's loop ended.
@@ -119,10 +119,13 @@ impl Turn<'_> {
     async fn ask(&mut self, out: &mut FrameOut) -> Result<StreamEnd, Frame> {
         let mut messages = self.history.to_vec();
         messages.extend(self.messages.iter().cloned());
-        let mut request = ChatRequest::new(messages).with_system(self.system);
-        if !self.declared.is_empty() {
-            request = request.with_tools(self.declared.clone());
-        }
+        // Marked on this request only: the stored run keeps no breakpoint.
+        let request = prompt_cache::request(
+            self.system,
+            messages,
+            self.declared.clone(),
+            prompt_cache::prompt_cache_points(&self.model.catalog_id),
+        );
         let opened = self.client.stream(self.model, request, self.effort).await;
         let mut stream = match opened {
             Ok(r) => r.stream,

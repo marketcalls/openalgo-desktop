@@ -27,6 +27,13 @@ pub const TWO_SERIES_INDICATORS: [&str; 8] = [
 /// lead's call).
 pub const UNSUPPORTED_INDICATORS: [&str; 3] = ["median_bands", "ulcerindex", "vi"];
 
+/// Library names a node runs, as on the web, that the catalogue leaves out.
+/// `rvi_volatility` came with openalgo 2.1.0 (web c8b2896ca): the web's
+/// editor does not offer it (`src/lib/flow/constants.ts`, carried from the
+/// web), and Flow's goldens pin the 2.0.5 build the desktop computes with.
+/// It joins the catalogue when the desktop moves to the build the web pins.
+const NOT_CATALOGUED: [&str; 1] = ["rvi_volatility"];
+
 /// `_SERIES_PARAM_TO_COLUMN`: the history column each series argument name
 /// reads.
 const SERIES_PARAM_TO_COLUMN: [(&str, &str); 7] = [
@@ -57,12 +64,14 @@ pub(crate) fn spec(name: &str) -> Option<&'static IndicatorSpec> {
 }
 
 /// `list_supported_indicators`: every `ta` name the single-symbol node can
-/// run, sorted.
+/// run, sorted, less `NOT_CATALOGUED`.
 pub fn list_supported_indicators() -> Vec<&'static str> {
     let mut names: Vec<&'static str> = library()
         .map(|spec| spec.name)
         .filter(|name| {
-            !TWO_SERIES_INDICATORS.contains(name) && !UNSUPPORTED_INDICATORS.contains(name)
+            !TWO_SERIES_INDICATORS.contains(name)
+                && !UNSUPPORTED_INDICATORS.contains(name)
+                && !NOT_CATALOGUED.contains(name)
         })
         .collect();
     names.sort_unstable();

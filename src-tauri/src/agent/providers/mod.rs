@@ -12,6 +12,8 @@
 //! - `base_url`: the one guard on a trader-supplied endpoint (D-028).
 //! - `egress`: where the Agent's HTTP client may connect (no link-local
 //!   address, no redirect), for what the text guard cannot see.
+//! - `prompt_cache`: the cache breakpoints a Claude model's requests carry
+//!   (web d941bb3b1).
 //!
 //! Desktop differences: an OpenAI-compatible endpoint takes a key when it
 //! has one and works without one, as a local server (LM Studio, vLLM,
@@ -21,10 +23,13 @@
 
 pub mod base_url;
 pub mod egress;
+pub(crate) mod prompt_cache;
 pub mod target;
 
 #[cfg(test)]
 mod egress_tests;
+#[cfg(test)]
+mod prompt_cache_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

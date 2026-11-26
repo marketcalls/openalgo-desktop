@@ -1,7 +1,7 @@
 # genai 0.7.1, vendored
 
 This is the crates.io source of genai 0.7.1 (the Agent's provider layer),
-with three local changes. `src-tauri/Cargo.toml` points `genai` here with
+with four local changes. `src-tauri/Cargo.toml` points `genai` here with
 `[patch.crates-io]`; drop the patch and this folder when a genai release
 needs none of them.
 
@@ -34,3 +34,19 @@ needs none of them.
    (`server_tool_use`). Only `ToolName::WebSearch`, genai's built-in tool, is
    the provider's search now. Pinned by
    `agent::run::tests::a_tool_named_web_search_is_sent_as_ours`.
+
+4. OpenRouter carries a message's cache mark to Claude. The Agent marks a
+   Claude model's system prompt and last message for prompt caching, as
+   the web's LiteLLM does (web d941bb3b1,
+   `agent::providers::prompt_cache`). On OpenRouter the OpenAI-format
+   adapter (`src/adapter/adapters/openai/adapter_shared.rs`) dropped the
+   mark, since genai's own cache policy there covers only OpenAI's
+   explicit-cache models. A marked message on OpenRouter now carries
+   Anthropic's `cache_control` on its last content part, as LiteLLM sends
+   it: the system message and the trader's message as text parts, the last
+   tool result of a tool message as a text part; an unmarked message, and
+   every request to any other provider, is unchanged. The mapping is the
+   Anthropic adapter's `cache_control_to_json`, made visible to the other
+   adapters (`src/adapter/adapters/anthropic/adapter_shared.rs`). Pinned
+   by `agent::chat::prompt_cache_tests` on the request body OpenRouter
+   receives.

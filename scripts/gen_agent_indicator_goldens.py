@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record the golden values the Agent's indicator port is checked against.
 
-The desktop computes the Agent's 127 indicators in Rust
+The desktop computes the Agent's 128 indicators in Rust
 (``src-tauri/src/agent/indicators``) on ``oa_core``, the Rust core of
 ``openalgo.ta``. The numbers must be the ones OpenAlgo web answers with, so
 this script runs the web's own code over fixed candles and writes what it
@@ -20,12 +20,16 @@ returns:
   every refusal sentence; its search, alias, window-sizing and rounding
   answers; and the scan condition parser's and evaluator's answers.
 
-Run it with the openalgo version the web pins (``uv.lock``), in a scratch
-virtual environment, never the web's own:
+Run it with the openalgo build the desktop's ``oa_core`` pin matches (2.0.5;
+the web's ``uv.lock`` pins 2.4.1, see below), in a scratch virtual
+environment, never the web's own, with numpy and pandas at the web's
+versions:
 
-    uv venv <scratch>/oa && VIRTUAL_ENV=<scratch>/oa uv pip install openalgo==2.0.5
-    <scratch>/oa/bin/python scripts/gen_agent_indicator_goldens.py \
-        --web ../openalgo --out src-tauri/tests/fixtures/agent_indicators
+    uv venv <scratch>/oa && VIRTUAL_ENV=<scratch>/oa uv pip install openalgo==2.0.5 \
+        numpy==2.4.4 pandas==2.3.3
+    PYTHONDONTWRITEBYTECODE=1 <scratch>/oa/bin/python -I \
+        scripts/gen_agent_indicator_goldens.py \
+        --web <private web tree> --out src-tauri/tests/fixtures/agent_indicators
 
 ``--web`` is a read-only OpenAlgo web checkout: the registry, descriptions and
 compute modules are copied from it into a temporary folder and imported from
@@ -33,10 +37,17 @@ there, so nothing is written to the checkout.
 
 One deliberate deviation is applied before anything is recorded (lead
 decision, 1.0.4): the web registers ``vi`` and ``ulcerindex`` as broken, a
-verdict measured on openalgo 2.0.3, but the 2.0.5 build the web pins computes
-both. The desktop enables them, so the registry and the ``compute()`` goldens
+verdict measured on openalgo 2.0.3, but the 2.0.5 build computes both. The desktop enables them, so the registry and the ``compute()`` goldens
 are recorded with both marked ``ok`` and their measured warm-up;
 ``registry.json`` keeps the web's original entries under ``web_overrides``.
+
+The web now pins openalgo 2.4.1 (348b7edf7) and its registry lists 128
+methods, while the desktop's numbers still follow 2.0.5. The one method 2.0.5
+lacks, ``rvi_volatility`` (2.1.0), is attached to the installed ``ta`` before
+anything is imported (``SDK_BACKPORTS``): its 2.4.1 code over the two 2.0.5
+kernels it calls, which 2.4.1 left unchanged. Recorded with 2.0.5 and
+``--web`` at 3f4c71e0f or later; ``registry.json`` lists the attached methods
+under ``backported``. The backport does nothing on a build that has the method.
 """
 
 from __future__ import annotations
@@ -100,6 +111,74 @@ def enable_desktop_entries(ta, registry, defaults, bars: dict) -> dict:
             warmup=measured_warmup(ta, registry, defaults, name, bars),
         )
     return originals
+
+
+def _rvi_volatility_2_4_1():
+    """openalgo 2.4.1's ``ta.rvi_volatility``, for a build that lacks it.
+
+    ``_backend.rvi_volatility`` and ``RVI.calculate`` (``volatility.py``) as
+    2.4.1 ships them. They call ``_backend._f``, ``stdev`` and ``ema_wilder``,
+    whose Python and ``oa_core`` kernels 2.4.1 left as 2.0.5 has them, so the
+    numbers are 2.4.1's.
+    """
+    from typing import Union
+
+    from openalgo.indicators import _backend
+    from openalgo.indicators.base import BaseIndicator
+
+    def rvi_volatility(data, stdev_period, rsi_period):
+        data = _backend._f(data)
+        deviation = _backend.stdev(data, int(stdev_period))
+        move = np.full(data.size, np.nan)
+        move[1:] = data[1:] - data[:-1]
+        known = ~np.isnan(deviation) & ~np.isnan(move)
+        up_side = _backend.ema_wilder(
+            np.where(known, np.where(move > 0, deviation, 0.0), np.nan), int(rsi_period)
+        )
+        down_side = _backend.ema_wilder(
+            np.where(known, np.where(move < 0, deviation, 0.0), np.nan), int(rsi_period)
+        )
+        total = up_side + down_side
+        with np.errstate(invalid="ignore", divide="ignore"):
+            out = np.where(total > 0, 100.0 * up_side / np.where(total > 0, total, 1.0), 50.0)
+        out[~known | np.isnan(total)] = np.nan
+        return out
+
+    class RVI(BaseIndicator):
+        def __init__(self):
+            super().__init__("RVI")
+
+        def calculate(self, data, stdev_period: int = 10, rsi_period: int = 14):
+            validated_data, input_type, index = self.validate_input(data)
+            result = rvi_volatility(validated_data, stdev_period, rsi_period)
+            return self.format_output(result, input_type, index)
+
+    indicator = RVI()
+
+    def method(
+        self,
+        data: Union[np.ndarray, pd.Series, list],
+        stdev_period: int = 10,
+        rsi_period: int = 14,
+    ) -> Union[np.ndarray, pd.Series]:
+        return indicator.calculate(data, stdev_period, rsi_period)
+
+    return method
+
+
+#: Methods of the build the web pins that the installed one lacks, by the
+#: version they come from.
+SDK_BACKPORTS = {"rvi_volatility": ("2.4.1", _rvi_volatility_2_4_1)}
+
+
+def backport_methods(ta) -> dict:
+    """Attach each backported method ``ta`` lacks; return what was attached."""
+    attached = {}
+    for name, (version, build) in SDK_BACKPORTS.items():
+        if not hasattr(ta, name):
+            setattr(type(ta), name, build())
+            attached[name] = version
+    return attached
 
 
 def load_web(web: Path, scratch: Path):
@@ -369,6 +448,18 @@ VARIANTS: dict[str, list[dict]] = {
     "hv": [{"length": 20, "annual": 252, "per": 1}, {"length": 5, "annual": 365, "per": 7}],
     "ulcerindex": [{"return_signal": True}, {"return_signal": True, "signal_type": "EMA"}],
     "starc": [{"ma_period": 6, "atr_period": 10, "multiplier": 2.0}],
+    "rvi_volatility": [
+        {"stdev_period": 5, "rsi_period": 7},
+        {"stdev_period": 1},
+        {"rsi_period": 1},
+        {"stdev_period": 0},
+        {"rsi_period": 0},
+        {"stdev_period": 400},
+        {"stdev_period": 10.7},
+        {"stdev_period": -1},
+        {"rsi_period": -2},
+        {"stdev_period": -1, "rsi_period": -2},
+    ],
     "obv_smoothed": [
         {"ma_type": "SMA"},
         {"ma_type": "SMA + Bollinger Bands"},
@@ -778,7 +869,7 @@ def record_compute(registry, compute, parse, candles) -> dict:
     }
 
 
-def record_registry(registry, descriptions, compute, defaults, originals) -> dict:
+def record_registry(registry, descriptions, compute, defaults, originals, backported) -> dict:
     specs = []
     for spec in registry.REGISTRY.values():
         specs.append({
@@ -804,6 +895,7 @@ def record_registry(registry, descriptions, compute, defaults, originals) -> dic
         })
     return {
         "openalgo": __import__("openalgo").__version__,
+        "backported": backported,
         "categories": list(registry.CATEGORIES),
         "category_counts": registry.CATEGORY_COUNTS,
         "required_param_defaults": defaults,
@@ -825,6 +917,7 @@ def main() -> None:
 
     from openalgo import ta
 
+    backported = backport_methods(ta)
     with tempfile.TemporaryDirectory() as scratch:
         registry, descriptions, compute, parse, defaults = load_web(args.web.resolve(), Path(scratch))
         args.out.mkdir(parents=True, exist_ok=True)
@@ -833,7 +926,7 @@ def main() -> None:
         originals = enable_desktop_entries(ta, registry, defaults, candles["trend"][1])
         dump(
             args.out / "registry.json",
-            record_registry(registry, descriptions, compute, defaults, originals),
+            record_registry(registry, descriptions, compute, defaults, originals, backported),
         )
         for shape, payload in record_raw(ta, registry, defaults, candles).items():
             dump(args.out / f"raw_{shape}.json", payload)

@@ -1,9 +1,9 @@
 {
   "_comment": "Generated from the web by scripts/agent/capture_web_tools.py: what the model is sent for each Agent tool. Never edit by hand.",
-  "web_commit": "dbb608e0",
+  "web_commit": "b53816a7",
   "tools": {
     "read_chart": {
-      "description": "Report what is on the chart right now. Draws nothing, fetches nothing.\nEverything here came with the operator's message, so this call is free\nand instant. Use it before commenting on the operator's own drawings,\nbefore deciding whether your markup is still on screen, and whenever you\nneed the exact indicator settings or the drawing anchors, which the\nsession summary does not carry.\n\nReach for it only when you need those lists. The instrument, the\ninterval, the viewport and the last price are already stated in your\nTHIS SESSION instructions.",
+      "description": "Report what is on the chart right now. Draws nothing, fetches nothing.\nEverything here came with the operator's message, so this call is free\nand instant. Use it before commenting on the operator's own drawings,\nbefore deciding whether your markup is still on screen, and whenever you\nneed the exact indicator settings or the drawing anchors, which the\nsession summary does not carry.\n\nReach for it only when you need those lists. The instrument, the\ninterval, the viewport and the last price are already stated in your\nRIGHT NOW instructions.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -120,7 +120,7 @@
       "needs_approval": false
     },
     "list_chart_indicators": {
-      "description": "List the indicators this chart can DRAW.\nThese are not the indicators that compute values. The chart draws with\n``openalgo-charts``, a JavaScript library of 112 indicators, while\n``compute_indicator`` and its siblings use the Rust-backed Python\nlibrary of 127. Only 40 indicators exist in both, four of them spelled\nwith a hyphen here and an underscore there (``aroon-oscillator`` is\n``aroon_oscillator``), so AlphaTrend and HalfTrend\ncan be drawn and never tabulated, and ``bbands`` and ``adxr`` can be\ntabulated and never drawn. Consult THIS list before saying an indicator\nis unavailable on the chart, because the other one will not have it.\n\nThe operator may also have written their own indicators, which the chart\nloads at runtime from ``strategies/indicators/``. Those cannot appear\nhere, so a name absent from this list is worth trying rather than\nrefusing: the chart checks its own registry and ignores what it does not\nrecognise.",
+      "description": "List the indicators this chart can DRAW.\nThese are not the indicators that compute values. The chart draws with\n``openalgo-charts``, a JavaScript library of 112 indicators, while\n``compute_indicator`` and its siblings use the Rust-backed Python\nlibrary of 128. Only 40 indicators exist in both, four of them spelled\nwith a hyphen here and an underscore there (``aroon-oscillator`` is\n``aroon_oscillator``), so AlphaTrend and HalfTrend\ncan be drawn and never tabulated, and ``bbands`` and ``adxr`` can be\ntabulated and never drawn. Consult THIS list before saying an indicator\nis unavailable on the chart, because the other one will not have it.\n\nThe operator may also have written their own indicators, which the chart\nloads at runtime from ``strategies/indicators/``. Those cannot appear\nhere, so a name absent from this list is worth trying rather than\nrefusing: the chart checks its own registry and ignores what it does not\nrecognise.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -410,7 +410,7 @@
       "needs_approval": false
     },
     "list_indicators": {
-      "description": "List the technical indicators that can be computed, by keyword or category.\nThere are 127. Confirm a name here before computing it rather than\nguessing from memory: several are named differently from the textbook\n(the Relative Vigor Index is ``rvi``, the Ultimate Oscillator is\n``ultimate_oscillator``), and a guessed name costs a whole round trip.",
+      "description": "List the technical indicators that can be computed, by keyword or category.\nThere are 128. Confirm a name here before computing it rather than\nguessing from memory: several are named differently from the textbook\n(the Relative Vigor Index is ``rvi``, the Relative Volatility Index is\n``rvi_volatility`` and the Ultimate Oscillator is\n``ultimate_oscillator``), and a guessed name costs a whole round trip.",
       "parameters": {
         "type": "object",
         "properties": {

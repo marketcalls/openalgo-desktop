@@ -1,15 +1,19 @@
-//! `from openalgo import ta` in Rust: the 127 callables the Agent's
-//! indicator tools compute with, giving the numbers OpenAlgo web gives.
+//! `from openalgo import ta` in Rust: the 128 callables the Agent's
+//! indicator tools compute with, giving the numbers of openalgo 2.0.5, the
+//! build `oa_core` is pinned to.
 //!
-//! The web runs the `openalgo` package its `uv.lock` pins (2.0.5). Its
-//! indicator classes validate their arguments and then either call one
-//! kernel of the compiled Rust core (`openalgo._oaindicators`, a thin PyO3
-//! wrapper over `oa_core`) or compose several kernels with NumPy in
-//! `indicators/_backend.py`. Here the kernels are the same `oa_core`
-//! functions, pinned to the same commit, and each composition and each check
-//! is ported line for line from the installed package, in the order the
-//! Python runs it, so the first error raised is the same one and carries the
-//! same sentence.
+//! The web's `uv.lock` pins 2.4.1 since its 348b7edf7. Of what 2.4.1
+//! changed, only `rvi_volatility` is here; `crate::agent::indicators` lists
+//! the rest, which still gives 2.0.5's numbers.
+//!
+//! The package's indicator classes validate their arguments and then either
+//! call one kernel of the compiled Rust core (`openalgo._oaindicators`, a
+//! thin PyO3 wrapper over `oa_core`) or compose several kernels with NumPy
+//! in `indicators/_backend.py`. Here the kernels are the same `oa_core`
+//! functions, pinned to 2.0.5's commit, and each composition and each check
+//! is ported line for line from that package, in the order the Python runs
+//! it, so the first error raised is the same one and carries the same
+//! sentence.
 //!
 //! | Module | What lives there |
 //! | --- | --- |
@@ -18,8 +22,8 @@
 //! | `utils` | the 13 helpers (`crossover`, `exrem`, `valuewhen`, ...) |
 //! | here | the argument and error types, the shared checks, the dispatch |
 //!
-//! Golden values recorded from the web's installed package pin every method:
-//! `src-tauri/tests/fixtures/agent_indicators/raw_*.json`.
+//! Golden values recorded from that package (and 2.4.1's `rvi_volatility`)
+//! pin every method: `src-tauri/tests/fixtures/agent_indicators/raw_*.json`.
 
 mod hybrid;
 mod momentum;

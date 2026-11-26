@@ -1,8 +1,8 @@
-//! The Agent's technical indicators: the 127 `openalgo.ta` callables, with
-//! the numbers OpenAlgo web gives, behind the pure functions the indicator
-//! tools call. Ported from the web's `services/agent/indicators/` (registry,
-//! descriptions, compute) and the pure parts of
-//! `services/agent/tools/indicators.py`.
+//! The Agent's technical indicators: the 128 `openalgo.ta` callables, with
+//! the numbers of openalgo 2.0.5 (the web's are 2.4.1's: see below), behind
+//! the pure functions the indicator tools call. Ported from the web's
+//! `services/agent/indicators/` (registry, descriptions, compute) and the
+//! pure parts of `services/agent/tools/indicators.py`.
 //!
 //! Nothing here touches the network, the database or the clock: candles
 //! arrive as the cleaned frame the tool fetched
@@ -24,8 +24,17 @@
 //!
 //! Deviation from the web, by the lead's decision for 1.0.4: `vi` and
 //! `ulcerindex` compute. The web refuses them as broken, a verdict measured
-//! on openalgo 2.0.3; the 2.0.5 build the web pins computes both, and their
-//! golden values are recorded from it.
+//! on openalgo 2.0.3; the 2.0.5 build computes both, and their golden values
+//! are recorded from it.
+//!
+//! The numbers are openalgo 2.0.5's, the build `oa_core` is pinned to. The
+//! web pins 2.4.1 since 348b7edf7 (2.3.0 from 4d9249160, 2.4.0 from
+//! c8b2896ca). Of what 2.1.0 to 2.4.1 changed, only the 128th method is
+//! here: `rvi_volatility`, 2.4.1's code over the two kernels it calls, which
+//! 2.4.1 left as 2.0.5 has them, so its numbers are the web's. Not carried
+//! yet: 2.4.1's `psar` (its kernel, and `return_trend`), `vwap` and
+//! `pivot_points` anchored on bar times, and the NaN windows of `cmf`,
+//! `cmo`, `dema`, `fisher`, `frama`, `mfi`, `rvi` and `tema`.
 
 mod coerce;
 mod compute;

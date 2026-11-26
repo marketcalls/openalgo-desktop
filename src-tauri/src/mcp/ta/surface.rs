@@ -212,8 +212,9 @@ const SIGS: &[Sig] = &[
 /// Largest magnitude of a scalar indicator parameter.
 pub const MAX_PARAM: f64 = 1_000_000.0;
 
-/// Every public function of the web's `openalgo.ta` (2.0.5), so a name the
-/// desktop does not compute yet is told apart from one that does not exist.
+/// Every public function of the web's `openalgo.ta` (2.4.1, web 348b7edf7:
+/// 2.0.5's 127 and `rvi_volatility`), so a name the desktop does not compute
+/// yet is told apart from one that does not exist.
 pub const WEB_TA_FUNCTIONS: &[&str] = &[
     "accelerator_oscillator",
     "adl",
@@ -309,6 +310,7 @@ pub const WEB_TA_FUNCTIONS: &[&str] = &[
     "rocr100",
     "rsi",
     "rvi",
+    "rvi_volatility",
     "rvol",
     "rwi",
     "sma",
