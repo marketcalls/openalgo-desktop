@@ -4,6 +4,7 @@
 //! priced under a plan.
 
 use super::{read_plan, stored_configs};
+use crate::brokers::common::python::truthy;
 use crate::sandbox::charges::{
     brokerage_flat_key, brokerage_percent_key, config_keys, describe_brokerage,
     estimate_round_trip, is_enabled, plain, segment, segments_for, to_decimal, validate_brokerage,
@@ -75,18 +76,6 @@ fn segment_json(s: &Segment, flat: Decimal, percent: Decimal) -> Value {
     })
 }
 
-/// Python truthiness of a JSON value (`payload.get("segments") or {}`).
-fn truthy(v: Option<&Value>) -> bool {
-    match v {
-        None | Some(Value::Null) => false,
-        Some(Value::Bool(b)) => *b,
-        Some(Value::Number(n)) => n.as_f64().is_some_and(|f| f != 0.0),
-        Some(Value::String(s)) => !s.is_empty(),
-        Some(Value::Array(a)) => !a.is_empty(),
-        Some(Value::Object(o)) => !o.is_empty(),
-    }
-}
-
 /// The values a save would write, checked whole before anything is written,
 /// or the sentence for the trader (web `save_charge_settings`). Segments not
 /// named keep their values.
@@ -109,6 +98,7 @@ pub(crate) fn values_to_save(payload: &Value) -> Result<Vec<(String, String)>, S
     }
     let unreadable = || "Nothing was saved: the brokerage plan could not be read.".to_string();
     let empty = Map::new();
+    // Python's `payload.get("segments") or {}`.
     let segments = if truthy(payload.get("segments")) {
         payload
             .get("segments")
