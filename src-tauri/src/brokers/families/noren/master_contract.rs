@@ -431,6 +431,17 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
             "BSE master has no Exchange column; stale rows are kept"
         );
     }
+    // Without the column every tick reads as 0, so the drop would take
+    // every BSE equity and the download would still pass its MC-02 check
+    // on the two manual index rows; the rows are kept (tick 0, as before
+    // the drop and as every other file without the column) and warned.
+    let drop_untradable = exchange == "BSE" && cfg.bse_drop_zero_tick;
+    if drop_untradable && c.tick.is_none() {
+        tracing::warn!(
+            broker = cfg.id,
+            "BSE master has no TickSize column; rows without a tick size are kept"
+        );
+    }
     let mut dropped = Dropped::default();
     let mut out = Vec::new();
     for line in lines {
@@ -460,7 +471,7 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
             continue;
         }
         let base = base_row(cfg, exchange, token, &t, &get(c.lot), &get(c.tick));
-        if exchange == "BSE" && cfg.bse_drop_zero_tick && !has_tick(&base) {
+        if drop_untradable && c.tick.is_some() && !has_tick(&base) {
             dropped.untradable += 1;
             continue;
         }

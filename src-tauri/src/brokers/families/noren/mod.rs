@@ -289,7 +289,9 @@ pub struct NorenConfig {
     /// Drop BSE master rows with no tick size (tradesmart, web #2475, QA
     /// MC-03): placeholder rows (WEAL, MFLS2, MFLS3, INVE) that share the
     /// trading symbol `12:`, which cannot be traded or addressed by symbol
-    /// and were stored as duplicates.
+    /// and were stored as duplicates. A file without the `TickSize` column
+    /// keeps its rows (warned): every tick would read 0 and the drop would
+    /// take every BSE equity.
     pub bse_drop_zero_tick: bool,
     pub bfo_naming: BfoNaming,
     /// OpenAlgo interval -> Noren `intrv` (`D` is the EOD endpoint).

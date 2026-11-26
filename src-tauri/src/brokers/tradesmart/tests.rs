@@ -105,6 +105,23 @@ fn bse_rows_without_a_tick_are_skipped_and_the_bse_indices_are_eq() {
     }
 }
 
+/// A BSE file without a `TickSize` column reads every tick as 0. Dropping
+/// on that stored no BSE equity, and the two manual index rows still
+/// passed the download's MC-02 check, so the master was replaced without
+/// them. The rows are kept with tick 0 (as before the drop, and as the
+/// Exchange-column guard keeps Flattrade's stale rows) and the gap warned.
+#[test]
+fn bse_rows_are_kept_when_the_file_has_no_tick_size_column() {
+    let no_column = "Exchange,Token,LotSize,Symbol,TradingSymbol,Instrument,\n\
+                     BSE,500325,1,RELIANCE,RELIANCE,A,\n\
+                     BSE,532822,1,IDEA,IDEA,A,\n";
+    let rows = parse_file(config(), "BSE", no_column);
+    assert_eq!(rows.len(), 4, "two equities and two indices: {rows:?}");
+    for symbol in ["RELIANCE", "IDEA"] {
+        assert_eq!(row(&rows, "BSE", symbol).tick_size, 0.0);
+    }
+}
+
 /// QA MC-03: the BFO `Symbol` column holds codes (BSXOPT, SX50FUT), and a
 /// letters-only match on the trading symbol cut SENSEX50 to SENSEX (its
 /// futures collided with SENSEX's), M&M to M, BAJAJ-AUTO to BAJAJ, and
