@@ -23,8 +23,11 @@ fifteen minute read spelled "15m" on an hourly chart, and trades on it", on
 the real compiler and engine with only the network replaced. It fails with
 the web's probe host (checked by putting `{ instrument, requestBars }` back:
 OS6002) and with the web's old comparison (OS6002), and passes with both
-fixes. `backtestRun.test.ts` replaces `load`, so the web's two new tests
-there pass either way.
+fixes. The web's two new tests in `backtestRun.test.ts` replace `load` with
+one that asks for the read whatever the host, so they pass whether or not
+the probe has an order route: they cannot catch the defect above. They do
+catch the old comparison: with it put back, the first of them fails,
+"expected [ '1h' ] to deeply equal [ '1h', '15m' ]".
 
 ## 2. A comment left on the old comparison
 
