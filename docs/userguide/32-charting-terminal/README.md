@@ -157,7 +157,9 @@ grows to that.
 The name at the top of the panel opens the list menu: create, copy, rename,
 import, export, clear or delete a list, and switch between your lists. **+**
 adds an instrument. Drag a row to reorder the list. Hover a row and use the
-bin to remove it, or select the row and press `Delete`.
+bin to remove it, or select the row and press `Delete`. On a Mac laptop
+keyboard that is `fn` + `delete`: the delete key alone acts as Backspace and
+leaves the row in the list.
 
 While the market is open the prices come from the live feed. When the feed is
 unavailable or the market is closed, the panel says so at the bottom and shows
