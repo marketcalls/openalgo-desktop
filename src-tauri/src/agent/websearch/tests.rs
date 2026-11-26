@@ -64,7 +64,12 @@ pub struct OnFake;
 
 impl OnFake {
     pub fn new(fake: &FakeServer, places: usize) -> OnFake {
-        super::providers::set_test_net(Some(net_on(fake, places)));
+        OnFake::with(net_on(fake, places))
+    }
+
+    /// Point at `net`, whose gate the test holds a handle to.
+    pub fn with(net: Net) -> OnFake {
+        super::providers::set_test_net(Some(net));
         OnFake
     }
 }

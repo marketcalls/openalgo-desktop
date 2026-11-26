@@ -149,11 +149,26 @@ fn failure<T: serde::Serialize>(provider: &str, payload: &T) -> ToolOutcome {
 }
 
 fn busy(outcome: &Outcome, notices: &[String]) -> ToolOutcome {
-    let mut p = NotOk::new("platform_busy", outcome.error.clone()).by(outcome.provider);
-    if !notices.is_empty() {
-        p = p.with_notices(notices);
+    ToolOutcome::json_ordered(&busy_payload(outcome, notices))
+}
+
+/// A busy gate's answer after another page provider failed in the same
+/// call. That failure rides in the notices, and TinyFish quotes its own
+/// reason there, so the answer is wrapped as third-party text like the
+/// failure itself (D-020). A link search's notices carry only this app's
+/// own sentences about a provider (`providers::status_message`), so its
+/// busy answer stays the web's bare one.
+fn busy_after_failure(outcome: &Outcome, notices: &[String]) -> ToolOutcome {
+    failure(outcome.provider, &busy_payload(outcome, notices))
+}
+
+fn busy_payload<'a>(outcome: &'a Outcome, notices: &'a [String]) -> NotOk<'a> {
+    let p = NotOk::new("platform_busy", outcome.error.clone()).by(outcome.provider);
+    if notices.is_empty() {
+        p
+    } else {
+        p.with_notices(notices)
     }
-    ToolOutcome::json_ordered(&p)
 }
 
 fn blocked(tool: &str) -> ToolOutcome {

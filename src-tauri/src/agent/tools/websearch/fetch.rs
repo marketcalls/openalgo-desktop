@@ -13,7 +13,7 @@
 
 use super::args::{fetch_chars, offset};
 use super::run_state::{bounded_text, Page};
-use super::{busy, failure, keyed_in_order, mark_used, or_list, WebTool};
+use super::{busy, busy_after_failure, failure, keyed_in_order, mark_used, or_list, WebTool};
 use crate::agent::contract::json::dumps_capped_ordered;
 use crate::agent::contract::tool::{ToolCtx, ToolOutcome};
 use crate::agent::prompts::untrusted::wrap_web_result;
@@ -164,7 +164,8 @@ impl WebTool {
     /// Ask each candidate in turn until one reads the page. A second
     /// provider is a second paid request, so the budget is asked again
     /// first; every request that went out and failed counts against the
-    /// turn. `Err` is a busy gate's answer (nothing falls back); `Ok(None)`
+    /// turn. `Err` is a busy gate's answer (nothing falls back), wrapped
+    /// when an earlier candidate's failure is in its notices; `Ok(None)`
     /// only when there was no candidate.
     async fn read_page(
         &self,
@@ -182,7 +183,12 @@ impl WebTool {
             let o = keyed::fetch_with(&self.shared.net, name, url, key).await;
             mark_used(&ctx.app, &o).await;
             if o.busy {
-                return Err(busy(&o, notices.as_slice()));
+                // A provider that failed before this one is in the notices.
+                return Err(if index == 0 {
+                    busy(&o, notices.as_slice())
+                } else {
+                    busy_after_failure(&o, notices.as_slice())
+                });
             }
             if o.ok {
                 return Ok(Some(self.after_redirect(o)));

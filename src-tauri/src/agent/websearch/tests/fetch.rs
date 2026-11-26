@@ -281,6 +281,56 @@ async fn a_busy_gate_on_fetch_is_this_app_and_spends_nothing() {
     assert_eq!(usage(&t), 0);
 }
 
+/// Desktop (review finding 2, D-020): TinyFish's own reason for a page it
+/// could not read is third-party text. When Firecrawl's gate is then busy,
+/// the answer carries that reason in its notices, so it is wrapped like
+/// the failure it quotes. The test takes the gate's one place the moment
+/// TinyFish lets it go, so Firecrawl's wait runs out.
+#[tokio::test]
+async fn a_busy_gate_after_tinyfish_failed_wraps_its_reason() {
+    let t = ctx();
+    let fake = FakeServer::start().await;
+    let net = net_on(&fake, 1);
+    let gate = net.gate.clone();
+    let _on = OnFake::with(net);
+    let refused = json!({"results": [], "errors": [{"url": SCREENER, "error": "the site refused the crawler"}]});
+    fake.script(
+        TINYFISH_FETCH,
+        vec![Answer::json(200, refused).after(std::time::Duration::from_millis(300))],
+    );
+    configure(&t, json!({"fetch_provider": "tinyfish"}));
+    let k = kit(&t, &typed(SCREENER), &["firecrawl", "tinyfish"], 10);
+    let done = tokio::sync::Notify::new();
+    let (answer, ()) = tokio::join!(
+        async {
+            let answer = k.fetch(json!({"url": SCREENER})).await;
+            done.notify_one();
+            answer
+        },
+        async {
+            for _ in 0..400 {
+                if !fake.seen_at(TINYFISH_FETCH).is_empty() {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            let _place = gate.acquire().await.unwrap();
+            done.notified().await;
+        }
+    );
+    let (open, body) = read(&answer);
+    assert_eq!(
+        open,
+        "<web_result provider=\"firecrawl\" trust=\"third-party\" kind=\"error\">"
+    );
+    assert_eq!(body["error"], "platform_busy");
+    assert_eq!(
+        body["notices"],
+        json!(["TinyFish could not read the page (the site refused the crawler). Firecrawl was tried instead."])
+    );
+    assert!(fake.seen_at(FIRECRAWL_SCRAPE).is_empty());
+}
+
 /// Web `test_perplexity_borrows_firecrawl_for_links_when_tavily_has_no_key`.
 #[tokio::test]
 async fn perplexity_borrows_firecrawl_for_links_when_tavily_has_no_key() {
