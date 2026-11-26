@@ -13,12 +13,13 @@ use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::pocketful::PocketfulBroker;
 use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
-use openalgo_desktop_lib::websocket::{FeedConfig, WebSocketManager};
+use openalgo_desktop_lib::websocket::{handshake, FeedConfig, WebSocketManager};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
+use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
+use tokio_tungstenite::tungstenite::http::StatusCode;
 
 /// The access token's sentinel (no real credential).
 const S: &str = "SENTINELq7Zx";
@@ -62,19 +63,23 @@ fn closed_port() -> u16 {
 }
 
 /// A Pocketful whose sockets answer the upgrade with 401, the token in the
-/// body (as a server echoing the request might).
+/// body (as a server echoing the request might). The upgrade request is read
+/// before the refusal goes out: a fake that answered without reading it and
+/// closed made Windows reset the connection, so the client saw a reset and
+/// never the 401.
 async fn refusing() -> String {
     let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("ws://{}", l.local_addr().unwrap());
     tokio::spawn(async move {
-        while let Ok((mut stream, _)) = l.accept().await {
-            let body = format!("bad access_token={}", S);
-            let reply = format!(
-                "HTTP/1.1 401 Unauthorized\r\ncontent-length: {}\r\n\r\n{}",
-                body.len(),
-                body
-            );
-            let _ = stream.write_all(reply.as_bytes()).await;
+        while let Ok((stream, _)) = l.accept().await {
+            tokio::spawn(async move {
+                let refuse = handshake::check(|_: &Request, _: Response| {
+                    let mut resp = ErrorResponse::new(Some(format!("bad access_token={}", S)));
+                    *resp.status_mut() = StatusCode::UNAUTHORIZED;
+                    Err(Box::new(resp))
+                });
+                let _ = tokio_tungstenite::accept_hdr_async(stream, refuse).await;
+            });
         }
     });
     url
