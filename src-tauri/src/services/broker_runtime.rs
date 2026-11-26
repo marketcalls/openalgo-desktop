@@ -46,7 +46,8 @@ use tokio::task::JoinSet;
 
 mod catch_up;
 mod limits;
-pub use catch_up::{catch_up_orders, CatchUpSession, OrderCatchUp, SessionDay};
+use catch_up::SessionDay;
+pub use catch_up::{catch_up_orders, CatchUpSession, OrderCatchUp};
 pub use limits::{deep_book_timeout, pool_limits};
 #[cfg(test)]
 mod relay_tests;

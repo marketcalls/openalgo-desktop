@@ -174,7 +174,7 @@ fn last_rows(book: &[Order]) -> Vec<&Order> {
 /// The trading day of a session authenticated at `at`: current until the
 /// next daily boundary (`hour`:`minute` IST) passes.
 #[derive(Clone)]
-pub struct SessionDay {
+pub(crate) struct SessionDay {
     clock: Arc<dyn Clock>,
     at: DateTime<Utc>,
     hour: u32,
@@ -182,7 +182,7 @@ pub struct SessionDay {
 }
 
 impl SessionDay {
-    pub fn new(clock: Arc<dyn Clock>, at: DateTime<Utc>, hour: u32, minute: u32) -> Self {
+    pub(crate) fn new(clock: Arc<dyn Clock>, at: DateTime<Utc>, hour: u32, minute: u32) -> Self {
         Self {
             clock,
             at,
@@ -192,13 +192,13 @@ impl SessionDay {
     }
 
     /// Whether the session's daily boundary has not passed yet.
-    pub fn current(&self) -> bool {
+    pub(crate) fn current(&self) -> bool {
         is_fresh(self.at, self.clock.now(), self.hour, self.minute)
     }
 
     /// The feed's connect gate: no connect once the day has ended, with
     /// what the trader does about it.
-    pub fn gate(self, broker: &'static str) -> ConnectGate {
+    pub(crate) fn gate(self, broker: &'static str) -> ConnectGate {
         Arc::new(move || {
             (!self.current()).then(|| {
                 format!(
