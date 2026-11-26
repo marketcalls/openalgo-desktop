@@ -424,7 +424,7 @@ export async function runBacktest(request: BacktestRequest): Promise<BacktestOut
   }
   const inputs = (request.inputs ?? {}) as Record<string, unknown>
 
-  const served = await servedFor(program, inputs, instrument, request)
+  const served = await servedFor(program, inputs, instrument, priced, request)
   if (typeof served === 'string') return refused(served)
 
   const folded = await fold(
@@ -530,6 +530,19 @@ interface AskedRead {
  * this thread. A read of the chart's own instrument whose `interval` is its
  * `timeframe` folds from the chart's bars and needs nothing.
  *
+ * **Desktop: the probe is the run's host, less the bars.** It states the
+ * contract's symbol and exchange and has an order route, as the host the
+ * engine's backtest builds does (its `instrumentFor` and `hostFor`), so it is
+ * asked exactly what the run will ask. Without a route a strategy that places
+ * orders is refused before any read is planned (OS6006 for `orders`), and
+ * nothing was fetched; without the identity a read of the chart's own
+ * instrument names none, and a `req.symbol` read names no exchange where the
+ * run names the chart's, so the bars fetched for it are never served and the
+ * read is absent on every bar with nothing said. Nothing runs at load, so the
+ * route is never called. A probe the engine refuses needs nothing: the run is
+ * refused with the same diagnostic. Web 264b3c2a7 has the probe without either
+ * (review of the 1.0.10 port).
+ *
  * A series that cannot be fetched is left out rather than stopping the run: its
  * read is absent with the engine's own reason, as on a chart.
  */
@@ -537,15 +550,17 @@ async function servedFor(
   program: unknown,
   inputs: Record<string, unknown>,
   instrument: RunInstrument,
+  contract: BacktestMessage['contract'],
   request: BacktestRequest
 ): Promise<ServedBars[] | string> {
   const asked: AskedRead[] = []
   try {
     const engine = await import('openalgo-script')
-    engine.load(program, {
+    const probed = engine.load(program, {
       settings: inputs,
       host: {
-        instrument,
+        instrument: { ...instrument, symbol: contract.symbol, exchange: contract.exchange },
+        route: () => undefined,
         requestBars: ((query: AskedRead) => {
           asked.push(query)
           return { pending: true }
@@ -554,6 +569,7 @@ async function servedFor(
         >['requestBars'],
       },
     })
+    if (!probed.ok) return []
   } catch {
     return []
   }
