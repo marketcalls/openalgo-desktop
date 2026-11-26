@@ -25,6 +25,7 @@ use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 macro_rules! fixture {
     ($b:literal, $name:literal) => {
@@ -53,6 +54,9 @@ struct Fake {
     /// Path leaves answered 200 with this body instead (an empty or
     /// header-only master file).
     bodies: Mutex<Vec<(&'static str, &'static str)>>,
+    /// Path leaves sent in pieces spread over this long (a slow line that
+    /// never pauses as long as the client's read timeout).
+    slow: Mutex<Vec<(&'static str, Duration)>>,
     /// TPSeries answered from these bars by the requested range.
     series: Mutex<Option<Series>>,
 }
@@ -146,8 +150,31 @@ fn zipped(text: &str, name: &str) -> Response {
     (StatusCode::OK, zip::build(name, text.as_bytes(), true)).into_response()
 }
 
+/// The last segment of a request path (`.../NSE_symbols.txt.zip`).
+fn leaf_of(path: &str) -> &str {
+    path.rsplit('/').find(|s| !s.is_empty()).unwrap_or("")
+}
+
+/// `resp` as a slow line sends it: in ten pieces, each after a pause, the
+/// last at `over`.
+async fn trickle(resp: Response, over: Duration) -> Response {
+    use futures_util::StreamExt;
+    let (parts, body) = resp.into_parts();
+    let whole = axum::body::to_bytes(body, usize::MAX).await.unwrap();
+    let pieces: Vec<Bytes> = whole
+        .chunks(whole.len().div_ceil(10).max(1))
+        .map(Bytes::copy_from_slice)
+        .collect();
+    let pause = over / pieces.len().max(1) as u32;
+    let body = futures_util::stream::iter(pieces).then(move |piece| async move {
+        tokio::time::sleep(pause).await;
+        Ok::<_, std::io::Error>(piece)
+    });
+    Response::from_parts(parts, axum::body::Body::from_stream(body))
+}
+
 fn route(fake: &Fake, path: &str, body: &Value) -> Response {
-    let leaf = path.rsplit('/').find(|s| !s.is_empty()).unwrap_or("");
+    let leaf = leaf_of(path);
     if fake.down.lock().contains(&leaf) {
         return (StatusCode::NOT_FOUND, "down").into_response();
     }
@@ -301,7 +328,17 @@ async fn serve(fake: Arc<Fake>) -> String {
                 jdata: jdata.clone(),
                 jkey,
             });
-            route(&fake, &path, &jdata)
+            let resp = route(&fake, &path, &jdata);
+            let slow = fake
+                .slow
+                .lock()
+                .iter()
+                .find(|(l, _)| *l == leaf_of(&path))
+                .map(|(_, over)| *over);
+            match slow {
+                Some(over) => trickle(resp, over).await,
+                None => resp,
+            }
         }
     });
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -1266,6 +1303,34 @@ async fn flattrade_keeps_the_fixed_tick_where_a_shoonya_file_fails() {
     for ex in ["NSE", "BSE", "NFO", "CDS", "MCX", "BFO"] {
         assert!(rows.iter().any(|r| r.exchange == ex), "{}", ex);
     }
+}
+
+/// Review of web #2508: the web's `requests.get(url, timeout=30)` limits
+/// the connect and each read, not the whole file, and the web waits its
+/// 120 s only after Flattrade's own files. The desktop gave each Shoonya
+/// file 30 s in all, so on a slow line a file still arriving at 30 s was
+/// dropped and its segment kept the fixed tick (RELIANCE 0.05, where
+/// Flattrade ticks it in 0.10). A file that keeps sending is read to its
+/// end: here Shoonya's NSE file takes 33 s, never pausing near the
+/// client's 30 s read timeout.
+#[tokio::test]
+async fn a_shoonya_file_slower_than_thirty_seconds_still_gives_its_ticks() {
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.bodies
+        .lock()
+        .push(("NSE_Equity.csv", FLATTRADE_NSE_WITH_RELIANCE));
+    fake.slow
+        .lock()
+        .push(("NSE_symbols.txt.zip", Duration::from_secs(33)));
+    let start = Instant::now();
+    let rows = b.download_master_contract(&auth).await.unwrap();
+    assert!(
+        start.elapsed() >= Duration::from_secs(30),
+        "the NSE file came in {:?}, inside the old limit",
+        start.elapsed()
+    );
+    assert_eq!(tick_of(&rows, "RELIANCE", "NSE"), 0.10);
+    assert_eq!(tick_of(&rows, "NIFTY27OCT26FUT", "NFO"), 0.10);
 }
 
 /// Web #2508 changes Flattrade alone: Shoonya, Zebu and TradeSmart fetch

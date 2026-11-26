@@ -20,66 +20,104 @@
 //! stock ticking in 0.05 is stored there with a tick of 5. That is a web
 //! defect and is not copied.
 
-use super::{fetch_file, tick_size, Fetch, NorenBroker, NorenConfig};
+use super::{fetch_file, tick_size, NorenBroker, NorenConfig};
 use crate::brokers::common::master_contract::{split_csv_line, CsvHeader};
 use crate::brokers::common::symbols::SymToken;
+use crate::error::Result;
 use std::collections::HashMap;
+use std::future::Future;
 use std::time::Duration;
+use tokio_util::task::AbortOnDropHandle;
 
-/// How long the source's files may take in all (the web's
-/// `_TICK_WAIT_SECONDS`); a download that has not finished by then keeps
-/// every row's own tick.
+/// How long the download waits for the source's files once the member's
+/// own files are in: the web's `_TICK_WAIT_SECONDS`, which it starts only
+/// after downloading and processing Flattrade's files. Files not read by
+/// then leave every row its own tick.
+///
+/// Each file of the source is fetched as the member's own are
+/// (`fetch_file`): the web's `requests.get(url, timeout=30)` limits the
+/// connect and each read, not the whole file, and the shared client
+/// applies that to every request (30 s per read; 10 s to connect, where
+/// the web gives 30). The whole file has `DOWNLOAD_TIMEOUT`, the budget
+/// Shoonya's own master download gives these same files; the web sets no
+/// such limit.
 const WAIT: Duration = Duration::from_secs(120);
-
-/// One file of the source, with the web's 30 seconds
-/// (`requests.get(url, timeout=30)`).
-const FILE: Fetch = Fetch {
-    label: "Tick file",
-    timeout: Duration::from_secs(30),
-};
 
 /// The exchange tick of each token, by exchange (`NSE`, `NFO`, ...), then
 /// token, as the source's files give them.
 pub(super) type Ticks = HashMap<String, HashMap<String, f64>>;
 
-/// The member's tick source's ticks: none when it has no source, or when
-/// the files did not all come within `WAIT` (logged).
-pub(super) async fn read(b: &NorenBroker) -> Ticks {
+/// The member's own download (`own`) and its tick source's ticks, read
+/// beside it: none when it has no source, or when the files were not read
+/// in time (logged). A refused download takes no ticks.
+pub(super) async fn beside<T>(
+    b: &NorenBroker,
+    own: impl Future<Output = Result<T>>,
+) -> Result<(T, Ticks)> {
     let Some(source) = b.cfg.tick_source else {
-        return Ticks::new();
+        return Ok((own.await?, Ticks::new()));
     };
-    match tokio::time::timeout(WAIT, read_files(b, source)).await {
-        Ok(ticks) => ticks,
-        Err(_) => {
-            tracing::warn!(
-                broker = b.cfg.id,
-                "Tick sizes: {}'s files were not ready; keeping the default ticks",
-                source.name
-            );
-            Ticks::new()
-        }
-    }
+    let read = read_files(
+        b.http.clone(),
+        b.cfg.id,
+        source,
+        b.endpoints.tick_urls.clone(),
+    );
+    let (own, ticks) = then_wait(own, read).await?;
+    let ticks = ticks.unwrap_or_else(|| {
+        tracing::warn!(
+            broker = b.cfg.id,
+            "Tick sizes: {}'s files were not ready; keeping the default ticks",
+            source.name
+        );
+        Ticks::new()
+    });
+    Ok((own, ticks))
+}
+
+/// `own`, with `read` running beside it in a task of its own (the web's one
+/// tick worker), so parsing the member's files never holds the source's
+/// download up; then `WAIT` more for `read` once `own` is done, which is
+/// when the web starts its wait. `None` when `read` was not done by then
+/// or ended without an answer. The task ends with this call: `own`
+/// failing, the wait running out or the download being dropped aborts it.
+async fn then_wait<T, R: Send + 'static>(
+    own: impl Future<Output = Result<T>>,
+    read: impl Future<Output = R> + Send + 'static,
+) -> Result<(T, Option<R>)> {
+    let mut read = AbortOnDropHandle::new(tokio::spawn(read));
+    let own = own.await?;
+    let read = tokio::time::timeout(WAIT, &mut read)
+        .await
+        .ok()
+        .and_then(|joined| joined.ok());
+    Ok((own, read))
 }
 
 /// Each of the source's files in turn, as the web's one worker fetches
 /// them. A file that fails or cannot be read is logged and skipped: its
 /// segment keeps the member's own tick.
-async fn read_files(b: &NorenBroker, source: &NorenConfig) -> Ticks {
+async fn read_files(
+    http: reqwest::Client,
+    broker: &'static str,
+    source: &'static NorenConfig,
+    urls: Vec<String>,
+) -> Ticks {
     let mut ticks = Ticks::new();
-    for (file, url) in source.master_files.iter().zip(&b.endpoints.tick_urls) {
-        let Some(text) = fetch_file(b, file, url, FILE).await else {
+    for (file, url) in source.master_files.iter().zip(&urls) {
+        let Some(text) = fetch_file(&http, broker, file, url, "Tick file").await else {
             continue;
         };
         match parse_into(source, &text, &mut ticks) {
             Some(read) => tracing::info!(
-                broker = b.cfg.id,
+                broker,
                 "Tick sizes: {} {} ticks read from {}",
                 read,
                 file.exchange,
                 source.name
             ),
             None => tracing::warn!(
-                broker = b.cfg.id,
+                broker,
                 "Tick sizes: {}'s {} file has no Exchange, Token and TickSize columns",
                 source.name,
                 file.exchange

@@ -16,7 +16,6 @@ use crate::brokers::common::master_contract::{
 use crate::brokers::common::symbols::SymToken;
 use crate::error::{AppError, Result};
 use chrono::NaiveDate;
-use std::time::Duration;
 
 /// Shoonya-style NSE index overrides (after strip of spaces/hyphens).
 pub const NSE_INDEX_OVERRIDES: &[(&str, &str)] = &[
@@ -493,56 +492,38 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
     out
 }
 
-/// What a file is fetched for: the name its log lines give it and how long
-/// it may take.
-#[derive(Clone, Copy)]
-struct Fetch {
-    label: &'static str,
-    timeout: Duration,
-}
-
-/// The member's own master files.
-const MASTER: Fetch = Fetch {
-    label: "Master file",
-    timeout: DOWNLOAD_TIMEOUT,
-};
-
 /// One file's text, or `None` when it could not be fetched (the reason is
-/// logged).
-async fn fetch_file(b: &NorenBroker, file: &MasterFile, url: &str, how: Fetch) -> Option<String> {
-    let resp = match b.http.get(url).timeout(how.timeout).send().await {
+/// logged under `label`, "Master file" or "Tick file"). Every file has
+/// `DOWNLOAD_TIMEOUT` in all; the shared client drops one that sends
+/// nothing for `common::http::READ_TIMEOUT`.
+async fn fetch_file(
+    http: &reqwest::Client,
+    broker: &str,
+    file: &MasterFile,
+    url: &str,
+    label: &str,
+) -> Option<String> {
+    let resp = match http.get(url).timeout(DOWNLOAD_TIMEOUT).send().await {
         Ok(r) if r.status().is_success() => r,
         Ok(r) => {
             tracing::warn!(
-                broker = b.cfg.id,
+                broker,
                 "{} {} answered {}",
-                how.label,
+                label,
                 file.exchange,
                 r.status()
             );
             return None;
         }
         Err(e) => {
-            tracing::warn!(
-                broker = b.cfg.id,
-                "{} {} failed: {}",
-                how.label,
-                file.exchange,
-                e
-            );
+            tracing::warn!(broker, "{} {} failed: {}", label, file.exchange, e);
             return None;
         }
     };
     let bytes = match resp.bytes().await {
         Ok(b) => b,
         Err(e) => {
-            tracing::warn!(
-                broker = b.cfg.id,
-                "{} {} failed: {}",
-                how.label,
-                file.exchange,
-                e
-            );
+            tracing::warn!(broker, "{} {} failed: {}", label, file.exchange, e);
             return None;
         }
     };
@@ -550,12 +531,7 @@ async fn fetch_file(b: &NorenBroker, file: &MasterFile, url: &str, how: Fetch) -
         match super::zip::first_entry(&bytes) {
             Ok(v) => v,
             Err(_) => {
-                tracing::warn!(
-                    broker = b.cfg.id,
-                    "{} {} is not a readable zip",
-                    how.label,
-                    file.exchange
-                );
+                tracing::warn!(broker, "{} {} is not a readable zip", label, file.exchange);
                 return None;
             }
         }
@@ -583,10 +559,10 @@ fn unique<'a>(names: &[&'a str]) -> Vec<&'a str> {
 
 /// Download and parse the member's master, each row's tick corrected from
 /// its tick source where it has one (web #2508): the source's files are
-/// fetched beside the member's own, and a refused download drops them.
+/// read beside the member's own and waited for once those are in, and a
+/// refused download drops them.
 pub async fn download(b: &NorenBroker) -> Result<Vec<SymToken>> {
-    let ticks = async { Ok::<_, AppError>(tick_source::read(b).await) };
-    let (mut rows, ticks) = tokio::try_join!(own_files(b), ticks)?;
+    let (mut rows, ticks) = tick_source::beside(b, own_files(b)).await?;
     tick_source::apply(b.cfg, &mut rows, &ticks);
     Ok(rows)
 }
@@ -604,7 +580,7 @@ async fn own_files(b: &NorenBroker) -> Result<Vec<SymToken>> {
     let mut segments: Vec<(&str, usize)> = Vec::new();
     let mut bse_seen = false;
     for (file, url) in b.endpoints.master.iter().zip(&b.endpoints.master_urls) {
-        let Some(text) = fetch_file(b, file, url, MASTER).await else {
+        let Some(text) = fetch_file(&b.http, b.cfg.id, file, url, "Master file").await else {
             failed.push(file.exchange);
             continue;
         };

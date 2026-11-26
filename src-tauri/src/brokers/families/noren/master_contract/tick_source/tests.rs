@@ -6,9 +6,15 @@
 //! rules: matched on exchange and token, an index by its exchange less
 //! `_INDEX`, a tick of zero or less left out, unlisted rows kept.
 
-use super::{apply, parse_into, Ticks};
+use super::{apply, parse_into, then_wait, Ticks, WAIT};
 use crate::brokers::families::noren::master_contract::parse_file;
 use crate::brokers::{flattrade, shoonya};
+use crate::error::{AppError, Result};
+use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::{sleep, Instant};
 
 const SHOONYA_MCX: &str = "Exchange,Token,LotSize,GNGD,Symbol,TradingSymbol,Expiry,Instrument,OptionType,StrikePrice,TickSize,\n\
 MCX,451669,250,1,NATGASMINI,NATGASMINI26DEC26,26-DEC-2026,FUTCOM,XX,0,0.10,\n\
@@ -151,4 +157,95 @@ fn only_flattrade_has_a_tick_source_and_no_other_member_is_touched() {
     apply(shoonya::config(), &mut rows, &ticks);
     let after: Vec<f64> = rows.iter().map(|r| r.tick_size).collect();
     assert_eq!(before, after);
+}
+
+/// `value` after `secs` on the test's paused clock.
+async fn after<V>(secs: u64, value: V) -> V {
+    sleep(Duration::from_secs(secs)).await;
+    value
+}
+
+/// The member's own files, in after `secs`.
+fn own_files_in(secs: u64) -> impl Future<Output = Result<()>> {
+    after(secs, Ok(()))
+}
+
+/// Review of web #2508: the web waits `_TICK_WAIT_SECONDS` on its tick
+/// worker only after Flattrade's own files are downloaded and processed.
+/// The desktop started its 120 s with the download, so on a slow line
+/// Shoonya's files, still coming at 120 s while Flattrade's own took
+/// longer, were dropped. Files read before the member's own are in, or
+/// within 120 s after, are kept.
+#[tokio::test(start_paused = true)]
+async fn the_wait_for_the_tick_files_starts_once_the_members_own_files_are_in() {
+    let start = Instant::now();
+    let (_, read) = then_wait(own_files_in(200), after(150, "ticks"))
+        .await
+        .expect("own files");
+    assert_eq!(read, Some("ticks"), "read at 150 s, own files in at 200 s");
+    assert_eq!(start.elapsed(), Duration::from_secs(200));
+
+    let start = Instant::now();
+    let (_, read) = then_wait(own_files_in(10), after(125, "ticks"))
+        .await
+        .expect("own files");
+    assert_eq!(read, Some("ticks"), "read 115 s after the own files");
+    assert_eq!(start.elapsed(), Duration::from_secs(125));
+}
+
+/// The wait is bounded: tick files not read within `WAIT` of the member's
+/// own files are left out, and the download goes on without them.
+#[tokio::test(start_paused = true)]
+async fn tick_files_not_read_within_the_wait_after_the_own_files_are_left_out() {
+    assert_eq!(
+        WAIT,
+        Duration::from_secs(120),
+        "the web's _TICK_WAIT_SECONDS"
+    );
+    let start = Instant::now();
+    let (_, read) = then_wait(own_files_in(10), after(131, "ticks"))
+        .await
+        .expect("own files");
+    assert_eq!(read, None);
+    assert_eq!(start.elapsed(), Duration::from_secs(10) + WAIT);
+}
+
+/// Set when the future holding it is dropped.
+struct DropFlag(Arc<AtomicBool>);
+
+impl Drop for DropFlag {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+/// A refused download waits for no tick file: its error comes as soon as
+/// the member's own files fail, and the task reading the source's files
+/// ends with it (fd-audit: nothing is left running).
+#[tokio::test(start_paused = true)]
+async fn a_refused_download_ends_the_tick_read_at_once() {
+    let dropped = Arc::new(AtomicBool::new(false));
+    let flag = DropFlag(dropped.clone());
+    let read = async move {
+        let _flag = flag;
+        after(1_000, "ticks").await
+    };
+    let start = Instant::now();
+    let refused = then_wait(
+        after(5, Err::<(), _>(AppError::Broker("down".into()))),
+        read,
+    )
+    .await;
+    assert!(refused.is_err());
+    assert_eq!(start.elapsed(), Duration::from_secs(5));
+    for _ in 0..10 {
+        if dropped.load(Ordering::SeqCst) {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert!(
+        dropped.load(Ordering::SeqCst),
+        "the tick read was left running"
+    );
 }
