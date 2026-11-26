@@ -10,6 +10,7 @@ use axum::Router;
 use chrono::NaiveDate;
 use futures_util::{SinkExt, StreamExt};
 use openalgo_desktop_lib::brokers::common::mapping::{Action, Exchange, PriceType, Product};
+use openalgo_desktop_lib::brokers::common::streaming::OrderUpdate;
 use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::tradejini::streaming::build::{self, V};
 use openalgo_desktop_lib::brokers::tradejini::{TradejiniBroker, WsTimings};
@@ -18,7 +19,7 @@ use openalgo_desktop_lib::brokers::{Broker, BrokerCredentials};
 use openalgo_desktop_lib::websocket::handshake;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_tungstenite::tungstenite::Message;
@@ -53,6 +54,10 @@ struct Fake {
     positions: Mutex<Option<&'static str>>,
     /// The symbol store's group list instead of the fixture.
     symbol_store: Mutex<Option<Value>>,
+    /// The order book answers 500 while set.
+    orders_down: AtomicBool,
+    /// An order book read is answered only once this is notified.
+    orders_gate: Mutex<Option<Arc<tokio::sync::Notify>>>,
 }
 
 impl Fake {
@@ -156,6 +161,9 @@ fn route(fake: &Fake, s: &Seen) -> Response {
                 ok(json!({"s":"ok","d":{"orderId": s.query.trim_start_matches("orderId=")}}))
             }
         }
+        ("GET", "/api/oms/orders") if fake.orders_down.load(Ordering::SeqCst) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, "down").into_response()
+        }
         ("GET", "/api/oms/orders") => ok(fixture!("orders.json")),
         ("GET", "/api/oms/trades") => ok(fixture!("trades.json")),
         ("GET", "/api/oms/positions") => match *fake.positions.lock() {
@@ -186,6 +194,10 @@ async fn serve_rest(fake: Arc<Fake>) -> String {
                     form: form(&body),
                 };
                 fake.seen.lock().push(s.clone());
+                let gate = fake.orders_gate.lock().clone();
+                if let Some(gate) = gate.filter(|_| s.path.ends_with("/api/oms/orders")) {
+                    gate.notified().await;
+                }
                 route(&fake, &s)
             }
         },
@@ -568,6 +580,120 @@ async fn books_are_openalgo_symbols() {
         .await
         .unwrap();
     assert_eq!(flat, 0);
+}
+
+/// An order update as Tradejini's documented `orders` event makes it
+/// (`order_feed`): `symbol` is what the stream could name.
+fn order_update(orderid: &str, symbol: &str) -> OrderUpdate {
+    OrderUpdate {
+        orderid: orderid.into(),
+        symbol: symbol.into(),
+        exchange: "NSE".into(),
+        order_status: "open".into(),
+        ..OrderUpdate::default()
+    }
+}
+
+/// `order_update(orderid, symbol)` as the session's broker completes it.
+async fn completed(e: &Env, orderid: &str, symbol: &str) -> OrderUpdate {
+    e.broker
+        .complete_order_update(&e.auth, order_update(orderid, symbol))
+        .await
+}
+
+fn book_reads(fake: &Fake) -> usize {
+    fake.calls("/api/oms/orders").len()
+}
+
+/// Review of the port of marketcalls/openalgo#2477 (33158269c): Tradejini's
+/// documented order event names the trading symbol (`SBIN-EQ`) and no
+/// scrip id, the master keys the scrip id, so the stream cannot name the
+/// order and the web sends `SBIN-EQ`, not the OpenAlgo symbol the order
+/// stream carries. The update takes the symbol of the order's order book
+/// row, and one read names every order the book lists.
+#[tokio::test]
+async fn an_order_update_named_by_trading_symbol_takes_the_order_books_symbol() {
+    let e = env().await;
+    let sbin = completed(&e, "26100300001", "SBIN-EQ").await;
+    assert_eq!(sbin.symbol, "SBIN");
+    assert_eq!(
+        (sbin.orderid.as_str(), sbin.exchange.as_str()),
+        ("26100300001", "NSE")
+    );
+    assert_eq!(book_reads(&e.fake), 1);
+    // The same read named the book's other orders and the order's later
+    // updates.
+    let reliance = completed(&e, "26100300003", "RELIANCE-EQ").await;
+    assert_eq!(reliance.symbol, "RELIANCE");
+    assert_eq!(completed(&e, "26100300001", "SBIN-EQ").await.symbol, "SBIN");
+    assert_eq!(book_reads(&e.fake), 1);
+    // An update the stream could name reads nothing.
+    assert_eq!(completed(&e, "26100300009", "SBIN").await.symbol, "SBIN");
+    assert_eq!(book_reads(&e.fake), 1);
+}
+
+/// An order the book does not list, one the master does not hold, and a
+/// book that cannot be read keep the broker's symbol, as the web sends it;
+/// such an order is not read again at once.
+#[tokio::test]
+async fn an_order_the_book_cannot_name_keeps_the_brokers_symbol() {
+    let e = env().await;
+    let unlisted = ("26100399999", "TCS-EQ");
+    let unheld = ("26100300005", "UNKNOWN-EQ");
+    for (orderid, symbol) in [unlisted, unheld] {
+        assert_eq!(completed(&e, orderid, symbol).await.symbol, symbol);
+    }
+    assert_eq!(book_reads(&e.fake), 2);
+    for (orderid, symbol) in [unlisted, unheld] {
+        assert_eq!(completed(&e, orderid, symbol).await.symbol, symbol);
+    }
+    assert_eq!(book_reads(&e.fake), 2, "read again at once");
+
+    e.fake.orders_down.store(true, Ordering::SeqCst);
+    for _ in 0..2 {
+        assert_eq!(
+            completed(&e, "26100388888", "INFY-EQ").await.symbol,
+            "INFY-EQ"
+        );
+    }
+    assert_eq!(book_reads(&e.fake), 3);
+}
+
+/// A logout while the order book is read keeps nothing of that read
+/// (`TtlCache` generation): the update that asked still gets its symbol,
+/// and the next one reads the book again.
+#[tokio::test]
+async fn a_logout_during_the_book_read_keeps_nothing_of_it() {
+    let e = env().await;
+    let gate = Arc::new(tokio::sync::Notify::new());
+    *e.fake.orders_gate.lock() = Some(gate.clone());
+    let broker = Arc::new(e.broker);
+    let asked = tokio::spawn({
+        let (broker, auth) = (broker.clone(), e.auth.clone());
+        async move {
+            broker
+                .complete_order_update(&auth, order_update("26100300001", "SBIN-EQ"))
+                .await
+        }
+    });
+    for _ in 0..500 {
+        if book_reads(&e.fake) > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(book_reads(&e.fake), 1, "no book read");
+
+    broker.on_logout().await;
+    *e.fake.orders_gate.lock() = None;
+    gate.notify_one();
+    assert_eq!(asked.await.unwrap().symbol, "SBIN");
+
+    let next = broker
+        .complete_order_update(&e.auth, order_update("26100300001", "SBIN-EQ"))
+        .await;
+    assert_eq!(next.symbol, "SBIN");
+    assert_eq!(book_reads(&e.fake), 2);
 }
 
 /// Web #2116: a position book the smart order cannot read refuses the

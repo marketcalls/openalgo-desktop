@@ -76,9 +76,10 @@ broker, symbol, time and the frame text.
   order symbols (needs an order).
 - **Tradejini:** a live compressed frame; the CDS divisor; the order
   socket's events (needs an order): whether they carry `symId` (without it
-  the update names Tradejini's trading symbol, as on the web), fill fields
-  (`fillQty`, `avgPrice`) and which status words, and that the market feed
-  keeps streaming beside it.
+  the update takes the symbol of the order's order book row, one book read
+  for a new order, where the web sends Tradejini's trading symbol), fill
+  fields (`fillQty`, `avgPrice`) and which status words, and that the
+  market feed keeps streaming beside it.
 - **mStock:** whether full packets carry the trade time in seconds; CDS
   prices; MCX exchange type 5.
 - **Motilal:** what the broadcast server does with the logout text frame at

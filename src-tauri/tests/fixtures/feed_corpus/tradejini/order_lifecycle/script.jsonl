@@ -8,7 +8,7 @@
 {"step": "receive", "client": "a", "frame": "expected/order_partial.json", "note": "fillQty, pendingQty and avgPrice are read under the order book's names when the event carries them."}
 {"step": "receive", "client": "a", "frame": "expected/order_complete.json"}
 {"step": "push", "socket": "orders", "frame": "frames/order_trigger_pending.hex"}
-{"step": "receive", "client": "a", "frame": "expected/order_trigger_pending.json", "note": "No scrip id and a trading symbol the master does not hold (its brsymbol is the scrip id): the broker's own symbol, as the web reports it."}
+{"step": "receive", "client": "a", "frame": "expected/order_trigger_pending.json", "note": "No scrip id and a trading symbol the master does not hold (its brsymbol is the scrip id): the update takes the symbol of the order's order book row, read once from the broker API; the web sends the broker's own symbol (a declared web defect)."}
 {"step": "push", "socket": "orders", "frame": "frames/order_rejected.hex"}
 {"step": "receive", "client": "a", "frame": "expected/order_rejected.json"}
 {"step": "push", "socket": "orders", "frame": "frames/order_cancelled.hex"}

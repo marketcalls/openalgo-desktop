@@ -7,7 +7,8 @@
 //! OMS bodies are form-encoded. Quotes, multiquotes and depth have no REST
 //! endpoint: they open a short-lived NxtradStream socket, read what they
 //! need, and close it on every path. Order updates come on a stream socket
-//! of their own (`order_feed`).
+//! of their own (`order_feed`); one that names only Tradejini's trading
+//! symbol takes its OpenAlgo symbol from the order book (`order_symbols`).
 
 mod auth;
 pub mod data;
@@ -15,6 +16,7 @@ mod funds;
 pub mod mapping;
 pub mod master_contract;
 pub mod order_feed;
+mod order_symbols;
 mod orders;
 pub mod streaming;
 #[cfg(test)]
@@ -23,7 +25,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
-use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -100,6 +102,8 @@ pub struct TradejiniBroker {
     timings: WsTimings,
     /// Places, modifies and cancels (RATE-03: Tradejini publishes no rate).
     pub(crate) order_pacer: Pacer,
+    /// The OpenAlgo symbol of each order the order book was read for.
+    order_symbols: order_symbols::OrderSymbols,
 }
 
 /// Request body of an OMS call.
@@ -128,6 +132,7 @@ impl TradejiniBroker {
             symbols,
             timings: WsTimings::default(),
             order_pacer: Pacer::per_second(ORDERS_PER_SECOND),
+            order_symbols: order_symbols::OrderSymbols::default(),
         }
     }
 
@@ -264,6 +269,10 @@ impl Broker for TradejiniBroker {
         auth::authenticate(self, credentials).await.map_err(redact)
     }
 
+    async fn on_logout(&self) {
+        self.order_symbols.clear();
+    }
+
     async fn place_order(&self, auth: &AuthToken, order: &ResolvedOrder) -> Result<OrderResponse> {
         orders::place_order(self, auth, order).await.map_err(redact)
     }
@@ -369,6 +378,12 @@ impl Broker for TradejiniBroker {
                 self.symbols.clone(),
             ),
         )))
+    }
+
+    /// An update that names only Tradejini's trading symbol, which the
+    /// master does not key, takes the symbol its order book row gives.
+    async fn complete_order_update(&self, auth: &AuthToken, u: OrderUpdate) -> OrderUpdate {
+        order_symbols::complete(self, auth, u).await
     }
 }
 

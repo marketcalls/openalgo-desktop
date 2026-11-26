@@ -21,7 +21,10 @@
 //! again before each reconnect; the desktop's changes only with a login,
 //! which starts a new feed. A number in an event that is not finite skips
 //! that event, where the web publishes it or drops the frame. A packet cut
-//! short costs only itself (`streaming::event_messages`).
+//! short costs only itself (`streaming::event_messages`). An event that
+//! names only Tradejini's trading symbol is published with the OpenAlgo
+//! symbol of its order book row (`order_symbols`), where the web sends the
+//! trading symbol.
 
 use super::mapping;
 use super::streaming::{decode_message, stream_url, Packet};
@@ -175,7 +178,9 @@ fn number(e: &Value, key: &str) -> std::result::Result<Option<f64>, Unreadable> 
 
 /// The order book's lookup (`symId` first, then `trdSym`, on the event's
 /// exchange), else the broker's own symbol, as the web reports it when the
-/// master has no match.
+/// master has no match. The master keys Tradejini's instruments by the
+/// scrip id, so an event without `symId` is rarely named here; the relay
+/// then takes the symbol from the order book (`order_symbols`).
 fn openalgo_symbol(e: &Value, exchange: &str, symbols: &SymbolResolver) -> String {
     let sym_id = text(e, "symId");
     let trd_sym = text(e, "trdSym");

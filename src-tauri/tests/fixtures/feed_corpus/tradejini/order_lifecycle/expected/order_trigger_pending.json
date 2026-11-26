@@ -4,7 +4,7 @@
   "mode": "live",
   "broker": "tradejini",
   "orderid": "25112500000104",
-  "symbol": "SBIN-EQ",
+  "symbol": "SBIN",
   "exchange": "NSE",
   "action": "SELL",
   "quantity": 5,

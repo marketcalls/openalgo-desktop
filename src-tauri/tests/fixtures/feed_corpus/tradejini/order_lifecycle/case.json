@@ -1,6 +1,6 @@
 {
   "broker": "tradejini",
-  "summary": "The order-update socket asks for Tradejini's order events as soon as it opens; an order open, partly filled and complete (two events in one compressed frame), a stop-loss order trigger pending, one rejected with its reason and a future cancelled each reach the client as an order_update in OpenAlgo's constants; positions and trades events, text that is not JSON and an order event with an unreadable quantity in one frame send nothing, and the frame's good order event still goes out.",
+  "summary": "The order-update socket asks for Tradejini's order events as soon as it opens; an order open, partly filled and complete (two events in one compressed frame), a stop-loss order trigger pending (its event names only the trading symbol, so the update takes the symbol of its order book row), one rejected with its reason and a future cancelled each reach the client as an order_update in OpenAlgo's constants; positions and trades events, text that is not JSON and an order event with an unreadable quantity in one frame send nothing, and the frame's good order event still goes out.",
   "scenarios": [
     "order-open",
     "order-partial-fill",
@@ -47,8 +47,23 @@
     ],
     "notes": [
       "Tradejini's documented order event (12-websocket-sdks.md, as the web adapter's docstring lists it) carries no fill quantity, average price or trigger price; the partial and complete events here add fillQty, pendingQty and avgPrice under the order book's names, which the web adapter reads when present.",
-      "The frames are built with the SDK's layout as the web's test_tradejini_order_adapter.py builds them: a 6-byte header, then packets of length, type and key/value fields."
+      "The frames are built with the SDK's layout as the web's test_tradejini_order_adapter.py builds them: a 6-byte header, then packets of length, type and key/value fields.",
+      "The trigger-pending event carries trdSym and no symId, as Tradejini documents the event; the master keys the scrip id, so the desktop reads the order book (served by the case's glue, tests/it/feed_corpus/tradejini.rs) for that order's symbol, where the web sends the trading symbol."
     ]
   },
-  "deviations": []
+  "deviations": [
+    {
+      "key": "symbol",
+      "kind": "web-defect",
+      "reason": "Tradejini's documented order event names the trading symbol (trdSym, SBIN-EQ) and no scrip id, and the master keys Tradejini's instruments by the scrip id (EQT_SBIN_EQ_NSE), so the event's own lookup finds nothing and the web sends the broker's symbol, where the order stream's symbol is the OpenAlgo one (docs/api/websocket-streaming/order-updates.md): a client matching updates by symbol (a Flow order watch, an SDK callback) misses them. The desktop takes the symbol of the order's order book row, which carries the scrip id (brokers/tradejini/order_symbols.rs).",
+      "ref": "tradejini_order_adapter.py:299 (symbol = trd_sym or sym_id); master_contract_db.py:306 (brsymbol is the scrip id)",
+      "approval": "never-copy-web-defect",
+      "allows": [
+        [
+          "SBIN-EQ",
+          "SBIN"
+        ]
+      ]
+    }
+  ]
 }

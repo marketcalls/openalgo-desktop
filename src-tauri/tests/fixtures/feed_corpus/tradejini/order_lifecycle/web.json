@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "3f4c71e0f6df0a6b1d61b3638c5b5384ceee146a",
   "adapter": "tradejini",
-  "inputs_sha256": "4773015532b3851f027ec75578a58d05d63c9a62b6e4b83fde5f16126c05113b",
+  "inputs_sha256": "6fb2cd09a45f44b4f57fd2a41fddd4cc3ab9b390a2f2931eea5269cb5c64ecf0",
   "instruments": [
     {
       "symbol": "RELIANCE",
