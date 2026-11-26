@@ -105,16 +105,19 @@ fn trigger_pending_and_open_are_the_same_state_to_the_catch_up() {
     assert!(c.changed(&[order("26111700000001", "open", 0)]).is_empty());
 }
 
-/// Web `_remember`: before the first read there is nothing to compare
-/// with, and that read records the book as it is.
+/// A push that comes before the first read has finished is kept over
+/// that read's row: the read was on its way when the order filled, and the
+/// fill went out with the push, so the next read sends nothing more (the
+/// web drops such a push, `_remember`, and sends the fill again).
 #[test]
-fn a_push_before_the_first_read_is_left_to_that_read() {
+fn a_push_before_the_first_read_is_kept_over_it() {
     let c = OrderCatchUp::default();
     c.remember(&pushed("1", "complete", 10));
     assert!(c.changed(&[order("1", "open", 0)]).is_empty());
+    assert!(c.changed(&[order("1", "complete", 10)]).is_empty());
     assert_eq!(
-        ids(&c.changed(&[order("1", "complete", 10)])),
-        vec![("1", "complete")]
+        ids(&c.changed(&[order("1", "cancelled", 10)])),
+        vec![("1", "cancelled")]
     );
 }
 

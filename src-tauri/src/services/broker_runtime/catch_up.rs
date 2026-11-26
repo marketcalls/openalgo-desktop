@@ -15,7 +15,9 @@
 //!   book folds `trigger pending` into `open`, the push keeps it apart) and
 //!   its filled quantity, kept from the reads and from every update the
 //!   socket pushed, so an update already pushed is not published again
-//!   (web `_remember`).
+//!   (web `_remember`). A push that comes before the first read has
+//!   finished is kept over that read's row: the web drops it, so an update
+//!   pushed while that read was on its way could go out a second time.
 //! * **rollover** (`SessionDay`): once the session's daily boundary has
 //!   passed nothing is read, and the feed connects no more until the next
 //!   sign-in (web `_login_this_trading_session`), the same rule
@@ -55,8 +57,15 @@ type State = (String, i64);
 /// The order states a catch-up compares the book with.
 #[derive(Debug, Default)]
 pub struct OrderCatchUp {
-    /// Order id to its last known state; `None` until the first read.
-    known: Mutex<Option<HashMap<String, State>>>,
+    known: Mutex<Known>,
+}
+
+#[derive(Debug, Default)]
+struct Known {
+    /// Whether a read has recorded the book yet.
+    read: bool,
+    /// Order id to its last known state.
+    states: HashMap<String, State>,
 }
 
 /// `status` as the order book and the push feed agree on it: the book
@@ -77,24 +86,22 @@ fn state(o: &Order) -> State {
 
 impl OrderCatchUp {
     /// An update the socket pushed: a later read showing the same state
-    /// publishes nothing. Before the first read nothing is kept; that read
-    /// records the book.
+    /// publishes nothing.
     pub fn remember(&self, u: &OrderUpdate) {
         if u.orderid.is_empty() {
             return;
         }
-        if let Some(known) = self.known.lock().as_mut() {
-            known.insert(
-                u.orderid.clone(),
-                (comparable(&u.order_status), u.filled_quantity),
-            );
-        }
+        self.known.lock().states.insert(
+            u.orderid.clone(),
+            (comparable(&u.order_status), u.filled_quantity),
+        );
     }
 
-    /// One read of the order book: the first only records it; a later one
-    /// returns an update, with the prices the order book shows, for each
-    /// order whose state differs from the last known one, in the book's
-    /// order. An order listed twice counts once, as its last row.
+    /// One read of the order book: the first only records it, under what
+    /// the socket has pushed meanwhile; a later one returns an update, with
+    /// the prices the order book shows, for each order whose state differs
+    /// from the last known one, in the book's order. An order listed twice
+    /// counts once, as its last row.
     pub fn changed(&self, book: &[Order]) -> Vec<OrderUpdate> {
         let mut rows: Vec<&Order> = Vec::new();
         let mut at: HashMap<&str, usize> = HashMap::new();
@@ -107,25 +114,24 @@ impl OrderCatchUp {
                 }
             }
         }
-        let mut guard = self.known.lock();
-        if guard.is_none() {
-            *guard = Some(
-                rows.iter()
-                    .map(|o| (o.order_id.clone(), state(o)))
-                    .collect(),
-            );
+        let mut known = self.known.lock();
+        if !known.read {
+            known.read = true;
+            for o in rows {
+                known
+                    .states
+                    .entry(o.order_id.clone())
+                    .or_insert_with(|| state(o));
+            }
             return Vec::new();
         }
-        let Some(known) = guard.as_mut() else {
-            return Vec::new();
-        };
         let mut out = Vec::new();
         for o in rows {
             let now = state(o);
-            if known.get(&o.order_id) != Some(&now) {
+            if known.states.get(&o.order_id) != Some(&now) {
                 out.push(to_update(o));
             }
-            known.insert(o.order_id.clone(), now);
+            known.states.insert(o.order_id.clone(), now);
         }
         out
     }
