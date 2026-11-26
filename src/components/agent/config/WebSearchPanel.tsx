@@ -33,8 +33,8 @@
  * Desktop (D-032): the web said choosing Perplexity leaves link searches on
  * DuckDuckGo, while its tool sends them to the first of Tavily, Firecrawl and
  * TinyFish that has a key, and a provider without its key hands over to the
- * same chain. The description and the routing sentences say what the tool
- * does.
+ * same chain. The sentences that name who answers come from
+ * `@/lib/agent/webSearchRouting`.
  * DuckDuckGo is read from its own html and lite pages (decision 12), not
  * several engines, so a slow keyless pass is explained in those terms.
  */
@@ -84,6 +84,11 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  LINK_FALLBACK_AFTER_REMOVAL,
+  linkFallback,
+  PERPLEXITY_LEAVES_LINK_SEARCHES,
+} from '@/lib/agent/webSearchRouting'
 import { cn } from '@/lib/utils'
 import { showToast } from '@/utils/toast'
 
@@ -177,7 +182,7 @@ function routingState(config: WebSearchConfig): { text: string; warn: boolean } 
       : {
           text:
             `${selected?.label} is selected but no ${selected?.label} key is stored, so link ` +
-            `searches fall back to ${keyedLinkProvider(config)}.`,
+            `searches fall back to ${linkFallback(config)}.`,
           warn: true,
         }
   }
@@ -195,39 +200,24 @@ function routingState(config: WebSearchConfig): { text: string; warn: boolean } 
       : {
           text:
             'Tavily is selected but no Tavily key is stored, so link searches fall back to ' +
-            `${keyedLinkProvider(config)}.`,
+            `${linkFallback(config)}.`,
           warn: true,
         }
   }
 
-  // Link searches go to the first keyed link provider with a key (D-032).
-  const links = keyedLinkProvider(config)
   return ready
     ? {
         text:
           'Perplexity answers questions with citations through the web_research tool. Link ' +
-          `searches run on ${links}.`,
+          `searches run on ${linkFallback(config)}.`,
         warn: false,
       }
     : {
         text:
           'Perplexity is selected but no Perplexity key is stored, so web_research cannot run. ' +
-          `Link searches run on ${links} either way.`,
+          `Link searches run on ${linkFallback(config)} either way.`,
         warn: true,
       }
-}
-
-/**
- * Desktop (D-032): who answers a link search the selected provider cannot
- * take, as the tool decides it. The first of Tavily, Firecrawl and TinyFish
- * with a stored key, other than the selected one, and DuckDuckGo after them.
- */
-function keyedLinkProvider(config: WebSearchConfig): string {
-  for (const id of ['tavily', 'firecrawl', 'tinyfish']) {
-    const entry = config.providers.find((provider) => provider.id === id)
-    if (entry && id !== config.provider && entry.has_api_key) return entry.label
-  }
-  return 'DuckDuckGo'
 }
 
 /**
@@ -426,11 +416,9 @@ export function WebSearchPanel() {
         <CardDescription>
           DuckDuckGo needs no key and answers link searches out of the box. Tavily, Firecrawl and
           TinyFish replace it for link searches once a key is stored. Firecrawl and TinyFish also
-          open a whole page, so the agent can search, read the page it found and answer from it.
-          Perplexity answers questions with citations through a separate tool, so choosing it leaves
-          link searches on the first of Tavily, Firecrawl and TinyFish that has a key, and on
-          DuckDuckGo otherwise. Keys are stored encrypted in OpenAlgo's data on this computer and
-          never in a configuration file.
+          open a whole page, so the agent can search, read the page it found and answer from it.{' '}
+          {PERPLEXITY_LEAVES_LINK_SEARCHES} Keys are stored encrypted in OpenAlgo's data on this
+          computer and never in a configuration file.
         </CardDescription>
       </CardHeader>
 
@@ -697,19 +685,13 @@ function removalConsequence(provider: WebSearchProvider | null): string {
   if (provider.id === 'perplexity') {
     return 'The web_research tool cannot run until a key is stored again.'
   }
-  // Desktop (D-032): a link search hands over to another provider with a key
-  // before DuckDuckGo, as the tool does.
   if (provider.fetch) {
     return (
-      'Link searches fall back to another provider with a key, or to DuckDuckGo, if this ' +
-      'provider was selected, and web_fetch uses the other provider, or stops working if it has ' +
-      'no key either.'
+      `Link searches fall back to ${LINK_FALLBACK_AFTER_REMOVAL} if this provider was ` +
+      'selected, and web_fetch uses the other provider, or stops working if it has no key either.'
     )
   }
-  return (
-    'Link searches fall back to another provider with a key, or to DuckDuckGo, until a key is ' +
-    'stored again.'
-  )
+  return `Link searches fall back to ${LINK_FALLBACK_AFTER_REMOVAL} until a key is stored again.`
 }
 
 /** The display name of a provider id, falling back to the id itself. */
