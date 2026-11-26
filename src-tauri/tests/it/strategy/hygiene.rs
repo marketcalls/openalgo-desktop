@@ -278,6 +278,49 @@ async fn a_run_ending_after_a_new_broker_session_leaves_another_holders_price() 
     a.ctx.shutdown().await;
 }
 
+/// The sandbox's form of the test above (integration review of 1.0.10):
+/// the sandbox's feed worker follows analyzer mode, not the sign-in, so a
+/// new broker session does not restart it. The symbol it took for an order
+/// before the session changed, released once the order ends, leaves the
+/// price another holder took in the new session streaming. It gave that
+/// holder's reference back before.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_sandbox_releasing_after_a_new_broker_session_leaves_another_holders_price() {
+    use openalgo_desktop_lib::sandbox::{SymbolKey, TickSource};
+    use openalgo_desktop_lib::services::sandbox_feed::FeedTicks;
+    use std::time::Duration;
+    let a = app();
+    let ticks = FeedTicks::start(&a.ctx);
+    let atm = SymbolKey::new(ATM_CE, "NFO");
+    ticks.watch(&atm);
+    assert!(
+        crate::feed_support::eventually(Duration::from_secs(10), || carried(&a) == [ATM_CE]).await
+    );
+
+    new_broker_session(&a).await;
+    a.ctx
+        .websocket
+        .subscribe(vec![client_reference(&a, ATM_CE)])
+        .await
+        .unwrap();
+    ticks.unwatch(&atm);
+    // The worker makes its calls in order: once this one is carried, the
+    // release before it has been made.
+    ticks.watch(&SymbolKey::new(OTHER_CE, "NFO"));
+    assert!(
+        crate::feed_support::eventually(Duration::from_secs(10), || carried(&a)
+            .contains(&OTHER_CE.to_string()))
+        .await
+    );
+    assert_eq!(
+        carried(&a),
+        [ATM_CE, OTHER_CE],
+        "the client's reference stays"
+    );
+    drop(ticks);
+    a.ctx.shutdown().await;
+}
+
 /// Web 9512aa5fe (marketcalls/openalgo#2277), for a scalping stop: the
 /// web's scalping monitor subscribes again once its client has
 /// authenticated again. A new session for the same broker does not

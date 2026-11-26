@@ -5,7 +5,9 @@
 //! were decided, a failed one does not stop the next, and while the broker
 //! does not answer, a call that has become unnecessary is cancelled before
 //! it starts, so the backlog stays bounded and a subscribe turned away is
-//! asked for again.
+//! asked for again. What it holds belongs to the broker session that took
+//! it: after a new sign-in it gives back nothing taken before, and takes
+//! it again.
 //!
 //! The broker side is the real `WebSocketManager` with no socket: its
 //! subscribe step records every subscribe and can hold it (a broker that
@@ -19,7 +21,9 @@
 
 use crate::sandbox_support::*;
 use futures_util::FutureExt;
-use openalgo_desktop_lib::brokers::common::streaming::{FeedLetGo, FeedSubscription, Presubscribe};
+use openalgo_desktop_lib::brokers::common::streaming::{
+    FeedLetGo, FeedMode, FeedSubscription, Presubscribe,
+};
 use openalgo_desktop_lib::brokers::common::symbols::SymToken;
 use openalgo_desktop_lib::brokers::BrokerRegistry;
 use openalgo_desktop_lib::clock::SystemClock;
@@ -78,8 +82,15 @@ impl Broker {
             asked: Notify::new(),
             answering,
         });
+        me.attach(feed);
+        me
+    }
+
+    /// Become `feed`'s broker side (again after a disconnect, which drops
+    /// the hooks).
+    fn attach(self: &Arc<Self>, feed: &WebSocketManager) {
         let step: Presubscribe = {
-            let me = me.clone();
+            let me = self.clone();
             Arc::new(move |subs: Vec<FeedSubscription>| {
                 let me = me.clone();
                 async move { me.subscribe(subs).await }.boxed()
@@ -87,7 +98,7 @@ impl Broker {
         };
         feed.set_presubscribe(Some(step));
         let let_go: FeedLetGo = {
-            let me = me.clone();
+            let me = self.clone();
             Arc::new(move |subs: &[FeedSubscription]| {
                 let mut calls = me.calls.lock();
                 for s in subs {
@@ -96,7 +107,6 @@ impl Broker {
             })
         };
         feed.set_let_go(Some(let_go));
-        me
     }
 
     async fn subscribe(
@@ -271,6 +281,34 @@ impl Rig {
     async fn settle(&self) {
         self.watch("SETTLED");
         self.until_subscribed("SETTLED").await;
+    }
+
+    /// A new broker session, in the order the runtime starts one
+    /// (`BrokerRuntime::activate`, its teardown first): the bus's session
+    /// generation moves on, the feed forgets every reference with the
+    /// session that ended, and the new session's generation starts.
+    async fn new_broker_session(&self) {
+        self.ctx.bus.begin_session();
+        self.feed.disconnect().await.unwrap();
+        self.broker.attach(&self.feed);
+        self.ctx.bus.begin_session();
+    }
+
+    /// Another holder (an 8765 client, a strategy, a scalping stop) takes
+    /// `symbol` in LTP mode, as the sandbox does; its reference.
+    async fn client_takes(&self, symbol: &str) -> FeedSubscription {
+        let row = self.ctx.symbols.by_symbol("NSE", symbol).expect("listed");
+        let reference = FeedSubscription {
+            symbol: symbol.into(),
+            exchange: "NSE".into(),
+            token: row.token.clone(),
+            brsymbol: row.br_symbol().to_string(),
+            brexchange: row.br_exchange().to_string(),
+            mode: FeedMode::Ltp,
+            depth: 5,
+        };
+        self.feed.subscribe(vec![reference.clone()]).await.unwrap();
+        reference
     }
 
     async fn close(self) {
@@ -493,5 +531,77 @@ async fn a_watch_a_full_queue_turned_away_is_asked_for_again() {
 
     rig.ticks.resubscribe(&nse("S1099"));
     rig.until_subscribed("S1099").await;
+    rig.close().await;
+}
+
+/// What the sandbox took before a new broker session is never given back
+/// (integration review of 1.0.10, CLAUDE.md "Feed parity with the web": a
+/// reference belongs to the broker session that took it). The feed forgot
+/// it with the ended session, and another holder (an 8765 client here; a
+/// strategy, a scalping stop or a Flow node alike) took the symbol in the
+/// new one. Releasing it once the sandbox's order ends leaves that holder
+/// streaming; the sandbox gave its reference back before, and the
+/// holder's prices stopped with no error. The strategies' form is
+/// `strategy::hygiene::a_run_ending_after_a_new_broker_session_leaves_another_holders_price`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_release_after_a_new_broker_session_leaves_another_holders_price() {
+    let rig = Rig::of(&["RELIANCE"]);
+    rig.watch("RELIANCE");
+    rig.until_subscribed("RELIANCE").await;
+
+    rig.new_broker_session().await;
+    rig.client_takes("RELIANCE").await;
+    rig.unwatch("RELIANCE");
+    rig.settle().await;
+
+    assert!(rig.subscribed("RELIANCE"), "the client's reference stays");
+    rig.close().await;
+}
+
+/// The same for the quiet-feed resubscribe (SB-01): it lets go only of a
+/// reference this session counts for the sandbox, so after it the sandbox
+/// holds one of its own beside the other holder's, and that holder going
+/// away leaves the sandbox streaming. It took the other holder's
+/// reference before, and then held one the feed counted for nobody else.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_resubscribe_after_a_new_broker_session_leaves_another_holders_price() {
+    let rig = Rig::of(&["RELIANCE"]);
+    rig.watch("RELIANCE");
+    rig.until_subscribed("RELIANCE").await;
+
+    rig.new_broker_session().await;
+    let client = rig.client_takes("RELIANCE").await;
+    rig.ticks.resubscribe(&nse("RELIANCE"));
+    rig.settle().await;
+    rig.feed.unsubscribe(vec![client]).await.unwrap();
+
+    assert!(
+        rig.subscribed("RELIANCE"),
+        "the sandbox's own reference stays"
+    );
+    rig.close().await;
+}
+
+/// Web test/test_websocket_cache_invalidation.py::test_internal_client_restores_subscriptions_after_reauthentication
+/// (marketcalls/openalgo#2277, 9512aa5fe), for the sandbox: what it
+/// streams for its orders is taken again in a new broker session without
+/// waiting for the symbol's prices to go quiet, and once released goes
+/// back, so the feed carries nothing.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_new_broker_session_takes_the_sandboxs_symbols_again() {
+    let rig = Rig::of(&["RELIANCE"]);
+    rig.watch("RELIANCE");
+    rig.until_subscribed("RELIANCE").await;
+
+    rig.new_broker_session().await;
+    rig.until_subscribed("RELIANCE").await;
+    rig.unwatch("RELIANCE");
+    rig.settle().await;
+
+    assert!(
+        !rig.subscribed("RELIANCE"),
+        "{:?}",
+        rig.feed.subscriptions()
+    );
     rig.close().await;
 }

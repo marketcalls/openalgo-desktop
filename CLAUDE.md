@@ -1329,12 +1329,14 @@ differences with their reasons):
   when a session ends, a new sign-in for the same broker included. A
   consumer that keeps its own record of what it holds ties each entry to
   the bus's session generation, never gives back one from an ended
-  session (it would take another holder's: the strategies' and scalping
-  stops' prices did), and takes it again in the new session, as the web's
-  internal client does once it has authenticated again (9512aa5fe): the
-  8765 clients through `bridge.resync`, Flow at its next read
+  session (it would take another holder's: the strategies', scalping
+  stops' and sandbox's did), and takes it again in the new session, as the
+  web's internal client does once it has authenticated again (9512aa5fe):
+  the 8765 clients through `bridge.resync`, Flow at its next read
   (`flow::triggers::feed`), strategies and scalping stops every 2 s
-  (`tick_feed::FeedPrices::renew`).
+  (`tick_feed::FeedPrices::renew`), and the sandbox's feed worker, which
+  follows analyzer mode and so outlives sign-ins, every 2 s too
+  (`services::sandbox_feed`, `held.rs`).
 - Adding or changing a broker's feed means corpus cases for every mode it
   offers, its order stream, a reconnect and a book clear, with `web.json`
   computed by its glue, before the change is done.
