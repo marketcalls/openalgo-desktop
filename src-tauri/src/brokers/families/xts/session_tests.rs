@@ -128,3 +128,17 @@ async fn fivepaisaxts_feed_prefers_the_renewed_session() {
     let url = address(&crate::brokers::iifl::CONFIG, source).await;
     assert!(url.contains("token=tok&userID=U1&"), "{url}");
 }
+
+/// The declared deviation of `Connector::known_session`: with the market
+/// data keys known, a stored token that names no user is connected with
+/// the user id XTS answered with it, where the web logs in again. A login
+/// here would go to an address that never resolves and fail `prepare`.
+#[tokio::test]
+async fn a_token_without_a_user_claim_keeps_the_user_given_with_it() {
+    let source = FeedSource {
+        keys: FeedSource::with_keys("mkey", "msecret").keys,
+        ..FeedSource::stored("tok", "U1")
+    };
+    let url = address(five(), source).await;
+    assert!(url.contains("token=tok&userID=U1&"), "{url}");
+}

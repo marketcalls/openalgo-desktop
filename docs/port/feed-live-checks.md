@@ -100,7 +100,12 @@ broker, symbol, time and the frame text.
   which shape a 1501 has; whether Depth 20 carries 20 levels; whether 1510
   and 1505 arrive unasked; whole prices as JSON integers; compressed binary
   packets on Jainam and RMoney; an unsubscribe the broker answers; a
-  reconnect after the server ends the Socket.IO namespace.
+  reconnect after the server ends the Socket.IO namespace. On 5paisa XTS,
+  that the market data token is a JWT whose `userID` claim reads
+  `<user id>_<app id>`, so the feed takes the web's path (the desktop's
+  fallback for a token without it is a declared deviation,
+  `Connector::known_session`), and that history keeps working while the
+  feed reconnects (web #2484).
 - **Firstock:** its zero and sentinel book slots.
 - **AliceBlue:** a df level sent as 0/0; whether dk/df carry the order
   counts.

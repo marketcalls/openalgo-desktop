@@ -166,6 +166,15 @@ impl Connector {
     /// the token as the web reads it, else the one XTS gave with it. `None`
     /// when neither is known: the feed then logs in itself, at the path
     /// where several sessions coexist.
+    ///
+    /// Deviation: a token that names no user (not a JWT, or no `userID`
+    /// claim) is connected with the user id XTS answered with it at its
+    /// login (the sign-in's or a renewal's), where the web logs in again
+    /// (`_use_stored_feed_token` declines it and `connect` calls
+    /// `marketdata_login`). XTS issues its market data tokens as JWTs with
+    /// that claim, so neither path is expected to run; this one keeps
+    /// #2484's rule of no login while a session is stored, with the pair
+    /// XTS itself issued.
     fn known_session(&self) -> Option<MarketSession> {
         let renewed = self.source.shared.as_ref().and_then(|s| s.current());
         let (token, given_user) = match renewed {
